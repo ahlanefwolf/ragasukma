@@ -9,7 +9,7 @@
   "llm_api_key": "sk-0d0ce467e1e2f269-51ns1j-3f0a5658",
   "voice_mode": "auto",
   "mic_sensitivity": "0",
-  "vad_silence_limit": "2",
+  "vad_silence_limit": "4",
   "noise_reduction_level": 0,
   "tts_engine": "google",
   "tts_speed": 1.15,
