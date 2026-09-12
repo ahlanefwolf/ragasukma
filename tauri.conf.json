@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ahlan-voice",
+  "version": "0.1.0",
+  "identifier": "com.aivoice.assistant.overlay",
+  "build": {
+    "frontendDist": "ui"
+  },
+  "bundle": {
+    "icon": [
+      "icons/icon.png"
+    ]
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "title": "ai-voice-overlay",
+        "label": "main",
+        "url": "index.html",
+        "width": 180,
+        "height": 320,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "shadow": false,
+        "resizable": true,
+        "skipTaskbar": true,
+        "visible": true
+      }
+    ]
+  }
+}

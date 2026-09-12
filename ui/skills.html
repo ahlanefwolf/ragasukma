@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Skill Commands Manager</title>
+  <link rel="stylesheet" href="theme.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body {
+      background: var(--bg-app);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: var(--bg-surface);
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    header h1 {
+      font-size: 13px;
+      color: var(--text-main);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    header .header-badge {
+      font-size: 10px;
+      background: var(--c-mint);
+      color: #174b48;
+      border: 1px solid #9ce8df;
+      padding: 2px 7px;
+      font-family: monospace;
+      font-weight: 700;
+      border-radius: var(--radius-sm);
+    }
+    #skills-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .skill-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+    .skill-card:hover {
+      border-color: var(--c-cyan);
+      box-shadow: 0 2px 6px rgba(123, 223, 242, 0.15);
+    }
+    .skill-info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .skill-title-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .skill-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .skill-cat {
+      font-size: 10px;
+      background: var(--c-blush);
+      color: #5c203b;
+      border: 1px solid #f2bfd1;
+      padding: 1px 6px;
+      font-weight: 700;
+      border-radius: var(--radius-sm);
+    }
+    .skill-id {
+      font-size: 10px;
+      font-family: monospace;
+      color: var(--text-muted);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      padding: 1px 5px;
+      border-radius: var(--radius-sm);
+    }
+    .skill-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .skill-cmd-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
+    .cmd-prompt {
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-faint);
+    }
+    .skill-cmd {
+      font-size: 11px;
+      font-family: monospace;
+      background: var(--bg-subtle);
+      padding: 3px 8px;
+      color: #1a6f66;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .skill-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .btn-action {
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      color: var(--text-main);
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      border-radius: var(--radius-sm);
+      transition: all 0.12s ease;
+    }
+    .btn-action:hover {
+      background: var(--c-blush);
+      border-color: #eec4d0;
+    }
+    .btn-action.run {
+      background: var(--c-mint);
+      border-color: #9ce8df;
+      color: #174b48;
+      font-weight: 700;
+    }
+    .btn-action.run:hover {
+      background: #a1f3e9;
+    }
+    .btn-action.del {
+      background: #fdf0f0;
+      border-color: #f8c9c9;
+      color: #a82020;
+      padding: 5px 8px;
+    }
+    .btn-action.del:hover {
+      background: #fbe0e0;
+      border-color: #e59a9a;
+    }
+    
+    /* Footer Form Panel */
+    footer {
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-subtle);
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .form-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .form-row {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+    }
+    .form-row input {
+      flex: 1;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 6px 9px;
+      font-size: 11px;
+      border-radius: var(--radius-md);
+      outline: none;
+      transition: border-color 0.12s ease;
+    }
+    .form-row input:focus {
+      border-color: var(--c-cyan);
+      box-shadow: 0 0 0 2px rgba(123, 223, 242, 0.35);
+    }
+    .btn-add-skill {
+      background: var(--c-rose);
+      border: 1px solid #e59ec1;
+      color: #3b172a;
+      padding: 6px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+      transition: background 0.12s ease;
+    }
+    .btn-add-skill:hover {
+      background: #f7c3dc;
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-surface);
+      color: var(--text-main);
+      border: 1px solid var(--c-cyan);
+      padding: 6px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: var(--radius-md);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      z-index: 9999;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-2px);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>
+      <svg class="icon" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
+      <span>Skill Command Registry</span>
+    </h1>
+    <span class="header-badge">skill-command.md</span>
+  </header>
+
+  <div id="skills-container"></div>
+
+  <footer>
+    <div class="form-title">
+      <svg class="icon-sm" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+      <span>Tambah Skill Baru</span>
+    </div>
+    <div class="form-row">
+      <input type="text" id="in-id" style="max-width: 140px;" placeholder="ID (cth: open_browser)" />
+      <input type="text" id="in-name" placeholder="Nama Skill (cth: Buka Web)" />
+      <input type="text" id="in-cat" style="max-width: 120px;" placeholder="Kategori" value="System" />
+    </div>
+    <div class="form-row">
+      <input type="text" id="in-desc" placeholder="Deskripsi Singkat Skill" />
+    </div>
+    <div class="form-row">
+      <input type="text" id="in-cmd" placeholder="Command / Script Shell (cth: xdg-open https://google.com)" />
+      <button id="btn-save" class="btn-add-skill">
+        <svg class="icon-sm" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+        <span>Simpan Skill</span>
+      </button>
+    </div>
+  </footer>
+
+  <div id="toast"></div>
+
+  <script type="module">
+    async function invoke(cmd, args) {
+      if (window.__TAURI__?.core?.invoke) {
+        return await window.__TAURI__.core.invoke(cmd, args);
+      }
+      for (let i = 0; i < 25; i++) {
+        await new Promise(r => setTimeout(r, 40));
+        if (window.__TAURI__?.core?.invoke) {
+          return await window.__TAURI__.core.invoke(cmd, args);
+        }
+      }
+      console.warn('⚠️ [Tauri Bridge Skills] invoke not ready for:', cmd);
+      return null;
+    }
+
+    const listEl = document.getElementById('skills-container');
+    const toastEl = document.getElementById('toast');
+
+    function showToast(msg) {
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      setTimeout(() => toastEl.classList.remove('show'), 1800);
+    }
+
+    async function loadSkills() {
+      try {
+        const skills = await invoke('get_skills');
+        listEl.innerHTML = '';
+        if (!skills || skills.length === 0) {
+          listEl.innerHTML = '<div style="color:var(--text-muted); font-size:11px; text-align:center; margin-top:40px;">Belum ada skill terdaftar.</div>';
+          return;
+        }
+
+        skills.forEach(s => {
+          const card = document.createElement('div');
+          card.className = 'skill-card';
+          card.innerHTML = `
+            <div class="skill-info">
+              <div class="skill-title-row">
+                <span class="skill-name">${escapeHtml(s.name)}</span>
+                <span class="skill-cat">${escapeHtml(s.category)}</span>
+                <span class="skill-id">[${escapeHtml(s.id)}]</span>
+              </div>
+              <div class="skill-desc">${escapeHtml(s.description)}</div>
+              <div class="skill-cmd-wrapper">
+                <span class="cmd-prompt">$</span>
+                <span class="skill-cmd">${escapeHtml(s.command)}</span>
+              </div>
+            </div>
+            <div class="skill-actions">
+              <button class="btn-action run" data-id="${escapeHtml(s.id)}" title="Jalankan Perintah">
+                <svg class="icon-sm" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                <span>Run</span>
+              </button>
+              <button class="btn-action del" data-id="${escapeHtml(s.id)}" title="Hapus Skill">
+                <svg class="icon-sm" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+              </button>
+            </div>
+          `;
+
+          card.querySelector('.btn-action.run').addEventListener('click', async () => {
+            try {
+              await invoke('execute_skill', { id: s.id });
+              showToast(`Perintah "${s.name}" dijalankan`);
+            } catch (err) {
+              alert(`Error: ${err}`);
+            }
+          });
+
+          card.querySelector('.btn-action.del').addEventListener('click', async () => {
+            if (confirm(`Hapus skill "${s.name}"?`)) {
+              await invoke('delete_skill', { id: s.id });
+              loadSkills();
+              showToast(`"${s.name}" berhasil dihapus`);
+            }
+          });
+
+          listEl.appendChild(card);
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str || '';
+      return d.innerHTML;
+    }
+
+    document.getElementById('btn-save').addEventListener('click', async () => {
+      const id = document.getElementById('in-id').value.trim();
+      const name = document.getElementById('in-name').value.trim();
+      const cat = document.getElementById('in-cat').value.trim() || 'System';
+      const desc = document.getElementById('in-desc').value.trim();
+      const cmd = document.getElementById('in-cmd').value.trim();
+
+      if (!id || !name || !cmd) {
+        alert('Mohon lengkapi ID, Nama, dan Command!');
+        return;
+      }
+
+      try {
+        await invoke('save_skill', {
+          skill: {
+            id,
+            name,
+            category: cat,
+            description: desc,
+            command: cmd
+          }
+        });
+
+        document.getElementById('in-id').value = '';
+        document.getElementById('in-name').value = '';
+        document.getElementById('in-desc').value = '';
+        document.getElementById('in-cmd').value = '';
+
+        showToast(`Skill "${name}" berhasil ditambahkan`);
+        loadSkills();
+      } catch (err) {
+        alert(`Gagal menyimpan: ${err}`);
+      }
+    });
+
+    loadSkills();
+  </script>
+</body>
+</html>

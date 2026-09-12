@@ -1,0 +1,263 @@
+/* ==============================================================================
+   Cantarell Font Definition (Local Offline)
+   ============================================================================== */
+@font-face {
+  font-family: 'Cantarell';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/Cantarell-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Cantarell';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('fonts/Cantarell-Bold.ttf') format('truetype');
+}
+
+/* ==============================================================================
+   Light Theme - Clean, Minimal & Handcrafted
+   Palette:
+   - Base canvas: #EFF7F6
+   - Surface/Card: #FFFFFF
+   - Border: #d7e7e5 (derived soft slate-mint)
+   - Accents: #7BDFF2, #B2F7EF, #F7D6E0, #F2B5D4
+   - High-contrast text: #232d36
+   ============================================================================== */
+
+:root {
+  --c-cyan: #7BDFF2;
+  --c-mint: #B2F7EF;
+  --c-base: #EFF7F6;
+  --c-blush: #F7D6E0;
+  --c-rose: #F2B5D4;
+
+  --bg-app: var(--c-base);
+  --bg-surface: #ffffff;
+  --bg-subtle: #f6faf9;
+
+  --text-main: #232d36;
+  --text-muted: #5a6b77;
+  --text-faint: #8d9da8;
+
+  --border-subtle: #dbeae8;
+  --border-strong: #c2d8d5;
+
+  --font-family: 'Cantarell', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+}
+
+/* Global Reset */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-color: var(--bg-app) !important;
+  color: var(--text-main) !important;
+  line-height: 1.4;
+  font-size: 13px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--c-cyan);
+}
+
+/* Lucide Icons Helper */
+.icon, .icon-sm, .icon-lg, svg.lucide {
+  stroke: currentColor !important;
+  stroke-width: 2 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  fill: none !important;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.icon *, .icon-sm *, .icon-lg *, svg.lucide * {
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+.icon { width: 14px; height: 14px; }
+.icon-sm { width: 12px; height: 12px; }
+.icon-lg { width: 16px; height: 16px; }
+
+/* Headers */
+.theme-header, .header, header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-surface) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.theme-title, .title, header h1 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main) !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: -0.2px;
+}
+
+/* Badges */
+.theme-badge, .status-badge, header span {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  background: var(--c-mint) !important;
+  color: #174b48 !important;
+  border: 1px solid #9ce8df !important;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Section Labels */
+.theme-section-label, .section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted) !important;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+/* Buttons */
+.btn, .theme-btn {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-main) !important;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--radius-md) !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  text-align: left;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.03);
+}
+
+.btn:hover, .theme-btn:hover {
+  background: var(--c-blush) !important;
+  border-color: #eec4d0 !important;
+}
+
+.btn:active, .theme-btn:active {
+  background: var(--c-rose) !important;
+}
+
+/* Primary Action Button */
+.btn-primary, .theme-btn-primary, .btn-add, .btn-run {
+  background: var(--c-rose) !important;
+  border: 1px solid #e59ec1 !important;
+  color: #3b172a !important;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(242, 181, 212, 0.4) !important;
+}
+
+.btn-primary:hover, .theme-btn-primary:hover, .btn-add:hover, .btn-run:hover {
+  background: #f7c3dc !important;
+  border-color: #d988b0 !important;
+}
+
+/* Warning & Danger Buttons */
+.btn-warning, .theme-btn-warning {
+  background: #fff6e9 !important;
+  border: 1px solid #ffe0b2 !important;
+  color: #8c5000 !important;
+}
+
+.btn-danger, .theme-btn-danger, .btn-del {
+  background: #fdf0f0 !important;
+  border: 1px solid #f8c9c9 !important;
+  color: #a82020 !important;
+}
+.btn-danger:hover, .theme-btn-danger:hover, .btn-del:hover {
+  background: #fbe0e0 !important;
+  border-color: #e59a9a !important;
+}
+
+/* Form Inputs */
+input, select, .theme-input, .theme-select {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-main) !important;
+  padding: 6px 9px;
+  border-radius: var(--radius-md) !important;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+
+input:focus, select:focus, .theme-input:focus, .theme-select:focus {
+  border-color: var(--c-cyan) !important;
+  box-shadow: 0 0 0 2px rgba(123, 223, 242, 0.35) !important;
+}
+
+/* Cards & Elements in Skills */
+.skill-card {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-md) !important;
+  padding: 10px 14px;
+}
+
+.skill-card:hover {
+  border-color: var(--c-cyan) !important;
+}
+
+.skill-cmd {
+  background: var(--bg-subtle) !important;
+  color: #1a5651 !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+  font-size: 11px;
+}
+
+/* Toast */
+#toast, .theme-toast {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--c-cyan) !important;
+  color: var(--text-main) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  font-size: 12px;
+  padding: 7px 14px;
+}
