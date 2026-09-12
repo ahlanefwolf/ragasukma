@@ -2,11 +2,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SkillItem {
-    pub id: String,
     pub name: String,
     pub description: String,
     pub command: String,
-    pub category: String,
 }
 
 fn get_skills_path() -> std::path::PathBuf {
@@ -16,13 +14,12 @@ fn get_skills_path() -> std::path::PathBuf {
     }
     let p = crate::config::get_app_config_dir().join("skill-command.md");
     if !p.exists() {
-        // Buat file skill default jika belum ada
         let default_content = "# ⚡ Skill Command Registry\n\n\
-Daftar perintah cepat dan otomasi sistem yang dapat dijalankan langsung melalui suara, menu popover, atau terminal.\n\n\
-| ID | Nama Skill | Deskripsi | Command / Script | Kategori |\n\
-| :--- | :--- | :--- | :--- | :--- |\n\
-| `open_browser` | Buka Browser | Membuka web browser bawaan sistem | `xdg-open https://google.com` | Web |\n\
-| `system_calc` | Buka Kalkulator | Membuka aplikasi kalkulator sistem | `gnome-calculator` | Sistem |\n";
+Daftar perintah cepat dan otomasi sistem yang dapat dijalankan langsung melalui suara, menu, atau otomatisasi AI.\n\n\
+| Nama Skill | Deskripsi | Command / Script |\n\
+| :--- | :--- | :--- |\n\
+| Buka Browser | Membuka web browser bawaan sistem | `xdg-open https://google.com` |\n\
+| Buka Kalkulator | Membuka aplikasi kalkulator sistem | `gnome-calculator` |\n";
         let _ = std::fs::write(&p, default_content);
     }
     p
@@ -45,21 +42,31 @@ pub fn parse_skills_markdown() -> Vec<SkillItem> {
             continue;
         }
         let parts: Vec<&str> = trimmed.split('|').map(|s| s.trim()).collect();
-        // parts[0] is empty, parts[1]=ID, parts[2]=Name, parts[3]=Desc, parts[4]=Cmd, parts[5]=Cat
-        if parts.len() >= 6 {
-            let id = parts[1].replace('`', "");
-            let name = parts[2].to_string();
-            let description = parts[3].to_string();
-            let command = parts[4].replace('`', "");
-            let category = parts[5].to_string();
+        // Format baru 3 kolom: parts[0]="", parts[1]=Name, parts[2]=Desc, parts[3]=Cmd
+        if parts.len() >= 4 {
+            let name = parts[1].to_string();
+            let description = parts[2].to_string();
+            let command = parts[3].replace('`', "");
 
-            if !id.is_empty() && !command.is_empty() {
+            if !name.is_empty() && !command.is_empty() {
                 skills.push(SkillItem {
-                    id,
                     name,
                     description,
                     command,
-                    category,
+                });
+            }
+        }
+        // Kompatibilitas mundur jika ada file format lama 5 kolom (ID | Name | Desc | Cmd | Cat)
+        else if parts.len() >= 5 {
+            let name = parts[2].to_string();
+            let description = parts[3].to_string();
+            let command = parts[4].replace('`', "");
+
+            if !name.is_empty() && !command.is_empty() {
+                skills.push(SkillItem {
+                    name,
+                    description,
+                    command,
                 });
             }
         }
@@ -70,20 +77,18 @@ pub fn parse_skills_markdown() -> Vec<SkillItem> {
 pub fn save_skills_markdown(skills: &[SkillItem]) -> std::io::Result<()> {
     let mut out = String::from(
         "# ⚡ Skill Command Registry\n\n\
-Daftar perintah cepat dan otomasi sistem yang dapat dijalankan langsung melalui suara, menu popover, atau terminal.\n\
-File ini dapat diedit langsung oleh manusia atau dikelola melalui UI Skill Command.\n\n\
-| ID | Nama Skill | Deskripsi | Command / Script | Kategori |\n\
-| :--- | :--- | :--- | :--- | :--- |\n",
+Daftar perintah cepat dan otomasi sistem yang dapat dijalankan langsung melalui suara, menu, atau otomatisasi AI.\n\
+File ini dapat diedit langsung atau dikelola melalui UI Skill Commands.\n\n\
+| Nama Skill | Deskripsi | Command / Script |\n\
+| :--- | :--- | :--- |\n",
     );
 
     for s in skills {
         out.push_str(&format!(
-            "| `{}` | {} | {} | `{}` | {} |\n",
-            s.id.trim(),
+            "| {} | {} | `{}` |\n",
             s.name.trim(),
             s.description.trim(),
-            s.command.trim(),
-            s.category.trim()
+            s.command.trim()
         ));
     }
 
@@ -99,7 +104,7 @@ pub fn get_skills() -> Vec<SkillItem> {
 #[tauri::command]
 pub fn save_skill(skill: SkillItem) -> Result<Vec<SkillItem>, String> {
     let mut skills = parse_skills_markdown();
-    if let Some(pos) = skills.iter().position(|s| s.id == skill.id) {
+    if let Some(pos) = skills.iter().position(|s| s.name.eq_ignore_ascii_case(&skill.name)) {
         skills[pos] = skill;
     } else {
         skills.push(skill);
@@ -110,23 +115,23 @@ pub fn save_skill(skill: SkillItem) -> Result<Vec<SkillItem>, String> {
 }
 
 #[tauri::command]
-pub fn delete_skill(id: String) -> Result<Vec<SkillItem>, String> {
+pub fn delete_skill(name: String) -> Result<Vec<SkillItem>, String> {
     let mut skills = parse_skills_markdown();
-    skills.retain(|s| s.id != id);
+    skills.retain(|s| !s.name.eq_ignore_ascii_case(&name));
     save_skills_markdown(&skills).map_err(|e| e.to_string())?;
     crate::tray::TrayState::emit_event("assistant:skills-updated", serde_json::to_value(&skills).unwrap_or_default());
     Ok(skills)
 }
 
 #[tauri::command]
-pub fn execute_skill(id: String) -> Result<String, String> {
+pub fn execute_skill(name: String) -> Result<String, String> {
     let skills = parse_skills_markdown();
-    if let Some(skill) = skills.iter().find(|s| s.id == id) {
+    if let Some(skill) = skills.iter().find(|s| s.name.eq_ignore_ascii_case(&name)) {
         crate::menu::execute_command_by_os(&skill.command)
             .map_err(|e| format!("Gagal menjalankan command: {e}"))?;
 
         Ok("Perintah berhasil dijalankan.".to_string())
     } else {
-        Err(format!("Skill dengan ID '{id}' tidak ditemukan"))
+        Err(format!("Skill '{name}' tidak ditemukan"))
     }
 }

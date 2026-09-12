@@ -28,163 +28,154 @@
       position: sticky;
       top: 0;
       z-index: 100;
-      background: var(--bg-app, #EFF7F6);
-      border-bottom: 1px solid var(--border-default);
-      padding: 12px 16px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 10px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      backdrop-filter: blur(8px);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     }
     .menu-content {
       flex: 1;
       overflow-y: auto;
-      padding: 14px 16px;
+      padding: 12px 14px;
       display: flex;
       flex-direction: column;
       gap: 12px;
+    }
+    .card-section {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
     .bottom-nav {
       position: sticky;
       bottom: 0;
       z-index: 100;
-      background: var(--bg-app, #EFF7F6);
-      border-top: 1px solid var(--border-default);
-      padding: 10px 16px;
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-subtle);
+      padding: 10px 14px;
       display: flex;
       flex-direction: column;
       gap: 6px;
-      backdrop-filter: blur(8px);
-      box-shadow: 0 -2px 6px rgba(0,0,0,0.05);
-    }
-    .title {
-      font-size: 15px;
-      font-weight: 800;
-      color: var(--accent-pink);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .status-badge {
-      font-size: 11px;
-      background: #2e2e46;
-      color: var(--accent-pink);
-      border: 1px solid rgba(255, 121, 198, 0.3);
-      padding: 3px 8px;
-      font-weight: 700;
-      border-radius: var(--radius-sm);
-    }
-    .section-label {
-      font-size: 11px;
-      font-weight: 800;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      margin-top: 4px;
-    }
-    .btn-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+      box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.03);
     }
     .btn {
-      background: var(--bg-card);
+      background: var(--bg-surface);
       border: 1px solid var(--border-default);
-      color: var(--text-primary);
-      padding: 9px 14px;
-      font-size: 12px;
+      color: var(--text-main);
+      padding: 8px 12px;
+      font-size: 13px;
       font-weight: 600;
       border-radius: var(--radius-md);
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 9px;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: all 0.12s ease;
       text-align: left;
-      box-shadow: var(--shadow-sm);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
     }
     .btn:hover {
-      background: var(--bg-card-hover);
-      border-color: var(--border-hover);
-      color: #fff;
+      background: var(--c-blush);
+      border-color: #eec4d0;
       transform: translateY(-1px);
     }
     .btn:active {
+      background: var(--c-rose);
       transform: translateY(0);
     }
     .btn-primary {
-      background: linear-gradient(135deg, #ff79c6, #bd93f9);
-      color: #12121c;
-      border: none;
+      background: var(--c-rose);
+      color: #3b172a;
+      border: 1px solid #e59ec1;
       font-weight: 700;
-      box-shadow: 0 2px 10px rgba(255, 121, 198, 0.3);
+      box-shadow: 0 1px 3px rgba(242, 181, 212, 0.4);
     }
     .btn-primary:hover {
-      background: linear-gradient(135deg, #ff92d0, #ccaaff);
-      color: #000;
-      box-shadow: var(--glow-pink);
+      background: #f7c3dc;
+      border-color: #d988b0;
     }
     .btn-warning {
-      background: rgba(255, 184, 108, 0.15);
-      color: var(--accent-orange);
-      border: 1px solid rgba(255, 184, 108, 0.35);
-      font-weight: 700;
+      background: #fff8ef;
+      color: #9a3412;
+      border: 1px solid #fed7aa;
+      font-weight: 600;
     }
     .btn-warning:hover {
-      background: var(--accent-orange);
-      color: #1a1a24;
+      background: #ffedd5;
+      border-color: #fdba74;
     }
     .btn-danger {
-      background: var(--accent-red-dim);
-      color: var(--accent-red);
-      border: 1px solid rgba(255, 85, 85, 0.35);
-      font-weight: 700;
-      margin-top: 4px;
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+      font-weight: 600;
     }
     .btn-danger:hover {
-      background: var(--accent-red);
-      color: #FFFFFF;
+      background: #fee2e2;
+      border-color: #fca5a5;
     }
     .stream-box {
-      background: var(--bg-card, #1e1e2e);
-      border: 1px solid var(--border-default, #363654);
-      border-radius: var(--radius-md, 8px);
-      padding: 10px;
-      font-size: 11px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 9px 11px;
+      font-size: 12px;
       line-height: 1.45;
-      max-height: 160px;
+      max-height: 150px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
       gap: 6px;
-      box-shadow: inset 0 2px 4px rgba(0,0,0,0.25);
     }
     .stream-msg {
-      padding: 6px 8px;
-      border-radius: 6px;
+      padding: 5px 8px;
+      border-radius: 4px;
       word-break: break-word;
     }
     .stream-msg.user {
-      background: rgba(189, 147, 249, 0.15);
-      border-left: 3px solid #bd93f9;
-      color: var(--text-primary, #fff);
+      background: var(--c-mint);
+      border-left: 3px solid #6ee7b7;
+      color: #174b48;
       align-self: flex-end;
       max-width: 90%;
     }
     .stream-msg.assistant {
-      background: rgba(255, 121, 198, 0.15);
-      border-left: 3px solid var(--accent-pink, #ff79c6);
-      color: var(--text-primary, #fff);
+      background: var(--c-blush);
+      border-left: 3px solid #f472b6;
+      color: #5c203b;
       align-self: flex-start;
       max-width: 95%;
     }
     .stream-msg.skill {
-      background: rgba(80, 250, 123, 0.15);
-      border-left: 3px solid #50fa7b;
-      color: #8be9fd;
+      background: var(--bg-subtle);
+      border-left: 3px solid var(--c-cyan);
+      color: #0e7490;
       font-family: monospace;
-      font-size: 10px;
+      font-size: 11px;
     }
     .corner-grid {
       display: grid;
@@ -232,100 +223,129 @@
       <span>AI Assistant</span>
     </div>
     <div style="display: flex; align-items: center; gap: 6px;">
-      <span id="tts-engine-badge" style="font-size: 10px; background: rgba(244, 114, 182, 0.15); color: #f472b6; border: 1px solid rgba(244, 114, 182, 0.3); padding: 2px 6px; border-radius: 4px; font-weight: 700;">TTS</span>
+      <span id="tts-engine-badge" style="font-size: 10px; background: var(--c-blush); color: #5c203b; border: 1px solid #f2bfd1; padding: 2px 6px; border-radius: 4px; font-weight: 700;">TTS</span>
       <div class="status-badge" id="status-badge">Standby</div>
-      <button id="btn-close-window" style="background: rgba(255, 85, 85, 0.15); border: 1px solid rgba(255, 85, 85, 0.4); color: #e11d48; border-radius: 4px; padding: 2px 8px; font-weight: 800; cursor: pointer; font-size: 12px; line-height: 1;">✕</button>
     </div>
   </header>
 
   <main class="menu-content">
-    <div class="section-label">Avatar & Percakapan</div>
-    <div class="btn-group">
-      <button class="btn btn-primary" id="btn-toggle-avatar">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-        <span id="btn-toggle-avatar-text">🎭 Tampilkan 3D Avatar</span>
-      </button>
-      <button class="btn" id="btn-start">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
-        <span>Mulai Ngobrol (Chat)</span>
-      </button>
-      <button class="btn btn-warning" id="btn-pause" style="display: none;">
-        <svg class="icon" viewBox="0 0 24 24"><rect width="4" height="16" x="6" y="4" rx="1"/><rect width="4" height="16" x="14" y="4" rx="1"/></svg>
-        <span>Jeda Mendengarkan (Pause)</span>
-      </button>
-      <button class="btn" id="btn-stop-chat" style="display: none;">
-        <svg class="icon" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="2"/></svg>
-        <span>Akhiri Sesi Ngobrol</span>
-      </button>
-    </div>
-
-    <div class="section-label">Live Percakapan & SSE Stream</div>
-    <div class="stream-box" id="stream-box">
-      <div style="color: var(--text-muted, #888); font-size: 10.5px; text-align: center; padding: 12px 0;">
-        ✨ Siap menerima live stream percakapan & event asisten...
+    <!-- 1. Avatar & Percakapan -->
+    <div class="card-section">
+      <div class="section-label">
+        <svg class="icon-sm" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Avatar & Percakapan</span>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-toggle-avatar">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+          <span id="btn-toggle-avatar-text">🎭 Tampilkan 3D Avatar</span>
+        </button>
+        <button class="btn" id="btn-start">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>Mulai Ngobrol (Chat)</span>
+        </button>
+        <button class="btn btn-warning" id="btn-pause" style="display: none;">
+          <svg class="icon" viewBox="0 0 24 24"><rect width="4" height="16" x="6" y="4" rx="1"/><rect width="4" height="16" x="14" y="4" rx="1"/></svg>
+          <span>Jeda Mendengarkan (Pause)</span>
+        </button>
+        <button class="btn btn-danger" id="btn-stop-chat" style="display: none;">
+          <svg class="icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
+          <span>Akhiri Sesi Ngobrol</span>
+        </button>
       </div>
     </div>
 
-    <div class="section-label">Pengujian & Audio</div>
-    <div class="btn-group">
-      <button class="btn" id="btn-test-voice">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 5.636a9 9 0 0 1 0 12.728"/></svg>
-        <span>Tes Suara Asisten</span>
-      </button>
-      <button class="btn" id="btn-test-mic">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-        <span>Tes Mic & Filter Suara</span>
-      </button>
+    <!-- 2. Live Percakapan & Stream -->
+    <div class="card-section">
+      <div class="section-label">
+        <svg class="icon-sm" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span>Live Percakapan & Stream</span>
+      </div>
+      <div class="stream-box" id="stream-box">
+        <div style="color: var(--text-muted); font-size: 11px; text-align: center; padding: 12px 0;">
+          ✨ Siap menerima live stream percakapan & event asisten...
+        </div>
+      </div>
     </div>
 
-    <div class="section-label">Fitur & Otomasi</div>
-    <div class="btn-group">
-      <button class="btn btn-primary" id="btn-tuner">
-        <svg class="icon" viewBox="0 0 24 24"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="1" x2="7" y1="14" y2="14"/><line x1="9" x2="15" y1="8" y2="8"/><line x1="17" x2="23" y1="16" y2="16"/></svg>
-        <span>Pose & Motion Tuner (3D)</span>
-      </button>
-      <button class="btn" id="btn-ats-window">
-        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-        <span>Buka Web TTS (Kiki / ATS)</span>
-      </button>
-      <button class="btn" id="btn-skills">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
-        <span>Kelola Skill Commands</span>
-      </button>
-      <button class="btn" id="btn-settings">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-        <span>Pengaturan (Settings)</span>
-      </button>
-      <button class="btn" id="btn-check-update">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
-        <span>Periksa Pembaruan (Update)</span>
-      </button>
+    <!-- 3. Pengujian & Audio -->
+    <div class="card-section">
+      <div class="section-label">
+        <svg class="icon-sm" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 5.636a9 9 0 0 1 0 12.728"/></svg>
+        <span>Pengujian & Audio</span>
+      </div>
+      <div class="btn-group">
+        <button class="btn" id="btn-test-voice">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 5.636a9 9 0 0 1 0 12.728"/></svg>
+          <span>Tes Suara Asisten</span>
+        </button>
+        <button class="btn" id="btn-test-mic">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+          <span>Tes Mic & Filter Suara</span>
+        </button>
+      </div>
     </div>
 
-    <div class="section-label">Posisi Layar Avatar</div>
-    <div class="corner-grid">
-      <button class="btn corner-btn" data-corner="top-left">
-        <svg class="icon-sm" viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-        <span>Top-Left</span>
-      </button>
-      <button class="btn corner-btn" data-corner="top-right">
-        <svg class="icon-sm" viewBox="0 0 24 24"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
-        <span>Top-Right</span>
-      </button>
-      <button class="btn corner-btn" data-corner="bottom-left">
-        <svg class="icon-sm" viewBox="0 0 24 24"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>
-        <span>Bottom-Left</span>
-      </button>
-      <button class="btn corner-btn" data-corner="bottom-right">
-        <svg class="icon-sm" viewBox="0 0 24 24"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg>
-        <span>Bottom-Right</span>
-      </button>
+    <!-- 4. Fitur & Otomasi -->
+    <div class="card-section">
+      <div class="section-label">
+        <svg class="icon-sm" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>Fitur & Otomasi</span>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-tuner">
+          <svg class="icon" viewBox="0 0 24 24"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="1" x2="7" y1="14" y2="14"/><line x1="9" x2="15" y1="8" y2="8"/><line x1="17" x2="23" y1="16" y2="16"/></svg>
+          <span>Pose & Motion Tuner (3D)</span>
+        </button>
+        <button class="btn" id="btn-ats-window">
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+          <span>Buka Web TTS (Kiki / ATS)</span>
+        </button>
+        <button class="btn" id="btn-skills">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
+          <span>Kelola Skill Commands</span>
+        </button>
+        <button class="btn" id="btn-settings">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span>Pengaturan (Settings)</span>
+        </button>
+        <button class="btn" id="btn-check-update">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+          <span>Periksa Pembaruan (Update)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 5. Posisi Layar Avatar -->
+    <div class="card-section">
+      <div class="section-label">
+        <svg class="icon-sm" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+        <span>Posisi Layar Avatar</span>
+      </div>
+      <div class="corner-grid">
+        <button class="btn corner-btn" data-corner="top-left">
+          <svg class="icon-sm" viewBox="0 0 24 24"><path d="M7 17V7h10"/><path d="M17 17 7 7"/></svg>
+          <span>Top-Left</span>
+        </button>
+        <button class="btn corner-btn" data-corner="top-right">
+          <svg class="icon-sm" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+          <span>Top-Right</span>
+        </button>
+        <button class="btn corner-btn" data-corner="bottom-left">
+          <svg class="icon-sm" viewBox="0 0 24 24"><path d="M17 7 7 17"/><path d="M17 17H7V7"/></svg>
+          <span>Bottom-Left</span>
+        </button>
+        <button class="btn corner-btn" data-corner="bottom-right">
+          <svg class="icon-sm" viewBox="0 0 24 24"><path d="m7 7 10 10"/><path d="M17 7v10H7"/></svg>
+          <span>Bottom-Right</span>
+        </button>
+      </div>
     </div>
   </main>
 
   <footer class="bottom-nav">
     <button class="btn" id="btn-reset-size">
-      <svg class="icon" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+      <svg class="icon" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
       <span>Reset Ukuran Avatar</span>
     </button>
     <button class="btn btn-danger" id="btn-quit">
@@ -410,12 +430,26 @@
       let listenFn = getListen();
 
       const attachListeners = (listen) => {
-        // 1. Live State Event
+        // 1. Live State Event (Real-time reactive button & status updater)
         listen('assistant:state', (event) => {
           const data = event.payload;
           if (!data) return;
           const desc = data.description || data.class || '';
           badgeEl.textContent = desc;
+
+          const isInMainMenu = desc.includes('Menu Utama') || !desc;
+          const isPaused = desc.includes('Dijeda') || desc.includes('Paused');
+
+          if (isInMainMenu) {
+            btnStart.style.display = 'flex';
+            btnPause.style.display = 'none';
+            btnStop.style.display = 'none';
+          } else {
+            btnStart.style.display = 'none';
+            btnPause.style.display = 'flex';
+            btnStop.style.display = 'flex';
+            btnPause.textContent = isPaused ? '▶️ Lanjutkan (Resume)' : '⏸️ Jeda (Pause)';
+          }
         });
 
         // 2. User Transcript Event
@@ -474,6 +508,10 @@
               }
             }
           }
+          if (cfg && cfg.avatar_type) {
+            currentAvatarType = cfg.avatar_type.toLowerCase();
+            updateAvatarBtn();
+          }
           showToast('⚙️ Pengaturan disinkronkan!');
         });
       };
@@ -488,6 +526,21 @@
             attachListeners(listenFn);
           }
         }, 50);
+      }
+    }
+
+    let currentAvatarType = 'vrm';
+    let currentAvatarVis = false;
+
+    function updateAvatarBtn() {
+      if (!btnToggleAvatarText) return;
+      const is3D = currentAvatarType === 'vrm';
+      if (is3D) {
+        btnToggleAvatarText.textContent = currentAvatarVis ? '🙈 Sembunyikan 3D Avatar' : '🎭 Tampilkan 3D Avatar';
+        if (btnTuner) btnTuner.style.display = 'flex';
+      } else {
+        btnToggleAvatarText.textContent = currentAvatarVis ? '🙈 Sembunyikan 2D Avatar' : '🖼️ Tampilkan 2D Avatar';
+        if (btnTuner) btnTuner.style.display = 'none';
       }
     }
 
@@ -527,21 +580,23 @@
             }
           }
         }
+        if (config && config.avatar_type) {
+          currentAvatarType = config.avatar_type.toLowerCase();
+        }
+        updateAvatarBtn();
       } catch (e) {}
 
       if (btnToggleAvatar) {
         // Cek status awal avatar
         invoke('is_avatar_visible').then(isVis => {
-          if (btnToggleAvatarText) {
-            btnToggleAvatarText.textContent = isVis ? '🙈 Sembunyikan 3D Avatar' : '🎭 Tampilkan 3D Avatar';
-          }
+          currentAvatarVis = !!isVis;
+          updateAvatarBtn();
         });
 
         btnToggleAvatar.addEventListener('click', async () => {
           const isNowVis = await invoke('toggle_avatar_window');
-          if (btnToggleAvatarText) {
-            btnToggleAvatarText.textContent = isNowVis ? '🙈 Sembunyikan 3D Avatar' : '🎭 Tampilkan 3D Avatar';
-          }
+          currentAvatarVis = !!isNowVis;
+          updateAvatarBtn();
           showToast(isNowVis ? '🎭 Avatar ditampilkan di layar' : '🙈 Avatar disembunyikan');
         });
       }
@@ -599,12 +654,7 @@
         });
       }
 
-      const btnCloseWin = document.getElementById('btn-close-window');
-      if (btnCloseWin) {
-        btnCloseWin.addEventListener('click', () => {
-          invoke('close_current_window');
-        });
-      }
+
 
       btnReset.addEventListener('click', () => {
         invoke('reset_size');
@@ -623,11 +673,10 @@
         });
       });
 
-      // Poll state status
-      setInterval(async () => {
-        try {
-          const state = await invoke('get_app_state');
-          if (!state) return;
+      // Inisialisasi status awal satu kali saat window dibuka (selebihnya murni event-driven)
+      try {
+        const state = await invoke('get_app_state');
+        if (state) {
           const cls = state.class || 'idle';
           const desc = state.description || '';
           badgeEl.textContent = desc || cls;
@@ -645,8 +694,8 @@
             btnStop.style.display = 'flex';
             btnPause.textContent = isPaused ? '▶️ Lanjutkan (Resume)' : '⏸️ Jeda (Pause)';
           }
-        } catch (e) {}
-      }, 250);
+        }
+      } catch (e) {}
     }
 
     setupSseEventHub();

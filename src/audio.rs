@@ -197,7 +197,7 @@ impl AudioRecorder {
                         pre_roll_buffer.clear();
                         consecutive_silence = 0;
                         TrayState::update(AssistantState::Listening, "Mendengarkan...");
-                        eprint!("\r🔴 [MEREKAM...] Silakan bicara...\x1b[K\n");
+                        eprint!("\r[MEREKAM...] Silakan bicara...\x1b[K\n");
                     }
                 } else {
                     consecutive_voice = 0;

@@ -1,23 +1,4 @@
 /* ==============================================================================
-   Cantarell Font Definition (Local Offline)
-   ============================================================================== */
-@font-face {
-  font-family: 'Cantarell';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('fonts/Cantarell-Regular.ttf') format('truetype');
-}
-
-@font-face {
-  font-family: 'Cantarell';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('fonts/Cantarell-Bold.ttf') format('truetype');
-}
-
-/* ==============================================================================
    Light Theme - Clean, Minimal & Handcrafted
    Palette:
    - Base canvas: #EFF7F6
@@ -37,30 +18,30 @@
   --bg-app: var(--c-base);
   --bg-surface: #ffffff;
   --bg-card: #ffffff;
-  --bg-card-hover: #f1f8f7;
-  --bg-subtle: #f6faf9;
+  --bg-card-hover: #f3faf9;
+  --bg-subtle: #f4f9f8;
 
   --text-main: #232d36;
   --text-primary: #232d36;
-  --text-muted: #5a6b77;
-  --text-faint: #8d9da8;
+  --text-muted: #576875;
+  --text-faint: #889ba7;
 
-  --border-default: #dbeae8;
+  --border-default: #d7e8e5;
   --border-subtle: #dbeae8;
-  --border-strong: #c2d8d5;
+  --border-strong: #bfd9d5;
   --border-hover: #7BDFF2;
 
   --accent-pink: #d84b90;
   --accent-orange: #d97706;
   --accent-red: #e11d48;
-  --accent-red-dim: rgba(225, 29, 72, 0.1);
+  --accent-red-dim: rgba(225, 29, 72, 0.08);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  --glow-pink: 0 0 12px rgba(216, 75, 144, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.09);
+  --glow-pink: 0 0 10px rgba(216, 75, 144, 0.25);
 
-  --font-family: 'Cantarell', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
 
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -80,7 +61,7 @@ body {
   background-color: var(--bg-app) !important;
   color: var(--text-main) !important;
   line-height: 1.5;
-  font-size: 14.5px;
+  font-size: 13.5px;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -122,7 +103,7 @@ body {
 }
 
 .icon { width: 16px; height: 16px; }
-.icon-sm { width: 13px; height: 13px; }
+.icon-sm { width: 13.5px; height: 13.5px; }
 .icon-lg { width: 18px; height: 18px; }
 
 /* Headers */
@@ -130,13 +111,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 11px 15px;
   background: var(--bg-surface) !important;
   border-bottom: 1px solid var(--border-subtle) !important;
 }
 
 .theme-title, .title, header h1 {
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 700;
   color: var(--text-main) !important;
   display: flex;
@@ -146,10 +127,10 @@ body {
 }
 
 /* Badges */
-.theme-badge, .status-badge, header span {
-  font-size: 12px;
+.theme-badge, .status-badge, .badge {
+  font-size: 11px;
   font-weight: 700;
-  padding: 3px 9px;
+  padding: 2.5px 8px;
   background: var(--c-mint) !important;
   color: #174b48 !important;
   border: 1px solid #9ce8df !important;
@@ -161,40 +142,41 @@ body {
 
 /* Section Labels */
 .theme-section-label, .section-label {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   color: var(--text-muted) !important;
-  margin-top: 8px;
-  margin-bottom: 3px;
+  margin-top: 4px;
 }
 
 /* Buttons */
 .btn, .theme-btn {
   background: var(--bg-surface) !important;
-  border: 1px solid var(--border-subtle) !important;
+  border: 1px solid var(--border-default) !important;
   color: var(--text-main) !important;
-  padding: 9px 13px;
-  font-size: 13.5px;
-  font-weight: 500;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
   border-radius: var(--radius-md) !important;
   display: flex;
   align-items: center;
   gap: 9px;
   cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.1s ease;
   text-align: left;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .btn:hover, .theme-btn:hover {
   background: var(--c-blush) !important;
   border-color: #eec4d0 !important;
+  transform: translateY(-1px);
 }
 
 .btn:active, .theme-btn:active {
   background: var(--c-rose) !important;
+  transform: translateY(0);
 }
 
 /* Primary Action Button */
@@ -203,7 +185,7 @@ body {
   border: 1px solid #e59ec1 !important;
   color: #3b172a !important;
   font-weight: 700;
-  box-shadow: 0 1px 2px rgba(242, 181, 212, 0.4) !important;
+  box-shadow: 0 1px 3px rgba(242, 181, 212, 0.45) !important;
 }
 
 .btn-primary:hover, .theme-btn-primary:hover, .btn-add:hover, .btn-run:hover {
@@ -213,57 +195,42 @@ body {
 
 /* Warning & Danger Buttons */
 .btn-warning, .theme-btn-warning {
-  background: #fff6e9 !important;
-  border: 1px solid #ffe0b2 !important;
-  color: #8c5000 !important;
+  background: #fff8ef !important;
+  border: 1px solid #fed7aa !important;
+  color: #9a3412 !important;
+  font-weight: 600;
+}
+.btn-warning:hover, .theme-btn-warning:hover {
+  background: #ffedd5 !important;
+  border-color: #fdba74 !important;
 }
 
 .btn-danger, .theme-btn-danger, .btn-del {
-  background: #fdf0f0 !important;
-  border: 1px solid #f8c9c9 !important;
-  color: #a82020 !important;
+  background: #fef2f2 !important;
+  border: 1px solid #fecaca !important;
+  color: #b91c1c !important;
+  font-weight: 600;
 }
 .btn-danger:hover, .theme-btn-danger:hover, .btn-del:hover {
-  background: #fbe0e0 !important;
-  border-color: #e59a9a !important;
+  background: #fee2e2 !important;
+  border-color: #fca5a5 !important;
 }
 
 /* Form Inputs */
-input, select, .theme-input, .theme-select {
+input, select, .theme-input, .theme-select, .form-input, .form-select {
   background: var(--bg-surface) !important;
-  border: 1px solid var(--border-subtle) !important;
+  border: 1px solid var(--border-default) !important;
   color: var(--text-main) !important;
-  padding: 8px 11px;
+  padding: 7px 10px;
   border-radius: var(--radius-md) !important;
-  font-size: 13.5px;
+  font-size: 13px;
   outline: none;
-  transition: border-color 0.12s ease;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
-input:focus, select:focus, .theme-input:focus, .theme-select:focus {
+input:focus, select:focus, .theme-input:focus, .theme-select:focus, .form-input:focus, .form-select:focus {
   border-color: var(--c-cyan) !important;
   box-shadow: 0 0 0 2px rgba(123, 223, 242, 0.35) !important;
-}
-
-/* Cards & Elements in Skills */
-.skill-card {
-  background: var(--bg-surface) !important;
-  border: 1px solid var(--border-subtle) !important;
-  border-radius: var(--radius-md) !important;
-  padding: 10px 14px;
-}
-
-.skill-card:hover {
-  border-color: var(--c-cyan) !important;
-}
-
-.skill-cmd {
-  background: var(--bg-subtle) !important;
-  color: #1a5651 !important;
-  border: 1px solid var(--border-subtle) !important;
-  border-radius: var(--radius-sm);
-  padding: 3px 6px;
-  font-size: 11px;
 }
 
 /* Toast */
@@ -272,7 +239,8 @@ input:focus, select:focus, .theme-input:focus, .theme-select:focus {
   border: 1px solid var(--c-cyan) !important;
   color: var(--text-main) !important;
   border-radius: var(--radius-md) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.09) !important;
   font-size: 12px;
-  padding: 7px 14px;
+  font-weight: 700;
+  padding: 7px 15px;
 }

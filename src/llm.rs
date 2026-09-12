@@ -2,54 +2,32 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 pub fn load_skills_summary() -> String {
-    let path = std::path::Path::new("skill-command.md");
-    if !path.exists() {
+    let skills = crate::skills::parse_skills_markdown();
+    if skills.is_empty() {
         return String::new();
     }
-    let content = match std::fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(_) => return String::new(),
-    };
 
     let mut lines = Vec::new();
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if !trimmed.starts_with('|') || trimmed.contains(":---") || trimmed.contains("Nama Skill") {
-            continue;
-        }
-        let parts: Vec<&str> = trimmed.split('|').map(|s| s.trim()).collect();
-        if parts.len() >= 5 {
-            let id = parts[1].replace('`', "");
-            let name = parts[2];
-            let desc = parts[3];
-            if !id.is_empty() {
-                lines.push(format!("- ID: `{id}` -> {name}: {desc}"));
-            }
-        }
+    for s in &skills {
+        lines.push(format!("- Perintah: `{}` -> Deskripsi: {}", s.name, s.description));
     }
 
-    if lines.is_empty() {
-        String::new()
-    } else {
-        format!(
-            "\n4. FITUR KONTROL SISTEM & SKILL (skill-command.md):\n\
-Kamu MEMILIKI KEMAMPUAN untuk mengontrol sistem laptop/komputer secara langsung (seperti mengatur kecerahan layar, volume suara, membuka terminal, screenshot, memutar musik, dll) menggunakan perintah di bawah.\n\
-JANGAN PERNAH menolak atau berkata kamu tidak bisa mengatur kecerahan/volume/layar!\n\
+    format!(
+        "\n4. FITUR KONTROL SISTEM & SKILL (skill-command.md):\n\
+Kamu MEMILIKI KEMAMPUAN untuk mengontrol sistem laptop/komputer secara langsung (seperti mengatur kecerahan layar, volume suara, membuka browser/aplikasi, dll) menggunakan perintah di bawah.\n\
+JANGAN PERNAH menolak atau berkata kamu tidak bisa mengontrol aplikasi/sistem!\n\
 Daftar skill yang tersedia:\n{}\n\
 ATURAN EKSEKUSI SKILL:\n\
-- Jika pengguna meminta suatu aksi (misal: 'atur kecerahan', 'terangkan layar', 'naikkan/turunkan volume', 'buka terminal'), kamu WAJIB menyetujuinya dengan ramah dan MENYERTAKAN tag `[SKILL:ID]` di akhir atau di dalam kalimatmu.\n\
+- Jika pengguna meminta suatu aksi (misal: 'buka browser', 'buka kalkulator'), kamu WAJIB menyetujuinya dengan ramah dan MENYERTAKAN tag `[SKILL:Nama Skill]` di kalimatmu.\n\
   Contoh:\n\
-  - User: 'Kecerahannya naikin dong'\n\
-    Respon: '*senang* Siap, kecerahan layarnya aku naikkan ya! [SKILL:BRI-001]'\n\
-  - User: 'Kecilin volumenya'\n\
-    Respon: '*senang* Baik, volumenya aku kecilkan ya. [SKILL:AUD-002]'\n\
-  - User: 'Buka terminal'\n\
-    Respon: '*senang* Siap, ini terminalnya ya. [SKILL:SYS-000]'\n\
-- Tag `[SKILL:ID]` otomatis dieksekusi oleh sistem di latar belakang dan TIDAK akan dibaca keras oleh TTS.\n\
+  - User: 'Tolong bukakan browser dong'\n\
+    Respon: '*senang* Siap, browser internetnya aku bukakan ya! [SKILL:Buka Browser]'\n\
+  - User: 'Buka kalkulator'\n\
+    Respon: '*senang* Baik, ini kalkulatornya ya. [SKILL:Buka Kalkulator]'\n\
+- Tag `[SKILL:Nama Skill]` otomatis dieksekusi oleh sistem di latar belakang dan TIDAK akan dibaca keras oleh TTS.\n\
 - Jika hanya obrolan santai biasa tanpa meminta aksi sistem, jangan sertakan tag `[SKILL:...`.\n",
-            lines.join("\n")
-        )
-    }
+        lines.join("\n")
+    )
 }
 
 pub struct LlmClient {
@@ -330,8 +308,9 @@ Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh ka
 
 /// Membersihkan teks dari teks aksi roleplay ekspresi tanpa memotong judul atau kata penting
 fn clean_ai_text(text: &str) -> String {
-    let re_skill = regex::Regex::new(r"\[SKILL:[^\]]+\]").unwrap();
-    let text_clean = re_skill.replace_all(text, "");
+    static RE_SKILL: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r"\[SKILL:[^\]]+\]").expect("valid regex"));
+    let text_clean = RE_SKILL.replace_all(text, "");
 
     let mut result = String::new();
     let mut chars = text_clean.chars().peekable();

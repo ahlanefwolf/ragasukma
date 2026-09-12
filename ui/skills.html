@@ -32,7 +32,7 @@
       flex-shrink: 0;
     }
     header h1 {
-      font-size: 13px;
+      font-size: 13.5px;
       color: var(--text-main);
       font-weight: 700;
       display: flex;
@@ -59,15 +59,15 @@
     }
     .skill-card {
       background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
+      border: 1px solid var(--border-default);
       border-radius: var(--radius-md);
-      padding: 12px 14px;
+      padding: 11px 14px;
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
       gap: 12px;
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
     }
     .skill-card:hover {
       border-color: var(--c-cyan);
@@ -78,41 +78,17 @@
       min-width: 0;
       display: flex;
       flex-direction: column;
-      gap: 5px;
-    }
-    .skill-title-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
+      gap: 4px;
     }
     .skill-name {
       font-size: 13px;
       font-weight: 700;
       color: var(--text-main);
     }
-    .skill-cat {
-      font-size: 10px;
-      background: var(--c-blush);
-      color: #5c203b;
-      border: 1px solid #f2bfd1;
-      padding: 1px 6px;
-      font-weight: 700;
-      border-radius: var(--radius-sm);
-    }
-    .skill-id {
-      font-size: 10px;
-      font-family: monospace;
-      color: var(--text-muted);
-      background: var(--bg-subtle);
-      border: 1px solid var(--border-subtle);
-      padding: 1px 5px;
-      border-radius: var(--radius-sm);
-    }
     .skill-desc {
-      font-size: 11px;
+      font-size: 11.5px;
       color: var(--text-muted);
-      line-height: 1.4;
+      line-height: 1.35;
     }
     .skill-cmd-wrapper {
       display: flex;
@@ -130,7 +106,7 @@
       font-size: 11px;
       font-family: monospace;
       background: var(--bg-subtle);
-      padding: 3px 8px;
+      padding: 2.5px 7px;
       color: #1a6f66;
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-sm);
@@ -146,11 +122,11 @@
       flex-shrink: 0;
     }
     .btn-action {
-      border: 1px solid var(--border-subtle);
+      border: 1px solid var(--border-default);
       background: var(--bg-surface);
       color: var(--text-main);
       padding: 5px 10px;
-      font-size: 11px;
+      font-size: 11.5px;
       font-weight: 600;
       cursor: pointer;
       display: flex;
@@ -173,14 +149,14 @@
       background: #a1f3e9;
     }
     .btn-action.del {
-      background: #fdf0f0;
-      border-color: #f8c9c9;
-      color: #a82020;
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #b91c1c;
       padding: 5px 8px;
     }
     .btn-action.del:hover {
-      background: #fbe0e0;
-      border-color: #e59a9a;
+      background: #fee2e2;
+      border-color: #fca5a5;
     }
     
     /* Footer Form Panel */
@@ -192,9 +168,10 @@
       flex-direction: column;
       gap: 8px;
       flex-shrink: 0;
+      box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.03);
     }
     .form-title {
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.6px;
@@ -211,10 +188,10 @@
     .form-row input {
       flex: 1;
       background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
+      border: 1px solid var(--border-default);
       color: var(--text-main);
-      padding: 6px 9px;
-      font-size: 11px;
+      padding: 7px 10px;
+      font-size: 12px;
       border-radius: var(--radius-md);
       outline: none;
       transition: border-color 0.12s ease;
@@ -227,8 +204,8 @@
       background: var(--c-rose);
       border: 1px solid #e59ec1;
       color: #3b172a;
-      padding: 6px 14px;
-      font-size: 11px;
+      padding: 7px 14px;
+      font-size: 12px;
       font-weight: 700;
       border-radius: var(--radius-md);
       cursor: pointer;
@@ -244,14 +221,14 @@
 
     #toast {
       position: fixed;
-      bottom: 70px;
+      bottom: 75px;
       left: 50%;
       transform: translateX(-50%);
       background: var(--bg-surface);
       color: var(--text-main);
       border: 1px solid var(--c-cyan);
       padding: 6px 14px;
-      font-size: 11px;
+      font-size: 11.5px;
       font-weight: 600;
       border-radius: var(--radius-md);
       opacity: 0;
@@ -269,8 +246,8 @@
 <body>
   <header>
     <h1>
-      <svg class="icon" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
-      <span>Skill Command Registry</span>
+      <svg class="icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      <span>Skill Commands Registry</span>
     </h1>
     <span class="header-badge">skill-command.md</span>
   </header>
@@ -283,12 +260,8 @@
       <span>Tambah Skill Baru</span>
     </div>
     <div class="form-row">
-      <input type="text" id="in-id" style="max-width: 140px;" placeholder="ID (cth: open_browser)" />
-      <input type="text" id="in-name" placeholder="Nama Skill (cth: Buka Web)" />
-      <input type="text" id="in-cat" style="max-width: 120px;" placeholder="Kategori" value="System" />
-    </div>
-    <div class="form-row">
-      <input type="text" id="in-desc" placeholder="Deskripsi Singkat Skill" />
+      <input type="text" id="in-name" style="max-width: 180px;" placeholder="Nama Skill (cth: Buka Browser)" />
+      <input type="text" id="in-desc" placeholder="Deskripsi untuk AI (cth: Membuka browser web default)" />
     </div>
     <div class="form-row">
       <input type="text" id="in-cmd" placeholder="Command / Script Shell (cth: xdg-open https://google.com)" />
@@ -349,7 +322,7 @@
         const skills = await invoke('get_skills');
         listEl.innerHTML = '';
         if (!skills || skills.length === 0) {
-          listEl.innerHTML = '<div style="color:var(--text-muted); font-size:11px; text-align:center; margin-top:40px;">Belum ada skill terdaftar.</div>';
+          listEl.innerHTML = '<div style="color:var(--text-muted); font-size:12px; text-align:center; margin-top:40px;">Belum ada skill terdaftar.</div>';
           return;
         }
 
@@ -358,11 +331,7 @@
           card.className = 'skill-card';
           card.innerHTML = `
             <div class="skill-info">
-              <div class="skill-title-row">
-                <span class="skill-name">${escapeHtml(s.name)}</span>
-                <span class="skill-cat">${escapeHtml(s.category)}</span>
-                <span class="skill-id">[${escapeHtml(s.id)}]</span>
-              </div>
+              <div class="skill-name">${escapeHtml(s.name)}</div>
               <div class="skill-desc">${escapeHtml(s.description)}</div>
               <div class="skill-cmd-wrapper">
                 <span class="cmd-prompt">$</span>
@@ -370,19 +339,19 @@
               </div>
             </div>
             <div class="skill-actions">
-              <button class="btn-action run" data-id="${escapeHtml(s.id)}" title="Jalankan Perintah">
+              <button class="btn-action run" data-name="${escapeHtml(s.name)}" title="Jalankan Perintah">
                 <svg class="icon-sm" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg>
                 <span>Run</span>
               </button>
-              <button class="btn-action del" data-id="${escapeHtml(s.id)}" title="Hapus Skill">
-                <svg class="icon-sm" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+              <button class="btn-action del" data-name="${escapeHtml(s.name)}" title="Hapus Skill">
+                <svg class="icon-sm" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
               </button>
             </div>
           `;
 
           card.querySelector('.btn-action.run').addEventListener('click', async () => {
             try {
-              await invoke('execute_skill', { id: s.id });
+              await invoke('execute_skill', { name: s.name });
               showToast(`Perintah "${s.name}" dijalankan`);
             } catch (err) {
               alert(`Error: ${err}`);
@@ -391,7 +360,7 @@
 
           card.querySelector('.btn-action.del').addEventListener('click', async () => {
             if (confirm(`Hapus skill "${s.name}"?`)) {
-              await invoke('delete_skill', { id: s.id });
+              await invoke('delete_skill', { name: s.name });
               loadSkills();
               showToast(`"${s.name}" berhasil dihapus`);
             }
@@ -411,29 +380,24 @@
     }
 
     document.getElementById('btn-save').addEventListener('click', async () => {
-      const id = document.getElementById('in-id').value.trim();
       const name = document.getElementById('in-name').value.trim();
-      const cat = document.getElementById('in-cat').value.trim() || 'System';
       const desc = document.getElementById('in-desc').value.trim();
       const cmd = document.getElementById('in-cmd').value.trim();
 
-      if (!id || !name || !cmd) {
-        alert('Mohon lengkapi ID, Nama, dan Command!');
+      if (!name || !cmd) {
+        alert('Mohon isi Nama Skill dan Command!');
         return;
       }
 
       try {
         await invoke('save_skill', {
           skill: {
-            id,
             name,
-            category: cat,
             description: desc,
             command: cmd
           }
         });
 
-        document.getElementById('in-id').value = '';
         document.getElementById('in-name').value = '';
         document.getElementById('in-desc').value = '';
         document.getElementById('in-cmd').value = '';

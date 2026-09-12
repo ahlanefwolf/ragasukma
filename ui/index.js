@@ -454,16 +454,10 @@ function animateVrm(timestamp) {
   requestAnimationFrame(animateVrm);
   if (document.hidden) return;
 
-  // Adaptive framerate iGPU:
-  // idle/listening: 12 FPS
-  // thinking: 18 FPS
-  // speaking: 24 FPS
-  let targetFps = 12;
-  if (currentState === 'speaking') {
-    targetFps = 24;
-  } else if (currentState === 'thinking') {
-    targetFps = 18;
-  }
+  // Smooth 60/30 FPS adaptive loop:
+  // idle/listening: 30 FPS (halus dan sangat hemat resource di iGPU)
+  // thinking/speaking: 60 FPS (responsif & mulus saat berekspresi)
+  let targetFps = (currentState === 'speaking' || currentState === 'thinking') ? 60 : 30;
   const interval = 1000 / targetFps;
   const elapsedSinceLast = timestamp - lastRenderTime;
 
@@ -534,21 +528,33 @@ function setupInteractions() {
     // Klik kiri murni khusus drag & interaksi canvas, tidak trigger aksi pause/apa pun
   });
 
-  // Scroll Zoom Gesture
+  // Scroll Zoom Gesture (Smooth & Responsive)
   let zoomTimer = null;
-  let isZooming = false;
+  let pendingDelta = 0;
+  let isSendingDelta = false;
+
+  const flushDelta = () => {
+    if (pendingDelta === 0 || isSendingDelta) return;
+    const sendAmount = pendingDelta;
+    pendingDelta = 0;
+    isSendingDelta = true;
+
+    invoke('change_size_delta', { delta: sendAmount })
+      .finally(() => {
+        isSendingDelta = false;
+        if (pendingDelta !== 0) {
+          flushDelta();
+        }
+      });
+  };
+
   window.addEventListener('wheel', (e) => {
     e.preventDefault();
-    if (isZooming) return;
-    const delta = e.deltaY < 0 ? 16 : (e.deltaY > 0 ? -16 : 0);
-    if (delta === 0) return;
+    const step = e.deltaY < 0 ? 16 : (e.deltaY > 0 ? -16 : 0);
+    if (step === 0) return;
 
-    isZooming = true;
-    setTimeout(() => { isZooming = false; }, 40);
-
-    invoke('change_size_delta', { delta }).then(() => {
-      if (currentVrm) fitCameraToVrm(currentVrm);
-    });
+    pendingDelta += step;
+    flushDelta();
 
     clearTimeout(zoomTimer);
     zoomTimer = setTimeout(() => {
@@ -988,7 +994,8 @@ async function initApp() {
   }
 
   setupRealtimeEventListener();
-  setInterval(pollState, 250);
+  // Panggil pollState() hanya 1x di awal untuk inisialisasi, selebihnya 100% didorong event SSE/Tauri dari Rust
+  pollState();
 }
 
 initApp();

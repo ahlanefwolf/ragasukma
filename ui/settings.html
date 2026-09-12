@@ -143,7 +143,10 @@
 
   <!-- 1. Karakter & Persona -->
   <div class="card">
-    <div class="card-title">👤 Identitas & Peran Hubungan</div>
+    <div class="card-title">
+      <svg class="icon-sm" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>Identitas & Peran Hubungan</span>
+    </div>
     <div class="grid-2">
       <div class="form-group">
         <label class="form-label">Nama Asisten</label>
@@ -167,7 +170,10 @@
 
   <!-- 2. LLM / AI Model -->
   <div class="card">
-    <div class="card-title">🧠 Large Language Model (LLM)</div>
+    <div class="card-title">
+      <svg class="icon-sm" viewBox="0 0 24 24"><path d="M12 18V5"/><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"/><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"/><path d="M18 18a4 4 0 0 0 2-7.464"/><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"/><path d="M6 18a4 4 0 0 1-2-7.464"/><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"/></svg>
+      <span>Large Language Model (LLM)</span>
+    </div>
     <div class="form-group">
       <label class="form-label">Base URL (OpenAI / Ollama / 9router)</label>
       <input type="text" id="llm_base_url" class="form-input" placeholder="http://localhost:20128/v1" />
@@ -186,7 +192,10 @@
 
   <!-- 3. STT (Speech-to-Text) -->
   <div class="card">
-    <div class="card-title">🎤 Speech-to-Text (STT) & Microphone</div>
+    <div class="card-title">
+      <svg class="icon-sm" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+      <span>Speech-to-Text (STT) & Microphone</span>
+    </div>
     <div class="grid-2">
       <div class="form-group">
         <label class="form-label">STT Engine</label>
@@ -226,7 +235,10 @@
 
   <!-- 4. TTS (Text-to-Speech) -->
   <div class="card">
-    <div class="card-title">🔊 Text-to-Speech (TTS) & Suara</div>
+    <div class="card-title">
+      <svg class="icon-sm" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 5.636a9 9 0 0 1 0 12.728"/></svg>
+      <span>Text-to-Speech (TTS) & Suara</span>
+    </div>
     <div class="grid-2">
       <div class="form-group">
         <label class="form-label">TTS Engine</label>
@@ -256,7 +268,10 @@
 
   <!-- 5. Avatar Type & Custom Upload -->
   <div class="card">
-    <div class="card-title">🪟 Tampilan Avatar Desktop</div>
+    <div class="card-title">
+      <svg class="icon-sm" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+      <span>Tampilan Avatar Desktop</span>
+    </div>
     <div class="form-group">
       <label class="form-label">Tipe Avatar</label>
       <select id="avatar_type" class="form-select">
@@ -267,51 +282,59 @@
 
     <!-- Upload Section -->
     <div style="margin-top: 6px; border-top: 1px solid var(--border-subtle); padding-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-      <div class="form-label" style="color: var(--c-cyan);">Ganti File Avatar Kustom (Otomatis Standarisasi):</div>
+      <div class="form-label" style="color: var(--accent-pink); font-weight: 700;">Ganti File Avatar Kustom:</div>
 
       <!-- Upload 3D VRM -->
-      <div style="display: flex; flex-direction: column; gap: 4px; background: var(--bg-card); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+      <div style="display: flex; flex-direction: column; gap: 4px; background: var(--bg-surface); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
         <div style="display: flex; align-items: center; justify-content: space-between;">
-          <span style="font-size: 11px; font-weight: 600;">🎭 Model 3D (.vrm):</span>
-          <label class="btn" style="padding: 4px 8px; font-size: 10px; cursor: pointer; margin: 0;">
+          <span style="font-size: 12px; font-weight: 600;">🎭 Model 3D (.vrm):</span>
+          <label class="btn" style="padding: 4px 10px; font-size: 11px; cursor: pointer; margin: 0; gap: 5px;">
+            <svg class="icon-sm" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
             <span>Pilih File .vrm</span>
             <input type="file" id="upload-vrm" accept=".vrm,.glb" style="display: none;" />
           </label>
         </div>
-        <div style="font-size: 10px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+        <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-top: 2px;">
           <span>💡 Belum punya model 3D? Buat gratis di:</span>
-          <a href="#" id="link-vroid" style="color: var(--c-cyan); text-decoration: underline; cursor: pointer;">VRoid Studio (vroid.com)</a>
+          <a href="#" id="link-vroid" style="color: #0284c7; text-decoration: underline; cursor: pointer; display: inline-flex; align-items: center; gap: 3px;">
+            <span>VRoid Studio</span>
+            <svg class="icon-sm" viewBox="0 0 24 24" style="width: 11px; height: 11px;"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+          </a>
         </div>
       </div>
 
-      <!-- Upload 2D Image States (4 State Lengkap) -->
-      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-        <span style="font-size: 11px;">☕ Gambar Diam / Standby (Idle):</span>
-        <label class="btn" style="padding: 4px 8px; font-size: 10px; cursor: pointer; margin: 0;">
+      <!-- Upload 2D Image States -->
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-surface); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+        <span style="font-size: 12px;">☕ Diam / Standby (Idle):</span>
+        <label class="btn" style="padding: 4px 10px; font-size: 11px; cursor: pointer; margin: 0; gap: 5px;">
+          <svg class="icon-sm" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
           <span>Pilih Gambar</span>
           <input type="file" id="upload-idle" accept="image/*,.svg" style="display: none;" />
         </label>
       </div>
 
-      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-        <span style="font-size: 11px;">👂 Gambar Mendengarkan (Listening):</span>
-        <label class="btn" style="padding: 4px 8px; font-size: 10px; cursor: pointer; margin: 0;">
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-surface); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+        <span style="font-size: 12px;">👂 Mendengarkan (Listening):</span>
+        <label class="btn" style="padding: 4px 10px; font-size: 11px; cursor: pointer; margin: 0; gap: 5px;">
+          <svg class="icon-sm" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
           <span>Pilih Gambar</span>
           <input type="file" id="upload-listening" accept="image/*,.svg" style="display: none;" />
         </label>
       </div>
 
-      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-        <span style="font-size: 11px;">🤔 Gambar Berpikir / Memproses (Thinking):</span>
-        <label class="btn" style="padding: 4px 8px; font-size: 10px; cursor: pointer; margin: 0;">
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-surface); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+        <span style="font-size: 12px;">🤔 Berpikir (Thinking):</span>
+        <label class="btn" style="padding: 4px 10px; font-size: 11px; cursor: pointer; margin: 0; gap: 5px;">
+          <svg class="icon-sm" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
           <span>Pilih Gambar</span>
           <input type="file" id="upload-thinking" accept="image/*,.svg" style="display: none;" />
         </label>
       </div>
 
-      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-        <span style="font-size: 11px;">🗣️ Gambar Berbicara (Talking):</span>
-        <label class="btn" style="padding: 4px 8px; font-size: 10px; cursor: pointer; margin: 0;">
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-surface); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+        <span style="font-size: 12px;">🗣️ Berbicara (Talking):</span>
+        <label class="btn" style="padding: 4px 10px; font-size: 11px; cursor: pointer; margin: 0; gap: 5px;">
+          <svg class="icon-sm" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
           <span>Pilih Gambar</span>
           <input type="file" id="upload-talking" accept="image/*,.svg" style="display: none;" />
         </label>

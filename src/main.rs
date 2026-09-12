@@ -20,7 +20,7 @@ fn main() -> Result<()> {
     let config_clone = config.clone();
 
     println!("====================================================");
-    println!("🎀  AI-Voice (Rust) - Asisten Pribadi: {} (Anime ID)", config.assistant_name);
+    println!("  Ragasukma - Asisten Pribadi: {} (Anime ID)", config.assistant_name);
     println!("====================================================");
 
     // Jalankan interactive session & audio engine di background thread
