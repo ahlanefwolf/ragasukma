@@ -15,18 +15,28 @@ pub fn ats_report_status(status: String) {
 
 #[tauri::command]
 pub fn open_anytospeech_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("anytospeech-session") {
-        let _ = window.show();
-        let _ = window.set_focus();
-        return Ok(());
-    }
-
-    let target_url_str = if std::env::var("TTS_ENGINE").unwrap_or_default().to_lowercase() == "kiki"
-        || std::env::var("TTS_ENGINE").unwrap_or_default().to_lowercase() == "kikivoice" {
+    let u = crate::config::load_user_config();
+    let eng = u.tts_engine.to_lowercase();
+    let target_url_str = if eng == "kiki" || eng == "kikivoice" {
         "https://kikivoice.ai/ai-voice-cloning"
     } else {
         "https://anytospeech.com"
     };
+
+    if let Some(window) = app.get_webview_window("anytospeech-session") {
+        if let Ok(current_url) = window.url() {
+            let cur = current_url.as_str();
+            let is_kiki = target_url_str.contains("kikivoice");
+            if (is_kiki && !cur.contains("kikivoice")) || (!is_kiki && cur.contains("kikivoice")) {
+                if let Ok(target_url) = target_url_str.parse() {
+                    let _ = window.navigate(target_url);
+                }
+            }
+        }
+        let _ = window.show();
+        let _ = window.set_focus();
+        return Ok(());
+    }
 
     if let Ok(target_url) = target_url_str.parse() {
         let init_script = r##"
@@ -337,7 +347,7 @@ pub fn open_anytospeech_window(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 pub fn speak_in_anytospeech_webview(text: &str, is_interrupted: Arc<AtomicBool>) -> bool {
-    let window = match crate::overlay::APP_HANDLE.lock() {
+    let mut window = match crate::overlay::APP_HANDLE.lock() {
         Ok(guard) => {
             if let Some(app) = guard.as_ref() {
                 app.get_webview_window("anytospeech-session")
@@ -348,6 +358,18 @@ pub fn speak_in_anytospeech_webview(text: &str, is_interrupted: Arc<AtomicBool>)
         Err(_) => None,
     };
 
+    // Jika jendela belum terbuka, buka otomatis
+    if window.is_none() {
+        if let Ok(guard) = crate::overlay::APP_HANDLE.lock() {
+            if let Some(app) = guard.as_ref() {
+                println!("🌐 [Web TTS] Membuka jendela WebKit otomatis...");
+                let _ = open_anytospeech_window(app.clone());
+                thread::sleep(std::time::Duration::from_millis(1200));
+                window = app.get_webview_window("anytospeech-session");
+            }
+        }
+    }
+
     let window = match window {
         Some(w) => w,
         None => return false,
@@ -357,7 +379,7 @@ pub fn speak_in_anytospeech_webview(text: &str, is_interrupted: Arc<AtomicBool>)
         *guard = "generating".to_string();
     }
 
-    crate::tray::TrayState::update(crate::tray::AssistantState::Thinking, "AnyToSpeech: Sedang membuat audio...");
+    crate::tray::TrayState::update(crate::tray::AssistantState::Thinking, "Sedang membuat audio...");
 
     // Reset hash terlebih dahulu agar status bersih
     let _ = window.eval("try { window.location.hash = '#ats_idle'; } catch(e) {}");
@@ -425,7 +447,7 @@ pub fn speak_in_anytospeech_webview(text: &str, is_interrupted: Arc<AtomicBool>)
                 if !saw_active {
                     crate::tray::TrayState::update_with_emotion(
                         crate::tray::AssistantState::Thinking,
-                        "AnyToSpeech: Mempersiapkan audio...",
+                        "Mempersiapkan audio...",
                         &current_emotion,
                     );
                 }

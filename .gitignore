@@ -2,11 +2,7 @@
 /target/
 target/
 
-# Environment & Private secrets
-.env
-.env.*
-!.env.example
-
+# Temporary runtime files, IPC states & logs
 # Models, Weights & Large Binaries
 /models/
 /assets/models/

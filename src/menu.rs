@@ -116,6 +116,55 @@ impl AppSession {
         })
     }
 
+    pub fn reload_config_if_changed(&mut self) {
+        let latest_config = AppConfig::load();
+
+        // Cek apakah konfigurasi audio / STT / TTS berubah
+        let stt_changed = latest_config.stt_engine != self.config.stt_engine
+            || latest_config.groq_api_key != self.config.groq_api_key;
+
+        let tts_changed = latest_config.tts_engine != self.config.tts_engine
+            || (latest_config.tts_speed - self.config.tts_speed).abs() > 0.01
+            || latest_config.tts_eleven_labs_key != self.config.tts_eleven_labs_key
+            || latest_config.elevenlabs_voice_id != self.config.elevenlabs_voice_id;
+
+        let vad_changed = (latest_config.vad_activation_threshold - self.config.vad_activation_threshold).abs() > 0.0001
+            || latest_config.vad_silence_limit_chunks != self.config.vad_silence_limit_chunks
+            || latest_config.noise_reduction_level != self.config.noise_reduction_level;
+
+        let llm_changed = latest_config.llm_base_url != self.config.llm_base_url
+            || latest_config.llm_model != self.config.llm_model
+            || latest_config.llm_api_key != self.config.llm_api_key
+            || latest_config.assistant_name != self.config.assistant_name
+            || latest_config.user_callsign != self.config.user_callsign;
+
+        if vad_changed {
+            if let Ok(new_recorder) = AudioRecorder::new(latest_config.clone()) {
+                self.recorder = Arc::new(new_recorder);
+                println!("🔄 [Reactive Update] VAD Threshold & Recorder diupdate realtime!");
+            }
+        }
+
+        if stt_changed {
+            if let Ok(new_stt) = SttEngine::new(&latest_config.stt_engine) {
+                self.stt = new_stt;
+                println!("🔄 [Reactive Update] STT Engine dialihkan ke: {}", latest_config.stt_engine.to_uppercase());
+            }
+        }
+
+        if tts_changed {
+            self.tts = Arc::new(TextToSpeech::new());
+            println!("🔄 [Reactive Update] TTS Engine dialihkan ke: {}", latest_config.tts_engine.to_uppercase());
+        }
+
+        if llm_changed {
+            self.llm = LlmClient::new();
+            println!("🔄 [Reactive Update] LLM Persona / Model dialihkan ke: {} ({})", latest_config.llm_model, latest_config.assistant_name);
+        }
+
+        self.config = latest_config;
+    }
+
     pub fn run_interactive_menu(&mut self) -> Result<()> {
         // Langsung mulai mode ngobrol / active loop saat dijalankan
         self.start_chat_loop()?;
@@ -268,6 +317,9 @@ impl AppSession {
         let mut silent_turns_count = 0;
 
         loop {
+            // Reload konfigurasi secara reactive sebelum mulai giliran mendengar berikutnya
+            self.reload_config_if_changed();
+
             // Sesi Ngobrol Aktif
             if is_paused {
                 TrayState::update(AssistantState::Idle, "Dijeda");

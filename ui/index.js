@@ -679,8 +679,43 @@ async function loadExternalPoses() {
 }
 window.loadExternalPoses = loadExternalPoses;
 
+let _pollCounter = 0;
 async function pollState() {
   try {
+    _pollCounter++;
+    if (_pollCounter % 20 === 0) {
+      // Periksa konfigurasi nama asisten & tipe avatar secara reaktif
+      try {
+        const config = await invoke('get_app_config');
+        if (config) {
+          if (config.assistant_name) {
+            const titleEl = document.querySelector('.menu-title');
+            if (titleEl && titleEl.textContent !== `🎀 ${config.assistant_name} Assistant`) {
+              titleEl.textContent = `🎀 ${config.assistant_name} Assistant`;
+            }
+            if (btnTestVoice && btnTestVoice.textContent !== `🔊 Tes Suara ${config.assistant_name}`) {
+              btnTestVoice.textContent = `🔊 Tes Suara ${config.assistant_name}`;
+            }
+          }
+          if (config.avatar_type) {
+            const newType = config.avatar_type.toLowerCase();
+            if (newType !== avatarType) {
+              avatarType = newType;
+              isVrm = avatarType === 'vrm';
+              if (isVrm) {
+                if (imgElement) imgElement.style.display = 'none';
+                if (canvasContainer) canvasContainer.style.display = 'flex';
+                if (!currentVrm) initVrmViewer();
+              } else {
+                if (imgElement) imgElement.style.display = 'block';
+                if (canvasContainer) canvasContainer.style.display = 'none';
+              }
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
     const data = await invoke('get_app_state');
     const state = data?.class || 'idle';
     const emotion = data?.emotion || 'neutral';

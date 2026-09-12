@@ -21,8 +21,15 @@ struct GroqTranscriptionResponse {
 impl SttEngine {
     pub fn new(engine_type: &str) -> Result<Self> {
         if engine_type.eq_ignore_ascii_case("groq") {
-            let api_key = std::env::var("GROQ_API_KEY")
-                .context("GROQ_API_KEY tidak ditemukan di .env! Silakan isi GROQ_API_KEY=gsk_... untuk menggunakan mode Groq STT.")?;
+            let u = crate::config::load_user_config();
+            let api_key = if !u.groq_api_key.trim().is_empty() {
+                u.groq_api_key
+            } else {
+                std::env::var("GROQ_API_KEY").unwrap_or_default()
+            };
+            if api_key.trim().is_empty() {
+                anyhow::bail!("GROQ_API_KEY tidak ditemukan di config-ai.json atau GUI Settings! Silakan isi GROQ_API_KEY untuk menggunakan mode Groq STT.");
+            }
             let client = reqwest::blocking::Client::builder()
                 .timeout(std::time::Duration::from_secs(15))
                 .build()?;

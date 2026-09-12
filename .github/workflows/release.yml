@@ -1,0 +1,86 @@
+name: "Release App (Multi-Platform CI/CD)"
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+          - platform: 'macos-latest'
+            args: '--target universal-apple-darwin'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------------
+      # Linux Dependencies
+      # ------------------------------------------------------------------------
+      - name: Install System Dependencies (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev \
+                                  build-essential \
+                                  curl \
+                                  wget \
+                                  file \
+                                  libxdo-dev \
+                                  libssl-dev \
+                                  libayatana-appindicator3-dev \
+                                  librsvg2-dev \
+                                  libasound2-dev
+
+      # ------------------------------------------------------------------------
+      # macOS Universal Target (Apple Silicon M1/M2/M3 & Intel)
+      # ------------------------------------------------------------------------
+      - name: Add macOS Universal Targets
+        if: matrix.platform == 'macos-latest'
+        run: |
+          rustup target add aarch64-apple-darwin
+          rustup target add x86_64-apple-darwin
+
+      # ------------------------------------------------------------------------
+      # Rust Setup
+      # ------------------------------------------------------------------------
+      - name: Setup Rust Stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+
+      # ------------------------------------------------------------------------
+      # Node.js for Tauri CLI
+      # ------------------------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ------------------------------------------------------------------------
+      # Build & Create Release Asset
+      # ------------------------------------------------------------------------
+      - name: Build Tauri Application & Generate Installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Ahlan Voice ${{ github.ref_name }}'
+          releaseBody: 'Private Automated Cross-Platform Release (Linux, Windows, macOS Universal).'
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

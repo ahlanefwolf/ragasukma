@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Assistant Settings</title>
+  <link rel="stylesheet" href="theme.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body {
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family: var(--font-family);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 100vh;
+      overflow-y: auto;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-default);
+      padding-bottom: 10px;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--accent-pink);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .card-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .form-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .form-input, .form-select {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 7px 10px;
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      outline: none;
+      width: 100%;
+    }
+    .form-input:focus, .form-select:focus {
+      border-color: var(--c-cyan);
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .btn-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 4px;
+      margin-bottom: 8px;
+    }
+    #toast {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-surface);
+      color: var(--text-main);
+      border: 1px solid var(--c-cyan);
+      padding: 8px 16px;
+      font-size: 11px;
+      font-weight: 700;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      border-radius: var(--radius-md);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      z-index: 9999;
+    }
+    #toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span>Pengaturan Asisten</span>
+    </div>
+  </div>
+
+  <!-- 1. Karakter & Persona -->
+  <div class="card">
+    <div class="card-title">👤 Identitas & Karakter</div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label class="form-label">Nama Asisten</label>
+        <input type="text" id="assistant_name" class="form-input" placeholder="Laras" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Panggilan ke Kamu</label>
+        <input type="text" id="user_callsign" class="form-input" placeholder="Mas" />
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. LLM / AI Model -->
+  <div class="card">
+    <div class="card-title">🧠 Large Language Model (LLM)</div>
+    <div class="form-group">
+      <label class="form-label">Base URL (OpenAI / Ollama / 9router)</label>
+      <input type="text" id="llm_base_url" class="form-input" placeholder="http://localhost:20128/v1" />
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label class="form-label">Model Name</label>
+        <input type="text" id="llm_model" class="form-input" placeholder="ag/gemini-3.7-flash-low" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">API Key (Opsional / Bearer)</label>
+        <input type="password" id="llm_api_key" class="form-input" placeholder="sk-..." />
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. STT (Speech-to-Text) -->
+  <div class="card">
+    <div class="card-title">🎤 Speech-to-Text (STT) & Microphone</div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label class="form-label">STT Engine</label>
+        <select id="stt_engine" class="form-select">
+          <option value="google">Google Speech (Gratis & Cepat)</option>
+          <option value="groq">Groq Cloud Whisper (Ultra Fast)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Groq API Key (jika Groq)</label>
+        <input type="password" id="groq_api_key" class="form-input" placeholder="gsk_..." />
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label class="form-label">Sensitivitas Mic</label>
+        <select id="mic_sensitivity" class="form-select">
+          <option value="0">0 - Sangat Rendah (Ruangan Ramai)</option>
+          <option value="1">1 - Rendah</option>
+          <option value="2">2 - Normal (Standar)</option>
+          <option value="3" selected>3 - Tinggi (Responsif)</option>
+          <option value="4">4 - Ultra Sensitif (Bisikan)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Jeda Hening Deteksi (VAD)</label>
+        <select id="vad_silence_limit" class="form-select">
+          <option value="0">0 - ~300ms (Sangat Cepat)</option>
+          <option value="1">1 - ~400ms (Cepat)</option>
+          <option value="2" selected>2 - ~500ms (Standar)</option>
+          <option value="3">3 - ~650ms (Santai)</option>
+          <option value="4">4 - ~875ms (Lambat)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. TTS (Text-to-Speech) -->
+  <div class="card">
+    <div class="card-title">🔊 Text-to-Speech (TTS) & Suara</div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label class="form-label">TTS Engine</label>
+        <select id="tts_engine" class="form-select">
+          <option value="google">Google Translate TTS (Gratis)</option>
+          <option value="kiki">KikiVoice.ai (Web Clone)</option>
+          <option value="anytospeech">AnyToSpeech (Web)</option>
+          <option value="elevenlabs">ElevenLabs API</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kecepatan Bicara (Khusus Google TTS)</label>
+        <input type="number" step="0.05" id="tts_speed" class="form-input" value="1.15" placeholder="1.15 (Default)" />
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label class="form-label">ElevenLabs API Key</label>
+        <input type="password" id="tts_eleven_labs_key" class="form-input" placeholder="sk_..." />
+      </div>
+      <div class="form-group">
+        <label class="form-label">ElevenLabs Voice ID</label>
+        <input type="text" id="elevenlabs_voice_id" class="form-input" placeholder="pFZP..." />
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Avatar Type -->
+  <div class="card">
+    <div class="card-title">🪟 Tampilan Desktop Overlay</div>
+    <div class="form-group">
+      <label class="form-label">Tipe Avatar</label>
+      <select id="avatar_type" class="form-select">
+        <option value="vrm">3D VRM Model (Three.js)</option>
+        <option value="svg">2D Flat SVG (Ultra Ringan)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="btn-actions">
+    <button class="btn btn-primary" id="btn-save" style="flex: 1; justify-content: center;">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      <span>Simpan Pengaturan</span>
+    </button>
+  </div>
+
+  <div id="toast"></div>
+
+  <script type="module">
+    const { invoke } = window.__TAURI__.core;
+    const toast = document.getElementById('toast');
+    const btnSave = document.getElementById('btn-save');
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    const fields = [
+      'assistant_name', 'user_callsign', 'llm_base_url', 'llm_model', 'llm_api_key',
+      'stt_engine', 'groq_api_key', 'mic_sensitivity', 'vad_silence_limit',
+      'tts_engine', 'tts_speed', 'tts_eleven_labs_key', 'elevenlabs_voice_id', 'avatar_type'
+    ];
+
+    async function loadConfig() {
+      try {
+        const cfg = await invoke('get_full_user_config');
+        if (cfg) {
+          fields.forEach(f => {
+            const el = document.getElementById(f);
+            if (el && cfg[f] !== undefined && cfg[f] !== null) {
+              el.value = cfg[f];
+            }
+          });
+        }
+      } catch (err) {
+        showToast('⚠️ Gagal memuat konfigurasi');
+      }
+    }
+
+    btnSave.addEventListener('click', async () => {
+      const payload = {};
+      fields.forEach(f => {
+        const el = document.getElementById(f);
+        if (el) {
+          if (f === 'tts_speed') {
+            payload[f] = parseFloat(el.value) || 1.15;
+          } else {
+            payload[f] = el.value.trim();
+          }
+        }
+      });
+      payload['voice_mode'] = 'auto';
+      payload['noise_reduction_level'] = 0;
+
+      try {
+        await invoke('save_full_user_config', { config: payload });
+        showToast('✅ Pengaturan berhasil disimpan!');
+
+        // Jika user memilih engine Web TTS (Kiki / AnyToSpeech), buka jendelanya otomatis jika belum terbuka
+        const eng = (payload.tts_engine || '').toLowerCase();
+        if (eng === 'kiki' || eng === 'kikivoice' || eng === 'anytospeech' || eng === 'ats') {
+          setTimeout(() => {
+            invoke('open_anytospeech_window');
+          }, 300);
+        }
+      } catch (err) {
+        showToast(`❌ Gagal menyimpan: ${err}`);
+      }
+    });
+
+    loadConfig();
+  </script>
+</body>
+</html>

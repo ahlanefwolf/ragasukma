@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::env;
 
 pub fn load_skills_summary() -> String {
     let path = std::path::Path::new("skill-command.md");
@@ -96,21 +95,17 @@ struct OllamaChatResponse {
 
 impl LlmClient {
     pub fn new() -> Self {
-        let assistant_name = env::var("ASSISTANT_NAME").unwrap_or_else(|_| "Niki".to_string());
-        let callsign = env::var("USER_CALLSIGN")
-            .or_else(|_| env::var("USER_NAME"))
-            .unwrap_or_else(|_| "Mas".to_string());
+        let u = crate::config::load_user_config();
+        let assistant_name = u.assistant_name;
+        let callsign = u.user_callsign;
 
-        let api_key = env::var("LLM_API_KEY")
-            .or_else(|_| env::var("MISTRAL_API_KEY"))
-            .ok()
-            .filter(|k| !k.trim().is_empty());
-        let base_url = env::var("LLM_BASE_URL")
-            .or_else(|_| env::var("MISTRAL_BASE_URL"))
-            .unwrap_or_else(|_| "http://localhost:20128/v1".to_string());
-        let model = env::var("LLM_MODEL")
-            .or_else(|_| env::var("MISTRAL_MODEL"))
-            .unwrap_or_else(|_| "ag/gemini-3.7-flash-low".to_string());
+        let api_key = if !u.llm_api_key.trim().is_empty() {
+            Some(u.llm_api_key)
+        } else {
+            None
+        };
+        let base_url = u.llm_base_url;
+        let model = u.llm_model;
 
         let client = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(60))
@@ -385,9 +380,8 @@ fn clean_ai_text(text: &str) -> String {
         }
     }
 
-    let cs = env::var("USER_CALLSIGN")
-        .or_else(|_| env::var("USER_NAME"))
-        .unwrap_or_else(|_| "Pengguna".to_string());
+    let u = crate::config::load_user_config();
+    let cs = u.user_callsign;
     let cs_dash_both = format!("-{cs}-");
     let cs_dash_left = format!("-{cs}");
     let cs_dash_right = format!("{cs}-");

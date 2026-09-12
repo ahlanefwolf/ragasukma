@@ -33,7 +33,7 @@ fn main() -> Result<()> {
     });
 
     // Jalankan GUI Overlay Tauri di main thread
-    NativeOverlay::run(&config.avatar_type, &config.assistant_name, &config.tts_engine);
+    NativeOverlay::run();
 
     let _ = session_thread.join();
     std::process::exit(0);

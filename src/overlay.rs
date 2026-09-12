@@ -259,26 +259,55 @@ fn open_skills_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn get_full_user_config() -> crate::config::UserConfig {
+    crate::config::load_user_config()
+}
+
+#[tauri::command]
+fn save_full_user_config(config: crate::config::UserConfig) -> Result<(), String> {
+    crate::config::save_user_config(&config)
+}
+
+#[tauri::command]
+fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("settings") {
+        let _ = window.show();
+        let _ = window.set_focus();
+        return Ok(());
+    }
+
+    tauri::WebviewWindowBuilder::new(&app, "settings", tauri::WebviewUrl::App("settings.html".into()))
+        .title("Assistant Settings")
+        .inner_size(520.0, 640.0)
+        .resizable(true)
+        .transparent(false)
+        .decorations(true)
+        .always_on_top(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 pub static APP_HANDLE: std::sync::LazyLock<Mutex<Option<tauri::AppHandle>>> =
     std::sync::LazyLock::new(|| Mutex::new(None));
 
 pub struct OverlayState {
-    pub assistant_name: String,
-    pub avatar_type: String,
-    pub tts_engine: String,
     pub position_config: Mutex<PositionConfig>,
 }
 
 #[tauri::command]
 fn get_app_config(state: tauri::State<'_, OverlayState>) -> serde_json::Value {
+    let u = crate::config::load_user_config();
     let cfg = match state.position_config.lock() {
         Ok(guard) => guard.clone(),
         Err(poisoned) => poisoned.into_inner().clone(),
     };
     serde_json::json!({
-        "assistant_name": state.assistant_name,
-        "avatar_type": state.avatar_type,
-        "tts_engine": state.tts_engine,
+        "assistant_name": u.assistant_name,
+        "avatar_type": u.avatar_type,
+        "tts_engine": u.tts_engine,
         "size": cfg.size,
         "corner": cfg.corner,
     })
@@ -293,9 +322,8 @@ fn get_app_state() -> Option<serde_json::Value> {
 fn send_command(cmd: String) {
     if cmd == "test_voice" {
         std::thread::spawn(|| {
-            let user_callsign = std::env::var("USER_CALLSIGN")
-                .or_else(|_| std::env::var("USER_NAME"))
-                .unwrap_or_else(|_| "Kak".to_string());
+            let u = crate::config::load_user_config();
+            let user_callsign = u.user_callsign;
 
             let tts = crate::tts::TextToSpeech::new();
             let is_interrupted = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -329,6 +357,7 @@ fn drag_window_delta(
 
         if let Ok(Some(monitor)) = window.current_monitor() {
             let m_size = monitor.size();
+            let avatar_type = crate::config::load_user_config().avatar_type;
             let mut cfg = match state.position_config.lock() {
                 Ok(guard) => guard,
                 Err(poisoned) => poisoned.into_inner(),
@@ -337,7 +366,7 @@ fn drag_window_delta(
 
             match corner.as_str() {
                 "top-right" => {
-                    let w = if state.avatar_type.eq_ignore_ascii_case("vrm") { (cfg.size * 9) / 16 } else { cfg.size };
+                    let w = if avatar_type.eq_ignore_ascii_case("vrm") { (cfg.size * 9) / 16 } else { cfg.size };
                     cfg.margin_x = (m_size.width as i32 - (new_x + w)).max(-200);
                     cfg.margin_y = new_y.max(-200);
                 }
@@ -346,7 +375,7 @@ fn drag_window_delta(
                     cfg.margin_y = new_y.max(-200);
                 }
                 "bottom-right" => {
-                    let w = if state.avatar_type.eq_ignore_ascii_case("vrm") { (cfg.size * 9) / 16 } else { cfg.size };
+                    let w = if avatar_type.eq_ignore_ascii_case("vrm") { (cfg.size * 9) / 16 } else { cfg.size };
                     let h = cfg.size;
                     cfg.margin_x = (m_size.width as i32 - (new_x + w)).max(-200);
                     cfg.margin_y = (m_size.height as i32 - (new_y + h)).max(-200);
@@ -386,7 +415,8 @@ fn change_size_delta(
 
     if new_size != old_size {
         cfg.size = new_size;
-        let w = if state.avatar_type.eq_ignore_ascii_case("vrm") {
+        let avatar_type = crate::config::load_user_config().avatar_type;
+        let w = if avatar_type.eq_ignore_ascii_case("vrm") {
             (new_size * 9) / 16
         } else {
             new_size
@@ -409,7 +439,8 @@ fn reset_size(window: tauri::Window, state: tauri::State<'_, OverlayState>) {
         Err(poisoned) => poisoned.into_inner(),
     };
     cfg.size = 320;
-    apply_position_to_window(&window, &cfg, &state.avatar_type);
+    let avatar_type = crate::config::load_user_config().avatar_type;
+    apply_position_to_window(&window, &cfg, &avatar_type);
     save_position_config(&cfg);
 }
 
@@ -422,7 +453,8 @@ fn set_corner(window: tauri::Window, corner: String, state: tauri::State<'_, Ove
     cfg.corner = corner.clone();
     cfg.margin_x = 24;
     cfg.margin_y = 24;
-    apply_position_to_window(&window, &cfg, &state.avatar_type);
+    let avatar_type = crate::config::load_user_config().avatar_type;
+    apply_position_to_window(&window, &cfg, &avatar_type);
     save_position_config(&cfg);
 }
 
@@ -538,16 +570,66 @@ fn apply_position_to_window(window: &tauri::Window, cfg: &PositionConfig, avatar
     }
 }
 
+#[tauri::command]
+fn check_for_updates() -> serde_json::Value {
+    let current_ver = env!("CARGO_PKG_VERSION");
+    let repo = "hlnsptr/ai-voice";
+    let url = format!("https://api.github.com/repos/{}/releases/latest", repo);
+
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("ahlan-voice-updater")
+        .timeout(std::time::Duration::from_secs(5))
+        .build();
+
+    match client {
+        Ok(c) => match c.get(&url).send() {
+            Ok(resp) => {
+                if resp.status().is_success() {
+                    if let Ok(json) = resp.json::<serde_json::Value>() {
+                        let latest_tag = json["tag_name"].as_str().unwrap_or("").trim_start_matches('v');
+                        let body = json["body"].as_str().unwrap_or("Ada versi pembaruan baru!");
+                        let html_url = json["html_url"].as_str().unwrap_or("");
+
+                        let has_update = !latest_tag.is_empty() && latest_tag != current_ver;
+                        return serde_json::json!({
+                            "status": "success",
+                            "has_update": has_update,
+                            "current_version": current_ver,
+                            "latest_version": latest_tag,
+                            "release_notes": body,
+                            "url": html_url
+                        });
+                    }
+                }
+                serde_json::json!({
+                    "status": "up_to_date",
+                    "has_update": false,
+                    "current_version": current_ver,
+                    "message": "Aplikasi sudah versi terbaru!"
+                })
+            }
+            Err(_) => serde_json::json!({
+                "status": "offline",
+                "has_update": false,
+                "current_version": current_ver,
+                "message": "Tidak dapat terhubung ke server update."
+            })
+        },
+        Err(_) => serde_json::json!({
+            "status": "error",
+            "has_update": false,
+            "current_version": current_ver,
+            "message": "Gagal menyiapkan engine updater."
+        })
+    }
+}
+
 pub struct NativeOverlay;
 
 impl NativeOverlay {
-    pub fn run(avatar_type: &str, assistant_name: &str, tts_engine: &str) {
-        let av_type = avatar_type.to_lowercase();
+    pub fn run() {
         let pos_cfg = load_position_config();
         let overlay_state = OverlayState {
-            assistant_name: assistant_name.to_string(),
-            avatar_type: av_type.clone(),
-            tts_engine: tts_engine.to_string(),
             position_config: Mutex::new(pos_cfg.clone()),
         };
 
@@ -568,6 +650,9 @@ impl NativeOverlay {
                 delete_skill,
                 execute_skill,
                 open_skills_window,
+                open_settings_window,
+                get_full_user_config,
+                save_full_user_config,
                 open_menu_window,
                 open_tuner_window,
                 get_poses_config,
@@ -576,7 +661,8 @@ impl NativeOverlay {
                 get_external_asset_bytes,
                 log_frontend,
                 open_anytospeech_window,
-                ats_report_status
+                ats_report_status,
+                check_for_updates
             ])
             .setup(move |app| {
                 if let Ok(mut guard) = APP_HANDLE.lock() {
@@ -584,7 +670,8 @@ impl NativeOverlay {
                 }
 
                 // Otomatis buka jendela WebKit AnyToSpeech / KikiVoice jika TTS_ENGINE diset
-                let tts_engine_env = std::env::var("TTS_ENGINE").unwrap_or_default().to_lowercase();
+                let u = crate::config::load_user_config();
+                let tts_engine_env = u.tts_engine.to_lowercase();
                 if tts_engine_env == "anytospeech" || tts_engine_env == "ats"
                     || tts_engine_env == "natural_readers" || tts_engine_env == "naturalreaders"
                     || tts_engine_env == "kiki" || tts_engine_env == "kikivoice" {
@@ -600,7 +687,7 @@ impl NativeOverlay {
                         Ok(guard) => guard.clone(),
                         Err(poisoned) => poisoned.into_inner().clone(),
                     };
-                    apply_position_to_window(&window.as_ref().window(), &cfg, &av_type);
+                    apply_position_to_window(&window.as_ref().window(), &cfg, &u.avatar_type);
                     println!("🪟 Tauri Overlay Window berhasil ditampilkan di layar.");
                 } else {
                     eprintln!("⚠️ Warning: Window 'main' tidak ditemukan di Tauri.");

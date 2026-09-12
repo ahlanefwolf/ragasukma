@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use rodio::{buffer::SamplesBuffer, Decoder, OutputStream, Sink, Source};
-use std::env;
 use std::io::Cursor;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -81,24 +80,22 @@ pub struct TextToSpeech {
 
 impl TextToSpeech {
     pub fn new() -> Self {
-        let playback_speed = env::var("TTS_SPEED")
-            .ok()
-            .and_then(|s| s.parse::<f32>().ok())
-            .unwrap_or(1.15);
+        let u = crate::config::load_user_config();
+        let playback_speed = u.tts_speed;
+        let tts_engine = u.tts_engine.to_lowercase();
+        let tts_lang = "id".to_string();
 
-        let tts_engine = env::var("TTS_ENGINE")
-            .unwrap_or_else(|_| "google".to_string())
-            .to_lowercase();
-        let tts_lang = env::var("TTS_LANG").unwrap_or_else(|_| "id".to_string());
+        let elevenlabs_api_key = if !u.tts_eleven_labs_key.trim().is_empty() {
+            Some(u.tts_eleven_labs_key.trim().to_string())
+        } else {
+            None
+        };
 
-        let elevenlabs_api_key = env::var("TTS_ELEVEN_LABS_KEY")
-            .or_else(|_| env::var("TTS_ELELVEN_LABS_KEY"))
-            .ok()
-            .map(|k| k.trim().to_string())
-            .filter(|k| !k.is_empty() && k.starts_with("sk_"));
-
-        let elevenlabs_voice_id = env::var("ELEVENLABS_VOICE_ID")
-            .unwrap_or_else(|_| "cgSgspJ2msm6clMCkdW9".to_string());
+        let elevenlabs_voice_id = if !u.elevenlabs_voice_id.trim().is_empty() {
+            u.elevenlabs_voice_id
+        } else {
+            "cgSgspJ2msm6clMCkdW9".to_string()
+        };
 
         let http_client = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(15))
