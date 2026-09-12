@@ -7,6 +7,7 @@ use std::path::PathBuf;
 pub struct UserConfig {
     pub assistant_name: String,
     pub user_callsign: String,
+    pub personality_role: String,
     pub stt_engine: String,
     pub groq_api_key: String,
     pub llm_base_url: String,
@@ -28,6 +29,7 @@ impl Default for UserConfig {
         Self {
             assistant_name: "Laras".to_string(),
             user_callsign: "Mas".to_string(),
+            personality_role: "partner".to_string(),
             stt_engine: "google".to_string(),
             groq_api_key: "".to_string(),
             llm_base_url: "http://localhost:20128/v1".to_string(),
@@ -108,6 +110,7 @@ pub struct AppConfig {
     pub elevenlabs_voice_id: String,
     pub assistant_name: String,
     pub user_callsign: String,
+    pub personality_role: String,
     pub avatar_type: String,
 }
 
@@ -149,6 +152,7 @@ impl AppConfig {
             elevenlabs_voice_id: u.elevenlabs_voice_id,
             assistant_name: u.assistant_name,
             user_callsign: u.user_callsign,
+            personality_role: u.personality_role,
             avatar_type: u.avatar_type,
         }
     }

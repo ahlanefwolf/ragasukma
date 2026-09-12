@@ -1,6 +1,7 @@
 {
   "assistant_name": "Laras",
   "user_callsign": "Mas",
+  "personality_role": "friend",
   "stt_engine": "google",
   "groq_api_key": "",
   "llm_base_url": "",
@@ -14,5 +15,5 @@
   "tts_speed": 1.15,
   "tts_eleven_labs_key": "",
   "elevenlabs_voice_id": "",
-  "avatar_type": "svg"
+  "avatar_type": "vrm"
 }

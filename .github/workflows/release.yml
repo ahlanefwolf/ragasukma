@@ -79,8 +79,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'Ahlan Voice ${{ github.ref_name }}'
-          releaseBody: 'Private Automated Cross-Platform Release (Linux, Windows, macOS Universal).'
+          releaseName: 'Ragasukma Voice ${{ github.ref_name }}'
+          releaseBody: 'Ragasukma Desktop Assistant - Automated Cross-Platform Release (Linux, Windows, macOS Universal).'
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

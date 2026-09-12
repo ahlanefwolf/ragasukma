@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ahlan-voice",
+  "productName": "ragasukma",
   "version": "0.1.0",
-  "identifier": "com.aivoice.assistant.overlay",
+  "identifier": "com.ragasukma.assistant.overlay",
   "build": {
     "frontendDist": "ui"
   },
@@ -18,7 +18,7 @@
     },
     "windows": [
       {
-        "title": "ai-voice-overlay",
+        "title": "ragasukma-overlay",
         "label": "main",
         "url": "index.html",
         "width": 180,

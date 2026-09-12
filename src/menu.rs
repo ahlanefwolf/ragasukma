@@ -136,7 +136,8 @@ impl AppSession {
             || latest_config.llm_model != self.config.llm_model
             || latest_config.llm_api_key != self.config.llm_api_key
             || latest_config.assistant_name != self.config.assistant_name
-            || latest_config.user_callsign != self.config.user_callsign;
+            || latest_config.user_callsign != self.config.user_callsign
+            || latest_config.personality_role != self.config.personality_role;
 
         if vad_changed {
             if let Ok(new_recorder) = AudioRecorder::new(latest_config.clone()) {
