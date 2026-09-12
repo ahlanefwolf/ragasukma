@@ -1,4 +1,4 @@
-# AI-Voice (Rust) - Voice Assistant Bahasa Indonesia
+# Ragasukma (Rust) - Voice Assistant Bahasa Indonesia
 
 ## Status: Phase 1 & Phase 2 Selesai ✅
 

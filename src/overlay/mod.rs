@@ -7,6 +7,8 @@ pub mod windows;
 use std::sync::Mutex;
 use std::thread;
 
+use tauri::Emitter;
+
 use crate::skills::*;
 
 pub use assets::*;
@@ -29,7 +31,7 @@ impl NativeOverlay {
             .on_window_event(|window, event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
-                    let _ = window.hide();
+                    let _ = window.emit("request_close_panel", ());
                 }
             })
             .invoke_handler(tauri::generate_handler![
@@ -59,7 +61,10 @@ impl NativeOverlay {
                 get_external_asset_bytes,
                 save_avatar_file,
                 open_browser_url,
-                check_for_updates
+                check_for_updates,
+                set_window_mode,
+                minimize_window,
+                toggle_maximize_window
             ])
             .setup(move |app| {
                 if let Ok(mut guard) = APP_HANDLE.lock() {

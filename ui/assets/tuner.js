@@ -7,6 +7,16 @@ function getTauriInvoke() {
   if (window.__TAURI__?.core?.invoke) return window.__TAURI__.core.invoke;
   if (window.__TAURI__?.invoke) return window.__TAURI__.invoke;
   if (window.__TAURI_INTERNALS__?.invoke) return window.__TAURI_INTERNALS__.invoke;
+  if (window.parent && window.parent !== window) {
+    if (window.parent.__TAURI__?.core?.invoke) return window.parent.__TAURI__.core.invoke;
+    if (window.parent.__TAURI__?.invoke) return window.parent.__TAURI__.invoke;
+    if (window.parent.__TAURI_INTERNALS__?.invoke) return window.parent.__TAURI_INTERNALS__.invoke;
+  }
+  if (window.top && window.top !== window) {
+    if (window.top.__TAURI__?.core?.invoke) return window.top.__TAURI__.core.invoke;
+    if (window.top.__TAURI__?.invoke) return window.top.__TAURI__.invoke;
+    if (window.top.__TAURI_INTERNALS__?.invoke) return window.top.__TAURI_INTERNALS__.invoke;
+  }
   return null;
 }
 
@@ -73,12 +83,16 @@ function showNotification(msg) {
 // Three.js Scene Setup
 const container = document.getElementById('viewport-container');
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(28, container.clientWidth / container.clientHeight, 0.1, 50.0);
+
+const initWidth = container.clientWidth || (window.innerWidth * 0.52) || 450;
+const initHeight = container.clientHeight || (window.innerHeight - 45) || 600;
+
+const camera = new THREE.PerspectiveCamera(28, initWidth / Math.max(initHeight, 1), 0.1, 50.0);
 camera.position.set(0, 0.9, 2.6);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-renderer.setSize(container.clientWidth, container.clientHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(initWidth, initHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 container.appendChild(renderer.domElement);
 
@@ -97,6 +111,24 @@ controls.minDistance = 0.3;
 controls.maxDistance = 8.0;
 controls.target.set(0, 0.85, 0);
 
+function resizeRenderer() {
+  const w = container.clientWidth || (window.innerWidth * 0.52) || 450;
+  const h = container.clientHeight || (window.innerHeight - 45) || 600;
+  if (w <= 0 || h <= 0) return;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+}
+
+const resizeObserver = new ResizeObserver(() => {
+  resizeRenderer();
+  if (currentVrm) {
+    renderer.render(scene, camera);
+  }
+});
+resizeObserver.observe(container);
+
 // Pencahayaan natural
 const frontLight = new THREE.DirectionalLight(0xfff5ee, 1.1);
 frontLight.position.set(0.0, 1.2, 2.5).normalize();
@@ -111,91 +143,114 @@ scene.add(ambient);
 
 let currentVrm = null;
 
+function fitCameraToVrm(vrm) {
+  if (!vrm || !vrm.scene) return;
+  resizeRenderer();
+
+  const bbox = new THREE.Box3().setFromObject(vrm.scene);
+  const center = bbox.getCenter(new THREE.Vector3());
+  const size = bbox.getSize(new THREE.Vector3());
+
+  const targetY = center.y || 0.85;
+  const targetHeight = Math.max(size.y * 1.1, 1.2);
+  const targetWidth = Math.max(size.x * 1.2, 0.6);
+
+  const w = container.clientWidth || (window.innerWidth * 0.52) || 450;
+  const h = container.clientHeight || (window.innerHeight - 45) || 600;
+  const aspect = w / Math.max(h, 1);
+  const fovRad = camera.fov * (Math.PI / 180);
+
+  const distanceV = (targetHeight / 2) / Math.tan(fovRad / 2);
+  const distanceH = (targetWidth / 2) / (Math.tan(fovRad / 2) * aspect);
+  const cameraZ = Math.max(distanceV, distanceH) * 1.05;
+
+  camera.position.set(0, targetY, cameraZ);
+  controls.target.set(0, targetY, 0);
+  camera.lookAt(0, targetY, 0);
+  controls.update();
+}
+
+function handleLoadedVrm(gltf) {
+  const vrm = gltf.userData.vrm;
+  if (!vrm) {
+    console.error('userData.vrm tidak ditemukan pada gltf');
+    showNotification('⚠️ Format VRM tidak sesuai');
+    return;
+  }
+  currentVrm = vrm;
+  scene.add(vrm.scene);
+  vrm.scene.rotation.y = 0;
+
+  vrm.scene.traverse((obj) => {
+    if (obj.isMesh && obj.material) {
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach((m) => {
+        m.side = THREE.DoubleSide;
+        if (m.isMeshStandardMaterial) {
+          m.roughness = Math.min(m.roughness, 0.8);
+          m.metalness = 0.0;
+        }
+      });
+    }
+  });
+
+  fitCameraToVrm(vrm);
+  applyCurrentPose();
+  showNotification('✅ Model VRM siap');
+}
+
 async function loadVrmModel() {
   const loader = new GLTFLoader();
   loader.register((parser) => new VRMLoaderPlugin(parser));
 
   try {
-    const bytes = await invoke('get_external_asset_bytes', { filename: 'char.vrm' });
+    let bytes = null;
+    if (window.parent && typeof window.parent.getCachedVrmBytes === 'function') {
+      bytes = window.parent.getCachedVrmBytes();
+    }
+    if (!bytes || bytes.length === 0) {
+      bytes = await invoke('get_external_asset_bytes', { filename: 'char.vrm' });
+    }
+
     if (bytes && bytes.length > 0) {
       const u8 = (bytes instanceof Uint8Array) ? bytes : new Uint8Array(bytes);
+      const arrayBuffer = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
 
       loader.parse(
-        u8.buffer,
+        arrayBuffer,
         '',
         (gltf) => {
-          const vrm = gltf.userData.vrm;
-          if (!vrm) return;
-          currentVrm = vrm;
-          scene.add(vrm.scene);
-          vrm.scene.rotation.y = 0;
-
-          vrm.scene.traverse((obj) => {
-            if (obj.isMesh && obj.material) {
-              const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-              mats.forEach((m) => {
-                m.side = THREE.DoubleSide;
-                if (m.isMeshStandardMaterial) {
-                  m.roughness = Math.min(m.roughness, 0.8);
-                  m.metalness = 0.0;
-                }
-              });
-            }
-          });
-
-          const bbox = new THREE.Box3().setFromObject(vrm.scene);
-          const center = bbox.getCenter(new THREE.Vector3());
-          controls.target.copy(center);
-
-          applyCurrentPose();
-          showNotification('✅ Model VRM siap');
+          handleLoadedVrm(gltf);
         },
         (err) => {
-          console.error('Error parsing VRM buffer:', err);
-          showNotification('⚠️ Gagal parse VRM buffer');
+          console.error('Error parsing VRM buffer in tuner:', err);
+          showNotification('⚠️ Gagal parse buffer VRM');
         }
       );
       return;
     }
-  } catch(e) {
-    console.warn('Gagal get_external_asset_bytes:', e);
+
+    // Fallback data URI jika byte array gagal
+    const dataUri = await invoke('get_external_asset', { filename: 'char.vrm' });
+    if (dataUri) {
+      loader.load(
+        dataUri,
+        (gltf) => {
+          handleLoadedVrm(gltf);
+        },
+        undefined,
+        (err) => {
+          console.error('Error loading VRM via Data URI:', err);
+          showNotification('⚠️ Gagal memuat VRM dari Data URI');
+        }
+      );
+      return;
+    }
+  } catch (e) {
+    console.warn('Gagal memuat model VRM di Tuner:', e);
   }
 
-  loader.load(
-    'assets/char.vrm',
-    (gltf) => {
-      const vrm = gltf.userData.vrm;
-      if (!vrm) return;
-      currentVrm = vrm;
-      scene.add(vrm.scene);
-      vrm.scene.rotation.y = 0;
-
-      vrm.scene.traverse((obj) => {
-        if (obj.isMesh && obj.material) {
-          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-          mats.forEach((m) => {
-            m.side = THREE.DoubleSide;
-            if (m.isMeshStandardMaterial) {
-              m.roughness = Math.min(m.roughness, 0.8);
-              m.metalness = 0.0;
-            }
-          });
-        }
-      });
-
-      const bbox = new THREE.Box3().setFromObject(vrm.scene);
-      const center = bbox.getCenter(new THREE.Vector3());
-      controls.target.copy(center);
-
-      applyCurrentPose();
-      showNotification('✅ Model VRM siap');
-    },
-    undefined,
-    (err) => {
-      console.error('Error loading VRM:', err);
-      showNotification('⚠️ Gagal load VRM, cek folder assets/char.vrm');
-    }
-  );
+  showNotification('⚠️ File char.vrm tidak ditemukan');
 }
 
 function generateBoneSliders() {
@@ -580,9 +635,7 @@ function setupUIEvents() {
   });
 
   window.addEventListener('resize', () => {
-    camera.aspect = container.clientWidth / container.clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(container.clientWidth, container.clientHeight);
+    resizeRenderer();
   });
 }
 

@@ -309,6 +309,7 @@ let isVrmAnimationRunning = false;
 let vrmLoaderInstance = null;
 
 let cachedVrmBytes = null;
+window.getCachedVrmBytes = () => cachedVrmBytes;
 
 async function loadVrmModelToScene() {
   if (!scene) return;
@@ -546,6 +547,11 @@ function setupInteractions() {
   };
 
   window.addEventListener('wheel', (e) => {
+    // Matikan resize scroll jika panel (menu/settings/skills/tuner) sedang aktif
+    if (panelContainer && panelContainer.style.display !== 'none') {
+      return;
+    }
+
     e.preventDefault();
     const step = e.deltaY < 0 ? 16 : (e.deltaY > 0 ? -16 : 0);
     if (step === 0) return;
@@ -561,20 +567,91 @@ function setupInteractions() {
 }
 
 // -------------------------------------------------------------
-// Menu Actions & IPC Polling
+// Panel & Iframe Single-Window Management
 // -------------------------------------------------------------
-const btnSkills = document.getElementById('btn-skills');
-const skillsModal = document.getElementById('skills-modal');
-const btnCloseSkills = document.getElementById('btn-close-skills');
-const skillsList = document.getElementById('skills-list');
-const btnAddSkill = document.getElementById('btn-add-skill');
-const inputSkillId = document.getElementById('skill-input-id');
-const inputSkillName = document.getElementById('skill-input-name');
-const inputSkillDesc = document.getElementById('skill-input-desc');
-const inputSkillCat = document.getElementById('skill-input-cat');
-const inputSkillCmd = document.getElementById('skill-input-cmd');
+const panelContainer = document.getElementById('panel-container');
+const panelTitleText = document.getElementById('panel-title-text');
+const btnBackOverlay = document.getElementById('btn-back-overlay');
+const contentFrame = document.getElementById('content-frame');
+const topbarNavBtns = document.querySelectorAll('.topbar-nav-btn');
 
-let lastMode = '';
+let currentActiveUrl = '';
+
+function updateNavActiveState(url) {
+  topbarNavBtns.forEach((btn) => {
+    if (btn.getAttribute('data-url') === url) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+
+export async function openPanel(url, title = '') {
+  if (!url) return;
+  currentActiveUrl = url;
+  
+  if (contextMenu) contextMenu.style.display = 'none';
+  if (panelTitleText && title) panelTitleText.textContent = title;
+  
+  updateNavActiveState(url);
+
+  if (panelContainer) {
+    panelContainer.style.display = 'flex';
+  }
+
+  if (contentFrame && contentFrame.getAttribute('src') !== url) {
+    contentFrame.src = url;
+  }
+
+  try {
+    await invoke('set_window_mode', { mode: 'panel', page: url });
+  } catch (e) {
+    console.warn('[openPanel] Failed to set panel mode:', e);
+  }
+}
+
+export async function closePanel() {
+  currentActiveUrl = '';
+  if (panelContainer) {
+    panelContainer.style.display = 'none';
+  }
+  if (contentFrame) {
+    contentFrame.src = 'about:blank';
+  }
+  try {
+    await invoke('set_window_mode', { mode: 'overlay' });
+  } catch (e) {
+    console.warn('[closePanel] Failed to set overlay mode:', e);
+  }
+}
+
+window.openPanel = openPanel;
+window.closePanel = closePanel;
+
+if (btnBackOverlay) {
+  btnBackOverlay.addEventListener('click', () => {
+    closePanel();
+  });
+}
+
+topbarNavBtns.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const url = btn.getAttribute('data-url');
+    const title = btn.getAttribute('data-title') || '';
+    if (url) {
+      openPanel(url, title);
+    }
+  });
+});
+
+window.addEventListener('message', (event) => {
+  if (event.data?.type === 'navigate' && event.data?.url) {
+    openPanel(event.data.url, event.data.title || '');
+  } else if (event.data?.type === 'close_panel' || event.data?.type === 'back_to_overlay') {
+    closePanel();
+  }
+});
 
 function setupMenuActions() {
   const btnMenu = document.getElementById('btn-menu');
@@ -585,128 +662,42 @@ function setupMenuActions() {
 
   if (btnMenu) {
     btnMenu.addEventListener('click', () => {
-      contextMenu.style.display = 'none';
-      invoke('open_menu_window');
+      openPanel('menu.html', 'Menu Utama');
     });
   }
 
   if (btnSettings) {
     btnSettings.addEventListener('click', () => {
-      contextMenu.style.display = 'none';
-      invoke('open_settings_window');
+      openPanel('settings.html', 'Pengaturan');
     });
   }
 
   if (btnSkills) {
     btnSkills.addEventListener('click', () => {
-      contextMenu.style.display = 'none';
-      invoke('open_skills_window');
+      openPanel('skills.html', 'Skill Commands');
     });
   }
 
   if (btnTuner) {
     btnTuner.addEventListener('click', () => {
-      contextMenu.style.display = 'none';
-      invoke('open_tuner_window');
+      openPanel('tuner.html', 'Pose Tuner');
     });
   }
 
   if (btnQuit) {
     btnQuit.addEventListener('click', () => {
-      contextMenu.style.display = 'none';
+      if (contextMenu) contextMenu.style.display = 'none';
       invoke('send_command', { cmd: 'quit' });
     });
   }
 
-  btnCloseSkills.addEventListener('click', () => {
-    skillsModal.style.display = 'none';
-  });
-
-  btnAddSkill.addEventListener('click', async () => {
-    const id = inputSkillId.value.trim().toLowerCase().replace(/\s+/g, '_');
-    const name = inputSkillName.value.trim();
-    const desc = inputSkillDesc.value.trim();
-    const cat = inputSkillCat.value.trim() || 'System';
-    const cmd = inputSkillCmd.value.trim();
-
-    if (!id || !name || !cmd) {
-      alert('ID, Nama, dan Command wajib diisi!');
-      return;
-    }
-
-    try {
-      await invoke('save_skill', {
-        skill: { id, name, description: desc, category: cat, command: cmd }
-      });
-      inputSkillId.value = '';
-      inputSkillName.value = '';
-      inputSkillDesc.value = '';
-      inputSkillCmd.value = '';
-      loadSkillsList();
-      showToast('✅ Skill tersimpan!');
-    } catch (e) {
-      alert(`Gagal menyimpan skill: ${e}`);
-    }
-  });
-}
-
-async function openSkillsModal() {
-  skillsModal.style.display = 'flex';
-  await loadSkillsList();
-}
-
-async function loadSkillsList() {
-  try {
-    const list = await invoke('get_skills');
-    skillsList.innerHTML = '';
-    if (!list || list.length === 0) {
-      skillsList.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center; padding: 20px;">Belum ada skill di skill-command.md</div>';
-      return;
-    }
-
-    list.forEach((skill) => {
-      const card = document.createElement('div');
-      card.className = 'skill-card';
-      card.innerHTML = `
-        <div class="skill-info">
-          <div class="skill-name">${escapeHtml(skill.name)} <span style="font-size: 9px; color: #f472b6; background: #2e2e42; padding: 1px 5px; border-radius: 3px; margin-left: 4px;">${escapeHtml(skill.category)}</span></div>
-          <div class="skill-desc">${escapeHtml(skill.description)}</div>
-          <div class="skill-cmd">${escapeHtml(skill.command)}</div>
-        </div>
-        <div class="skill-actions">
-          <button class="action-btn run-btn" data-id="${escapeHtml(skill.id)}">▶ Run</button>
-          <button class="action-btn del-btn" data-id="${escapeHtml(skill.id)}">🗑</button>
-        </div>
-      `;
-
-      card.querySelector('.run-btn').addEventListener('click', async () => {
-        try {
-          await invoke('execute_skill', { id: skill.id });
-          showToast(`⚡ ${skill.name} dijalankan!`);
-        } catch (e) {
-          alert(`Error: ${e}`);
-        }
-      });
-
-      card.querySelector('.del-btn').addEventListener('click', async () => {
-        if (confirm(`Hapus skill "${skill.name}"?`)) {
-          await invoke('delete_skill', { id: skill.id });
-          loadSkillsList();
-          showToast(`🗑️ ${skill.name} dihapus`);
-        }
-      });
-
-      skillsList.appendChild(card);
+  document.querySelectorAll('.context-corner-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const corner = btn.getAttribute('data-corner');
+      if (contextMenu) contextMenu.style.display = 'none';
+      invoke('set_corner', { corner });
     });
-  } catch (e) {
-    console.error('Failed to load skills:', e);
-  }
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text || '';
-  return div.innerHTML;
+  });
 }
 
 let cachedSvgUrls = {};
@@ -908,6 +899,17 @@ async function initApp() {
             }, 120);
           }
         }
+      });
+
+      listen('open_view', (event) => {
+        const payload = event.payload;
+        if (payload && payload.url) {
+          openPanel(payload.url, payload.title || 'Menu Utama');
+        }
+      });
+
+      listen('request_close_panel', () => {
+        closePanel();
       });
 
       listen('assistant:response-done', () => {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Assistant Settings</title>
+  <title>Ragasukma Settings</title>
   <link rel="stylesheet" href="theme.css" />
   <style>
     * {
@@ -13,6 +13,9 @@
       user-select: none;
       -webkit-user-select: none;
     }
+    html, body {
+      height: 100%;
+    }
     body {
       background: var(--bg-app, #EFF7F6);
       color: var(--text-main, #232d36);
@@ -21,7 +24,7 @@
       padding: 0;
       display: flex;
       flex-direction: column;
-      height: 100vh;
+      height: 100%;
       overflow: hidden;
     }
     .header {
@@ -357,6 +360,16 @@
       if (window.__TAURI__?.core?.invoke) return window.__TAURI__.core.invoke;
       if (window.__TAURI__?.invoke) return window.__TAURI__.invoke;
       if (window.__TAURI_INTERNALS__?.invoke) return window.__TAURI_INTERNALS__.invoke;
+      if (window.parent && window.parent !== window) {
+        if (window.parent.__TAURI__?.core?.invoke) return window.parent.__TAURI__.core.invoke;
+        if (window.parent.__TAURI__?.invoke) return window.parent.__TAURI__.invoke;
+        if (window.parent.__TAURI_INTERNALS__?.invoke) return window.parent.__TAURI_INTERNALS__.invoke;
+      }
+      if (window.top && window.top !== window) {
+        if (window.top.__TAURI__?.core?.invoke) return window.top.__TAURI__.core.invoke;
+        if (window.top.__TAURI__?.invoke) return window.top.__TAURI__.invoke;
+        if (window.top.__TAURI_INTERNALS__?.invoke) return window.top.__TAURI_INTERNALS__.invoke;
+      }
       return null;
     }
 

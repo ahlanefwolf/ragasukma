@@ -143,7 +143,7 @@ pub fn apply_position_to_window(window: &tauri::Window, cfg: &PositionConfig, av
 
     if std::env::var("SWAYSOCK").is_ok() {
         let sway_cmd = format!(
-            r#"[title="(?i).*overlay.*|ahlan-voice"] floating enable, sticky enable, border none, resize set {} px {} px, move position {} px {} px"#,
+            r#"[title="(?i).*ragasukma.*|.*overlay.*"] floating enable, sticky enable, border none, resize set {} px {} px, move position {} px {} px"#,
             w, h, x, y
         );
         thread::spawn(move || {
