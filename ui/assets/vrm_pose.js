@@ -37,24 +37,36 @@ function setBoneTargetEuler(boneName, x, y, z) {
   targetQuats[boneName].setFromEuler(tempEuler);
 }
 
-// Helper untuk menekuk ruas jari tangan secara natural
-function setFingersNaturalCurl(side, curlAmount, microWave = 0.0) {
+// Helper untuk menekuk ruas jari tangan secara natural (hanya jika belum di-custom di poses.json)
+function setFingersNaturalCurl(side, curlAmount, microWave = 0.0, configuredBones = null) {
   const fingers = ['Index', 'Middle', 'Ring', 'Little'];
   const joints = ['Proximal', 'Intermediate', 'Distal'];
 
   // Jempol (Thumb)
-  setBoneTargetEuler(`${side}ThumbMetacarpal`, 0.12 * curlAmount, 0.12 * curlAmount + microWave * 0.5, -0.18 * curlAmount);
-  setBoneTargetEuler(`${side}ThumbProximal`, 0.18 * curlAmount, 0.0, -0.22 * curlAmount);
-  setBoneTargetEuler(`${side}ThumbDistal`, 0.22 * curlAmount, 0.0, -0.25 * curlAmount);
+  const thumbMeta = `${side}ThumbMetacarpal`;
+  const thumbProx = `${side}ThumbProximal`;
+  const thumbDist = `${side}ThumbDistal`;
+
+  if (!configuredBones || !configuredBones.has(thumbMeta)) {
+    setBoneTargetEuler(thumbMeta, 0.12 * curlAmount, 0.12 * curlAmount + microWave * 0.5, -0.18 * curlAmount);
+  }
+  if (!configuredBones || !configuredBones.has(thumbProx)) {
+    setBoneTargetEuler(thumbProx, 0.18 * curlAmount, 0.0, -0.22 * curlAmount);
+  }
+  if (!configuredBones || !configuredBones.has(thumbDist)) {
+    setBoneTargetEuler(thumbDist, 0.22 * curlAmount, 0.0, -0.25 * curlAmount);
+  }
 
   // 4 Jari lainnya
   fingers.forEach((finger, fIndex) => {
     const fingerDelay = microWave * (1.0 + fIndex * 0.3);
     const fFactor = 1.0 + (fIndex * 0.1);
     joints.forEach((joint, jIndex) => {
-      const zRot = -0.35 * (curlAmount + fingerDelay) * fFactor * (jIndex === 0 ? 1.0 : 1.25);
       const boneName = `${side}${finger}${joint}`;
-      setBoneTargetEuler(boneName, 0.0, 0.0, (side === 'left' ? zRot : -zRot));
+      if (!configuredBones || !configuredBones.has(boneName)) {
+        const zRot = -0.35 * (curlAmount + fingerDelay) * fFactor * (jIndex === 0 ? 1.0 : 1.25);
+        setBoneTargetEuler(boneName, 0.0, 0.0, (side === 'left' ? zRot : -zRot));
+      }
     });
   });
 }
@@ -104,22 +116,46 @@ function applyConfiguredStatePose(stateName, elapsedTime) {
     }
 
     targetQuats[boneName].copy(tempQuatA).slerp(tempQuatB, t);
+
+    // Otomatis cascade tekukan ruas jari tengah & distal jika jari proksimal di-custom di poses.json
+    if (boneName.includes('Proximal')) {
+      const eulerCurrent = new THREE.Euler().setFromQuaternion(targetQuats[boneName], 'XYZ');
+      const side = boneName.startsWith('left') ? 'left' : 'right';
+      const finger = boneName.replace(side, '').replace('Proximal', '');
+
+      const midBone = `${side}${finger}Intermediate`;
+      const distBone = `${side}${finger}Distal`;
+
+      if (!allBones.has(midBone)) {
+        setBoneTargetEuler(midBone, eulerCurrent.x * 0.7, eulerCurrent.y * 0.7, eulerCurrent.z * 0.85);
+      }
+      if (!allBones.has(distBone)) {
+        setBoneTargetEuler(distBone, eulerCurrent.x * 0.5, eulerCurrent.y * 0.5, eulerCurrent.z * 0.7);
+      }
+    } else if (boneName.includes('ThumbProximal')) {
+      const eulerCurrent = new THREE.Euler().setFromQuaternion(targetQuats[boneName], 'XYZ');
+      const side = boneName.startsWith('left') ? 'left' : 'right';
+      const distThumb = `${side}ThumbDistal`;
+      if (!allBones.has(distThumb)) {
+        setBoneTargetEuler(distThumb, eulerCurrent.x * 0.75, eulerCurrent.y * 0.75, eulerCurrent.z * 0.85);
+      }
+    }
   });
 
-  // Tambahkan gestur jari hidup
+  // Tambahkan gestur jari hidup (hanya jika jari tersebut belum di-custom di poses.json)
   const fingerPulse = Math.sin(elapsedTime * 3.5) * 0.05;
   if (stateName === 'speaking') {
-    setFingersNaturalCurl('left', 0.45 + fingerPulse);
-    setFingersNaturalCurl('right', 0.45 - fingerPulse);
+    setFingersNaturalCurl('left', 0.45 + fingerPulse, 0.0, allBones);
+    setFingersNaturalCurl('right', 0.45 - fingerPulse, 0.0, allBones);
   } else if (stateName === 'listening') {
-    setFingersNaturalCurl('left', 0.35);
-    setFingersNaturalCurl('right', 0.35);
+    setFingersNaturalCurl('left', 0.35, 0.0, allBones);
+    setFingersNaturalCurl('right', 0.35, 0.0, allBones);
   } else if (stateName === 'thinking') {
-    setFingersNaturalCurl('left', 0.2);
-    setFingersNaturalCurl('right', 0.6);
+    setFingersNaturalCurl('left', 0.2, 0.0, allBones);
+    setFingersNaturalCurl('right', 0.6, 0.0, allBones);
   } else {
-    setFingersNaturalCurl('left', 0.3 + fingerPulse * 0.5);
-    setFingersNaturalCurl('right', 0.3 - fingerPulse * 0.5);
+    setFingersNaturalCurl('left', 0.3 + fingerPulse * 0.5, 0.0, allBones);
+    setFingersNaturalCurl('right', 0.3 - fingerPulse * 0.5, 0.0, allBones);
   }
 
   return true;

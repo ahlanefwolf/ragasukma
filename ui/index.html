@@ -214,6 +214,109 @@
       color: var(--text-muted);
       padding: 4px 6px 2px 6px;
     }
+    .context-size-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      padding: 2px 0;
+    }
+    .context-size-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-card);
+      border: 1px solid var(--border-default);
+      color: var(--text-primary);
+      padding: 4px 2px;
+      border-radius: var(--radius-sm);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+    .context-size-btn:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--accent-pink);
+      color: var(--accent-pink);
+    }
+    .context-size-btn.active {
+      background: var(--accent-pink-dim);
+      border-color: var(--accent-pink);
+      color: var(--accent-pink);
+      font-weight: 700;
+    }
+    .context-size-stepper {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      padding: 2px 4px;
+      margin-top: 2px;
+    }
+    .context-step-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+    .context-step-btn:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-default);
+      color: var(--accent-pink);
+    }
+    .context-step-btn svg {
+      width: 13px;
+      height: 13px;
+      stroke: currentColor;
+    }
+    .context-size-input-wrap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-surface, #fff);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      padding: 1px 6px;
+      gap: 2px;
+    }
+    .context-size-input {
+      width: 48px;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--accent-pink);
+      font-family: monospace;
+      text-align: center;
+      padding: 1px 0;
+      -moz-appearance: textfield;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    .context-size-input::-webkit-inner-spin-button,
+    .context-size-input::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .context-size-input:focus {
+      color: var(--accent-pink);
+    }
+    .context-size-unit {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
     .context-corner-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -497,6 +600,28 @@
       <svg class="icon-sm" viewBox="0 0 24 24"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="1" x2="7" y1="14" y2="14"/><line x1="9" x2="15" y1="8" y2="8"/><line x1="17" x2="23" y1="16" y2="16"/></svg>
       <span>Tuner</span>
     </button>
+
+    <div class="menu-separator"></div>
+
+    <div class="context-section-label">Ukuran Overlay</div>
+    <div class="context-size-grid">
+      <button class="context-size-btn" data-size="240">Kecil</button>
+      <button class="context-size-btn" data-size="340">Sedang</button>
+      <button class="context-size-btn" data-size="460">Besar</button>
+      <button class="context-size-btn" data-size="600">Ekstra</button>
+    </div>
+    <div class="context-size-stepper">
+      <button class="context-step-btn" id="btn-size-down" title="Perkecil Ukuran (-30px)">
+        <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <div class="context-size-input-wrap">
+        <input type="number" id="input-overlay-size" class="context-size-input" min="160" max="1400" step="10" value="340" title="Ketik angka ukuran (px) lalu tekan Enter" />
+        <span class="context-size-unit">px</span>
+      </div>
+      <button class="context-step-btn" id="btn-size-up" title="Perbesar Ukuran (+30px)">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
 
     <div class="menu-separator"></div>
 

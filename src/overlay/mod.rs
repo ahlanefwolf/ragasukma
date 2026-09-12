@@ -24,6 +24,7 @@ impl NativeOverlay {
         let pos_cfg = load_position_config();
         let overlay_state = OverlayState {
             position_config: Mutex::new(pos_cfg.clone()),
+            is_panel_mode: std::sync::atomic::AtomicBool::new(false),
         };
 
         let app = tauri::Builder::default()
@@ -33,6 +34,21 @@ impl NativeOverlay {
                     api.prevent_close();
                     let _ = window.emit("request_close_panel", ());
                 }
+                if let tauri::WindowEvent::Moved(_) = event {
+                    use tauri::Manager;
+                    let state = window.state::<OverlayState>();
+                    if !state.is_panel_mode.load(std::sync::atomic::Ordering::SeqCst) {
+                        if let Some((x, y)) = get_actual_window_position(window) {
+                            let mut cfg = match state.position_config.lock() {
+                                Ok(guard) => guard,
+                                Err(poisoned) => poisoned.into_inner(),
+                            };
+                            cfg.custom_x = Some(x);
+                            cfg.custom_y = Some(y);
+                            save_position_config(&cfg);
+                        }
+                    }
+                }
             })
             .invoke_handler(tauri::generate_handler![
                 get_app_config,
@@ -41,6 +57,7 @@ impl NativeOverlay {
                 start_drag,
                 drag_window_delta,
                 save_current_position,
+                set_overlay_size,
                 change_size_delta,
                 reset_size,
                 set_corner,

@@ -268,41 +268,48 @@ function updateStateAnimations(deltaTime, elapsedTime) {
 // -------------------------------------------------------------
 // VRM Setup & Auto-Fit Camera
 // -------------------------------------------------------------
-function fitCameraToVrm(vrm) {
-  if (!vrm || !camera) return;
+let baseVrmTargetY = 0.85;
+let baseVrmTargetHeight = 1.35;
+let baseVrmTargetWidth = 0.65;
+let hasMeasuredVrm = false;
 
-  // Cari posisi kepala (head bone) atau gunakan bounding box jika bone belum siap
-  let headY = null;
-  try {
-    if (vrm.humanoid) {
-      const headNode = vrm.humanoid.getNormalizedBoneNode('head');
-      if (headNode) {
-        const headWorldPos = new THREE.Vector3();
-        headNode.getWorldPosition(headWorldPos);
-        headY = headWorldPos.y;
-      }
-    }
-  } catch(e) {}
+function setupVrmFraming(vrm) {
+  if (!vrm || !camera) return;
 
   const bbox = new THREE.Box3().setFromObject(vrm.scene);
   const center = bbox.getCenter(new THREE.Vector3());
   const size = bbox.getSize(new THREE.Vector3());
 
-  // Framing Full Body: ujung kepala sampai ujung kaki
-  const targetY = center.y;
-  const targetHeight = size.y * 1.05; // Seluruh tinggi karakter + sedikit margin atas/bawah
-  const targetWidth = Math.max(size.x * 1.1, 0.50); // Lebar bahu & tangan dengan margin
+  // Framing Full Body: simpan referensi ukuran dasar sekali saja
+  baseVrmTargetY = center.y || 0.85;
+  baseVrmTargetHeight = Math.max(size.y * 1.12, 1.25);
+  baseVrmTargetWidth = Math.max(size.x * 1.2, 0.6);
+  hasMeasuredVrm = true;
 
+  updateCameraProjection();
+}
+
+function updateCameraProjection() {
+  if (!camera) return;
   const aspect = window.innerWidth / Math.max(window.innerHeight, 1);
-  const fovRad = camera.fov * (Math.PI / 180);
-  
-  // Hitung jarak kamera vertikal & horizontal agar full body masuk sempurna di 9:16
-  const distanceV = (targetHeight / 2) / Math.tan(fovRad / 2);
-  const distanceH = (targetWidth / 2) / (Math.tan(fovRad / 2) * aspect);
-  const cameraZ = Math.max(distanceV, distanceH) * 1.05;
+  camera.aspect = aspect;
+  camera.updateProjectionMatrix();
 
-  camera.position.set(0, targetY, cameraZ);
-  camera.lookAt(0, targetY, 0);
+  const fovRad = camera.fov * (Math.PI / 180);
+  // Fokus framing vertikal penuh yang kokoh dan konstan
+  const distanceV = (baseVrmTargetHeight / 2) / Math.tan(fovRad / 2);
+  const cameraZ = distanceV * 1.05;
+
+  camera.position.set(0, baseVrmTargetY, cameraZ);
+  camera.lookAt(0, baseVrmTargetY, 0);
+}
+
+function fitCameraToVrm(vrm) {
+  if (!hasMeasuredVrm) {
+    setupVrmFraming(vrm);
+  } else {
+    updateCameraProjection();
+  }
 }
 
 let isVrmAnimationRunning = false;
@@ -327,6 +334,7 @@ async function loadVrmModelToScene() {
         mats.forEach(m => m.dispose());
       }
     });
+    hasMeasuredVrm = false;
     currentVrm = null;
   }
 
@@ -435,10 +443,11 @@ function initVrmViewer() {
 
   window.addEventListener('resize', () => {
     if (!renderer || !camera) return;
-    camera.aspect = window.innerWidth / Math.max(window.innerHeight, 1);
-    camera.updateProjectionMatrix();
+    updateCameraProjection();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    if (currentVrm) fitCameraToVrm(currentVrm);
+    if (renderer && scene && camera) {
+      renderer.render(scene, camera);
+    }
   });
 }
 
@@ -474,10 +483,6 @@ function animateVrm(timestamp) {
 // -------------------------------------------------------------
 // Mouse, Dragging & Gestures
 // -------------------------------------------------------------
-let isMouseDown = false;
-let startX = 0;
-let startY = 0;
-let isDraggingNative = false;
 
 function setupInteractions() {
   // Context Menu Hide on click outside
@@ -505,72 +510,15 @@ function setupInteractions() {
     }
   });
 
-  // Native Drag & Single Click
+  // Native Smooth Dragging
   root.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return; // Only Left Click
-    isMouseDown = true;
-    isDraggingNative = false;
-    startX = e.clientX;
-    startY = e.clientY;
+    if (contextMenu && contextMenu.contains(e.target)) return;
+    if (panelContainer && panelContainer.style.display !== 'none') return;
+
+    // Aktifkan native OS hardware accelerated window dragging
+    invoke('start_drag');
   });
-
-  window.addEventListener('mousemove', (e) => {
-    if (!isMouseDown) return;
-    const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
-    if (dist > 5 && !isDraggingNative) {
-      isDraggingNative = true;
-      invoke('start_drag');
-    }
-  });
-
-  window.addEventListener('mouseup', (e) => {
-    if (!isMouseDown) return;
-    isMouseDown = false;
-    if (isDraggingNative) {
-      isDraggingNative = false;
-      invoke('save_current_position');
-    }
-    // Klik kiri murni khusus drag & interaksi canvas, tidak trigger aksi pause/apa pun
-  });
-
-  // Scroll Zoom Gesture (Smooth & Responsive)
-  let zoomTimer = null;
-  let pendingDelta = 0;
-  let isSendingDelta = false;
-
-  const flushDelta = () => {
-    if (pendingDelta === 0 || isSendingDelta) return;
-    const sendAmount = pendingDelta;
-    pendingDelta = 0;
-    isSendingDelta = true;
-
-    invoke('change_size_delta', { delta: sendAmount })
-      .finally(() => {
-        isSendingDelta = false;
-        if (pendingDelta !== 0) {
-          flushDelta();
-        }
-      });
-  };
-
-  window.addEventListener('wheel', (e) => {
-    // Matikan resize scroll jika panel (menu/settings/skills/tuner) sedang aktif
-    if (panelContainer && panelContainer.style.display !== 'none') {
-      return;
-    }
-
-    e.preventDefault();
-    const step = e.deltaY < 0 ? 16 : (e.deltaY > 0 ? -16 : 0);
-    if (step === 0) return;
-
-    pendingDelta += step;
-    flushDelta();
-
-    clearTimeout(zoomTimer);
-    zoomTimer = setTimeout(() => {
-      invoke('save_current_position');
-    }, 250);
-  }, { passive: false });
 }
 
 // -------------------------------------------------------------
@@ -660,6 +608,39 @@ window.addEventListener('message', (event) => {
   }
 });
 
+let currentOverlaySize = 340;
+
+function updateSizeUI(size) {
+  currentOverlaySize = size;
+  const label = document.getElementById('label-overlay-size');
+  if (label) label.textContent = `${size}px`;
+
+  const input = document.getElementById('input-overlay-size');
+  if (input && document.activeElement !== input) {
+    input.value = size;
+  }
+
+  document.querySelectorAll('.context-size-btn').forEach((btn) => {
+    const btnSize = parseInt(btn.getAttribute('data-size'), 10);
+    if (Math.abs(btnSize - size) < 25) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+
+async function applyOverlaySize(newSize) {
+  const clamped = Math.max(160, Math.min(1400, newSize));
+  updateSizeUI(clamped);
+  try {
+    const actual = await invoke('set_overlay_size', { size: clamped });
+    if (actual) updateSizeUI(actual);
+  } catch (e) {
+    console.warn('[applyOverlaySize] error:', e);
+  }
+}
+
 function setupMenuActions() {
   const btnClosePopup = document.getElementById('btn-close-popup');
   const btnMenu = document.getElementById('btn-menu');
@@ -667,6 +648,8 @@ function setupMenuActions() {
   const btnSkills = document.getElementById('btn-skills');
   const btnTuner = document.getElementById('btn-tuner');
   const btnQuit = document.getElementById('btn-quit');
+  const btnSizeDown = document.getElementById('btn-size-down');
+  const btnSizeUp = document.getElementById('btn-size-up');
 
   if (btnClosePopup) {
     btnClosePopup.addEventListener('click', (e) => {
@@ -706,6 +689,54 @@ function setupMenuActions() {
     });
   }
 
+  // Size Preset Buttons
+  document.querySelectorAll('.context-size-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const size = parseInt(btn.getAttribute('data-size'), 10);
+      if (size) {
+        applyOverlaySize(size);
+      }
+    });
+  });
+
+  // Size Stepper Buttons (-30px / +30px)
+  if (btnSizeDown) {
+    btnSizeDown.addEventListener('click', () => {
+      applyOverlaySize(currentOverlaySize - 30);
+    });
+  }
+  if (btnSizeUp) {
+    btnSizeUp.addEventListener('click', () => {
+      applyOverlaySize(currentOverlaySize + 30);
+    });
+  }
+
+  // Size Number Manual Input
+  const inputSize = document.getElementById('input-overlay-size');
+  if (inputSize) {
+    const handleManualSizeChange = () => {
+      const val = parseInt(inputSize.value, 10);
+      if (!isNaN(val) && val >= 100) {
+        applyOverlaySize(val);
+      } else {
+        inputSize.value = currentOverlaySize;
+      }
+    };
+
+    inputSize.addEventListener('change', handleManualSizeChange);
+    inputSize.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        inputSize.blur();
+        handleManualSizeChange();
+      }
+    });
+    inputSize.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+    });
+  }
+
+  // Corner Position Buttons
   document.querySelectorAll('.context-corner-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const corner = btn.getAttribute('data-corner');

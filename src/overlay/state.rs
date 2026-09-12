@@ -6,6 +6,7 @@ pub static APP_HANDLE: std::sync::LazyLock<Mutex<Option<tauri::AppHandle>>> =
 
 pub struct OverlayState {
     pub position_config: Mutex<PositionConfig>,
+    pub is_panel_mode: std::sync::atomic::AtomicBool,
 }
 
 #[tauri::command]

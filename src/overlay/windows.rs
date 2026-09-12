@@ -55,6 +55,18 @@ pub fn set_window_mode(
     if let Some(main_win) = app.get_webview_window("main") {
         let window = main_win.as_ref().window();
         if mode == "panel" {
+            // 1. Simpan posisi fisik aktual avatar sebelum bertransformasi ke panel
+            if !state.is_panel_mode.load(std::sync::atomic::Ordering::SeqCst) {
+                let mut cfg = match state.position_config.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                let avatar_type = crate::config::load_user_config().avatar_type;
+                super::position::update_position_config_from_window(&window, &mut cfg, &avatar_type);
+                super::position::save_position_config(&cfg);
+            }
+            state.is_panel_mode.store(true, std::sync::atomic::Ordering::SeqCst);
+
             let _ = window.set_decorations(true);
             let _ = window.set_shadow(true);
 
@@ -142,6 +154,7 @@ pub fn set_window_mode(
                 }
             }
         } else {
+            state.is_panel_mode.store(false, std::sync::atomic::Ordering::SeqCst);
             let _ = window.unmaximize();
             let _ = window.set_decorations(false);
             let _ = window.set_shadow(false);

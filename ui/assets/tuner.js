@@ -47,21 +47,44 @@ async function invoke(cmd, args = {}) {
 }
 
 const BONES = [
+  // Badan
   { id: 'head', label: 'Kepala (Head)' },
   { id: 'chest', label: 'Dada (Chest)' },
   { id: 'spine', label: 'Tulang Belakang (Spine)' },
   { id: 'hips', label: 'Panggul (Hips)' },
+
+  // Lengan Kiri
   { id: 'leftShoulder', label: 'Bahu Kiri (L-Shoulder)' },
   { id: 'leftUpperArm', label: 'Lengan Atas Kiri (L-UpperArm)' },
   { id: 'leftLowerArm', label: 'Lengan Bawah Kiri (L-LowerArm)' },
   { id: 'leftHand', label: 'Tangan Kiri (L-Hand)' },
+
+  // Jari Tangan Kiri (Simple 5 Jari Utama)
+  { id: 'leftThumbProximal', label: 'Jempol Kiri (L-Thumb)' },
+  { id: 'leftIndexProximal', label: 'Telunjuk Kiri (L-Index)' },
+  { id: 'leftMiddleProximal', label: 'Jari Tengah Kiri (L-Middle)' },
+  { id: 'leftRingProximal', label: 'Jari Manis Kiri (L-Ring)' },
+  { id: 'leftLittleProximal', label: 'Kelingking Kiri (L-Pinky)' },
+
+  // Lengan Kanan
   { id: 'rightShoulder', label: 'Bahu Kanan (R-Shoulder)' },
   { id: 'rightUpperArm', label: 'Lengan Atas Kanan (R-UpperArm)' },
   { id: 'rightLowerArm', label: 'Lengan Bawah Kanan (R-LowerArm)' },
   { id: 'rightHand', label: 'Tangan Kanan (R-Hand)' },
+
+  // Jari Tangan Kanan (Simple 5 Jari Utama)
+  { id: 'rightThumbProximal', label: 'Jempol Kanan (R-Thumb)' },
+  { id: 'rightIndexProximal', label: 'Telunjuk Kanan (R-Index)' },
+  { id: 'rightMiddleProximal', label: 'Jari Tengah Kanan (R-Middle)' },
+  { id: 'rightRingProximal', label: 'Jari Manis Kanan (R-Ring)' },
+  { id: 'rightLittleProximal', label: 'Kelingking Kanan (R-Pinky)' },
+
+  // Kaki Kiri
   { id: 'leftUpperLeg', label: 'Paha Kiri (L-UpperLeg)' },
   { id: 'leftLowerLeg', label: 'Betis Kiri (L-LowerLeg)' },
   { id: 'leftFoot', label: 'Kaki Kiri (L-Foot)' },
+
+  // Kaki Kanan
   { id: 'rightUpperLeg', label: 'Paha Kanan (R-UpperLeg)' },
   { id: 'rightLowerLeg', label: 'Betis Kanan (R-LowerLeg)' },
   { id: 'rightFoot', label: 'Kaki Kanan (R-Foot)' }
@@ -152,17 +175,17 @@ function fitCameraToVrm(vrm) {
   const size = bbox.getSize(new THREE.Vector3());
 
   const targetY = center.y || 0.85;
-  const targetHeight = Math.max(size.y * 1.1, 1.2);
-  const targetWidth = Math.max(size.x * 1.2, 0.6);
+  const targetHeight = Math.max(size.y * 1.15, 1.25);
+  const targetWidth = Math.max(size.x * 1.25, 0.65);
 
-  const w = container.clientWidth || (window.innerWidth * 0.52) || 450;
+  const w = container.clientWidth || (window.innerWidth * 0.45) || 400;
   const h = container.clientHeight || (window.innerHeight - 45) || 600;
   const aspect = w / Math.max(h, 1);
   const fovRad = camera.fov * (Math.PI / 180);
 
   const distanceV = (targetHeight / 2) / Math.tan(fovRad / 2);
   const distanceH = (targetWidth / 2) / (Math.tan(fovRad / 2) * aspect);
-  const cameraZ = Math.max(distanceV, distanceH) * 1.05;
+  const cameraZ = Math.max(distanceV, distanceH) * 1.08;
 
   camera.position.set(0, targetY, cameraZ);
   controls.target.set(0, targetY, 0);
@@ -253,100 +276,188 @@ async function loadVrmModel() {
   showNotification('File char.vrm tidak ditemukan');
 }
 
+let currentBoneCategory = 'body';
+
+const BONE_CATEGORIES = [
+  { id: 'body', label: 'Badan' },
+  { id: 'leftArm', label: 'Lengan Kiri' },
+  { id: 'leftFingers', label: 'Jari Kiri' },
+  { id: 'rightArm', label: 'Lengan Kanan' },
+  { id: 'rightFingers', label: 'Jari Kanan' },
+  { id: 'legs', label: 'Kaki' },
+];
+
+const BONE_CATEGORY_MAP = {
+  body: ['head', 'chest', 'spine', 'hips'],
+  leftArm: ['leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand'],
+  leftFingers: [
+    'leftThumbProximal',
+    'leftIndexProximal',
+    'leftMiddleProximal',
+    'leftRingProximal',
+    'leftLittleProximal'
+  ],
+  rightArm: ['rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand'],
+  rightFingers: [
+    'rightThumbProximal',
+    'rightIndexProximal',
+    'rightMiddleProximal',
+    'rightRingProximal',
+    'rightLittleProximal'
+  ],
+  legs: [
+    'leftUpperLeg', 'leftLowerLeg', 'leftFoot',
+    'rightUpperLeg', 'rightLowerLeg', 'rightFoot'
+  ]
+};
+
+const SHORT_LABEL = {
+  head: 'Kepala (Head)', chest: 'Dada (Chest)', spine: 'Punggung (Spine)', hips: 'Pinggul (Hips)',
+  leftShoulder: 'Bahu Kiri (L-Shoulder)', leftUpperArm: 'Lengan Atas Kiri (L-UpperArm)', leftLowerArm: 'Lengan Bawah Kiri (L-LowerArm)', leftHand: 'Telapak Tangan Kiri (L-Hand)',
+  leftThumbProximal: 'Jempol Kiri (L-Thumb)',
+  leftIndexProximal: 'Telunjuk Kiri (L-Index)',
+  leftMiddleProximal: 'Jari Tengah Kiri (L-Middle)',
+  leftRingProximal: 'Jari Manis Kiri (L-Ring)',
+  leftLittleProximal: 'Kelingking Kiri (L-Pinky)',
+
+  rightShoulder: 'Bahu Kanan (R-Shoulder)', rightUpperArm: 'Lengan Atas Kanan (R-UpperArm)', rightLowerArm: 'Lengan Bawah Kanan (R-LowerArm)', rightHand: 'Telapak Tangan Kanan (R-Hand)',
+  rightThumbProximal: 'Jempol Kanan (R-Thumb)',
+  rightIndexProximal: 'Telunjuk Kanan (R-Index)',
+  rightMiddleProximal: 'Jari Tengah Kanan (R-Middle)',
+  rightRingProximal: 'Jari Manis Kanan (R-Ring)',
+  rightLittleProximal: 'Kelingking Kanan (R-Pinky)',
+
+  leftUpperLeg: 'Paha Kiri (L-UpperLeg)', leftLowerLeg: 'Betis Kiri (L-LowerLeg)', leftFoot: 'Kaki Kiri (L-Foot)',
+  rightUpperLeg: 'Paha Kanan (R-UpperLeg)', rightLowerLeg: 'Betis Kanan (R-LowerLeg)', rightFoot: 'Kaki Kanan (R-Foot)',
+};
+
+function renderCategoryTabs() {
+  const catBar = document.getElementById('bone-cat-bar');
+  if (!catBar) return;
+  catBar.innerHTML = '';
+
+  BONE_CATEGORIES.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = `cat-tab ${cat.id === currentBoneCategory ? 'active' : ''}`;
+    btn.textContent = cat.label;
+    btn.addEventListener('click', () => {
+      currentBoneCategory = cat.id;
+      renderCategoryTabs();
+      generateBoneSliders();
+    });
+    catBar.appendChild(btn);
+  });
+}
+
 function generateBoneSliders() {
   const grid = document.getElementById('bone-grid');
+  if (!grid) return;
   grid.innerHTML = '';
 
-  const GROUPS = [
-    { label: '🗣 Badan', bones: ['head', 'chest', 'spine', 'hips'] },
-    { label: '💪 Lengan Kiri', bones: ['leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand'] },
-    { label: '💪 Lengan Kanan', bones: ['rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand'] },
-    { label: '🦵 Kaki Kiri', bones: ['leftUpperLeg', 'leftLowerLeg', 'leftFoot'] },
-    { label: '🦵 Kaki Kanan', bones: ['rightUpperLeg', 'rightLowerLeg', 'rightFoot'] },
-  ];
+  let activeBoneIds = BONE_CATEGORY_MAP[currentBoneCategory] || BONE_CATEGORY_MAP.body;
 
-  const SHORT_LABEL = {
-    head: 'Head', chest: 'Chest', spine: 'Spine', hips: 'Hips',
-    leftShoulder: 'L-Shoulder', leftUpperArm: 'L-UpperArm', leftLowerArm: 'L-LowerArm', leftHand: 'L-Hand',
-    rightShoulder: 'R-Shoulder', rightUpperArm: 'R-UpperArm', rightLowerArm: 'R-LowerArm', rightHand: 'R-Hand',
-    leftUpperLeg: 'L-UpperLeg', leftLowerLeg: 'L-LowerLeg', leftFoot: 'L-Foot',
-    rightUpperLeg: 'R-UpperLeg', rightLowerLeg: 'R-LowerLeg', rightFoot: 'R-Foot',
-  };
+  activeBoneIds.forEach(boneId => {
+    const card = document.createElement('div');
+    card.className = 'bone-card';
+    card.innerHTML = `
+      <div class="bone-card-header">
+        <span class="bone-card-label">${SHORT_LABEL[boneId] || boneId}</span>
+        <button class="btn-reset-bone" data-bone="${boneId}" title="Reset bone ke 0">
+          <svg viewBox="0 0 24 24" class="icon-tiny"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          <span>Reset</span>
+        </button>
+      </div>
+      <div class="axis-row">
+        <span class="axis-label axis-x" data-bone="${boneId}" data-axis="0" title="Klik untuk Reset X ke 0">X</span>
+        <input type="range" class="slider" data-bone="${boneId}" data-axis="0" min="-3.14" max="3.14" step="0.01" value="0">
+        <input type="number" class="axis-val-input" id="val-${boneId}-0" data-bone="${boneId}" data-axis="0" min="-3.14" max="3.14" step="0.01" value="0.00">
+        <button class="btn-reset-axis" data-bone="${boneId}" data-axis="0" title="Reset X ke 0">
+          <svg viewBox="0 0 24 24" class="icon-tiny"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+      </div>
+      <div class="axis-row">
+        <span class="axis-label axis-y" data-bone="${boneId}" data-axis="1" title="Klik untuk Reset Y ke 0">Y</span>
+        <input type="range" class="slider" data-bone="${boneId}" data-axis="1" min="-3.14" max="3.14" step="0.01" value="0">
+        <input type="number" class="axis-val-input" id="val-${boneId}-1" data-bone="${boneId}" data-axis="1" min="-3.14" max="3.14" step="0.01" value="0.00">
+        <button class="btn-reset-axis" data-bone="${boneId}" data-axis="1" title="Reset Y ke 0">
+          <svg viewBox="0 0 24 24" class="icon-tiny"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+      </div>
+      <div class="axis-row">
+        <span class="axis-label axis-z" data-bone="${boneId}" data-axis="2" title="Klik untuk Reset Z ke 0">Z</span>
+        <input type="range" class="slider" data-bone="${boneId}" data-axis="2" min="-3.14" max="3.14" step="0.01" value="0">
+        <input type="number" class="axis-val-input" id="val-${boneId}-2" data-bone="${boneId}" data-axis="2" min="-3.14" max="3.14" step="0.01" value="0.00">
+        <button class="btn-reset-axis" data-bone="${boneId}" data-axis="2" title="Reset Z ke 0">
+          <svg viewBox="0 0 24 24" class="icon-tiny"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+      </div>
+    `;
 
-  GROUPS.forEach(group => {
-    const col = document.createElement('div');
-    col.className = 'bone-col';
-
-    const title = document.createElement('div');
-    title.className = 'bone-col-title';
-    title.textContent = group.label;
-    col.appendChild(title);
-
-    group.bones.forEach(boneId => {
-      const card = document.createElement('div');
-      card.className = 'bone-card';
-      card.innerHTML = `
-        <div class="bone-card-header">
-          <span class="bone-card-label">${SHORT_LABEL[boneId] || boneId}</span>
-          <button class="btn-reset-bone" data-bone="${boneId}" title="Reset semua axis ke 0">✕ reset all</button>
-        </div>
-        <div class="axis-row">
-          <span class="axis-label axis-x">X</span>
-          <input type="range" class="slider" data-bone="${boneId}" data-axis="0" min="-3.14" max="3.14" step="0.01" value="0">
-          <span class="axis-val" id="val-${boneId}-0">0.00</span>
-          <button class="btn-reset-axis" data-bone="${boneId}" data-axis="0" title="Reset X ke 0">↺</button>
-        </div>
-        <div class="axis-row">
-          <span class="axis-label axis-y">Y</span>
-          <input type="range" class="slider" data-bone="${boneId}" data-axis="1" min="-3.14" max="3.14" step="0.01" value="0">
-          <span class="axis-val" id="val-${boneId}-1">0.00</span>
-          <button class="btn-reset-axis" data-bone="${boneId}" data-axis="1" title="Reset Y ke 0">↺</button>
-        </div>
-        <div class="axis-row">
-          <span class="axis-label axis-z">Z</span>
-          <input type="range" class="slider" data-bone="${boneId}" data-axis="2" min="-3.14" max="3.14" step="0.01" value="0">
-          <span class="axis-val" id="val-${boneId}-2">0.00</span>
-          <button class="btn-reset-axis" data-bone="${boneId}" data-axis="2" title="Reset Z ke 0">↺</button>
-        </div>
-      `;
-
-      card.querySelectorAll('.slider').forEach(slider => {
-        slider.addEventListener('input', (e) => {
-          const bId = e.target.dataset.bone;
-          const axisIdx = parseInt(e.target.dataset.axis, 10);
-          const val = parseFloat(e.target.value);
-          document.getElementById(`val-${bId}-${axisIdx}`).textContent = val.toFixed(2);
-          ensureBoneData(bId);
-          posesConfig[currentState][currentPoseKey][bId][axisIdx] = val;
-          if (!isPreviewing) applyCurrentPose();
-        });
-      });
-
-      card.querySelectorAll('.btn-reset-axis').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const bId = btn.dataset.bone;
-          const axisIdx = parseInt(btn.dataset.axis, 10);
-          ensureBoneData(bId);
-          posesConfig[currentState][currentPoseKey][bId][axisIdx] = 0;
-          const slider = card.querySelector(`.slider[data-bone="${bId}"][data-axis="${axisIdx}"]`);
-          if (slider) slider.value = 0;
-          document.getElementById(`val-${bId}-${axisIdx}`).textContent = '0.00';
-          if (!isPreviewing) applyCurrentPose();
-        });
-      });
-
-      card.querySelector('.btn-reset-bone').addEventListener('click', () => {
-        ensureBoneData(boneId);
-        posesConfig[currentState][currentPoseKey][boneId] = [0, 0, 0];
-        updateSlidersUI();
+    card.querySelectorAll('.slider').forEach(slider => {
+      slider.addEventListener('input', (e) => {
+        const bId = e.target.dataset.bone;
+        const axisIdx = parseInt(e.target.dataset.axis, 10);
+        const val = parseFloat(e.target.value) || 0;
+        const numInput = document.getElementById(`val-${bId}-${axisIdx}`);
+        if (numInput) numInput.value = val.toFixed(2);
+        ensureBoneData(bId);
+        posesConfig[currentState][currentPoseKey][bId][axisIdx] = val;
         if (!isPreviewing) applyCurrentPose();
       });
-
-      col.appendChild(card);
     });
 
-    grid.appendChild(col);
+    card.querySelectorAll('.axis-val-input').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const bId = e.target.dataset.bone;
+        const axisIdx = parseInt(e.target.dataset.axis, 10);
+        let val = parseFloat(e.target.value);
+        if (isNaN(val)) return;
+        val = Math.max(-3.14, Math.min(3.14, val));
+        const slider = card.querySelector(`.slider[data-bone="${bId}"][data-axis="${axisIdx}"]`);
+        if (slider) slider.value = val;
+        ensureBoneData(bId);
+        posesConfig[currentState][currentPoseKey][bId][axisIdx] = val;
+        if (!isPreviewing) applyCurrentPose();
+      });
+      input.addEventListener('blur', (e) => {
+        let val = parseFloat(e.target.value);
+        if (isNaN(val)) val = 0;
+        val = Math.max(-3.14, Math.min(3.14, val));
+        e.target.value = val.toFixed(2);
+      });
+    });
+
+    const resetAxisHandler = (targetEl) => {
+      const bId = targetEl.dataset.bone;
+      const axisIdx = parseInt(targetEl.dataset.axis, 10);
+      ensureBoneData(bId);
+      posesConfig[currentState][currentPoseKey][bId][axisIdx] = 0;
+      const slider = card.querySelector(`.slider[data-bone="${bId}"][data-axis="${axisIdx}"]`);
+      if (slider) slider.value = 0;
+      const numInput = document.getElementById(`val-${bId}-${axisIdx}`);
+      if (numInput) numInput.value = '0.00';
+      if (!isPreviewing) applyCurrentPose();
+    };
+
+    card.querySelectorAll('.btn-reset-axis').forEach(btn => {
+      btn.addEventListener('click', () => resetAxisHandler(btn));
+    });
+
+    card.querySelectorAll('.axis-label').forEach(lbl => {
+      lbl.addEventListener('click', () => resetAxisHandler(lbl));
+    });
+
+    card.querySelector('.btn-reset-bone').addEventListener('click', () => {
+      ensureBoneData(boneId);
+      posesConfig[currentState][currentPoseKey][boneId] = [0, 0, 0];
+      updateSlidersUI();
+      if (!isPreviewing) applyCurrentPose();
+    });
+
+    grid.appendChild(card);
   });
+
+  updateSlidersUI();
 }
 
 function ensureBoneData(boneId) {
@@ -377,10 +488,38 @@ function updateSlidersUI() {
       const label = document.getElementById(`val-${bone.id}-${i}`);
       if (slider && label) {
         slider.value = vals[i];
-        label.textContent = parseFloat(vals[i]).toFixed(2);
+        if ('value' in label) {
+          label.value = parseFloat(vals[i] || 0).toFixed(2);
+        } else {
+          label.textContent = parseFloat(vals[i] || 0).toFixed(2);
+        }
       }
     }
   });
+}
+
+function applyFingerJointsCascade(humanoid, boneId, euler) {
+  if (boneId.includes('Thumb')) {
+    const side = boneId.startsWith('left') ? 'left' : 'right';
+    const dist = humanoid.getNormalizedBoneNode(`${side}ThumbDistal`);
+    if (dist) {
+      const distEuler = new THREE.Euler(euler.x * 0.75, euler.y * 0.75, euler.z * 0.85, 'XYZ');
+      dist.quaternion.setFromEuler(distEuler);
+    }
+  } else if (boneId.includes('Index') || boneId.includes('Middle') || boneId.includes('Ring') || boneId.includes('Little')) {
+    const side = boneId.startsWith('left') ? 'left' : 'right';
+    const fingerName = boneId.replace(side, '').replace('Proximal', '');
+    const mid = humanoid.getNormalizedBoneNode(`${side}${fingerName}Intermediate`);
+    const dist = humanoid.getNormalizedBoneNode(`${side}${fingerName}Distal`);
+    if (mid) {
+      const midEuler = new THREE.Euler(euler.x * 0.7, euler.y * 0.7, euler.z * 0.85, 'XYZ');
+      mid.quaternion.setFromEuler(midEuler);
+    }
+    if (dist) {
+      const distEuler = new THREE.Euler(euler.x * 0.5, euler.y * 0.5, euler.z * 0.7, 'XYZ');
+      dist.quaternion.setFromEuler(distEuler);
+    }
+  }
 }
 
 function applyCurrentPose() {
@@ -396,6 +535,9 @@ function applyCurrentPose() {
     const node = currentVrm.humanoid.getNormalizedBoneNode(b.id);
     if (node) {
       node.quaternion.setFromEuler(euler);
+      if (b.id.includes('Proximal')) {
+        applyFingerJointsCascade(currentVrm.humanoid, b.id, euler);
+      }
     }
   });
 
@@ -463,6 +605,10 @@ function updatePreviewAnimation(delta) {
     const node = currentVrm.humanoid.getNormalizedBoneNode(b.id);
     if (node) {
       node.quaternion.copy(slerpQuat);
+      if (b.id.includes('Proximal')) {
+        const currentEuler = new THREE.Euler().setFromQuaternion(slerpQuat, 'XYZ');
+        applyFingerJointsCascade(currentVrm.humanoid, b.id, currentEuler);
+      }
     }
   });
 }
@@ -502,6 +648,18 @@ function mirrorPose(srcPose) {
     'rightLowerArm': 'leftLowerArm',
     'leftHand': 'rightHand',
     'rightHand': 'leftHand',
+
+    'leftThumbProximal': 'rightThumbProximal',
+    'rightThumbProximal': 'leftThumbProximal',
+    'leftIndexProximal': 'rightIndexProximal',
+    'rightIndexProximal': 'leftIndexProximal',
+    'leftMiddleProximal': 'rightMiddleProximal',
+    'rightMiddleProximal': 'leftMiddleProximal',
+    'leftRingProximal': 'rightRingProximal',
+    'rightRingProximal': 'leftRingProximal',
+    'leftLittleProximal': 'rightLittleProximal',
+    'rightLittleProximal': 'leftLittleProximal',
+
     'leftUpperLeg': 'rightUpperLeg',
     'rightUpperLeg': 'leftUpperLeg',
     'leftLowerLeg': 'rightLowerLeg',
@@ -568,7 +726,7 @@ function setupUIEvents() {
     tabA.classList.remove('active');
     updateSlidersUI();
     if (!isPreviewing) applyCurrentPose();
-    showNotification('📋 Pose A berhasil di-copy ke Pose B!');
+    showNotification('Pose A berhasil di-copy ke Pose B');
   });
 
   document.getElementById('btn-copy-b-to-a').addEventListener('click', () => {
@@ -580,7 +738,7 @@ function setupUIEvents() {
     tabB.classList.remove('active');
     updateSlidersUI();
     if (!isPreviewing) applyCurrentPose();
-    showNotification('📋 Pose B berhasil di-copy ke Pose A!');
+    showNotification('Pose B berhasil di-copy ke Pose A');
   });
 
   document.getElementById('btn-reverse-a-to-b').addEventListener('click', () => {
@@ -592,7 +750,7 @@ function setupUIEvents() {
     tabA.classList.remove('active');
     updateSlidersUI();
     if (!isPreviewing) applyCurrentPose();
-    showNotification('🪞 Reverse A ➔ B berhasil diterapkan!');
+    showNotification('Mirror A ke B berhasil diterapkan');
   });
 
   document.getElementById('btn-reverse-b-to-a').addEventListener('click', () => {
@@ -604,7 +762,7 @@ function setupUIEvents() {
     tabB.classList.remove('active');
     updateSlidersUI();
     if (!isPreviewing) applyCurrentPose();
-    showNotification('🪞 Reverse B ➔ A berhasil diterapkan!');
+    showNotification('Mirror B ke A berhasil diterapkan');
   });
 
   const btnPreview = document.getElementById('btn-preview');
@@ -631,7 +789,7 @@ function setupUIEvents() {
     BONES.forEach(b => { pose[b.id] = [0, 0, 0]; });
     updateSlidersUI();
     if (!isPreviewing) applyCurrentPose();
-    showNotification('✖ Semua bone di-reset ke 0');
+    showNotification('Semua bone di-reset ke 0');
   });
 
   window.addEventListener('resize', () => {
@@ -657,6 +815,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+renderCategoryTabs();
 generateBoneSliders();
 setupUIEvents();
 
