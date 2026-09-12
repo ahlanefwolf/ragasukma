@@ -3,14 +3,33 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin } from '@pixiv/three-vrm';
 import { updateInteractivePose, setPosesConfig, getActivePosesConfig } from './assets/vrm_pose.js';
 
-async function invoke(cmd, args) {
-  if (window.__TAURI__?.core?.invoke) {
-    return await window.__TAURI__.core.invoke(cmd, args);
+function getTauriInvoke() {
+  if (window.__TAURI__?.core?.invoke) return window.__TAURI__.core.invoke;
+  if (window.__TAURI__?.invoke) return window.__TAURI__.invoke;
+  if (window.__TAURI_INTERNALS__?.invoke) return window.__TAURI_INTERNALS__.invoke;
+  return null;
+}
+
+async function invoke(cmd, args = {}) {
+  let inv = getTauriInvoke();
+  if (inv) {
+    try {
+      return await inv(cmd, args);
+    } catch (e) {
+      console.error('[Invoke Error]', cmd, e);
+      return null;
+    }
   }
-  for (let i = 0; i < 25; i++) {
-    await new Promise(r => setTimeout(r, 40));
-    if (window.__TAURI__?.core?.invoke) {
-      return await window.__TAURI__.core.invoke(cmd, args);
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 35));
+    inv = getTauriInvoke();
+    if (inv) {
+      try {
+        return await inv(cmd, args);
+      } catch (e) {
+        console.error('[Invoke Error]', cmd, e);
+        return null;
+      }
     }
   }
   console.warn('⚠️ [Tauri Bridge] invoke not ready for:', cmd);
@@ -296,9 +315,14 @@ function fitCameraToVrm(vrm) {
 let isVrmAnimationRunning = false;
 let vrmLoaderInstance = null;
 
+let cachedVrmBytes = null;
+
 async function loadVrmModelToScene() {
   if (!scene) return;
   
+  const loadingEl = document.getElementById('loading-indicator');
+  if (loadingEl) loadingEl.style.display = 'flex';
+
   // 1. Hapus model VRM lama dari scene jika ada
   if (currentVrm && currentVrm.scene) {
     scene.remove(currentVrm.scene);
@@ -318,10 +342,17 @@ async function loadVrmModelToScene() {
   }
 
   try {
-    console.log('📦 [VRM Loader] Meminta file char.vrm dari backend...');
-    const bytes = await invoke('get_external_asset_bytes', { filename: 'char.vrm' });
+    let bytes = cachedVrmBytes;
+    if (!bytes) {
+      console.log('📦 [VRM Loader] Meminta file char.vrm dari backend...');
+      bytes = await invoke('get_external_asset_bytes', { filename: 'char.vrm' });
+      if (bytes && bytes.length > 0) {
+        cachedVrmBytes = bytes;
+      }
+    }
+
     if (bytes && bytes.length > 0) {
-      console.log(`📦 [VRM Loader] Menerima ${bytes.length} bytes, parsing via Three.js...`);
+      console.log(`📦 [VRM Loader] Parsing ${bytes.length} bytes via Three.js...`);
       const u8 = (bytes instanceof Uint8Array) ? bytes : new Uint8Array(bytes);
       
       vrmLoaderInstance.parse(
@@ -332,6 +363,7 @@ async function loadVrmModelToScene() {
           const vrm = gltf.userData.vrm;
           if (!vrm) {
             console.error('⚠️ [VRM Loader] gltf.userData.vrm kosong!');
+            if (loadingEl) loadingEl.style.display = 'none';
             return;
           }
           currentVrm = vrm;
@@ -352,14 +384,19 @@ async function loadVrmModelToScene() {
             console.log('🎬 [VRM Loader] Memulai loop render VRM!');
             animateVrm();
           }
+          if (loadingEl) loadingEl.style.display = 'none';
         },
         (err) => {
           console.error('❌ [VRM Loader] Error parsing VRM buffer:', err);
+          if (loadingEl) loadingEl.style.display = 'none';
         }
       );
+    } else {
+      if (loadingEl) loadingEl.style.display = 'none';
     }
   } catch(e) {
     console.error('❌ [VRM Loader] Exception get_external_asset_bytes:', e);
+    if (loadingEl) loadingEl.style.display = 'none';
   }
 }
 
@@ -415,6 +452,7 @@ let lastRenderTime = 0;
 
 function animateVrm(timestamp) {
   requestAnimationFrame(animateVrm);
+  if (document.hidden) return;
 
   // Adaptive framerate iGPU:
   // idle/listening: 12 FPS
@@ -455,16 +493,16 @@ let isDraggingNative = false;
 
 function setupInteractions() {
   // Context Menu Hide on click outside
-  window.addEventListener('click', (e) => {
-    if (!contextMenu.contains(e.target)) {
+  window.addEventListener('pointerdown', (e) => {
+    if (contextMenu.style.display !== 'none' && !contextMenu.contains(e.target)) {
       contextMenu.style.display = 'none';
     }
   });
 
-  // Right Click: Popover Menu
-  // Context Menu Trigger (Klik Kanan) -> Buka Menu Window Terpisah agar tidak terpotong
+  // Right Click: Buka Window Menu Terpisah (Native Window)
   window.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    e.stopPropagation();
     invoke('open_menu_window');
   });
 
@@ -498,10 +536,15 @@ function setupInteractions() {
 
   // Scroll Zoom Gesture
   let zoomTimer = null;
+  let isZooming = false;
   window.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const delta = e.deltaY < 0 ? 15 : (e.deltaY > 0 ? -15 : 0);
+    if (isZooming) return;
+    const delta = e.deltaY < 0 ? 16 : (e.deltaY > 0 ? -16 : 0);
     if (delta === 0) return;
+
+    isZooming = true;
+    setTimeout(() => { isZooming = false; }, 40);
 
     invoke('change_size_delta', { delta }).then(() => {
       if (currentVrm) fitCameraToVrm(currentVrm);
@@ -510,7 +553,7 @@ function setupInteractions() {
     clearTimeout(zoomTimer);
     zoomTimer = setTimeout(() => {
       invoke('save_current_position');
-    }, 300);
+    }, 250);
   }, { passive: false });
 }
 
@@ -800,6 +843,9 @@ async function pollState() {
 }
 
 async function initApp() {
+  setupMenuActions();
+  setupInteractions();
+
   let asstName = 'Niki';
   try {
     const config = await invoke('get_app_config');
@@ -815,26 +861,133 @@ async function initApp() {
   } catch (e) {}
 
   isVrm = avatarType === 'vrm';
+  let isVrmInitialized = false;
 
-  if (isVrm) {
+  function ensureVrmLoaded() {
+    if (!isVrm || isVrmInitialized) return;
+    isVrmInitialized = true;
     if (imgElement) imgElement.style.display = 'none';
     if (canvasContainer) canvasContainer.style.display = 'flex';
     initVrmViewer();
+    loadExternalPoses();
+  }
+
+  // Pemuatan VRM secara background (lazy) saat avatar window benar-benar visible
+  if (isVrm) {
+    if (imgElement) imgElement.style.display = 'none';
+    if (canvasContainer) canvasContainer.style.display = 'flex';
+    // Gunakan requestIdleCallback / setTimeout agar tidak memblokir render awal menu & UI
+    setTimeout(() => {
+      ensureVrmLoaded();
+    }, 1000);
   } else {
     if (imgElement) imgElement.style.display = 'block';
     if (canvasContainer) canvasContainer.style.display = 'none';
   }
 
-  setupMenuActions();
-  setupInteractions();
-  await loadExternalPoses();
-  // Dynamic visibility detection: skip rendering when window hidden
+  // Dynamic visibility detection: Hanya load VRM & render saat window aktif
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
+      if (isVrm && !isVrmInitialized) {
+        setTimeout(ensureVrmLoaded, 300);
+      }
       lastRenderTime = performance.now();
     }
   });
 
+  window.addEventListener('focus', () => {
+    if (isVrm && !isVrmInitialized) {
+      setTimeout(ensureVrmLoaded, 300);
+    }
+  });
+
+  function setupRealtimeEventListener() {
+    const getListen = () => window.__TAURI__?.event?.listen || window.__TAURI_INTERNALS__?.event?.listen || null;
+    let listenFn = getListen();
+
+    const attach = (listen) => {
+      listen('assistant:state', (event) => {
+        const data = event.payload;
+        if (!data) return;
+        const state = data.class || 'idle';
+        const emotion = data.emotion || 'neutral';
+        if (['idle', 'speaking', 'listening', 'thinking', 'processing'].includes(state)) {
+          currentState = (state === 'processing') ? 'thinking' : state;
+        }
+        if (emotion) {
+          currentEmotion = emotion;
+        }
+        if (!isVrm) {
+          updateSvgState(currentState);
+        }
+      });
+
+      listen('assistant:stream-chunk', (event) => {
+        const payload = event.payload;
+        if (payload && payload.sentence) {
+          currentState = 'speaking';
+          if (currentVrm) {
+            setTargetExpression('aa', 0.65 + Math.random() * 0.3);
+            setTimeout(() => {
+              if (currentState === 'speaking') {
+                setTargetExpression('aa', 0.2);
+              }
+            }, 120);
+          }
+        }
+      });
+
+      listen('assistant:response-done', () => {
+        setTargetExpression('aa', 0.0);
+        setTargetExpression('oh', 0.0);
+        setTargetExpression('ee', 0.0);
+      });
+
+      listen('assistant:poses-updated', () => {
+        loadExternalPoses();
+      });
+
+      listen('assistant:config-updated', (event) => {
+        const cfg = event.payload;
+        if (!cfg) return;
+        if (cfg.assistant_name) {
+          const titleEl = document.querySelector('.menu-title');
+          if (titleEl) titleEl.textContent = `🎀 ${cfg.assistant_name} Assistant`;
+          if (btnTestVoice) btnTestVoice.textContent = `🔊 Tes Suara ${cfg.assistant_name}`;
+        }
+        if (cfg.avatar_type) {
+          const newType = cfg.avatar_type.toLowerCase();
+          if (newType !== avatarType) {
+            avatarType = newType;
+            isVrm = avatarType === 'vrm';
+            if (isVrm) {
+              if (imgElement) imgElement.style.display = 'none';
+              if (canvasContainer) canvasContainer.style.display = 'flex';
+              if (!currentVrm) initVrmViewer();
+            } else {
+              if (imgElement) imgElement.style.display = 'block';
+              if (canvasContainer) canvasContainer.style.display = 'none';
+              updateSvgState(currentState);
+            }
+          }
+        }
+      });
+    };
+
+    if (listenFn) {
+      attach(listenFn);
+    } else {
+      const t = setInterval(() => {
+        listenFn = getListen();
+        if (listenFn) {
+          clearInterval(t);
+          attach(listenFn);
+        }
+      }, 50);
+    }
+  }
+
+  setupRealtimeEventListener();
   setInterval(pollState, 250);
 }
 

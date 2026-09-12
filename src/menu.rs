@@ -512,6 +512,11 @@ impl AppSession {
             println!("\n👤 Kamu [{:.2?}]:", stt_elapsed);
             println!("   \"{}\"", user_transcript);
 
+            TrayState::emit_event("assistant:transcript", serde_json::json!({
+                "role": "user",
+                "text": &user_transcript
+            }));
+
             // 2 & 3. Streaming LLM + Sentence-Level Streaming TTS (Interupsi Instan via Spasi / Q)
             TrayState::update(AssistantState::Thinking, "LLM Berpikir...");
             let llm_start = Instant::now();
@@ -642,6 +647,12 @@ impl AppSession {
                     }
                 }
 
+                TrayState::emit_event("assistant:stream-chunk", serde_json::json!({
+                    "sentence": &clean_sentence,
+                    "chunk": &clean_sentence,
+                    "speaker": asst_name
+                }));
+
                 print!("{} ", clean_sentence);
                 use std::io::Write;
                 let _ = std::io::stdout().flush();
@@ -675,6 +686,16 @@ impl AppSession {
                 println!("✂️  [DIPOTONG] {} berhenti bicara.", asst_name);
             }
 
+            let full_response_text = match &result {
+                Ok(txt) => txt.clone(),
+                Err(_) => String::new(),
+            };
+
+            TrayState::emit_event("assistant:response-done", serde_json::json!({
+                "text": &full_response_text,
+                "interrupted": is_user_cut.load(Ordering::SeqCst)
+            }));
+
             // Eksekusi skill jika LLM menyertakan tag [SKILL:ID]
             if let Ok(full_reply) = &result {
                 let re_skill = regex::Regex::new(r"\[SKILL:([^\]]+)\]").unwrap();
@@ -686,8 +707,20 @@ impl AppSession {
                         println!("\n🔍 [MEMPROSES SKILL]: Memanggil ID '{}'...", id);
                         if let Some((skill_name, output)) = execute_skill_by_id(id) {
                             println!("⚡ [SKILL BERHASIL: {} ({})] -> {}", skill_name, id, output.trim());
+                            TrayState::emit_event("assistant:skill", serde_json::json!({
+                                "id": id,
+                                "name": skill_name,
+                                "status": "success",
+                                "output": output.trim()
+                            }));
                         } else {
                             eprintln!("⚠️ [SKILL GAGAL]: ID '{}' tidak cocok di skill-command.md", id);
+                            TrayState::emit_event("assistant:skill", serde_json::json!({
+                                "id": id,
+                                "name": id,
+                                "status": "failed",
+                                "output": "ID skill tidak ditemukan"
+                            }));
                         }
                     }
                 }
@@ -698,6 +731,12 @@ impl AppSession {
                         println!("\n⚡ [SMART FALLBACK]: Terdeteksi permintaan buka terminal.");
                         if let Some((skill_name, output)) = execute_skill_by_id("SYS-000") {
                             println!("⚡ [SKILL BERHASIL: {}] -> {}", skill_name, output.trim());
+                            TrayState::emit_event("assistant:skill", serde_json::json!({
+                                "id": "SYS-000",
+                                "name": skill_name,
+                                "status": "success",
+                                "output": output.trim()
+                            }));
                         }
                     }
                 }

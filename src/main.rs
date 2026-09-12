@@ -3,7 +3,7 @@ mod config;
 mod dsp;
 mod llm;
 mod menu;
-pub mod ats_webview;
+pub mod webview;
 mod overlay;
 pub mod skills;
 mod stt;

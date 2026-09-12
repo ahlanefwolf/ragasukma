@@ -17,18 +17,46 @@
       background: var(--bg-app, #EFF7F6);
       color: var(--text-main, #232d36);
       font-family: var(--font-family);
-      padding: 16px;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      min-height: 100vh;
+      overflow: hidden;
     }
-    .header {
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg-app, #EFF7F6);
+      border-bottom: 1px solid var(--border-default);
+      padding: 12px 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 1px solid var(--border-default);
-      padding-bottom: 12px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .menu-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .bottom-nav {
+      position: sticky;
+      bottom: 0;
+      z-index: 100;
+      background: var(--bg-app, #EFF7F6);
+      border-top: 1px solid var(--border-default);
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 -2px 6px rgba(0,0,0,0.05);
     }
     .title {
       font-size: 15px;
@@ -118,6 +146,46 @@
       background: var(--accent-red);
       color: #FFFFFF;
     }
+    .stream-box {
+      background: var(--bg-card, #1e1e2e);
+      border: 1px solid var(--border-default, #363654);
+      border-radius: var(--radius-md, 8px);
+      padding: 10px;
+      font-size: 11px;
+      line-height: 1.45;
+      max-height: 160px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.25);
+    }
+    .stream-msg {
+      padding: 6px 8px;
+      border-radius: 6px;
+      word-break: break-word;
+    }
+    .stream-msg.user {
+      background: rgba(189, 147, 249, 0.15);
+      border-left: 3px solid #bd93f9;
+      color: var(--text-primary, #fff);
+      align-self: flex-end;
+      max-width: 90%;
+    }
+    .stream-msg.assistant {
+      background: rgba(255, 121, 198, 0.15);
+      border-left: 3px solid var(--accent-pink, #ff79c6);
+      color: var(--text-primary, #fff);
+      align-self: flex-start;
+      max-width: 95%;
+    }
+    .stream-msg.skill {
+      background: rgba(80, 250, 123, 0.15);
+      border-left: 3px solid #50fa7b;
+      color: #8be9fd;
+      font-family: monospace;
+      font-size: 10px;
+    }
     .corner-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -158,7 +226,7 @@
   </style>
 </head>
 <body>
-  <div class="header">
+  <header class="top-nav">
     <div class="title" id="assistant-title">
       <svg class="icon" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
       <span>AI Assistant</span>
@@ -166,103 +234,136 @@
     <div style="display: flex; align-items: center; gap: 6px;">
       <span id="tts-engine-badge" style="font-size: 10px; background: rgba(244, 114, 182, 0.15); color: #f472b6; border: 1px solid rgba(244, 114, 182, 0.3); padding: 2px 6px; border-radius: 4px; font-weight: 700;">TTS</span>
       <div class="status-badge" id="status-badge">Standby</div>
+      <button id="btn-close-window" style="background: rgba(255, 85, 85, 0.15); border: 1px solid rgba(255, 85, 85, 0.4); color: #e11d48; border-radius: 4px; padding: 2px 8px; font-weight: 800; cursor: pointer; font-size: 12px; line-height: 1;">✕</button>
     </div>
-  </div>
+  </header>
 
-  <div class="section-label">Aksi Percakapan</div>
-  <div class="btn-group">
-    <button class="btn btn-primary" id="btn-start">
-      <svg class="icon" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
-      <span>Mulai Ngobrol (Chat)</span>
-    </button>
-    <button class="btn btn-warning" id="btn-pause" style="display: none;">
-      <svg class="icon" viewBox="0 0 24 24"><rect width="4" height="16" x="6" y="4" rx="1"/><rect width="4" height="16" x="14" y="4" rx="1"/></svg>
-      <span>Jeda Mendengarkan (Pause)</span>
-    </button>
-    <button class="btn" id="btn-stop-chat" style="display: none;">
-      <svg class="icon" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="2"/></svg>
-      <span>Akhiri Sesi Ngobrol</span>
-    </button>
-  </div>
+  <main class="menu-content">
+    <div class="section-label">Avatar & Percakapan</div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btn-toggle-avatar">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span id="btn-toggle-avatar-text">🎭 Tampilkan 3D Avatar</span>
+      </button>
+      <button class="btn" id="btn-start">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+        <span>Mulai Ngobrol (Chat)</span>
+      </button>
+      <button class="btn btn-warning" id="btn-pause" style="display: none;">
+        <svg class="icon" viewBox="0 0 24 24"><rect width="4" height="16" x="6" y="4" rx="1"/><rect width="4" height="16" x="14" y="4" rx="1"/></svg>
+        <span>Jeda Mendengarkan (Pause)</span>
+      </button>
+      <button class="btn" id="btn-stop-chat" style="display: none;">
+        <svg class="icon" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="2"/></svg>
+        <span>Akhiri Sesi Ngobrol</span>
+      </button>
+    </div>
 
-  <div class="section-label">Pengujian & Audio</div>
-  <div class="btn-group">
-    <button class="btn" id="btn-test-voice">
-      <svg class="icon" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 5.636a9 9 0 0 1 0 12.728"/></svg>
-      <span>Tes Suara Asisten</span>
-    </button>
-    <button class="btn" id="btn-test-mic">
-      <svg class="icon" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-      <span>Tes Mic & Filter Suara</span>
-    </button>
-  </div>
+    <div class="section-label">Live Percakapan & SSE Stream</div>
+    <div class="stream-box" id="stream-box">
+      <div style="color: var(--text-muted, #888); font-size: 10.5px; text-align: center; padding: 12px 0;">
+        ✨ Siap menerima live stream percakapan & event asisten...
+      </div>
+    </div>
 
-  <div class="section-label">Fitur & Otomasi</div>
-  <div class="btn-group">
-    <button class="btn btn-primary" id="btn-tuner">
-      <svg class="icon" viewBox="0 0 24 24"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="1" x2="7" y1="14" y2="14"/><line x1="9" x2="15" y1="8" y2="8"/><line x1="17" x2="23" y1="16" y2="16"/></svg>
-      <span>Pose & Motion Tuner (3D)</span>
-    </button>
-    <button class="btn" id="btn-ats-window">
-      <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-      <span>Buka Web TTS (Kiki / ATS)</span>
-    </button>
-    <button class="btn" id="btn-skills">
-      <svg class="icon" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
-      <span>Kelola Skill Commands</span>
-    </button>
-    <button class="btn" id="btn-settings">
-      <svg class="icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-      <span>Pengaturan (Settings)</span>
-    </button>
-    <button class="btn" id="btn-check-update">
-      <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
-      <span>Periksa Pembaruan (Update)</span>
-    </button>
-  </div>
+    <div class="section-label">Pengujian & Audio</div>
+    <div class="btn-group">
+      <button class="btn" id="btn-test-voice">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 5.636a9 9 0 0 1 0 12.728"/></svg>
+        <span>Tes Suara Asisten</span>
+      </button>
+      <button class="btn" id="btn-test-mic">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+        <span>Tes Mic & Filter Suara</span>
+      </button>
+    </div>
 
-  <div class="section-label">Posisi Layar Avatar</div>
-  <div class="corner-grid">
-    <button class="btn corner-btn" data-corner="top-left">
-      <svg class="icon-sm" viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-      <span>Top-Left</span>
-    </button>
-    <button class="btn corner-btn" data-corner="top-right">
-      <svg class="icon-sm" viewBox="0 0 24 24"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
-      <span>Top-Right</span>
-    </button>
-    <button class="btn corner-btn" data-corner="bottom-left">
-      <svg class="icon-sm" viewBox="0 0 24 24"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>
-      <span>Bottom-Left</span>
-    </button>
-    <button class="btn corner-btn" data-corner="bottom-right">
-      <svg class="icon-sm" viewBox="0 0 24 24"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg>
-      <span>Bottom-Right</span>
-    </button>
-  </div>
+    <div class="section-label">Fitur & Otomasi</div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btn-tuner">
+        <svg class="icon" viewBox="0 0 24 24"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="1" x2="7" y1="14" y2="14"/><line x1="9" x2="15" y1="8" y2="8"/><line x1="17" x2="23" y1="16" y2="16"/></svg>
+        <span>Pose & Motion Tuner (3D)</span>
+      </button>
+      <button class="btn" id="btn-ats-window">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+        <span>Buka Web TTS (Kiki / ATS)</span>
+      </button>
+      <button class="btn" id="btn-skills">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
+        <span>Kelola Skill Commands</span>
+      </button>
+      <button class="btn" id="btn-settings">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>Pengaturan (Settings)</span>
+      </button>
+      <button class="btn" id="btn-check-update">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+        <span>Periksa Pembaruan (Update)</span>
+      </button>
+    </div>
 
-  <div class="separator"></div>
+    <div class="section-label">Posisi Layar Avatar</div>
+    <div class="corner-grid">
+      <button class="btn corner-btn" data-corner="top-left">
+        <svg class="icon-sm" viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+        <span>Top-Left</span>
+      </button>
+      <button class="btn corner-btn" data-corner="top-right">
+        <svg class="icon-sm" viewBox="0 0 24 24"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
+        <span>Top-Right</span>
+      </button>
+      <button class="btn corner-btn" data-corner="bottom-left">
+        <svg class="icon-sm" viewBox="0 0 24 24"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>
+        <span>Bottom-Left</span>
+      </button>
+      <button class="btn corner-btn" data-corner="bottom-right">
+        <svg class="icon-sm" viewBox="0 0 24 24"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg>
+        <span>Bottom-Right</span>
+      </button>
+    </div>
+  </main>
 
-  <button class="btn" id="btn-reset-size">
-    <svg class="icon" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
-    <span>Reset Ukuran Avatar</span>
-  </button>
-  <button class="btn btn-danger" id="btn-quit">
-    <svg class="icon" viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>
-    <span>Matikan Program</span>
-  </button>
+  <footer class="bottom-nav">
+    <button class="btn" id="btn-reset-size">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+      <span>Reset Ukuran Avatar</span>
+    </button>
+    <button class="btn btn-danger" id="btn-quit">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>
+      <span>Matikan Program</span>
+    </button>
+  </footer>
 
   <div id="toast"></div>
 
-  <script type="module">
-    async function invoke(cmd, args) {
-      if (window.__TAURI__?.core?.invoke) {
-        return await window.__TAURI__.core.invoke(cmd, args);
+  <script>
+    function getTauriInvoke() {
+      if (window.__TAURI__?.core?.invoke) return window.__TAURI__.core.invoke;
+      if (window.__TAURI__?.invoke) return window.__TAURI__.invoke;
+      if (window.__TAURI_INTERNALS__?.invoke) return window.__TAURI_INTERNALS__.invoke;
+      return null;
+    }
+
+    async function invoke(cmd, args = {}) {
+      let inv = getTauriInvoke();
+      if (inv) {
+        try {
+          return await inv(cmd, args);
+        } catch (e) {
+          console.error('[Invoke Error Menu]', cmd, e);
+          return null;
+        }
       }
-      for (let i = 0; i < 25; i++) {
-        await new Promise(r => setTimeout(r, 40));
-        if (window.__TAURI__?.core?.invoke) {
-          return await window.__TAURI__.core.invoke(cmd, args);
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 35));
+        inv = getTauriInvoke();
+        if (inv) {
+          try {
+            return await inv(cmd, args);
+          } catch (e) {
+            console.error('[Invoke Error Menu]', cmd, e);
+            return null;
+          }
         }
       }
       console.warn('⚠️ [Tauri Bridge Menu] invoke not ready for:', cmd);
@@ -272,6 +373,8 @@
     const titleEl = document.getElementById('assistant-title');
     const badgeEl = document.getElementById('status-badge');
     const ttsBadgeEl = document.getElementById('tts-engine-badge');
+    const btnToggleAvatar = document.getElementById('btn-toggle-avatar');
+    const btnToggleAvatarText = document.getElementById('btn-toggle-avatar-text');
     const btnStart = document.getElementById('btn-start');
     const btnPause = document.getElementById('btn-pause');
     const btnStop = document.getElementById('btn-stop-chat');
@@ -285,10 +388,107 @@
     const btnReset = document.getElementById('btn-reset-size');
     const btnQuit = document.getElementById('btn-quit');
 
-    function showToast(msg) {
-      toast.textContent = msg;
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 1800);
+    const streamBox = document.getElementById('stream-box');
+    let currentAssistantMsgEl = null;
+
+    function appendStreamMessage(role, text) {
+      if (!streamBox) return null;
+      // Hapus pesan placeholder jika ada
+      const placeholder = streamBox.querySelector('div[style*="text-align: center"]');
+      if (placeholder) placeholder.remove();
+
+      const el = document.createElement('div');
+      el.className = `stream-msg ${role}`;
+      el.textContent = text;
+      streamBox.appendChild(el);
+      streamBox.scrollTop = streamBox.scrollHeight;
+      return el;
+    }
+
+    function setupSseEventHub() {
+      const getListen = () => window.__TAURI__?.event?.listen || window.__TAURI_INTERNALS__?.event?.listen || null;
+      let listenFn = getListen();
+
+      const attachListeners = (listen) => {
+        // 1. Live State Event
+        listen('assistant:state', (event) => {
+          const data = event.payload;
+          if (!data) return;
+          const desc = data.description || data.class || '';
+          badgeEl.textContent = desc;
+        });
+
+        // 2. User Transcript Event
+        listen('assistant:transcript', (event) => {
+          const payload = event.payload;
+          if (payload && payload.text) {
+            appendStreamMessage('user', `👤 ${payload.text}`);
+            currentAssistantMsgEl = null;
+          }
+        });
+
+        // 3. Stream Chunk Event
+        listen('assistant:stream-chunk', (event) => {
+          const payload = event.payload;
+          if (payload && payload.sentence) {
+            if (!currentAssistantMsgEl) {
+              const asstName = payload.speaker || 'Assistant';
+              currentAssistantMsgEl = appendStreamMessage('assistant', `🎀 ${asstName}: ${payload.sentence}`);
+            } else {
+              currentAssistantMsgEl.textContent += ` ${payload.sentence}`;
+              if (streamBox) streamBox.scrollTop = streamBox.scrollHeight;
+            }
+          }
+        });
+
+        // 4. Response Done Event
+        listen('assistant:response-done', (event) => {
+          currentAssistantMsgEl = null;
+        });
+
+        // 5. Skill Executed Event
+        listen('assistant:skill', (event) => {
+          const payload = event.payload;
+          if (payload) {
+            appendStreamMessage('skill', `⚡ [SKILL: ${payload.name || payload.id}] ${payload.output || ''}`);
+          }
+        });
+
+        // 6. Config Updated Event (dari Settings)
+        listen('assistant:config-updated', (event) => {
+          const cfg = event.payload;
+          if (cfg && cfg.assistant_name) {
+            const titleSpan = titleEl.querySelector('span');
+            if (titleSpan) titleSpan.textContent = `${cfg.assistant_name} Assistant`;
+            const voiceSpan = btnVoice.querySelector('span');
+            if (voiceSpan) voiceSpan.textContent = `Tes Suara ${cfg.assistant_name}`;
+          }
+          if (cfg && cfg.tts_engine) {
+            ttsBadgeEl.textContent = cfg.tts_engine.toUpperCase();
+            const atsSpan = btnAtsWindow.querySelector('span');
+            if (atsSpan) {
+              if (cfg.tts_engine.toLowerCase() === 'kiki' || cfg.tts_engine.toLowerCase() === 'kikivoice') {
+                atsSpan.textContent = 'Buka KikiVoice (WebKit)';
+              } else if (cfg.tts_engine.toLowerCase() === 'anytospeech' || cfg.tts_engine.toLowerCase() === 'ats') {
+                atsSpan.textContent = 'Buka AnyToSpeech (WebKit)';
+              }
+            }
+          }
+          showToast('⚙️ Pengaturan disinkronkan!');
+        });
+      };
+
+      if (listenFn) {
+        attachListeners(listenFn);
+      } else {
+        const retryTimer = setInterval(() => {
+          listenFn = getListen();
+          if (listenFn) {
+            clearInterval(retryTimer);
+            attachListeners(listenFn);
+          }
+        }, 50);
+      }
     }
 
     async function init() {
@@ -328,6 +528,23 @@
           }
         }
       } catch (e) {}
+
+      if (btnToggleAvatar) {
+        // Cek status awal avatar
+        invoke('is_avatar_visible').then(isVis => {
+          if (btnToggleAvatarText) {
+            btnToggleAvatarText.textContent = isVis ? '🙈 Sembunyikan 3D Avatar' : '🎭 Tampilkan 3D Avatar';
+          }
+        });
+
+        btnToggleAvatar.addEventListener('click', async () => {
+          const isNowVis = await invoke('toggle_avatar_window');
+          if (btnToggleAvatarText) {
+            btnToggleAvatarText.textContent = isNowVis ? '🙈 Sembunyikan 3D Avatar' : '🎭 Tampilkan 3D Avatar';
+          }
+          showToast(isNowVis ? '🎭 Avatar ditampilkan di layar' : '🙈 Avatar disembunyikan');
+        });
+      }
 
       btnStart.addEventListener('click', () => {
         invoke('send_command', { cmd: 'start_chat' });
@@ -382,6 +599,13 @@
         });
       }
 
+      const btnCloseWin = document.getElementById('btn-close-window');
+      if (btnCloseWin) {
+        btnCloseWin.addEventListener('click', () => {
+          invoke('close_current_window');
+        });
+      }
+
       btnReset.addEventListener('click', () => {
         invoke('reset_size');
         showToast('Ukuran avatar direset');
@@ -425,6 +649,7 @@
       }, 250);
     }
 
+    setupSseEventHub();
     init();
   </script>
 </body>

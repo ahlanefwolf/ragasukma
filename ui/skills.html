@@ -301,15 +301,34 @@
 
   <div id="toast"></div>
 
-  <script type="module">
-    async function invoke(cmd, args) {
-      if (window.__TAURI__?.core?.invoke) {
-        return await window.__TAURI__.core.invoke(cmd, args);
+  <script>
+    function getTauriInvoke() {
+      if (window.__TAURI__?.core?.invoke) return window.__TAURI__.core.invoke;
+      if (window.__TAURI__?.invoke) return window.__TAURI__.invoke;
+      if (window.__TAURI_INTERNALS__?.invoke) return window.__TAURI_INTERNALS__.invoke;
+      return null;
+    }
+
+    async function invoke(cmd, args = {}) {
+      let inv = getTauriInvoke();
+      if (inv) {
+        try {
+          return await inv(cmd, args);
+        } catch (e) {
+          console.error('[Invoke Error]', cmd, e);
+          return null;
+        }
       }
-      for (let i = 0; i < 25; i++) {
-        await new Promise(r => setTimeout(r, 40));
-        if (window.__TAURI__?.core?.invoke) {
-          return await window.__TAURI__.core.invoke(cmd, args);
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 35));
+        inv = getTauriInvoke();
+        if (inv) {
+          try {
+            return await inv(cmd, args);
+          } catch (e) {
+            console.error('[Invoke Error]', cmd, e);
+            return null;
+          }
         }
       }
       console.warn('⚠️ [Tauri Bridge Skills] invoke not ready for:', cmd);

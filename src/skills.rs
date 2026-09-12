@@ -105,6 +105,7 @@ pub fn save_skill(skill: SkillItem) -> Result<Vec<SkillItem>, String> {
         skills.push(skill);
     }
     save_skills_markdown(&skills).map_err(|e| e.to_string())?;
+    crate::tray::TrayState::emit_event("assistant:skills-updated", serde_json::to_value(&skills).unwrap_or_default());
     Ok(skills)
 }
 
@@ -113,6 +114,7 @@ pub fn delete_skill(id: String) -> Result<Vec<SkillItem>, String> {
     let mut skills = parse_skills_markdown();
     skills.retain(|s| s.id != id);
     save_skills_markdown(&skills).map_err(|e| e.to_string())?;
+    crate::tray::TrayState::emit_event("assistant:skills-updated", serde_json::to_value(&skills).unwrap_or_default());
     Ok(skills)
 }
 

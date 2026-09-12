@@ -44,7 +44,18 @@ impl TrayState {
         });
 
         if let Ok(mut lock) = CURRENT_STATE.lock() {
-            *lock = Some(json);
+            *lock = Some(json.clone());
+        }
+
+        Self::emit_event("assistant:state", json);
+    }
+
+    pub fn emit_event(event_name: &str, payload: serde_json::Value) {
+        if let Ok(guard) = crate::overlay::APP_HANDLE.lock() {
+            if let Some(app) = guard.as_ref() {
+                use tauri::Emitter;
+                let _ = app.emit(event_name, payload);
+            }
         }
     }
 

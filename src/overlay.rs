@@ -5,8 +5,8 @@ use std::sync::Mutex;
 use std::thread;
 use tauri::{Manager, PhysicalPosition, PhysicalSize};
 
-use crate::ats_webview::*;
 use crate::skills::*;
+use crate::webview::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PositionConfig {
@@ -92,7 +92,13 @@ fn save_poses_config(app: tauri::AppHandle, config_json: String) -> Result<(), S
     let _ = fs::write(backup, &config_json);
     println!("💾 [Pose Tuner] Berhasil menyimpan poses.json ke {:?}", path);
 
-    // Kirim sinyal hanya saat tombol Save ditekan
+    // Pancarkan event poses-updated ke semua window
+    crate::tray::TrayState::emit_event("assistant:poses-updated", serde_json::json!({
+        "status": "success",
+        "timestamp": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis()
+    }));
+
+    // Kirim sinyal langsung ke avatar overlay
     if let Some(main_win) = app.get_webview_window("main") {
         let _ = main_win.eval("if (window.loadExternalPoses) { window.loadExternalPoses(); }");
     }
@@ -155,17 +161,20 @@ fn get_asset_file_path(filename: &str) -> Option<PathBuf> {
     None
 }
 
-#[tauri::command]
-fn open_browser_url(url: String) -> Result<(), String> {
+pub fn open_browser_url_native(url: &str) {
     #[cfg(target_os = "linux")]
-    let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+    let _ = std::process::Command::new("xdg-open").arg(url).spawn();
 
     #[cfg(target_os = "windows")]
-    let _ = std::process::Command::new("cmd").args(["/C", "start", &url]).spawn();
+    let _ = std::process::Command::new("cmd").args(["/C", "start", url]).spawn();
 
     #[cfg(target_os = "macos")]
-    let _ = std::process::Command::new("open").arg(&url).spawn();
+    let _ = std::process::Command::new("open").arg(url).spawn();
+}
 
+#[tauri::command]
+fn open_browser_url(url: String) -> Result<(), String> {
+    open_browser_url_native(&url);
     Ok(())
 }
 
@@ -276,6 +285,7 @@ fn get_external_asset(filename: String) -> Result<String, String> {
 fn open_tuner_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("pose-tuner") {
         let _ = window.show();
+        let _ = window.unminimize();
         let _ = window.set_focus();
         return Ok(());
     }
@@ -286,6 +296,8 @@ fn open_tuner_window(app: tauri::AppHandle) -> Result<(), String> {
         .resizable(true)
         .decorations(true)
         .always_on_top(false)
+        .focused(true)
+        .devtools(true)
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -295,9 +307,46 @@ fn open_tuner_window(app: tauri::AppHandle) -> Result<(), String> {
 
 
 #[tauri::command]
+fn toggle_avatar_window(app: tauri::AppHandle) -> Result<bool, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let is_vis = window.is_visible().unwrap_or(false);
+        if is_vis {
+            let _ = window.hide();
+            Ok(false)
+        } else {
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+            Ok(true)
+        }
+    } else {
+        Err("Window main tidak ditemukan".to_string())
+    }
+}
+
+#[tauri::command]
+fn is_avatar_visible(app: tauri::AppHandle) -> bool {
+    if let Some(window) = app.get_webview_window("main") {
+        window.is_visible().unwrap_or(false)
+    } else {
+        false
+    }
+}
+
+#[tauri::command]
+fn close_current_window(window: tauri::Window) {
+    if window.label() == "assistant-menu" {
+        std::process::exit(0);
+    } else {
+        let _ = window.hide();
+    }
+}
+
+#[tauri::command]
 fn open_menu_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("assistant-menu") {
         let _ = window.show();
+        let _ = window.unminimize();
         let _ = window.set_focus();
         return Ok(());
     }
@@ -308,6 +357,8 @@ fn open_menu_window(app: tauri::AppHandle) -> Result<(), String> {
         .resizable(true)
         .decorations(true)
         .always_on_top(true)
+        .focused(true)
+        .devtools(true)
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -318,6 +369,7 @@ fn open_menu_window(app: tauri::AppHandle) -> Result<(), String> {
 fn open_skills_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("skills") {
         let _ = window.show();
+        let _ = window.unminimize();
         let _ = window.set_focus();
         return Ok(());
     }
@@ -328,6 +380,8 @@ fn open_skills_window(app: tauri::AppHandle) -> Result<(), String> {
         .resizable(true)
         .decorations(true)
         .always_on_top(true)
+        .focused(true)
+        .devtools(true)
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -341,13 +395,16 @@ fn get_full_user_config() -> crate::config::UserConfig {
 
 #[tauri::command]
 fn save_full_user_config(config: crate::config::UserConfig) -> Result<(), String> {
-    crate::config::save_user_config(&config)
+    crate::config::save_user_config(&config)?;
+    crate::tray::TrayState::emit_event("assistant:config-updated", serde_json::to_value(&config).unwrap_or_default());
+    Ok(())
 }
 
 #[tauri::command]
 fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("settings") {
         let _ = window.show();
+        let _ = window.unminimize();
         let _ = window.set_focus();
         return Ok(());
     }
@@ -358,6 +415,7 @@ fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
         .resizable(true)
         .decorations(true)
         .always_on_top(true)
+        .devtools(true)
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -416,50 +474,53 @@ fn start_drag(window: tauri::Window) {
 
 #[tauri::command]
 fn drag_window_delta(
-    window: tauri::Window,
+    app: tauri::AppHandle,
     dx: i32,
     dy: i32,
     state: tauri::State<'_, OverlayState>,
 ) {
-    if let Ok(pos) = window.outer_position() {
-        let new_x = pos.x + dx;
-        let new_y = pos.y + dy;
-        let _ = window.set_position(tauri::Position::Physical(PhysicalPosition {
-            x: new_x,
-            y: new_y,
-        }));
+    if let Some(main_win) = app.get_webview_window("main") {
+        let window = main_win.as_ref().window();
+        if let Ok(pos) = window.outer_position() {
+            let new_x = pos.x + dx;
+            let new_y = pos.y + dy;
+            let _ = window.set_position(tauri::Position::Physical(PhysicalPosition {
+                x: new_x,
+                y: new_y,
+            }));
 
-        if let Ok(Some(monitor)) = window.current_monitor() {
-            let m_size = monitor.size();
-            let avatar_type = crate::config::load_user_config().avatar_type;
-            let mut cfg = match state.position_config.lock() {
-                Ok(guard) => guard,
-                Err(poisoned) => poisoned.into_inner(),
-            };
-            let corner = cfg.corner.clone();
+            if let Ok(Some(monitor)) = window.current_monitor() {
+                let m_size = monitor.size();
+                let avatar_type = crate::config::load_user_config().avatar_type;
+                let mut cfg = match state.position_config.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                let corner = cfg.corner.clone();
 
-            match corner.as_str() {
-                "top-right" => {
-                    let w = if avatar_type.eq_ignore_ascii_case("vrm") { (cfg.size * 9) / 16 } else { cfg.size };
-                    cfg.margin_x = (m_size.width as i32 - (new_x + w)).max(-200);
-                    cfg.margin_y = new_y.max(-200);
+                match corner.as_str() {
+                    "top-right" => {
+                        let w = if avatar_type.eq_ignore_ascii_case("vrm") { (cfg.size * 9) / 16 } else { cfg.size };
+                        cfg.margin_x = (m_size.width as i32 - (new_x + w)).max(-200);
+                        cfg.margin_y = new_y.max(-200);
+                    }
+                    "top-left" => {
+                        cfg.margin_x = new_x.max(-200);
+                        cfg.margin_y = new_y.max(-200);
+                    }
+                    "bottom-right" => {
+                        let w = if avatar_type.eq_ignore_ascii_case("vrm") { (cfg.size * 9) / 16 } else { cfg.size };
+                        let h = cfg.size;
+                        cfg.margin_x = (m_size.width as i32 - (new_x + w)).max(-200);
+                        cfg.margin_y = (m_size.height as i32 - (new_y + h)).max(-200);
+                    }
+                    "bottom-left" => {
+                        let h = cfg.size;
+                        cfg.margin_x = new_x.max(-200);
+                        cfg.margin_y = (m_size.height as i32 - (new_y + h)).max(-200);
+                    }
+                    _ => {}
                 }
-                "top-left" => {
-                    cfg.margin_x = new_x.max(-200);
-                    cfg.margin_y = new_y.max(-200);
-                }
-                "bottom-right" => {
-                    let w = if avatar_type.eq_ignore_ascii_case("vrm") { (cfg.size * 9) / 16 } else { cfg.size };
-                    let h = cfg.size;
-                    cfg.margin_x = (m_size.width as i32 - (new_x + w)).max(-200);
-                    cfg.margin_y = (m_size.height as i32 - (new_y + h)).max(-200);
-                }
-                "bottom-left" => {
-                    let h = cfg.size;
-                    cfg.margin_x = new_x.max(-200);
-                    cfg.margin_y = (m_size.height as i32 - (new_y + h)).max(-200);
-                }
-                _ => {}
             }
         }
     }
@@ -476,7 +537,7 @@ fn save_current_position(state: tauri::State<'_, OverlayState>) {
 
 #[tauri::command]
 fn change_size_delta(
-    window: tauri::Window,
+    app: tauri::AppHandle,
     delta: i32,
     state: tauri::State<'_, OverlayState>,
 ) -> i32 {
@@ -485,41 +546,35 @@ fn change_size_delta(
         Err(poisoned) => poisoned.into_inner(),
     };
     let old_size = cfg.size;
-    let new_size = (old_size + delta).clamp(60, 1800);
+    let new_size = (old_size + delta).clamp(120, 1800);
 
     if new_size != old_size {
         cfg.size = new_size;
         let avatar_type = crate::config::load_user_config().avatar_type;
-        let w = if avatar_type.eq_ignore_ascii_case("vrm") {
-            (new_size * 9) / 16
-        } else {
-            new_size
-        };
-        let h = new_size;
-
-        let _ = window.set_size(tauri::Size::Physical(PhysicalSize {
-            width: w as u32,
-            height: h as u32,
-        }));
+        if let Some(main_win) = app.get_webview_window("main") {
+            apply_position_to_window(&main_win.as_ref().window(), &cfg, &avatar_type);
+        }
         save_position_config(&cfg);
     }
     cfg.size
 }
 
 #[tauri::command]
-fn reset_size(window: tauri::Window, state: tauri::State<'_, OverlayState>) {
+fn reset_size(app: tauri::AppHandle, state: tauri::State<'_, OverlayState>) {
     let mut cfg = match state.position_config.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     };
     cfg.size = 320;
     let avatar_type = crate::config::load_user_config().avatar_type;
-    apply_position_to_window(&window, &cfg, &avatar_type);
+    if let Some(main_win) = app.get_webview_window("main") {
+        apply_position_to_window(&main_win.as_ref().window(), &cfg, &avatar_type);
+    }
     save_position_config(&cfg);
 }
 
 #[tauri::command]
-fn set_corner(window: tauri::Window, corner: String, state: tauri::State<'_, OverlayState>) {
+fn set_corner(app: tauri::AppHandle, corner: String, state: tauri::State<'_, OverlayState>) {
     let mut cfg = match state.position_config.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
@@ -528,7 +583,9 @@ fn set_corner(window: tauri::Window, corner: String, state: tauri::State<'_, Ove
     cfg.margin_x = 24;
     cfg.margin_y = 24;
     let avatar_type = crate::config::load_user_config().avatar_type;
-    apply_position_to_window(&window, &cfg, &avatar_type);
+    if let Some(main_win) = app.get_webview_window("main") {
+        apply_position_to_window(&main_win.as_ref().window(), &cfg, &avatar_type);
+    }
     save_position_config(&cfg);
 }
 
@@ -628,7 +685,6 @@ fn apply_position_to_window(window: &tauri::Window, cfg: &PositionConfig, avatar
     }));
     let _ = window.set_position(tauri::Position::Physical(PhysicalPosition { x, y }));
     let _ = window.set_always_on_top(true);
-    let _ = window.show();
 
     // Sway (Wayland tiling WM): gerakkan via swaymsg dengan kriteria app_id/title yang tepat
     if std::env::var("SWAYSOCK").is_ok() {
@@ -709,6 +765,19 @@ impl NativeOverlay {
 
         let app = tauri::Builder::default()
             .manage(overlay_state)
+            .on_window_event(|window, event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    let label = window.label();
+                    if label == "assistant-menu" {
+                        std::process::exit(0);
+                    } else if label == "anytospeech-session" {
+                        // Jangan cegah penutupan window Web TTS agar tidak hang/zombie
+                    } else if label != "main" {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
+                }
+            })
             .invoke_handler(tauri::generate_handler![
                 get_app_config,
                 get_app_state,
@@ -727,8 +796,11 @@ impl NativeOverlay {
                 open_settings_window,
                 get_full_user_config,
                 save_full_user_config,
+                close_current_window,
                 open_menu_window,
                 open_tuner_window,
+                toggle_avatar_window,
+                is_avatar_visible,
                 get_poses_config,
                 save_poses_config,
                 get_external_asset,
@@ -739,23 +811,25 @@ impl NativeOverlay {
                 ats_report_status,
                 check_for_updates
             ])
+            .on_window_event(|window, event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    let label = window.label();
+                    if label == "anytospeech-session"
+                        || label == "skills"
+                        || label == "settings"
+                        || label == "pose-tuner"
+                    {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
+                }
+            })
             .setup(move |app| {
                 if let Ok(mut guard) = APP_HANDLE.lock() {
                     *guard = Some(app.handle().clone());
                 }
 
-                // Otomatis buka jendela WebKit AnyToSpeech / KikiVoice jika TTS_ENGINE diset
                 let u = crate::config::load_user_config();
-                let tts_engine_env = u.tts_engine.to_lowercase();
-                if tts_engine_env == "anytospeech" || tts_engine_env == "ats"
-                    || tts_engine_env == "natural_readers" || tts_engine_env == "naturalreaders"
-                    || tts_engine_env == "kiki" || tts_engine_env == "kikivoice" {
-                    let app_h = app.handle().clone();
-                    thread::spawn(move || {
-                        thread::sleep(std::time::Duration::from_millis(500));
-                        let _ = open_anytospeech_window(app_h);
-                    });
-                }
                 if let Some(window) = app.get_webview_window("main") {
                     let state = app.state::<OverlayState>();
                     let cfg = match state.position_config.lock() {
@@ -763,9 +837,6 @@ impl NativeOverlay {
                         Err(poisoned) => poisoned.into_inner().clone(),
                     };
                     apply_position_to_window(&window.as_ref().window(), &cfg, &u.avatar_type);
-                    println!("🪟 Tauri Overlay Window berhasil ditampilkan di layar.");
-                } else {
-                    eprintln!("⚠️ Warning: Window 'main' tidak ditemukan di Tauri.");
                 }
 
                 // Background watcher untuk sinyal quit (100% in-memory thread-safe)

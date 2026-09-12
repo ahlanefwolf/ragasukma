@@ -3,14 +3,33 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { VRMLoaderPlugin } from '@pixiv/three-vrm';
 
-async function invoke(cmd, args) {
-  if (window.__TAURI__?.core?.invoke) {
-    return await window.__TAURI__.core.invoke(cmd, args);
+function getTauriInvoke() {
+  if (window.__TAURI__?.core?.invoke) return window.__TAURI__.core.invoke;
+  if (window.__TAURI__?.invoke) return window.__TAURI__.invoke;
+  if (window.__TAURI_INTERNALS__?.invoke) return window.__TAURI_INTERNALS__.invoke;
+  return null;
+}
+
+async function invoke(cmd, args = {}) {
+  let inv = getTauriInvoke();
+  if (inv) {
+    try {
+      return await inv(cmd, args);
+    } catch (e) {
+      console.error('[Invoke Error Tuner]', cmd, e);
+      return null;
+    }
   }
-  for (let i = 0; i < 25; i++) {
-    await new Promise(r => setTimeout(r, 40));
-    if (window.__TAURI__?.core?.invoke) {
-      return await window.__TAURI__.core.invoke(cmd, args);
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 35));
+    inv = getTauriInvoke();
+    if (inv) {
+      try {
+        return await inv(cmd, args);
+      } catch (e) {
+        console.error('[Invoke Error Tuner]', cmd, e);
+        return null;
+      }
     }
   }
   console.warn('⚠️ [Tauri Bridge Tuner] invoke not ready for:', cmd);
@@ -570,6 +589,7 @@ function setupUIEvents() {
 const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
+  if (document.hidden) return; // Skip rendering WebGL jika window tuner sedang tidak ditampilkan
   const delta = clock.getDelta();
   controls.update();
 
@@ -586,6 +606,29 @@ function animate() {
 
 generateBoneSliders();
 setupUIEvents();
-loadVrmModel();
-loadPosesFromFile();
+
+let isTunerVrmLoaded = false;
+function ensureTunerLoaded() {
+  if (isTunerVrmLoaded) return;
+  isTunerVrmLoaded = true;
+  loadVrmModel();
+  loadPosesFromFile();
+}
+
+if (!document.hidden) {
+  ensureTunerLoaded();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    ensureTunerLoaded();
+  }
+});
+
+window.addEventListener('focus', () => {
+  if (!document.hidden) {
+    ensureTunerLoaded();
+  }
+});
+
 animate();

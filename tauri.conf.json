@@ -27,6 +27,17 @@
     },
     "windows": [
       {
+        "title": "Assistant Menu & Settings",
+        "label": "assistant-menu",
+        "url": "menu.html",
+        "width": 380,
+        "height": 620,
+        "decorations": true,
+        "alwaysOnTop": true,
+        "resizable": true,
+        "visible": true
+      },
+      {
         "title": "ragasukma-overlay",
         "label": "main",
         "url": "index.html",
@@ -38,7 +49,52 @@
         "shadow": false,
         "resizable": true,
         "skipTaskbar": true,
-        "visible": true
+        "visible": false
+      },
+      {
+        "title": "Skill Commands Manager",
+        "label": "skills",
+        "url": "skills.html",
+        "width": 680,
+        "height": 560,
+        "decorations": true,
+        "alwaysOnTop": true,
+        "resizable": true,
+        "visible": false
+      },
+      {
+        "title": "Assistant Settings",
+        "label": "settings",
+        "url": "settings.html",
+        "width": 520,
+        "height": 640,
+        "decorations": true,
+        "alwaysOnTop": true,
+        "resizable": true,
+        "visible": false
+      },
+      {
+        "title": "VRM Pose & Motion Tuner",
+        "label": "pose-tuner",
+        "url": "tuner.html",
+        "width": 880,
+        "height": 680,
+        "decorations": true,
+        "alwaysOnTop": false,
+        "resizable": true,
+        "visible": false
+      },
+      {
+        "title": "Voice AI Session",
+        "label": "anytospeech-session",
+        "url": "about:blank",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "width": 960,
+        "height": 700,
+        "decorations": true,
+        "alwaysOnTop": false,
+        "resizable": true,
+        "visible": false
       }
     ]
   }
