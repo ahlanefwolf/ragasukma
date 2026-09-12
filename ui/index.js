@@ -41,15 +41,8 @@ const imgElement = document.getElementById('avatar-image');
 const canvasContainer = document.getElementById('canvas-container');
 const contextMenu = document.getElementById('context-menu');
 
-const btnStart = document.getElementById('btn-start');
-const btnTestVoice = document.getElementById('btn-test-voice');
-const btnTestMic = document.getElementById('btn-test-mic');
-const btnPause = document.getElementById('btn-pause');
-const btnStopChat = document.getElementById('btn-stop-chat');
-const btnResetSize = document.getElementById('btn-reset-size');
 const btnQuit = document.getElementById('btn-quit');
 const statusToast = document.getElementById('status-toast');
-const cornerButtons = document.querySelectorAll('.corner-btn');
 
 let toastTimer = null;
 function showToast(text, duration = 1200) {
@@ -493,11 +486,15 @@ function setupInteractions() {
     }
   });
 
-  // Right Click: Buka Window Menu Terpisah (Native Window)
+  // Right Click: Tampilkan Popup Menu Pilihan
   window.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    invoke('open_menu_window');
+    if (contextMenu.style.display === 'flex') {
+      contextMenu.style.display = 'none';
+    } else {
+      contextMenu.style.display = 'flex';
+    }
   });
 
   // Native Drag & Single Click
@@ -580,35 +577,44 @@ const inputSkillCmd = document.getElementById('skill-input-cmd');
 let lastMode = '';
 
 function setupMenuActions() {
-  btnStart.addEventListener('click', () => {
-    invoke('send_command', { cmd: 'start_chat' });
-    contextMenu.style.display = 'none';
-  });
-  btnTestVoice.addEventListener('click', () => {
-    invoke('send_command', { cmd: 'test_voice' });
-    contextMenu.style.display = 'none';
-  });
-  btnTestMic.addEventListener('click', () => {
-    invoke('send_command', { cmd: 'test_mic' });
-    contextMenu.style.display = 'none';
-  });
-  btnPause.addEventListener('click', () => {
-    invoke('send_command', { cmd: 'toggle_pause' });
-    contextMenu.style.display = 'none';
-  });
-  btnStopChat.addEventListener('click', () => {
-    invoke('send_command', { cmd: 'stop_chat' });
-    contextMenu.style.display = 'none';
-  });
-  btnSkills.addEventListener('click', () => {
-    contextMenu.style.display = 'none';
-    invoke('open_skills_window');
-  });
   const btnMenu = document.getElementById('btn-menu');
+  const btnSettings = document.getElementById('btn-settings');
+  const btnSkills = document.getElementById('btn-skills');
+  const btnTuner = document.getElementById('btn-tuner');
+  const btnQuit = document.getElementById('btn-quit');
+
   if (btnMenu) {
     btnMenu.addEventListener('click', () => {
       contextMenu.style.display = 'none';
       invoke('open_menu_window');
+    });
+  }
+
+  if (btnSettings) {
+    btnSettings.addEventListener('click', () => {
+      contextMenu.style.display = 'none';
+      invoke('open_settings_window');
+    });
+  }
+
+  if (btnSkills) {
+    btnSkills.addEventListener('click', () => {
+      contextMenu.style.display = 'none';
+      invoke('open_skills_window');
+    });
+  }
+
+  if (btnTuner) {
+    btnTuner.addEventListener('click', () => {
+      contextMenu.style.display = 'none';
+      invoke('open_tuner_window');
+    });
+  }
+
+  if (btnQuit) {
+    btnQuit.addEventListener('click', () => {
+      contextMenu.style.display = 'none';
+      invoke('send_command', { cmd: 'quit' });
     });
   }
 
@@ -641,26 +647,6 @@ function setupMenuActions() {
     } catch (e) {
       alert(`Gagal menyimpan skill: ${e}`);
     }
-  });
-
-  btnResetSize.addEventListener('click', () => {
-    invoke('reset_size').then(() => {
-      if (currentVrm) fitCameraToVrm(currentVrm);
-    });
-    contextMenu.style.display = 'none';
-  });
-  btnQuit.addEventListener('click', () => {
-    invoke('send_command', { cmd: 'quit' });
-    contextMenu.style.display = 'none';
-  });
-  cornerButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const corner = btn.getAttribute('data-corner');
-      invoke('set_corner', { corner }).then(() => {
-        if (currentVrm) fitCameraToVrm(currentVrm);
-      });
-      contextMenu.style.display = 'none';
-    });
   });
 }
 
@@ -780,9 +766,6 @@ async function pollState() {
             if (titleEl && titleEl.textContent !== `🎀 ${config.assistant_name} Assistant`) {
               titleEl.textContent = `🎀 ${config.assistant_name} Assistant`;
             }
-            if (btnTestVoice && btnTestVoice.textContent !== `🔊 Tes Suara ${config.assistant_name}`) {
-              btnTestVoice.textContent = `🔊 Tes Suara ${config.assistant_name}`;
-            }
           }
           if (config.avatar_type) {
             const newType = config.avatar_type.toLowerCase();
@@ -830,28 +813,6 @@ async function pollState() {
       }
     }
     window._lastPausedState = isPaused;
-
-    const curMode = `${isInMainMenu}_${isPaused}`;
-    if (lastMode !== curMode) {
-      lastMode = curMode;
-      if (isInMainMenu) {
-        btnStart.style.display = 'block';
-        btnTestVoice.style.display = 'block';
-        btnTestMic.style.display = 'block';
-        btnPause.style.display = 'none';
-        btnStopChat.style.display = 'none';
-        btnQuit.style.display = 'block';
-      } else {
-        btnStart.style.display = 'none';
-        btnTestVoice.style.display = 'none';
-        btnTestMic.style.display = 'none';
-        btnPause.style.display = 'block';
-        btnStopChat.style.display = 'block';
-        btnQuit.style.display = 'none';
-
-        btnPause.innerText = isPaused ? '▶️ Lanjutkan (Resume)' : '⏸️ Jeda (Pause)';
-      }
-    }
   } catch (err) {}
 }
 
@@ -869,7 +830,6 @@ async function initApp() {
       asstName = config.assistant_name;
       const titleEl = document.querySelector('.menu-title');
       if (titleEl) titleEl.textContent = `🎀 ${asstName} Assistant`;
-      if (btnTestVoice) btnTestVoice.textContent = `🔊 Tes Suara ${asstName}`;
     }
   } catch (e) {}
 
@@ -966,7 +926,6 @@ async function initApp() {
         if (cfg.assistant_name) {
           const titleEl = document.querySelector('.menu-title');
           if (titleEl) titleEl.textContent = `🎀 ${cfg.assistant_name} Assistant`;
-          if (btnTestVoice) btnTestVoice.textContent = `🔊 Tes Suara ${cfg.assistant_name}`;
         }
         if (cfg.avatar_type) {
           const newType = cfg.avatar_type.toLowerCase();
