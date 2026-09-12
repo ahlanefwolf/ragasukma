@@ -296,7 +296,7 @@
           </label>
         </div>
         <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-top: 2px;">
-          <span>💡 Belum punya model 3D? Buat gratis di:</span>
+          <span>Belum punya model 3D? Buat gratis di:</span>
           <a href="#" id="link-vroid" style="color: #0284c7; text-decoration: underline; cursor: pointer; display: inline-flex; align-items: center; gap: 3px;">
             <span>VRoid Studio</span>
             <svg class="icon-sm" viewBox="0 0 24 24" style="width: 11px; height: 11px;"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
@@ -425,7 +425,7 @@
           });
         }
       } catch (err) {
-        showToast('⚠️ Gagal memuat konfigurasi');
+        showToast('Gagal memuat konfigurasi');
       }
     }
 
@@ -446,9 +446,9 @@
 
       try {
         await invoke('save_full_user_config', { config: payload });
-        showToast('✅ Pengaturan berhasil disimpan!');
+        showToast('Pengaturan berhasil disimpan');
       } catch (err) {
-        showToast(`❌ Gagal menyimpan: ${err}`);
+        showToast('Gagal menyimpan: ' + err);
       }
     });
 
@@ -458,11 +458,11 @@
       try {
         const buffer = await file.arrayBuffer();
         const bytes = Array.from(new Uint8Array(buffer));
-        showToast(`⏳ Mengunggah ${file.name}...`);
+        showToast(`Mengunggah ${file.name}...`);
         const res = await invoke('save_avatar_file', { assetType, fileBytes: bytes });
-        showToast(`✅ ${res}`);
+        showToast(`${res}`);
       } catch (err) {
-        showToast(`❌ Gagal upload: ${err}`);
+        showToast(`Gagal upload: ${err}`);
       }
       fileInput.value = '';
     }

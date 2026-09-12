@@ -262,7 +262,7 @@
       </div>
       <div class="stream-box" id="stream-box">
         <div style="color: var(--text-muted); font-size: 11px; text-align: center; padding: 12px 0;">
-          ✨ Siap menerima live stream percakapan & event asisten...
+          Siap menerima live stream percakapan & event asisten...
         </div>
       </div>
     </div>
@@ -446,7 +446,7 @@
         listen('assistant:transcript', (event) => {
           const payload = event.payload;
           if (payload && payload.text) {
-            appendStreamMessage('user', `👤 ${payload.text}`);
+            appendStreamMessage('user', `${payload.text}`);
             currentAssistantMsgEl = null;
           }
         });
@@ -457,7 +457,7 @@
           if (payload && payload.sentence) {
             if (!currentAssistantMsgEl) {
               const asstName = payload.speaker || 'Assistant';
-              currentAssistantMsgEl = appendStreamMessage('assistant', `🎀 ${asstName}: ${payload.sentence}`);
+              currentAssistantMsgEl = appendStreamMessage('assistant', `${asstName}: ${payload.sentence}`);
             } else {
               currentAssistantMsgEl.textContent += ` ${payload.sentence}`;
               if (streamBox) streamBox.scrollTop = streamBox.scrollHeight;
@@ -474,7 +474,7 @@
         listen('assistant:skill', (event) => {
           const payload = event.payload;
           if (payload) {
-            appendStreamMessage('skill', `⚡ [SKILL: ${payload.name || payload.id}] ${payload.output || ''}`);
+            appendStreamMessage('skill', `[SKILL: ${payload.name || payload.id}] ${payload.output || ''}`);
           }
         });
 
@@ -490,7 +490,7 @@
           if (cfg && cfg.tts_engine) {
             ttsBadgeEl.textContent = cfg.tts_engine.toUpperCase();
           }
-          showToast('⚙️ Pengaturan disinkronkan!');
+          showToast('Pengaturan disinkronkan');
         });
       };
 
@@ -548,19 +548,19 @@
 
       if (btnCheckUpdate) {
         btnCheckUpdate.addEventListener('click', async () => {
-          showToast('🔍 Memeriksa update terbaru...');
+          showToast('Memeriksa update terbaru...');
           try {
             const res = await invoke('check_for_updates');
             if (res.has_update) {
-              showToast(`✨ Ada update v${res.latest_version}!`);
+              showToast(`Ada update v${res.latest_version}`);
               if (res.url) {
                 window.open(res.url, '_blank');
               }
             } else {
-              showToast(`✅ Versi v${res.current_version} sudah terbaru.`);
+              showToast(`Versi v${res.current_version} sudah terbaru`);
             }
           } catch (e) {
-            showToast('⚠️ Gagal memeriksa update');
+            showToast('Gagal memeriksa update');
           }
         });
       }

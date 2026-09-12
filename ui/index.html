@@ -464,7 +464,7 @@
       <div class="spinner"></div>
       <span>Memuat 3D Avatar...</span>
     </div>
-    <div id="status-toast">⏸️ Dijeda</div>
+    <div id="status-toast">Dijeda</div>
     <img id="avatar-image" src="assets/char-avatar-idle.svg" alt="Char Avatar" data-tauri-drag-region />
     <div id="canvas-container" data-tauri-drag-region></div>
   </div>
@@ -472,7 +472,10 @@
   <!-- Popover Context Menu -->
   <div id="context-menu">
     <div class="menu-header">
-      <span class="menu-title-text">🎀 Ragasukma</span>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <svg class="icon-sm" style="width:14px;height:14px;stroke:var(--accent-pink);" viewBox="0 0 24 24"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+        <span class="menu-title-text">Ragasukma</span>
+      </div>
       <button class="menu-close-btn" id="btn-close-popup" title="Tutup Menu (Esc)">
         <svg viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
       </button>

@@ -174,7 +174,7 @@ function handleLoadedVrm(gltf) {
   const vrm = gltf.userData.vrm;
   if (!vrm) {
     console.error('userData.vrm tidak ditemukan pada gltf');
-    showNotification('⚠️ Format VRM tidak sesuai');
+    showNotification('Format VRM tidak sesuai');
     return;
   }
   currentVrm = vrm;
@@ -196,7 +196,7 @@ function handleLoadedVrm(gltf) {
 
   fitCameraToVrm(vrm);
   applyCurrentPose();
-  showNotification('✅ Model VRM siap');
+  showNotification('Model VRM siap');
 }
 
 async function loadVrmModel() {
@@ -224,7 +224,7 @@ async function loadVrmModel() {
         },
         (err) => {
           console.error('Error parsing VRM buffer in tuner:', err);
-          showNotification('⚠️ Gagal parse buffer VRM');
+          showNotification('Gagal parse buffer VRM');
         }
       );
       return;
@@ -241,7 +241,7 @@ async function loadVrmModel() {
         undefined,
         (err) => {
           console.error('Error loading VRM via Data URI:', err);
-          showNotification('⚠️ Gagal memuat VRM dari Data URI');
+          showNotification('Gagal memuat VRM dari Data URI');
         }
       );
       return;
@@ -250,7 +250,7 @@ async function loadVrmModel() {
     console.warn('Gagal memuat model VRM di Tuner:', e);
   }
 
-  showNotification('⚠️ File char.vrm tidak ditemukan');
+  showNotification('File char.vrm tidak ditemukan');
 }
 
 function generateBoneSliders() {
@@ -474,7 +474,7 @@ async function loadPosesFromFile() {
       posesConfig = data;
       updateSlidersUI();
       if (!isPreviewing) applyCurrentPose();
-      showNotification('📂 poses.json berhasil dimuat');
+      showNotification('poses.json berhasil dimuat');
     }
   } catch (e) {
     console.error('Failed to load poses.json:', e);
@@ -485,7 +485,7 @@ async function savePosesToFile() {
   try {
     const jsonStr = JSON.stringify(posesConfig, null, 2);
     await invoke('save_poses_config', { configJson: jsonStr });
-    showNotification('💾 Berhasil disimpan ke poses.json!');
+    showNotification('Berhasil disimpan ke poses.json');
   } catch (e) {
     alert('Gagal menyimpan poses.json: ' + e);
   }

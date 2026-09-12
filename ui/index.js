@@ -768,9 +768,9 @@ async function pollState() {
         const config = await invoke('get_app_config');
         if (config) {
           if (config.assistant_name) {
-            const titleEl = document.querySelector('.menu-title');
-            if (titleEl && titleEl.textContent !== `🎀 ${config.assistant_name} Assistant`) {
-              titleEl.textContent = `🎀 ${config.assistant_name} Assistant`;
+            const titleEl = document.querySelector('.menu-title-text');
+            if (titleEl && titleEl.textContent !== `Ragasukma - ${config.assistant_name}`) {
+              titleEl.textContent = `Ragasukma - ${config.assistant_name}`;
             }
           }
           if (config.avatar_type) {
@@ -813,9 +813,9 @@ async function pollState() {
 
     if (window._lastPausedState !== undefined && window._lastPausedState !== isPaused && !isInMainMenu) {
       if (isPaused) {
-        showToast('⏸️ Dijeda', 1200);
+        showToast('Dijeda', 1200);
       } else {
-        showToast('▶️ Dilanjutkan', 1200);
+        showToast('Dilanjutkan', 1200);
       }
     }
     window._lastPausedState = isPaused;
@@ -834,8 +834,8 @@ async function initApp() {
     }
     if (config && config.assistant_name) {
       asstName = config.assistant_name;
-      const titleEl = document.querySelector('.menu-title');
-      if (titleEl) titleEl.textContent = `🎀 ${asstName} Assistant`;
+      const titleEl = document.querySelector('.menu-title-text');
+      if (titleEl) titleEl.textContent = `Ragasukma - ${asstName}`;
     }
   } catch (e) {}
 
@@ -941,8 +941,8 @@ async function initApp() {
         const cfg = event.payload;
         if (!cfg) return;
         if (cfg.assistant_name) {
-          const titleEl = document.querySelector('.menu-title');
-          if (titleEl) titleEl.textContent = `🎀 ${cfg.assistant_name} Assistant`;
+          const titleEl = document.querySelector('.menu-title-text');
+          if (titleEl) titleEl.textContent = `Ragasukma - ${cfg.assistant_name}`;
         }
         if (cfg.avatar_type) {
           const newType = cfg.avatar_type.toLowerCase();
