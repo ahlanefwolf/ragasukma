@@ -27,19 +27,8 @@ impl Default for PositionConfig {
     }
 }
 
-fn get_user_home_dir() -> Option<PathBuf> {
-    std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .ok()
-        .map(PathBuf::from)
-}
-
 fn config_path() -> PathBuf {
-    if let Some(home) = get_user_home_dir() {
-        home.join(".config/ai-voice/overlay_pos.json")
-    } else {
-        PathBuf::from("overlay_pos.json")
-    }
+    crate::config::get_app_config_dir().join("overlay_pos.json")
 }
 
 fn load_position_config() -> PositionConfig {
@@ -69,11 +58,9 @@ fn poses_config_path() -> PathBuf {
     if local.exists() {
         return local;
     }
-    if let Some(home) = get_user_home_dir() {
-        let cfg_path = home.join(".config/ai-voice/poses.json");
-        if cfg_path.exists() {
-            return cfg_path;
-        }
+    let cfg_path = crate::config::get_app_config_dir().join("poses.json");
+    if cfg_path.exists() {
+        return cfg_path;
     }
     local
 }
@@ -97,14 +84,12 @@ fn save_poses_config(app: tauri::AppHandle, config_json: String) -> Result<(), S
     }
     fs::write(&path, &config_json).map_err(|e| e.to_string())?;
 
-    // Simpan juga ke home config sebagai cadangan
-    if let Some(home) = get_user_home_dir() {
-        let backup = home.join(".config/ai-voice/poses.json");
-        if let Some(parent) = backup.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        let _ = fs::write(backup, &config_json);
+    // Simpan juga ke app config dir sebagai cadangan
+    let backup = crate::config::get_app_config_dir().join("poses.json");
+    if let Some(parent) = backup.parent() {
+        let _ = fs::create_dir_all(parent);
     }
+    let _ = fs::write(backup, &config_json);
     println!("💾 [Pose Tuner] Berhasil menyimpan poses.json ke {:?}", path);
 
     // Kirim sinyal hanya saat tombol Save ditekan
@@ -156,12 +141,10 @@ fn get_asset_file_path(filename: &str) -> Option<PathBuf> {
                 }
             }
         }
-        // 3. Cek di ~/.config/ai-voice/assets/<cand>
-        if let Some(home) = get_user_home_dir() {
-            let home_asset = home.join(".config/ai-voice/assets").join(&cand);
-            if home_asset.exists() {
-                return Some(home_asset);
-            }
+        // 3. Cek di app config dir/assets/<cand>
+        let home_asset = crate::config::get_app_config_dir().join("assets").join(&cand);
+        if home_asset.exists() {
+            return Some(home_asset);
         }
         // 4. Cek di ./ui/assets/<cand>
         let ui_asset = PathBuf::from("ui/assets").join(&cand);
@@ -230,18 +213,16 @@ fn save_avatar_file(app: tauri::AppHandle, asset_type: String, file_bytes: Vec<u
         let _ = fs::write(&local_path, &file_bytes);
     }
 
-    // 2. Simpan juga ke ~/.config/ai-voice/assets/<target_filename> sebagai persistent cache
-    if let Some(home) = get_user_home_dir() {
-        let home_assets = home.join(".config/ai-voice/assets");
-        let _ = fs::create_dir_all(&home_assets);
-        if base_state != "char.vrm" {
-            for old_ext in &["svg", "png", "webp", "jpg"] {
-                let _ = fs::remove_file(home_assets.join(format!("{}.{}", base_state, old_ext)));
-            }
+    // 2. Simpan juga ke app config dir/assets/<target_filename> sebagai persistent cache
+    let home_assets = crate::config::get_app_config_dir().join("assets");
+    let _ = fs::create_dir_all(&home_assets);
+    if base_state != "char.vrm" {
+        for old_ext in &["svg", "png", "webp", "jpg"] {
+            let _ = fs::remove_file(home_assets.join(format!("{}.{}", base_state, old_ext)));
         }
-        let home_path = home_assets.join(&target_filename);
-        let _ = fs::write(&home_path, &file_bytes);
     }
+    let home_path = home_assets.join(&target_filename);
+    let _ = fs::write(&home_path, &file_bytes);
 
     println!("🎨 [Avatar Custom] File avatar berhasil disimpan sebagai '{}' ({} bytes)", target_filename, file_bytes.len());
 
@@ -666,11 +647,11 @@ fn apply_position_to_window(window: &tauri::Window, cfg: &PositionConfig, avatar
 #[tauri::command]
 fn check_for_updates() -> serde_json::Value {
     let current_ver = env!("CARGO_PKG_VERSION");
-    let repo = "hlnsptr/ai-voice";
+    let repo = "ahlanefwolf/ragasukma";
     let url = format!("https://api.github.com/repos/{}/releases/latest", repo);
 
     let client = reqwest::blocking::Client::builder()
-        .user_agent("ahlan-voice-updater")
+        .user_agent("ragasukma-updater")
         .timeout(std::time::Duration::from_secs(5))
         .build();
 

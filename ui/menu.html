@@ -14,8 +14,8 @@
       -webkit-user-select: none;
     }
     body {
-      background: var(--bg-base);
-      color: var(--text-primary);
+      background: var(--bg-app, #EFF7F6);
+      color: var(--text-main, #232d36);
       font-family: var(--font-family);
       padding: 16px;
       display: flex;
@@ -255,7 +255,19 @@
   <div id="toast"></div>
 
   <script type="module">
-    const invoke = window.__TAURI__.core.invoke;
+    async function invoke(cmd, args) {
+      if (window.__TAURI__?.core?.invoke) {
+        return await window.__TAURI__.core.invoke(cmd, args);
+      }
+      for (let i = 0; i < 25; i++) {
+        await new Promise(r => setTimeout(r, 40));
+        if (window.__TAURI__?.core?.invoke) {
+          return await window.__TAURI__.core.invoke(cmd, args);
+        }
+      }
+      console.warn('⚠️ [Tauri Bridge Menu] invoke not ready for:', cmd);
+      return null;
+    }
     const toast = document.getElementById('toast');
     const titleEl = document.getElementById('assistant-title');
     const badgeEl = document.getElementById('status-badge');

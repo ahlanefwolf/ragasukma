@@ -15,5 +15,5 @@
   "tts_speed": 1.15,
   "tts_eleven_labs_key": "",
   "elevenlabs_voice_id": "",
-  "avatar_type": "vrm"
+  "avatar_type": "image"
 }

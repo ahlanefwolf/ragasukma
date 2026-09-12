@@ -48,6 +48,27 @@ impl Default for UserConfig {
     }
 }
 
+pub fn get_app_config_dir() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(appdata) = env::var("APPDATA") {
+            let p = PathBuf::from(appdata).join("ragasukma");
+            let _ = fs::create_dir_all(&p);
+            return p;
+        }
+    }
+
+    if let Ok(home) = env::var("HOME").or_else(|_| env::var("USERPROFILE")) {
+        let p = PathBuf::from(home).join(".config").join("ragasukma");
+        let _ = fs::create_dir_all(&p);
+        p
+    } else {
+        let p = PathBuf::from(".config").join("ragasukma");
+        let _ = fs::create_dir_all(&p);
+        p
+    }
+}
+
 pub fn get_config_file_path() -> PathBuf {
     // 1. Cek di root project lokal ./config-ai.json
     let local = PathBuf::from("config-ai.json");
@@ -55,16 +76,16 @@ pub fn get_config_file_path() -> PathBuf {
         return local;
     }
 
-    // 2. Cek di ~/.config/ai-voice/config-ai.json
-    if let Ok(home) = env::var("HOME").or_else(|_| env::var("USERPROFILE")) {
-        let p = PathBuf::from(home).join(".config/ai-voice/config-ai.json");
-        if let Some(parent) = p.parent() {
-            let _ = fs::create_dir_all(parent);
+    // 2. Cek di user config dir (misal ~/.config/ragasukma/config-ai.json atau %APPDATA%/ragasukma/config-ai.json)
+    let p = get_app_config_dir().join("config-ai.json");
+    if !p.exists() {
+        // Tulis default config agar direktori tidak kosong
+        let def = UserConfig::default();
+        if let Ok(json) = serde_json::to_string_pretty(&def) {
+            let _ = fs::write(&p, json);
         }
-        p
-    } else {
-        local
     }
+    p
 }
 
 pub fn load_user_config() -> UserConfig {

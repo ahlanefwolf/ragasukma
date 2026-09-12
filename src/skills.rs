@@ -9,12 +9,31 @@ pub struct SkillItem {
     pub category: String,
 }
 
+fn get_skills_path() -> std::path::PathBuf {
+    let local = std::path::PathBuf::from("skill-command.md");
+    if local.exists() {
+        return local;
+    }
+    let p = crate::config::get_app_config_dir().join("skill-command.md");
+    if !p.exists() {
+        // Buat file skill default jika belum ada
+        let default_content = "# ⚡ Skill Command Registry\n\n\
+Daftar perintah cepat dan otomasi sistem yang dapat dijalankan langsung melalui suara, menu popover, atau terminal.\n\n\
+| ID | Nama Skill | Deskripsi | Command / Script | Kategori |\n\
+| :--- | :--- | :--- | :--- | :--- |\n\
+| `open_browser` | Buka Browser | Membuka web browser bawaan sistem | `xdg-open https://google.com` | Web |\n\
+| `system_calc` | Buka Kalkulator | Membuka aplikasi kalkulator sistem | `gnome-calculator` | Sistem |\n";
+        let _ = std::fs::write(&p, default_content);
+    }
+    p
+}
+
 pub fn parse_skills_markdown() -> Vec<SkillItem> {
-    let path = std::path::Path::new("skill-command.md");
+    let path = get_skills_path();
     if !path.exists() {
         return Vec::new();
     }
-    let content = match std::fs::read_to_string(path) {
+    let content = match std::fs::read_to_string(&path) {
         Ok(c) => c,
         Err(_) => return Vec::new(),
     };
@@ -68,7 +87,8 @@ File ini dapat diedit langsung oleh manusia atau dikelola melalui UI Skill Comma
         ));
     }
 
-    std::fs::write("skill-command.md", out)
+    let path = get_skills_path();
+    std::fs::write(path, out)
 }
 
 #[tauri::command]
