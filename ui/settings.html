@@ -32,7 +32,7 @@
       padding-bottom: 10px;
     }
     .title {
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 800;
       color: var(--accent-pink);
       display: flex;
@@ -50,7 +50,7 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }
     .card-title {
-      font-size: 12px;
+      font-size: 13.5px;
       font-weight: 700;
       color: var(--text-main);
       display: flex;
@@ -60,10 +60,10 @@
     .form-group {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 5px;
     }
     .form-label {
-      font-size: 11px;
+      font-size: 12.5px;
       font-weight: 600;
       color: var(--text-muted);
     }
@@ -71,9 +71,9 @@
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
       color: var(--text-main);
-      padding: 7px 10px;
+      padding: 8px 11px;
       border-radius: var(--radius-md);
-      font-size: 12px;
+      font-size: 13.5px;
       outline: none;
       width: 100%;
     }
@@ -233,15 +233,68 @@
     </div>
   </div>
 
-  <!-- 5. Avatar Type -->
+  <!-- 5. Avatar Type & Custom Upload -->
   <div class="card">
-    <div class="card-title">🪟 Tampilan Desktop Overlay</div>
+    <div class="card-title">🪟 Tampilan Avatar Desktop</div>
     <div class="form-group">
       <label class="form-label">Tipe Avatar</label>
       <select id="avatar_type" class="form-select">
         <option value="vrm">3D VRM Model (Three.js)</option>
-        <option value="svg">2D Flat SVG (Ultra Ringan)</option>
+        <option value="image">2D Image / Ilustrasi (Ultra Ringan)</option>
       </select>
+    </div>
+
+    <!-- Upload Section -->
+    <div style="margin-top: 6px; border-top: 1px solid var(--border-subtle); padding-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+      <div class="form-label" style="color: var(--c-cyan);">Ganti File Avatar Kustom (Otomatis Standarisasi):</div>
+
+      <!-- Upload 3D VRM -->
+      <div style="display: flex; flex-direction: column; gap: 4px; background: var(--bg-card); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 11px; font-weight: 600;">🎭 Model 3D (.vrm):</span>
+          <label class="btn" style="padding: 4px 8px; font-size: 10px; cursor: pointer; margin: 0;">
+            <span>Pilih File .vrm</span>
+            <input type="file" id="upload-vrm" accept=".vrm,.glb" style="display: none;" />
+          </label>
+        </div>
+        <div style="font-size: 10px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+          <span>💡 Belum punya model 3D? Buat gratis di:</span>
+          <a href="#" id="link-vroid" style="color: var(--c-cyan); text-decoration: underline; cursor: pointer;">VRoid Studio (vroid.com)</a>
+        </div>
+      </div>
+
+      <!-- Upload 2D Image States (4 State Lengkap) -->
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+        <span style="font-size: 11px;">☕ Gambar Diam / Standby (Idle):</span>
+        <label class="btn" style="padding: 4px 8px; font-size: 10px; cursor: pointer; margin: 0;">
+          <span>Pilih Gambar</span>
+          <input type="file" id="upload-idle" accept="image/*,.svg" style="display: none;" />
+        </label>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+        <span style="font-size: 11px;">👂 Gambar Mendengarkan (Listening):</span>
+        <label class="btn" style="padding: 4px 8px; font-size: 10px; cursor: pointer; margin: 0;">
+          <span>Pilih Gambar</span>
+          <input type="file" id="upload-listening" accept="image/*,.svg" style="display: none;" />
+        </label>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+        <span style="font-size: 11px;">🤔 Gambar Berpikir / Memproses (Thinking):</span>
+        <label class="btn" style="padding: 4px 8px; font-size: 10px; cursor: pointer; margin: 0;">
+          <span>Pilih Gambar</span>
+          <input type="file" id="upload-thinking" accept="image/*,.svg" style="display: none;" />
+        </label>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+        <span style="font-size: 11px;">🗣️ Gambar Berbicara (Talking):</span>
+        <label class="btn" style="padding: 4px 8px; font-size: 10px; cursor: pointer; margin: 0;">
+          <span>Pilih Gambar</span>
+          <input type="file" id="upload-talking" accept="image/*,.svg" style="display: none;" />
+        </label>
+      </div>
     </div>
   </div>
 
@@ -316,6 +369,32 @@
       } catch (err) {
         showToast(`❌ Gagal menyimpan: ${err}`);
       }
+    });
+
+    async function handleFileUpload(fileInput, assetType) {
+      if (!fileInput.files || !fileInput.files[0]) return;
+      const file = fileInput.files[0];
+      try {
+        const buffer = await file.arrayBuffer();
+        const bytes = Array.from(new Uint8Array(buffer));
+        showToast(`⏳ Mengunggah ${file.name}...`);
+        const res = await invoke('save_avatar_file', { assetType, fileBytes: bytes });
+        showToast(`✅ ${res}`);
+      } catch (err) {
+        showToast(`❌ Gagal upload: ${err}`);
+      }
+      fileInput.value = '';
+    }
+
+    document.getElementById('upload-vrm')?.addEventListener('change', (e) => handleFileUpload(e.target, 'vrm'));
+    document.getElementById('upload-idle')?.addEventListener('change', (e) => handleFileUpload(e.target, 'idle'));
+    document.getElementById('upload-listening')?.addEventListener('change', (e) => handleFileUpload(e.target, 'listening'));
+    document.getElementById('upload-thinking')?.addEventListener('change', (e) => handleFileUpload(e.target, 'thinking'));
+    document.getElementById('upload-talking')?.addEventListener('change', (e) => handleFileUpload(e.target, 'talking'));
+
+    document.getElementById('link-vroid')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      invoke('open_browser_url', { url: 'https://vroid.com/en/studio' });
     });
 
     loadConfig();

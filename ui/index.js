@@ -293,30 +293,104 @@ function fitCameraToVrm(vrm) {
   camera.lookAt(0, targetY, 0);
 }
 
+let isVrmAnimationRunning = false;
+let vrmLoaderInstance = null;
+
+async function loadVrmModelToScene() {
+  if (!scene) return;
+  
+  // 1. Hapus model VRM lama dari scene jika ada
+  if (currentVrm && currentVrm.scene) {
+    scene.remove(currentVrm.scene);
+    currentVrm.scene.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        mats.forEach(m => m.dispose());
+      }
+    });
+    currentVrm = null;
+  }
+
+  if (!vrmLoaderInstance) {
+    vrmLoaderInstance = new GLTFLoader();
+    vrmLoaderInstance.register((parser) => new VRMLoaderPlugin(parser));
+  }
+
+  try {
+    console.log('📦 [VRM Loader] Meminta file char.vrm dari backend...');
+    const bytes = await invoke('get_external_asset_bytes', { filename: 'char.vrm' });
+    if (bytes && bytes.length > 0) {
+      console.log(`📦 [VRM Loader] Menerima ${bytes.length} bytes, parsing via Three.js...`);
+      const u8 = (bytes instanceof Uint8Array) ? bytes : new Uint8Array(bytes);
+      
+      vrmLoaderInstance.parse(
+        u8.buffer,
+        '',
+        (gltf) => {
+          console.log('✅ [VRM Loader] GLTF parse sukses, menyiapkan VRM avatar...');
+          const vrm = gltf.userData.vrm;
+          if (!vrm) {
+            console.error('⚠️ [VRM Loader] gltf.userData.vrm kosong!');
+            return;
+          }
+          currentVrm = vrm;
+          scene.add(vrm.scene);
+          vrm.scene.rotation.y = 0;
+
+          fitCameraToVrm(vrm);
+
+          if (gltf.parser) {
+            delete gltf.parser.json;
+            delete gltf.parser.associations;
+          }
+          delete gltf.scenes;
+          delete gltf.animations;
+
+          if (!isVrmAnimationRunning) {
+            isVrmAnimationRunning = true;
+            console.log('🎬 [VRM Loader] Memulai loop render VRM!');
+            animateVrm();
+          }
+        },
+        (err) => {
+          console.error('❌ [VRM Loader] Error parsing VRM buffer:', err);
+        }
+      );
+    }
+  } catch(e) {
+    console.error('❌ [VRM Loader] Exception get_external_asset_bytes:', e);
+  }
+}
+
 function initVrmViewer() {
+  if (renderer && scene) {
+    loadVrmModelToScene();
+    return;
+  }
+
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(24.0, window.innerWidth / Math.max(window.innerHeight, 1), 0.1, 50.0);
+
+  camera = new THREE.PerspectiveCamera(28.0, width / Math.max(height, 1), 0.1, 20.0);
+  camera.position.set(0.0, 1.35, 1.45);
 
   renderer = new THREE.WebGLRenderer({
     alpha: true,
     antialias: true,
-    powerPreference: 'low-power',
-    precision: 'highp',
-    stencil: false,
-    depth: true,
-    logarithmicDepthBuffer: false,
-    preserveDrawingBuffer: false
+    powerPreference: 'low-power'
   });
-  renderer.autoClear = true;
-  renderer.setClearColor(0x000000, 0);
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(1.0);
+  renderer.setSize(width, height);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1.0, 1.5));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.autoClear = false;
+
   canvasContainer.appendChild(renderer.domElement);
 
-  // Pencahayaan seimbang (Segar, cerah anime, tidak redup & tidak overexpose)
-  const frontLight = new THREE.DirectionalLight(0xfff5ee, 1.35);
-  frontLight.position.set(0.0, 1.2, 2.5).normalize();
+  const frontLight = new THREE.DirectionalLight(0xfff5ea, 1.4);
+  frontLight.position.set(0.8, 1.8, 1.5).normalize();
   scene.add(frontLight);
 
   const fillLight = new THREE.DirectionalLight(0xe8f4ff, 0.75);
@@ -326,57 +400,7 @@ function initVrmViewer() {
   const ambient = new THREE.AmbientLight(0xffffff, 0.95);
   scene.add(ambient);
 
-  const loader = new GLTFLoader();
-  loader.register((parser) => new VRMLoaderPlugin(parser));
-
-  const startLoadVrm = async () => {
-    try {
-      console.log('📦 [VRM Loader] Meminta file char.vrm dari backend...');
-      const bytes = await invoke('get_external_asset_bytes', { filename: 'char.vrm' });
-      if (bytes && bytes.length > 0) {
-        console.log(`📦 [VRM Loader] Menerima ${bytes.length} bytes, parsing via Three.js...`);
-        const u8 = (bytes instanceof Uint8Array) ? bytes : new Uint8Array(bytes);
-        
-        loader.parse(
-          u8.buffer,
-          '',
-          (gltf) => {
-            console.log('✅ [VRM Loader] GLTF parse sukses, menyiapkan VRM avatar...');
-            const vrm = gltf.userData.vrm;
-            if (!vrm) {
-              console.error('⚠️ [VRM Loader] gltf.userData.vrm kosong!');
-              return;
-            }
-            currentVrm = vrm;
-            scene.add(vrm.scene);
-            vrm.scene.rotation.y = 0;
-
-            fitCameraToVrm(vrm);
-
-            if (gltf.parser) {
-              delete gltf.parser.json;
-              delete gltf.parser.associations;
-            }
-            delete gltf.scenes;
-            delete gltf.animations;
-
-            console.log('🎬 [VRM Loader] Memulai loop render VRM!');
-            animateVrm();
-          },
-          (err) => {
-            console.error('❌ [VRM Loader] Error parsing VRM buffer:', err);
-          }
-        );
-        return;
-      } else {
-        console.warn('⚠️ [VRM Loader] get_external_asset_bytes mengembalikan null / kosong');
-      }
-    } catch(e) {
-      console.error('❌ [VRM Loader] Exception get_external_asset_bytes:', e);
-    }
-  };
-
-  startLoadVrm();
+  loadVrmModelToScene();
 
   window.addEventListener('resize', () => {
     if (!renderer || !camera) return;
@@ -677,7 +701,14 @@ async function loadExternalPoses() {
     console.warn('Gagal memuat poses.json:', e);
   }
 }
-window.loadExternalPoses = loadExternalPoses;
+window.reloadAvatar = function() {
+  cachedSvgUrls = {};
+  if (isVrm) {
+    initVrmViewer();
+  } else {
+    updateSvgState(currentState);
+  }
+};
 
 let _pollCounter = 0;
 async function pollState() {

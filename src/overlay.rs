@@ -116,44 +116,141 @@ fn save_poses_config(app: tauri::AppHandle, config_json: String) -> Result<(), S
 }
 
 fn get_asset_file_path(filename: &str) -> Option<PathBuf> {
-    // 1. Cek di ./assets/<filename>
-    let local = PathBuf::from("assets").join(filename);
-    if local.exists() {
-        return Some(local);
-    }
-    // 2. Cek relatif terhadap lokasi binary yang sedang berjalan
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            let p1 = parent.join("assets").join(filename);
-            if p1.exists() { return Some(p1); }
-            if let Some(parent2) = parent.parent() {
-                let p2 = parent2.join("assets").join(filename);
-                if p2.exists() { return Some(p2); }
-                if let Some(parent3) = parent2.parent() {
-                    let p3 = parent3.join("assets").join(filename);
-                    if p3.exists() { return Some(p3); }
+    let check_variants = |base_name: &str| -> Vec<String> {
+        if base_name.ends_with(".vrm") || base_name.ends_with(".glb") {
+            vec![base_name.to_string()]
+        } else {
+            let stem = base_name.trim_end_matches(".svg")
+                .trim_end_matches(".png")
+                .trim_end_matches(".webp")
+                .trim_end_matches(".jpg");
+            vec![
+                format!("{}.svg", stem),
+                format!("{}.png", stem),
+                format!("{}.webp", stem),
+                format!("{}.jpg", stem),
+            ]
+        }
+    };
+
+    let candidates = check_variants(filename);
+
+    for cand in candidates {
+        // 1. Cek di ./assets/<cand>
+        let local = PathBuf::from("assets").join(&cand);
+        if local.exists() {
+            return Some(local);
+        }
+        // 2. Cek relatif terhadap lokasi binary yang sedang berjalan
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(parent) = exe.parent() {
+                let p1 = parent.join("assets").join(&cand);
+                if p1.exists() { return Some(p1); }
+                if let Some(parent2) = parent.parent() {
+                    let p2 = parent2.join("assets").join(&cand);
+                    if p2.exists() { return Some(p2); }
+                    if let Some(parent3) = parent2.parent() {
+                        let p3 = parent3.join("assets").join(&cand);
+                        if p3.exists() { return Some(p3); }
+                    }
                 }
             }
         }
-    }
-    // 3. Cek di ~/.config/ai-voice/assets/<filename>
-    if let Some(home) = get_user_home_dir() {
-        let home_asset = home.join(".config/ai-voice/assets").join(filename);
-        if home_asset.exists() {
-            return Some(home_asset);
+        // 3. Cek di ~/.config/ai-voice/assets/<cand>
+        if let Some(home) = get_user_home_dir() {
+            let home_asset = home.join(".config/ai-voice/assets").join(&cand);
+            if home_asset.exists() {
+                return Some(home_asset);
+            }
         }
-    }
-    // 4. Cek di ./ui/assets/<filename>
-    let ui_asset = PathBuf::from("ui/assets").join(filename);
-    if ui_asset.exists() {
-        return Some(ui_asset);
+        // 4. Cek di ./ui/assets/<cand>
+        let ui_asset = PathBuf::from("ui/assets").join(&cand);
+        if ui_asset.exists() {
+            return Some(ui_asset);
+        }
     }
     None
 }
 
 #[tauri::command]
-fn log_frontend(msg: String) {
-    println!("🖥️ [Overlay WebKit]: {}", msg);
+fn open_browser_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+
+    #[cfg(target_os = "windows")]
+    let _ = std::process::Command::new("cmd").args(["/C", "start", &url]).spawn();
+
+    #[cfg(target_os = "macos")]
+    let _ = std::process::Command::new("open").arg(&url).spawn();
+
+    Ok(())
+}
+
+#[tauri::command]
+fn save_avatar_file(app: tauri::AppHandle, asset_type: String, file_bytes: Vec<u8>) -> Result<String, String> {
+    if file_bytes.is_empty() {
+        return Err("File kosong / tidak valid".to_string());
+    }
+
+    let base_state = match asset_type.to_lowercase().as_str() {
+        "vrm" => "char.vrm",
+        "idle" | "image_idle" => "char-avatar-idle",
+        "listening" | "image_listening" => "char-avatar-listening",
+        "thinking" | "image_thinking" => "char-avatar-thinking",
+        "talking" | "speaking" | "image_talking" => "char-avatar-talking",
+        _ => return Err(format!("Tipe aset '{}' tidak dikenal", asset_type)),
+    };
+
+    let target_filename = if base_state == "char.vrm" {
+        "char.vrm".to_string()
+    } else {
+        // Deteksi magic bytes gambar
+        let ext = if file_bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+            "png"
+        } else if file_bytes.starts_with(b"RIFF") && file_bytes.len() > 12 && &file_bytes[8..12] == b"WEBP" {
+            "webp"
+        } else if file_bytes.starts_with(b"\xff\xd8\xff") {
+            "jpg"
+        } else {
+            "svg"
+        };
+        format!("{}.{}", base_state, ext)
+    };
+
+    // 1. Simpan ke ./assets/<target_filename> jika folder ada
+    let local_dir = PathBuf::from("assets");
+    if local_dir.exists() {
+        // Hapus varian file lama agar tidak bentrok ekstensi
+        if base_state != "char.vrm" {
+            for old_ext in &["svg", "png", "webp", "jpg"] {
+                let _ = fs::remove_file(local_dir.join(format!("{}.{}", base_state, old_ext)));
+            }
+        }
+        let local_path = local_dir.join(&target_filename);
+        let _ = fs::write(&local_path, &file_bytes);
+    }
+
+    // 2. Simpan juga ke ~/.config/ai-voice/assets/<target_filename> sebagai persistent cache
+    if let Some(home) = get_user_home_dir() {
+        let home_assets = home.join(".config/ai-voice/assets");
+        let _ = fs::create_dir_all(&home_assets);
+        if base_state != "char.vrm" {
+            for old_ext in &["svg", "png", "webp", "jpg"] {
+                let _ = fs::remove_file(home_assets.join(format!("{}.{}", base_state, old_ext)));
+            }
+        }
+        let home_path = home_assets.join(&target_filename);
+        let _ = fs::write(&home_path, &file_bytes);
+    }
+
+    println!("🎨 [Avatar Custom] File avatar berhasil disimpan sebagai '{}' ({} bytes)", target_filename, file_bytes.len());
+
+    // Beri tahu jendela overlay utama untuk reload avatar
+    if let Some(main_win) = app.get_webview_window("main") {
+        let _ = main_win.eval("if (window.reloadAvatar) { window.reloadAvatar(); }");
+    }
+
+    Ok(format!("Aset {} berhasil diperbarui!", target_filename))
 }
 
 #[tauri::command]
@@ -659,7 +756,8 @@ impl NativeOverlay {
                 save_poses_config,
                 get_external_asset,
                 get_external_asset_bytes,
-                log_frontend,
+                save_avatar_file,
+                open_browser_url,
                 open_anytospeech_window,
                 ats_report_status,
                 check_for_updates
