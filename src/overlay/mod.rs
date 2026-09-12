@@ -8,7 +8,6 @@ use std::sync::Mutex;
 use std::thread;
 
 use crate::skills::*;
-use crate::webview::*;
 
 pub use assets::*;
 pub use position::*;
@@ -29,15 +28,8 @@ impl NativeOverlay {
             .manage(overlay_state)
             .on_window_event(|window, event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    let label = window.label();
-                    if label == "assistant-menu" {
-                        std::process::exit(0);
-                    } else if label == "anytospeech-session" {
-                        // Jangan cegah penutupan window Web TTS agar tidak hang/zombie
-                    } else {
-                        api.prevent_close();
-                        let _ = window.hide();
-                    }
+                    api.prevent_close();
+                    let _ = window.hide();
                 }
             })
             .invoke_handler(tauri::generate_handler![
@@ -61,16 +53,12 @@ impl NativeOverlay {
                 close_current_window,
                 open_menu_window,
                 open_tuner_window,
-                toggle_avatar_window,
-                is_avatar_visible,
                 get_poses_config,
                 save_poses_config,
                 get_external_asset,
                 get_external_asset_bytes,
                 save_avatar_file,
                 open_browser_url,
-                open_anytospeech_window,
-                ats_report_status,
                 check_for_updates
             ])
             .setup(move |app| {
@@ -78,8 +66,13 @@ impl NativeOverlay {
                     *guard = Some(app.handle().clone());
                 }
 
-                // Background watcher untuk sinyal quit (100% in-memory thread-safe)
+                // Otomatis spawn dan tampilkan avatar overlay window (main) saat startup
                 let handle = app.handle().clone();
+                if let Err(e) = create_avatar_window(&handle) {
+                    eprintln!("⚠️ Gagal membuat avatar overlay window saat startup: {e}");
+                }
+
+                // Background watcher untuk sinyal quit (100% in-memory thread-safe)
                 thread::spawn(move || {
                     loop {
                         thread::sleep(std::time::Duration::from_millis(100));

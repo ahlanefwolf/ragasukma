@@ -604,6 +604,13 @@ function setupMenuActions() {
     contextMenu.style.display = 'none';
     invoke('open_skills_window');
   });
+  const btnMenu = document.getElementById('btn-menu');
+  if (btnMenu) {
+    btnMenu.addEventListener('click', () => {
+      contextMenu.style.display = 'none';
+      invoke('open_menu_window');
+    });
+  }
 
   btnCloseSkills.addEventListener('click', () => {
     skillsModal.style.display = 'none';

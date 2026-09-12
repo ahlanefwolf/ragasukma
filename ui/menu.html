@@ -236,11 +236,7 @@
         <span>Avatar & Percakapan</span>
       </div>
       <div class="btn-group">
-        <button class="btn btn-primary" id="btn-toggle-avatar">
-          <svg class="icon" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
-          <span id="btn-toggle-avatar-text">🎭 Tampilkan 3D Avatar</span>
-        </button>
-        <button class="btn" id="btn-start">
+        <button class="btn btn-primary" id="btn-start">
           <svg class="icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           <span>Mulai Ngobrol (Chat)</span>
         </button>
@@ -296,10 +292,6 @@
         <button class="btn btn-primary" id="btn-tuner">
           <svg class="icon" viewBox="0 0 24 24"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="1" x2="7" y1="14" y2="14"/><line x1="9" x2="15" y1="8" y2="8"/><line x1="17" x2="23" y1="16" y2="16"/></svg>
           <span>Pose & Motion Tuner (3D)</span>
-        </button>
-        <button class="btn" id="btn-ats-window">
-          <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-          <span>Buka Web TTS (Kiki / ATS)</span>
         </button>
         <button class="btn" id="btn-skills">
           <svg class="icon" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
@@ -393,8 +385,6 @@
     const titleEl = document.getElementById('assistant-title');
     const badgeEl = document.getElementById('status-badge');
     const ttsBadgeEl = document.getElementById('tts-engine-badge');
-    const btnToggleAvatar = document.getElementById('btn-toggle-avatar');
-    const btnToggleAvatarText = document.getElementById('btn-toggle-avatar-text');
     const btnStart = document.getElementById('btn-start');
     const btnPause = document.getElementById('btn-pause');
     const btnStop = document.getElementById('btn-stop-chat');
@@ -404,7 +394,6 @@
     const btnSettings = document.getElementById('btn-settings');
     const btnCheckUpdate = document.getElementById('btn-check-update');
     const btnTuner = document.getElementById('btn-tuner');
-    const btnAtsWindow = document.getElementById('btn-ats-window');
     const btnReset = document.getElementById('btn-reset-size');
     const btnQuit = document.getElementById('btn-quit');
 
@@ -499,18 +488,10 @@
           }
           if (cfg && cfg.tts_engine) {
             ttsBadgeEl.textContent = cfg.tts_engine.toUpperCase();
-            const atsSpan = btnAtsWindow.querySelector('span');
-            if (atsSpan) {
-              if (cfg.tts_engine.toLowerCase() === 'kiki' || cfg.tts_engine.toLowerCase() === 'kikivoice') {
-                atsSpan.textContent = 'Buka KikiVoice (WebKit)';
-              } else if (cfg.tts_engine.toLowerCase() === 'anytospeech' || cfg.tts_engine.toLowerCase() === 'ats') {
-                atsSpan.textContent = 'Buka AnyToSpeech (WebKit)';
-              }
-            }
           }
           if (cfg && cfg.avatar_type) {
-            currentAvatarType = cfg.avatar_type.toLowerCase();
-            updateAvatarBtn();
+            const is3D = cfg.avatar_type.toLowerCase() === 'vrm';
+            if (btnTuner) btnTuner.style.display = is3D ? 'flex' : 'none';
           }
           showToast('⚙️ Pengaturan disinkronkan!');
         });
@@ -529,34 +510,11 @@
       }
     }
 
-    let currentAvatarType = 'vrm';
-    let currentAvatarVis = false;
-
-    function updateAvatarBtn() {
-      if (!btnToggleAvatarText) return;
-      const is3D = currentAvatarType === 'vrm';
-      if (is3D) {
-        btnToggleAvatarText.textContent = currentAvatarVis ? '🙈 Sembunyikan 3D Avatar' : '🎭 Tampilkan 3D Avatar';
-        if (btnTuner) btnTuner.style.display = 'flex';
-      } else {
-        btnToggleAvatarText.textContent = currentAvatarVis ? '🙈 Sembunyikan 2D Avatar' : '🖼️ Tampilkan 2D Avatar';
-        if (btnTuner) btnTuner.style.display = 'none';
-      }
-    }
-
     async function init() {
       if (btnTuner) {
         btnTuner.addEventListener('click', () => {
           invoke('open_tuner_window');
           showToast('Membuka Pose Tuner...');
-        });
-      }
-
-      if (btnAtsWindow) {
-        btnAtsWindow.addEventListener('click', () => {
-          invoke('open_anytospeech_window');
-          const isKiki = btnAtsWindow.textContent.includes('KikiVoice');
-          showToast(isKiki ? 'Membuka KikiVoice WebKit...' : 'Membuka Web TTS...');
         });
       }
       try {
@@ -570,36 +528,12 @@
         if (config && config.tts_engine) {
           const eng = config.tts_engine.toUpperCase();
           ttsBadgeEl.textContent = eng;
-
-          const atsSpan = btnAtsWindow.querySelector('span');
-          if (atsSpan) {
-            if (config.tts_engine.toLowerCase() === 'kiki' || config.tts_engine.toLowerCase() === 'kikivoice') {
-              atsSpan.textContent = 'Buka KikiVoice (WebKit)';
-            } else if (config.tts_engine.toLowerCase() === 'anytospeech' || config.tts_engine.toLowerCase() === 'ats') {
-              atsSpan.textContent = 'Buka AnyToSpeech (WebKit)';
-            }
-          }
         }
         if (config && config.avatar_type) {
-          currentAvatarType = config.avatar_type.toLowerCase();
+          const is3D = config.avatar_type.toLowerCase() === 'vrm';
+          if (btnTuner) btnTuner.style.display = is3D ? 'flex' : 'none';
         }
-        updateAvatarBtn();
       } catch (e) {}
-
-      if (btnToggleAvatar) {
-        // Cek status awal avatar
-        invoke('is_avatar_visible').then(isVis => {
-          currentAvatarVis = !!isVis;
-          updateAvatarBtn();
-        });
-
-        btnToggleAvatar.addEventListener('click', async () => {
-          const isNowVis = await invoke('toggle_avatar_window');
-          currentAvatarVis = !!isNowVis;
-          updateAvatarBtn();
-          showToast(isNowVis ? '🎭 Avatar ditampilkan di layar' : '🙈 Avatar disembunyikan');
-        });
-      }
 
       btnStart.addEventListener('click', () => {
         invoke('send_command', { cmd: 'start_chat' });

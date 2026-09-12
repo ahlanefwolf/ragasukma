@@ -244,8 +244,6 @@
         <label class="form-label">TTS Engine</label>
         <select id="tts_engine" class="form-select">
           <option value="google">Google Translate TTS (Gratis)</option>
-          <option value="kiki">KikiVoice.ai (Web Clone)</option>
-          <option value="anytospeech">AnyToSpeech (Web)</option>
           <option value="elevenlabs">ElevenLabs API</option>
         </select>
       </div>
@@ -436,14 +434,6 @@
       try {
         await invoke('save_full_user_config', { config: payload });
         showToast('✅ Pengaturan berhasil disimpan!');
-
-        // Jika user memilih engine Web TTS (Kiki / AnyToSpeech), buka jendelanya otomatis jika belum terbuka
-        const eng = (payload.tts_engine || '').toLowerCase();
-        if (eng === 'kiki' || eng === 'kikivoice' || eng === 'anytospeech' || eng === 'ats') {
-          setTimeout(() => {
-            invoke('open_anytospeech_window');
-          }, 300);
-        }
       } catch (err) {
         showToast(`❌ Gagal menyimpan: ${err}`);
       }

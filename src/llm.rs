@@ -132,8 +132,7 @@ Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh ka
 3. Karakteristik & Panjang Respon:\n\
    - Responmu HARUS selalu ditulis seperti manusia asli yang sedang berbicara lisan secara santai, cerdas, mengalir lancar, dan penuh ekspresi hangat sesuai peranmu.\n\
    - DILARANG menggunakan kata-kata klise AI/robotik, jargon kaku, atau kalimat template yang terkesan dibuat-buat.\n\
-   - Jika menggunakan KikiVoice (TTS_ENGINE=kiki), berikan penjelasan atau cerita yang kaya, natural, dan tuntas (antara 150 hingga 300 karakter) agar suara tersintesis secara utuh.\n\
-   - Untuk engine lainnya, cukup 1 sampai 3 kalimat padat, santai, dan alami.{skills_prompt}"
+   - Cukup 1 sampai 3 kalimat padat, santai, dan alami.{skills_prompt}"
         );
 
         let history = vec![ChatMessage {

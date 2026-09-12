@@ -125,22 +125,7 @@ impl TextToSpeech {
 
         let mut played_successfully = false;
 
-        // 1. Cek jika TTS_ENGINE=anytospeech / ats / kiki / kikivoice (atau alias natural_readers)
-        if self.tts_engine == "anytospeech" || self.tts_engine == "ats"
-            || self.tts_engine == "natural_readers" || self.tts_engine == "naturalreaders"
-            || self.tts_engine == "kiki" || self.tts_engine == "kikivoice" {
-
-            let final_text = clean_text.clone();
-
-            // Putar langsung lewat WebKit window yang terbuka
-            if crate::webview::speak_in_anytospeech_webview(&final_text, is_interrupted.clone()) {
-                played_successfully = true;
-            } else {
-                eprintln!("⚠️ [Web TTS Fallback -> Google TTS]: Jendela WebKit TTS (Kiki/AnyToSpeech) belum siap atau tidak merespons.");
-            }
-        }
-
-        // 2. Coba synthesize via ElevenLabs jika API Key diset dan belum dinonaktifkan karena kuota habis/kritis
+        // 1. Coba synthesize via ElevenLabs jika API Key diset dan belum dinonaktifkan karena kuota habis/kritis
         if !played_successfully && self.tts_engine == "elevenlabs" {
             if let Some(ref api_key) = self.elevenlabs_api_key {
                 if !self.elevenlabs_disabled.load(Ordering::Relaxed) {

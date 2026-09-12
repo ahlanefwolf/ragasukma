@@ -25,18 +25,6 @@
     "security": {
       "csp": null
     },
-    "windows": [
-      {
-        "title": "Assistant Menu & Settings",
-        "label": "assistant-menu",
-        "url": "menu.html",
-        "width": 380,
-        "height": 620,
-        "decorations": true,
-        "alwaysOnTop": true,
-        "resizable": true,
-        "visible": true
-      }
-    ]
+    "windows": []
   }
 }

@@ -43,6 +43,12 @@ pub fn open_tuner_window(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 pub fn create_avatar_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        return Ok(window);
+    }
+
     let window = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
         .title("ragasukma-overlay")
         .inner_size(180.0, 320.0)
@@ -69,40 +75,8 @@ pub fn create_avatar_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWind
 }
 
 #[tauri::command]
-pub fn toggle_avatar_window(app: tauri::AppHandle) -> Result<bool, String> {
-    if let Some(window) = app.get_webview_window("main") {
-        let is_vis = window.is_visible().unwrap_or(false);
-        if is_vis {
-            let _ = window.hide();
-            Ok(false)
-        } else {
-            let _ = window.show();
-            let _ = window.unminimize();
-            let _ = window.set_focus();
-            Ok(true)
-        }
-    } else {
-        create_avatar_window(&app)?;
-        Ok(true)
-    }
-}
-
-#[tauri::command]
-pub fn is_avatar_visible(app: tauri::AppHandle) -> bool {
-    if let Some(window) = app.get_webview_window("main") {
-        window.is_visible().unwrap_or(false)
-    } else {
-        false
-    }
-}
-
-#[tauri::command]
 pub fn close_current_window(window: tauri::Window) {
-    if window.label() == "assistant-menu" {
-        std::process::exit(0);
-    } else {
-        let _ = window.hide();
-    }
+    let _ = window.hide();
 }
 
 #[tauri::command]

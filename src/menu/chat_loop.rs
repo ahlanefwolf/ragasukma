@@ -290,14 +290,6 @@ impl AppSession {
             let mut first_token_time = None;
             let mut printed_header = false;
 
-            let is_anytospeech = self.config.tts_engine.eq_ignore_ascii_case("anytospeech")
-                || self.config.tts_engine.eq_ignore_ascii_case("ats")
-                || self.config.tts_engine.eq_ignore_ascii_case("natural_readers")
-                || self.config.tts_engine.eq_ignore_ascii_case("naturalreaders")
-                || self.config.tts_engine.eq_ignore_ascii_case("kiki")
-                || self.config.tts_engine.eq_ignore_ascii_case("kikivoice");
-            let mut ats_full_response = String::new();
-
             let result = self.llm.chat_stream(&effective_input, |sentence| {
                 if is_interrupted_clone.load(Ordering::SeqCst) {
                     return Ok(());
@@ -360,18 +352,9 @@ impl AppSession {
                 use std::io::Write;
                 let _ = std::io::stdout().flush();
 
-                if is_anytospeech {
-                    ats_full_response.push_str(&clean_sentence);
-                    ats_full_response.push(' ');
-                } else {
-                    tts_clone.speak_interruptible(&clean_sentence, Arc::clone(&is_interrupted_clone))?;
-                }
+                tts_clone.speak_interruptible(&clean_sentence, Arc::clone(&is_interrupted_clone))?;
                 Ok(())
             });
-
-            if is_anytospeech && !ats_full_response.trim().is_empty() && !is_interrupted_clone.load(Ordering::SeqCst) {
-                let _ = tts_clone.speak_interruptible(&ats_full_response, Arc::clone(&is_interrupted_clone));
-            }
 
             stop_thread_flag.store(true, Ordering::SeqCst);
             if let Ok(was_exit) = keyboard_listener.join() {
