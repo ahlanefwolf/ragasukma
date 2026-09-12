@@ -1,24 +1,36 @@
 # Rust build artifacts
-/target
-Cargo.lock
+/target/
+target/
 
 # Environment & Private secrets
 .env
 .env.*
 !.env.example
 
-# Models & Big Binary Files
+# Models, Weights & Large Binaries
 /models/
+/assets/models/
 *.bin
+*.onnx
 *.gguf
-assets/*.vrm
+*.safetensors
+*.pth
+*.pt
+*.ckpt
 
-# Web / Tauri build artifacts & cache
+# Frontend / Web / Tauri artifacts
 node_modules/
 dist/
 /gen/
+.npm/
 
-# Temporary runtime files & logs
+# Audio outputs & temporary recordings
+*.wav
+*.mp3
+*.ogg
+*.pcm
+
+# Temporary runtime files, IPC states & logs
 *.log
 nohup.out
 npm-debug.log*
