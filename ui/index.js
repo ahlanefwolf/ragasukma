@@ -487,6 +487,13 @@ function setupInteractions() {
     }
   });
 
+  // Tombol Escape untuk menutup popup
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && contextMenu && contextMenu.style.display !== 'none') {
+      contextMenu.style.display = 'none';
+    }
+  });
+
   // Right Click: Tampilkan Popup Menu Pilihan
   window.addEventListener('contextmenu', (e) => {
     e.preventDefault();
@@ -654,11 +661,19 @@ window.addEventListener('message', (event) => {
 });
 
 function setupMenuActions() {
+  const btnClosePopup = document.getElementById('btn-close-popup');
   const btnMenu = document.getElementById('btn-menu');
   const btnSettings = document.getElementById('btn-settings');
   const btnSkills = document.getElementById('btn-skills');
   const btnTuner = document.getElementById('btn-tuner');
   const btnQuit = document.getElementById('btn-quit');
+
+  if (btnClosePopup) {
+    btnClosePopup.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (contextMenu) contextMenu.style.display = 'none';
+    });
+  }
 
   if (btnMenu) {
     btnMenu.addEventListener('click', () => {
