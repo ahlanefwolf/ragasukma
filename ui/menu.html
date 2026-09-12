@@ -356,6 +356,20 @@
       console.warn('⚠️ [Tauri Bridge Menu] invoke not ready for:', cmd);
       return null;
     }
+    function getTauriListen() {
+      if (window.__TAURI__?.event?.listen) return window.__TAURI__.event.listen;
+      if (window.__TAURI_INTERNALS__?.event?.listen) return window.__TAURI_INTERNALS__.event.listen;
+      if (window.parent && window.parent !== window) {
+        if (window.parent.__TAURI__?.event?.listen) return window.parent.__TAURI__.event.listen;
+        if (window.parent.__TAURI_INTERNALS__?.event?.listen) return window.parent.__TAURI_INTERNALS__.event.listen;
+      }
+      if (window.top && window.top !== window) {
+        if (window.top.__TAURI__?.event?.listen) return window.top.__TAURI__.event.listen;
+        if (window.top.__TAURI_INTERNALS__?.event?.listen) return window.top.__TAURI_INTERNALS__.event.listen;
+      }
+      return null;
+    }
+
     const toast = document.getElementById('toast');
     const titleEl = document.getElementById('assistant-title');
     const badgeEl = document.getElementById('status-badge');
@@ -386,9 +400,38 @@
       return el;
     }
 
+    function updateButtonStates(desc) {
+      badgeEl.textContent = desc || 'Standby';
+      const isInMainMenu = desc.includes('Menu Utama') || !desc || desc === 'Standby';
+      const isPaused = desc.includes('Dijeda') || desc.includes('Paused');
+
+      if (isInMainMenu) {
+        btnStart.style.display = 'flex';
+        btnPause.style.display = 'none';
+        btnStop.style.display = 'none';
+      } else {
+        btnStart.style.display = 'none';
+        btnPause.style.display = 'flex';
+        btnStop.style.display = 'flex';
+
+        if (isPaused) {
+          btnPause.innerHTML = `
+            <svg class="icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span>Lanjutkan (Resume)</span>
+          `;
+          btnPause.className = 'btn btn-primary';
+        } else {
+          btnPause.innerHTML = `
+            <svg class="icon" viewBox="0 0 24 24"><rect width="4" height="16" x="6" y="4" rx="1"/><rect width="4" height="16" x="14" y="4" rx="1"/></svg>
+            <span>Jeda Mendengarkan (Pause)</span>
+          `;
+          btnPause.className = 'btn btn-warning';
+        }
+      }
+    }
+
     function setupSseEventHub() {
-      const getListen = () => window.__TAURI__?.event?.listen || window.__TAURI_INTERNALS__?.event?.listen || null;
-      let listenFn = getListen();
+      let listenFn = getTauriListen();
 
       const attachListeners = (listen) => {
         // 1. Live State Event (Real-time reactive button & status updater)
@@ -396,21 +439,7 @@
           const data = event.payload;
           if (!data) return;
           const desc = data.description || data.class || '';
-          badgeEl.textContent = desc;
-
-          const isInMainMenu = desc.includes('Menu Utama') || !desc;
-          const isPaused = desc.includes('Dijeda') || desc.includes('Paused');
-
-          if (isInMainMenu) {
-            btnStart.style.display = 'flex';
-            btnPause.style.display = 'none';
-            btnStop.style.display = 'none';
-          } else {
-            btnStart.style.display = 'none';
-            btnPause.style.display = 'flex';
-            btnStop.style.display = 'flex';
-            btnPause.textContent = isPaused ? '▶️ Lanjutkan (Resume)' : '⏸️ Jeda (Pause)';
-          }
+          updateButtonStates(desc);
         });
 
         // 2. User Transcript Event
@@ -469,7 +498,7 @@
         attachListeners(listenFn);
       } else {
         const retryTimer = setInterval(() => {
-          listenFn = getListen();
+          listenFn = getTauriListen();
           if (listenFn) {
             clearInterval(retryTimer);
             attachListeners(listenFn);
@@ -551,23 +580,8 @@
       try {
         const state = await invoke('get_app_state');
         if (state) {
-          const cls = state.class || 'idle';
-          const desc = state.description || '';
-          badgeEl.textContent = desc || cls;
-
-          const isInMainMenu = desc.includes('Menu Utama') || !desc;
-          const isPaused = desc.includes('Dijeda') || desc.includes('Paused');
-
-          if (isInMainMenu) {
-            btnStart.style.display = 'flex';
-            btnPause.style.display = 'none';
-            btnStop.style.display = 'none';
-          } else {
-            btnStart.style.display = 'none';
-            btnPause.style.display = 'flex';
-            btnStop.style.display = 'flex';
-            btnPause.textContent = isPaused ? '▶️ Lanjutkan (Resume)' : '⏸️ Jeda (Pause)';
-          }
+          const desc = state.description || state.class || '';
+          updateButtonStates(desc);
         }
       } catch (e) {}
     }
