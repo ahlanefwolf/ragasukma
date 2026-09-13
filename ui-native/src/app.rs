@@ -20,6 +20,9 @@ pub struct App {
     pub shared_server_state: Arc<Mutex<ServerSharedState>>,
     pub is_right_mouse_down: bool,
     pub last_cursor_pos: Option<(f64, f64)>,
+    pub is_window_focused: bool,
+    pub active_resize_dir: Option<winit::window::ResizeDirection>,
+    pub prev_win_size: (f32, f32),
 }
 
 impl App {
@@ -58,6 +61,9 @@ impl App {
 
         let window = Arc::new(window);
         let mut renderer = Renderer::new(window.clone()).await?;
+        // Simpan dimensi awal window untuk mengunci posisi karakter di layar
+        renderer.anchor_center_x = (win_w * 0.5) as f32;
+        renderer.anchor_center_y = (win_h * 0.5) as f32;
 
         // Cari path model VRoid/VRM di berbagai kemungkinan direktori (relative/parent)
         let candidates = [
@@ -109,25 +115,130 @@ impl App {
             shared_server_state,
             is_right_mouse_down: false,
             last_cursor_pos: None,
+            is_window_focused: false,
+            active_resize_dir: None,
+            prev_win_size: (win_w as f32, win_h as f32),
         })
     }
 
     pub fn handle_window_event(&mut self, event: WindowEvent, elwt: &EventLoopWindowTarget<()>) {
         match event {
+            WindowEvent::Focused(focused) => {
+                self.is_window_focused = focused;
+                self.renderer.is_header_visible = focused;
+            }
+            WindowEvent::CursorEntered { .. } => {
+                self.renderer.is_header_visible = true;
+            }
+            WindowEvent::CursorLeft { .. } => {
+                self.renderer.cursor_pixel_pos = [-100.0, -100.0];
+                self.renderer.is_header_visible = self.is_window_focused;
+            }
             WindowEvent::CloseRequested => {
                 elwt.exit();
             }
             WindowEvent::Resized(physical_size) => {
+                let old_w = self.prev_win_size.0;
+                let old_h = self.prev_win_size.1;
+                let new_w = physical_size.width as f32;
+                let new_h = physical_size.height as f32;
+                self.renderer.update_anchor_on_resize(old_w, old_h, new_w, new_h, self.active_resize_dir);
+                self.prev_win_size = (new_w, new_h);
                 self.renderer.resize(physical_size);
             }
             WindowEvent::ScaleFactorChanged { .. } => {
                 let physical_size = self.window.inner_size();
                 self.renderer.resize(physical_size);
             }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if event.state == ElementState::Pressed {
+                    if let winit::keyboard::Key::Character(c) = &event.logical_key {
+                        if c.eq_ignore_ascii_case("m") {
+                            // Minimize window
+                            self.window.set_minimized(true);
+                        } else if c.eq_ignore_ascii_case("f") {
+                            // Toggle Maximize / Fullscreen
+                            let is_max = self.window.is_maximized();
+                            self.window.set_maximized(!is_max);
+                        } else if c.eq_ignore_ascii_case("q") {
+                            // Exit / Close
+                            elwt.exit();
+                        }
+                    } else if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape) = &event.logical_key {
+                        elwt.exit();
+                    }
+                }
+            }
             WindowEvent::MouseInput { state, button, .. } => {
                 if button == MouseButton::Left && state == ElementState::Pressed {
-                    // Klik Kiri Drag: Pindahkan posisi jendela avatar di desktop secara native OS (super smooth, 0 CPU overhead)
+                    let win_size = self.window.inner_size();
+                    let w = win_size.width as f64;
+                    let h = win_size.height as f64;
+                    let border_margin = 10.0;
+
+                    if let Some((cur_x, cur_y)) = self.last_cursor_pos {
+                        // 1. Cek Resize Border di seluruh 4 Sisi & 4 Sudut Window
+                        let on_left = cur_x <= border_margin;
+                        let on_right = cur_x >= (w - border_margin);
+                        let on_top = cur_y <= border_margin;
+                        let on_bottom = cur_y >= (h - border_margin);
+
+                        let resize_dir = if on_top && on_left {
+                            Some(winit::window::ResizeDirection::NorthWest)
+                        } else if on_top && on_right {
+                            Some(winit::window::ResizeDirection::NorthEast)
+                        } else if on_bottom && on_left {
+                            Some(winit::window::ResizeDirection::SouthWest)
+                        } else if on_bottom && on_right {
+                            Some(winit::window::ResizeDirection::SouthEast)
+                        } else if on_left {
+                            Some(winit::window::ResizeDirection::West)
+                        } else if on_right {
+                            Some(winit::window::ResizeDirection::East)
+                        } else if on_bottom {
+                            Some(winit::window::ResizeDirection::South)
+                        } else if on_top && cur_x < (w - 90.0) {
+                            Some(winit::window::ResizeDirection::North)
+                        } else {
+                            None
+                        };
+
+                        if let Some(dir) = resize_dir {
+                            self.active_resize_dir = Some(dir);
+                            // Tarik border / sudut window: Resize jendela secara native OS
+                            let _ = self.window.drag_resize_window(dir);
+                            return;
+                        }
+
+                        // 2. Cek Klik pada Header Bar di bagian atas (y <= 28.0)
+                        if cur_y <= 28.0 {
+                            // Tombol Close (✕)
+                            if cur_x >= (w - 28.0) && cur_x <= (w - 4.0) {
+                                elwt.exit();
+                                return;
+                            }
+                            // Tombol Maximize / Fullscreen (⛶)
+                            if cur_x >= (w - 56.0) && cur_x <= (w - 32.0) {
+                                let is_max = self.window.is_maximized();
+                                self.window.set_maximized(!is_max);
+                                return;
+                            }
+                            // Tombol Minimize (—)
+                            if cur_x >= (w - 84.0) && cur_x <= (w - 60.0) {
+                                self.window.set_minimized(true);
+                                return;
+                            }
+
+                            // Klik di header bar lainnya -> Drag window
+                            let _ = self.window.drag_window();
+                            return;
+                        }
+                    }
+
+                    // Klik Kiri Drag pada body avatar: Pindahkan posisi jendela avatar secara native OS
                     let _ = self.window.drag_window();
+                } else if button == MouseButton::Left && state == ElementState::Released {
+                    self.active_resize_dir = None;
                 } else if button == MouseButton::Right {
                     self.is_right_mouse_down = state == ElementState::Pressed;
                 } else if button == MouseButton::Middle && state == ElementState::Pressed {
@@ -136,6 +247,31 @@ impl App {
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
+                self.renderer.is_header_visible = true;
+                self.renderer.cursor_pixel_pos = [position.x as f32, position.y as f32];
+                let win_size = self.window.inner_size();
+                let w = win_size.width as f64;
+                let h = win_size.height as f64;
+                let border_margin = 10.0;
+
+                // Update Icon Kursor sesuai posisi tepi border
+                let on_left = position.x <= border_margin;
+                let on_right = position.x >= (w - border_margin);
+                let on_top = position.y <= border_margin;
+                let on_bottom = position.y >= (h - border_margin);
+
+                if (on_top && on_left) || (on_bottom && on_right) {
+                    self.window.set_cursor_icon(winit::window::CursorIcon::NwseResize);
+                } else if (on_top && on_right) || (on_bottom && on_left) {
+                    self.window.set_cursor_icon(winit::window::CursorIcon::NeswResize);
+                } else if on_left || on_right {
+                    self.window.set_cursor_icon(winit::window::CursorIcon::EwResize);
+                } else if on_bottom || (on_top && position.x < (w - 90.0)) {
+                    self.window.set_cursor_icon(winit::window::CursorIcon::NsResize);
+                } else {
+                    self.window.set_cursor_icon(winit::window::CursorIcon::Default);
+                }
+
                 if let Some((prev_x, prev_y)) = self.last_cursor_pos {
                     if self.is_right_mouse_down {
                         // Drag Klik Kanan: Orbit rotasi kamera 3D

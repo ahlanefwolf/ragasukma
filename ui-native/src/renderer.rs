@@ -38,6 +38,17 @@ struct MaterialUniform {
     _pad1: u32,
 }
 
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct OverlayUniform {
+    window_size: [f32; 2],
+    cursor_pos: [f32; 2],
+    is_visible: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
+}
+
 struct GpuPrimitive {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
@@ -74,12 +85,22 @@ pub struct Renderer {
     model_max_y: f32,
     model_max_extent_x: f32,
 
+    pub anchor_center_x: f32,
+    pub anchor_center_y: f32,
+
     // Kontrol POV & Posisi Kamera di Layar Fullscreen
     pub camera_yaw: f32,
     pub camera_pitch: f32,
     pub camera_zoom: f32,
     pub camera_pan_x: f32,
     pub camera_pan_y: f32,
+
+    // CSD Header & Controls
+    pub is_header_visible: bool,
+    pub cursor_pixel_pos: [f32; 2],
+    overlay_pipeline: wgpu::RenderPipeline,
+    overlay_buffer: wgpu::Buffer,
+    overlay_bind_group: wgpu::BindGroup,
 }
 
 impl Renderer {
@@ -365,6 +386,81 @@ impl Renderer {
             label: Some("bone_bind_group"),
         });
 
+        // Overlay Pipeline untuk Top Titlebar & Tombol Minimize, Maximize, Close
+        let overlay_shader = device.create_shader_module(wgpu::include_wgsl!("overlay.wgsl"));
+        let overlay_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("overlay_bind_group_layout"),
+        });
+
+        let overlay_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Overlay Uniform Buffer"),
+            size: std::mem::size_of::<OverlayUniform>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let overlay_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &overlay_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: overlay_buffer.as_entire_binding(),
+            }],
+            label: Some("overlay_bind_group"),
+        });
+
+        let overlay_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Overlay Pipeline Layout"),
+            bind_group_layouts: &[&overlay_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let overlay_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Overlay Pipeline"),
+            layout: Some(&overlay_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &overlay_shader,
+                entry_point: "vs_overlay",
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &overlay_shader,
+                entry_point: "fs_overlay",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::Always,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+        });
+
         Ok(Self {
             surface,
             device,
@@ -380,15 +476,40 @@ impl Renderer {
             model_data: None,
             gpu_primitives: Vec::new(),
             gpu_materials: Vec::new(),
-            model_min_y: -0.022,
-            model_max_y: 1.618,
-            model_max_extent_x: 0.35,
+            model_min_y: 0.0,
+            model_max_y: 1.6,
+            model_max_extent_x: 0.7,
+            anchor_center_x: 135.0,
+            anchor_center_y: 240.0,
             camera_yaw: 0.0,
             camera_pitch: 0.0,
             camera_zoom: 1.0,
             camera_pan_x: 0.0,
             camera_pan_y: 0.0,
+            is_header_visible: false,
+            cursor_pixel_pos: [-100.0, -100.0],
+            overlay_pipeline,
+            overlay_buffer,
+            overlay_bind_group,
         })
+    }
+
+    pub fn update_anchor_on_resize(&mut self, old_w: f32, old_h: f32, new_w: f32, new_h: f32, dir: Option<winit::window::ResizeDirection>) {
+        if let Some(d) = dir {
+            use winit::window::ResizeDirection::*;
+            match d {
+                West | NorthWest | SouthWest => {
+                    self.anchor_center_x += new_w - old_w;
+                }
+                _ => {}
+            }
+            match d {
+                North | NorthWest | NorthEast => {
+                    self.anchor_center_y += new_h - old_h;
+                }
+                _ => {}
+            }
+        }
     }
 
     fn create_depth_view(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> wgpu::TextureView {
@@ -685,12 +806,9 @@ impl Renderer {
 
         let width = self.config.width as f32;
         let height = (self.config.height as f32).max(1.0);
-        let aspect = width / height;
+        let _aspect = width / height;
 
-        // STANDARISASI AUTO-FRAMING 1:1 THREE.JS / UNITY
-        // Dihitung otomatis dari batas geometris aktual model VRoid
         let fov_rad = 28.0_f32.to_radians();
-        let half_fov_tan = (fov_rad / 2.0).tan();
 
         // 1. Titik tengah dan tinggi aktual model (Min Y: -0.022, Max Y: 1.618)
         let center_y = (self.model_min_y + self.model_max_y) * 0.5;
@@ -699,15 +817,24 @@ impl Renderer {
         // 2. Margin standar 12% agar rambut teratas (ahoge) & sepatu memiliki padding lega
         let safe_margin = 1.12_f32;
         let fit_height = model_height * safe_margin;
-        let fit_width = fit_height * (9.0 / 16.0); // Standarisasi rasio 9:16
 
-        // 3. Jarak kamera vertikal & horizontal + Zoom POV
-        let dist_v = (fit_height / 2.0) / half_fov_tan;
-        let dist_h = (fit_width / 2.0) / (half_fov_tan * aspect);
-        let base_radius = dist_v.max(dist_h);
-        let radius = base_radius / self.camera_zoom.clamp(0.15, 6.0);
+        // Jarak kamera murni konstan standar 3D camera
+        let dist_v = (fit_height / 2.0) / (fov_rad / 2.0).tan();
+        let radius = dist_v / self.camera_zoom.clamp(0.15, 6.0);
 
-        // 4. Transformasi Kamera RH Orbit (Rotasi Spherical berdasarkan camera_yaw & camera_pitch)
+        // SISTEM CROP DESKTOP 100%: Karakter 100% DIAM di posisi layar
+        // Posisi tengah karakter tetap di anchor_center (relatif terhadap window awal)
+        let near = 0.05_f32;
+        let init_h = 480.0_f32;
+        let half_h_world = near * (fov_rad / 2.0).tan();
+        let pixel_to_world = (half_h_world * 2.0) / init_h;
+
+        let left = -self.anchor_center_x * pixel_to_world;
+        let right = (width - self.anchor_center_x) * pixel_to_world;
+        let top = self.anchor_center_y * pixel_to_world;
+        let bottom = -(height - self.anchor_center_y) * pixel_to_world;
+
+        // 3. Transformasi Kamera RH Orbit (Rotasi Spherical berdasarkan camera_yaw & camera_pitch)
         let cos_pitch = self.camera_pitch.cos();
         let sin_pitch = self.camera_pitch.sin();
         let sin_yaw = self.camera_yaw.sin();
@@ -720,7 +847,17 @@ impl Renderer {
             target.z + radius * cos_pitch * cos_yaw,
         );
         let view = Mat4::look_at_rh(camera_pos, target, Vec3::Y);
-        let proj = Mat4::perspective_rh(fov_rad, aspect, 0.05, 50.0);
+
+        let far = 50.0_f32;
+        let r_l = right - left;
+        let t_b = top - bottom;
+        let f_n = far - near;
+        let proj = Mat4::from_cols_array(&[
+            (2.0 * near) / r_l, 0.0, 0.0, 0.0,
+            0.0, (2.0 * near) / t_b, 0.0, 0.0,
+            (right + left) / r_l, (top + bottom) / t_b, -far / f_n, -1.0,
+            0.0, 0.0, -(far * near) / f_n, 0.0,
+        ]);
         let view_proj = proj * view;
 
         let camera_uniform = CameraUniform {
@@ -800,6 +937,16 @@ impl Renderer {
         };
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
+        let overlay_uniform = OverlayUniform {
+            window_size: [self.config.width as f32, self.config.height as f32],
+            cursor_pos: self.cursor_pixel_pos,
+            is_visible: if self.is_header_visible { 1.0 } else { 0.0 },
+            _pad0: 0.0,
+            _pad1: 0.0,
+            _pad2: 0.0,
+        };
+        self.queue.write_buffer(&self.overlay_buffer, 0, bytemuck::cast_slice(&[overlay_uniform]));
+
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
@@ -839,6 +986,12 @@ impl Renderer {
                     render_pass.set_index_buffer(prim.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     render_pass.draw_indexed(0..prim.index_count, 0, 0..1);
                 }
+            }
+
+            if self.is_header_visible {
+                render_pass.set_pipeline(&self.overlay_pipeline);
+                render_pass.set_bind_group(0, &self.overlay_bind_group, &[]);
+                render_pass.draw(0..3, 0..1);
             }
         }
 
