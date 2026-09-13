@@ -1,11 +1,9 @@
 import { Component } from 'solid-js';
 import { 
-  Sparkles, 
-  User, 
-  Mic, 
-  Activity, 
-  Settings, 
-  ExternalLink,
+  Menu as MenuIcon, 
+  Zap, 
+  Sliders, 
+  Settings as SettingsIcon,
   Bot
 } from 'lucide-solid';
 
@@ -13,15 +11,15 @@ interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   overlayConnected: boolean;
+  currentState: string;
 }
 
 export const Sidebar: Component<SidebarProps> = (props) => {
   const menuItems = [
-    { id: 'status', label: 'Avatar Status', icon: Sparkles, badge: 'Live' },
-    { id: 'vrm', label: 'Model VRM', icon: User },
-    { id: 'voice', label: 'Suara & AI', icon: Mic },
-    { id: 'poses', label: 'Pose & Gestur', icon: Activity },
-    { id: 'settings', label: 'Pengaturan', icon: Settings },
+    { id: 'menu', label: 'Main Menu', icon: MenuIcon, badge: props.currentState.toUpperCase() },
+    { id: 'skills', label: 'Skill Commands', icon: Zap },
+    { id: 'tuner', label: 'Pose Tuner', icon: Sliders },
+    { id: 'settings', label: 'Pengaturan', icon: SettingsIcon },
   ];
 
   return (
@@ -36,8 +34,8 @@ export const Sidebar: Component<SidebarProps> = (props) => {
             <h1 class="text-2xl font-bangers tracking-wider text-[#F2F2F2] leading-none">
               RAGASUKMA
             </h1>
-            <p class="text-xs text-[#91AE6E] font-medium tracking-wide">
-              3D AI AVATAR ENGINE
+            <p class="text-xs text-[#91AE6E] font-semibold tracking-wide">
+              NATIVE AI DESKTOP
             </p>
           </div>
         </div>
@@ -53,7 +51,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
               }`} 
             />
             <span class="text-xs font-semibold text-[#F2F2F2]">
-              {props.overlayConnected ? '3D Native Aktif' : 'Menghubungkan...'}
+              {props.overlayConnected ? '3D Native Aktif' : 'Offline'}
             </span>
           </div>
           <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-[#181820] text-[#91AE6E] border border-[#3B3B48]">
@@ -61,8 +59,8 @@ export const Sidebar: Component<SidebarProps> = (props) => {
           </span>
         </div>
 
-        {/* Navigation Links */}
-        <nav class="space-y-1.5">
+        {/* 4 Main Tabs Navigation */}
+        <nav class="space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = () => props.activeTab === item.id;
@@ -70,19 +68,19 @@ export const Sidebar: Component<SidebarProps> = (props) => {
             return (
               <button
                 onClick={() => props.setActiveTab(item.id)}
-                class={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                class={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                   isActive()
                     ? 'bg-[#D96868] text-white shadow-md anime-shadow-red font-semibold'
-                    : 'text-[#F2F2F2]/70 hover:bg-[#282832] hover:text-[#F2F2F2]'
+                    : 'text-[#F2F2F2]/75 hover:bg-[#282832] hover:text-[#F2F2F2]'
                 }`}
               >
                 <div class="flex items-center gap-3">
-                  <Icon size={18} class={isActive() ? 'stroke-[2.5]' : 'stroke-[1.75]'} />
-                  <span>{item.label}</span>
+                  <Icon size={19} class={isActive() ? 'stroke-[2.5]' : 'stroke-[2]'} />
+                  <span class="tracking-wide">{item.label}</span>
                 </div>
                 {item.badge && (
-                  <span class={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                    isActive() ? 'bg-white/20 text-white' : 'bg-[#689D4B]/20 text-[#91AE6E]'
+                  <span class={`text-[10px] px-2 py-0.5 rounded-full font-bold font-mono uppercase ${
+                    isActive() ? 'bg-white/20 text-white' : 'bg-[#689D4B]/20 text-[#91AE6E] border border-[#689D4B]/30'
                   }`}>
                     {item.badge}
                   </span>
@@ -93,14 +91,14 @@ export const Sidebar: Component<SidebarProps> = (props) => {
         </nav>
       </div>
 
-      {/* Footer Info */}
-      <div class="pt-4 border-t border-[#3B3B48]/60 text-xs text-[#F2F2F2]/50 px-2 space-y-1">
+      {/* Footer System Info */}
+      <div class="pt-4 border-t border-[#3B3B48]/60 text-xs text-[#F2F2F2]/50 px-2 space-y-1.5">
         <div class="flex items-center justify-between">
           <span>Engine Status</span>
-          <span class="text-[#91AE6E] font-medium">Ultra-Light</span>
+          <span class="text-[#91AE6E] font-semibold">DirectX 12 / Vulkan</span>
         </div>
         <div class="flex items-center justify-between text-[11px]">
-          <span>Port Server</span>
+          <span>Dashboard Port</span>
           <span class="font-mono text-[#F2F2F2]/80">4242</span>
         </div>
       </div>
