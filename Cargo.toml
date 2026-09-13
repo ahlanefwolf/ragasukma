@@ -15,7 +15,7 @@ rodio = "0.19"
 form_urlencoded = "1.2"
 regex = "1.10"
 base64 = "0.22"
-tauri = { version = "2", default-features = false, features = ["wry", "compression"] }
+tauri = { version = "2", default-features = false, features = ["wry", "compression", "macos-private-api"] }
 
 [build-dependencies]
 tauri-build = "2"
