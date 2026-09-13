@@ -7,11 +7,7 @@ pub fn poses_config_path() -> PathBuf {
     if local.exists() {
         return local;
     }
-    let cfg_path = crate::config::get_app_config_dir().join("poses.json");
-    if cfg_path.exists() {
-        return cfg_path;
-    }
-    local
+    crate::config::get_app_config_dir().join("poses.json")
 }
 
 #[tauri::command]
