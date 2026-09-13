@@ -59,7 +59,7 @@ impl AppSession {
                 TrayState::update(AssistantState::Idle, "Dijeda");
                 crate::term_log!("\n[DIJEDA] {} berhenti mendengarkan sementara.", self.config.assistant_name);
                 crate::term_log!("Tekan [P] atau [SPASI] untuk MELANJUTKAN, atau [ESC/Q] untuk KELUAR.\n");
-                enable_raw_mode()?;
+                let _ = enable_raw_mode();
                 loop {
                     if let Some(cmd) = check_and_consume_cmd() {
                         if cmd == "toggle_pause" || cmd == "start_chat" {
@@ -67,7 +67,7 @@ impl AppSession {
                             pause_worker.store(false, Ordering::SeqCst);
                             break;
                         } else if cmd == "stop_chat" || cmd == "quit" {
-                            disable_raw_mode()?;
+                            let _ = disable_raw_mode();
                             stop_worker.store(true, Ordering::SeqCst);
                             let _ = worker_handle.join();
                             TrayState::update(AssistantState::Idle, "Menu Utama");
@@ -85,7 +85,7 @@ impl AppSession {
                                         break;
                                     }
                                     KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => {
-                                        disable_raw_mode()?;
+                                        let _ = disable_raw_mode();
                                         stop_worker.store(true, Ordering::SeqCst);
                                         let _ = worker_handle.join();
                                         TrayState::update(AssistantState::Idle, "Menu Utama");
@@ -96,6 +96,8 @@ impl AppSession {
                                 }
                             }
                         }
+                    } else {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
                     }
                 }
                 let _ = disable_raw_mode();
@@ -276,9 +278,9 @@ impl AppSession {
             let stop_thread_flag_clone = Arc::clone(&stop_thread_flag);
             let interrupt_speaker = Arc::clone(&is_interrupted);
 
-            enable_raw_mode()?;
-            while event::poll(std::time::Duration::from_millis(0))? {
-                let _ = event::read()?;
+            let _ = enable_raw_mode();
+            while let Ok(true) = event::poll(std::time::Duration::from_millis(0)) {
+                let _ = event::read();
             }
 
             let keyboard_listener = std::thread::spawn(move || -> bool {
@@ -319,6 +321,8 @@ impl AppSession {
                                 }
                             }
                         }
+                    } else {
+                        std::thread::sleep(std::time::Duration::from_millis(15));
                     }
                 }
                 requested_exit
@@ -407,7 +411,7 @@ impl AppSession {
                     exit_all = true;
                 }
             }
-            disable_raw_mode()?;
+            let _ = disable_raw_mode();
             if crate::config::is_terminal_log_enabled() {
                 print!("\r\n");
             }

@@ -116,7 +116,7 @@ impl AppSession {
 
         loop {
             crate::term_log!("👉 Pilih menu: [SPASI/ENTER] Mulai Ngobrol | [T] Tes {} | [M] Tes Mic | [Q] Keluar", self.config.assistant_name);
-            enable_raw_mode()?;
+            let _ = enable_raw_mode();
 
             let action;
             loop {
@@ -142,8 +142,8 @@ impl AppSession {
                     }
                 }
 
-                if event::poll(std::time::Duration::from_millis(50))? {
-                    if let Event::Key(key_event) = event::read()? {
+                if let Ok(true) = event::poll(std::time::Duration::from_millis(50)) {
+                    if let Ok(Event::Key(key_event)) = event::read() {
                         if key_event.kind == KeyEventKind::Press {
                             match key_event.code {
                                 KeyCode::Char(' ') | KeyCode::Enter => {
@@ -166,9 +166,11 @@ impl AppSession {
                             }
                         }
                     }
+                } else {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
                 }
             }
-            disable_raw_mode()?;
+            let _ = disable_raw_mode();
 
             match action {
                 2 => {
