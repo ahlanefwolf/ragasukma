@@ -1,67 +1,58 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, onMount } from 'solid-js';
 import { 
-  Zap, 
   Play, 
   Trash2, 
   Plus, 
   Terminal, 
-  FileCode,
-  Check
+  FileCode
 } from 'lucide-solid';
-
-interface SkillItem {
-  id: string;
-  name: string;
-  description: string;
-  command: string;
-}
+import { api, SkillItem } from '../api';
 
 interface SkillsTabProps {
   showToast: (msg: string) => void;
 }
 
 export const SkillsTab: Component<SkillsTabProps> = (props) => {
-  const [skills, setSkills] = createSignal<SkillItem[]>([
-    {
-      id: '1',
-      name: 'Buka Browser Web',
-      description: 'Membuka Google Chrome / browser default sistem',
-      command: 'start https://google.com'
-    },
-    {
-      id: '2',
-      name: 'Buka VSCode / Zed',
-      description: 'Membuka editor coding di direktori project',
-      command: 'zed . || code .'
-    },
-    {
-      id: '3',
-      name: 'Buka Spotify Music',
-      description: 'Meluncurkan aplikasi pemutar musik Spotify',
-      command: 'start spotify:'
-    },
-    {
-      id: '4',
-      name: 'Buka File Explorer',
-      description: 'Membuka folder project Ragasukma',
-      command: 'explorer .'
-    }
-  ]);
-
+  const [skills, setSkills] = createSignal<SkillItem[]>([]);
   const [newName, setNewName] = createSignal('');
   const [newDesc, setNewDesc] = createSignal('');
   const [newCmd, setNewCmd] = createSignal('');
+  const [loading, setLoading] = createSignal(true);
 
-  const handleRunSkill = (skill: SkillItem) => {
-    props.showToast(`Perintah "${skill.name}" dijalankan: ${skill.command}`);
+  const loadSkills = async () => {
+    setLoading(true);
+    const data = await api.getSkills();
+    setSkills(data);
+    setLoading(false);
   };
 
-  const handleDeleteSkill = (id: string, name: string) => {
-    setSkills(skills().filter(s => s.id !== id));
-    props.showToast(`Skill "${name}" berhasil dihapus`);
+  onMount(() => {
+    loadSkills();
+  });
+
+  const handleRunSkill = async (skill: SkillItem) => {
+    props.showToast(`Menjalankan "${skill.name}"...`);
+    const ok = await api.runSkill(skill.command);
+    if (ok) {
+      props.showToast(`Berhasil menjalankan "${skill.name}"`);
+    } else {
+      props.showToast(`Gagal mengeksekusi "${skill.name}"`);
+    }
   };
 
-  const handleAddSkill = (e: Event) => {
+  const handleDeleteSkill = async (name: string) => {
+    if (confirm(`Hapus skill "${name}" dari registry?`)) {
+      const ok = await api.deleteSkill(name);
+      if (ok) {
+        setSkills(skills().filter(s => s.name !== name));
+        props.showToast(`Skill "${name}" berhasil dihapus`);
+      } else {
+        props.showToast(`Gagal menghapus skill "${name}"`);
+      }
+    }
+  };
+
+  const handleAddSkill = async (e: Event) => {
     e.preventDefault();
     if (!newName().trim() || !newCmd().trim()) {
       props.showToast('Mohon isi Nama Skill dan Script Command!');
@@ -69,17 +60,21 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
     }
 
     const newSkill: SkillItem = {
-      id: Date.now().toString(),
       name: newName().trim(),
       description: newDesc().trim() || 'Custom user skill command',
       command: newCmd().trim()
     };
 
-    setSkills([...skills(), newSkill]);
-    setNewName('');
-    setNewDesc('');
-    setNewCmd('');
-    props.showToast(`Skill "${newSkill.name}" berhasil ditambahkan!`);
+    const ok = await api.saveSkill(newSkill);
+    if (ok) {
+      setNewName('');
+      setNewDesc('');
+      setNewCmd('');
+      props.showToast(`Skill "${newSkill.name}" berhasil disimpan ke skill-command.md!`);
+      await loadSkills();
+    } else {
+      props.showToast(`Gagal menyimpan skill "${newSkill.name}"`);
+    }
   };
 
   return (
@@ -111,42 +106,50 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
           DAFTAR SKILL TERDAFTAR ({skills().length})
         </h3>
 
-        <div class="space-y-3">
-          {skills().map((skill) => (
-            <div class="p-4 rounded-xl bg-[#1E1E24] border border-[#3B3B48] hover:border-[#91AE6E]/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div class="space-y-1 min-w-0 flex-1">
-                <div class="flex items-center gap-2">
-                  <span class="font-bold text-sm text-[#F2F2F2]">{skill.name}</span>
+        {loading() ? (
+          <div class="p-8 text-center text-xs text-[#F2F2F2]/50">Memuat skill-command.md...</div>
+        ) : skills().length === 0 ? (
+          <div class="p-8 text-center text-xs text-[#F2F2F2]/50 bg-[#1E1E24] rounded-2xl border border-[#3B3B48]">
+            Belum ada skill yang terdaftar di skill-command.md. Tambahkan lewat formulir di bawah.
+          </div>
+        ) : (
+          <div class="space-y-3">
+            {skills().map((skill) => (
+              <div class="p-4 rounded-xl bg-[#1E1E24] border border-[#3B3B48] hover:border-[#91AE6E]/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="space-y-1 min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold text-sm text-[#F2F2F2]">{skill.name}</span>
+                  </div>
+                  <p class="text-xs text-[#F2F2F2]/60">{skill.description}</p>
+                  <div class="flex items-center gap-1.5 pt-1">
+                    <span class="text-xs font-mono font-bold text-[#D96868]">$</span>
+                    <code class="text-xs font-mono px-2 py-0.5 rounded bg-[#181820] text-[#91AE6E] border border-[#3B3B48] truncate max-w-md">
+                      {skill.command}
+                    </code>
+                  </div>
                 </div>
-                <p class="text-xs text-[#F2F2F2]/60">{skill.description}</p>
-                <div class="flex items-center gap-1.5 pt-1">
-                  <span class="text-xs font-mono font-bold text-[#D96868]">$</span>
-                  <code class="text-xs font-mono px-2 py-0.5 rounded bg-[#181820] text-[#91AE6E] border border-[#3B3B48] truncate max-w-md">
-                    {skill.command}
-                  </code>
-                </div>
-              </div>
 
-              {/* Action Buttons */}
-              <div class="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => handleRunSkill(skill)}
-                  class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#689D4B] hover:bg-[#5b8c40] text-white flex items-center gap-1.5 transition-all shadow-sm anime-shadow-green"
-                >
-                  <Play size={13} class="fill-current" />
-                  <span>Run</span>
-                </button>
-                <button
-                  onClick={() => handleDeleteSkill(skill.id, skill.name)}
-                  class="p-1.5 rounded-lg text-xs font-semibold bg-[#282832] hover:bg-[#D96868]/20 text-[#D96868] border border-[#3B3B48] transition-all"
-                  title="Hapus Skill"
-                >
-                  <Trash2 size={15} />
-                </button>
+                {/* Action Buttons */}
+                <div class="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => handleRunSkill(skill)}
+                    class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#689D4B] hover:bg-[#5b8c40] text-white flex items-center gap-1.5 transition-all shadow-sm anime-shadow-green"
+                  >
+                    <Play size={13} class="fill-current" />
+                    <span>Run</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteSkill(skill.name)}
+                    class="p-1.5 rounded-lg text-xs font-semibold bg-[#282832] hover:bg-[#D96868]/20 text-[#D96868] border border-[#3B3B48] transition-all"
+                    title="Hapus Skill"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Add New Skill Form */}

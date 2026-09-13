@@ -73,6 +73,10 @@ pub struct Renderer {
     model_min_y: f32,
     model_max_y: f32,
     model_max_extent_x: f32,
+
+    // Kontrol Orbit Rotasi Kamera (Klik Kanan Drag)
+    pub camera_yaw: f32,
+    pub camera_pitch: f32,
 }
 
 impl Renderer {
@@ -364,6 +368,8 @@ impl Renderer {
             model_min_y: 0.0,
             model_max_y: 1.55,
             model_max_extent_x: 0.38,
+            camera_yaw: 0.0,
+            camera_pitch: 0.0,
         })
     }
 
@@ -677,11 +683,21 @@ impl Renderer {
         // 3. Jarak kamera vertikal & horizontal
         let dist_v = (fit_height / 2.0) / half_fov_tan;
         let dist_h = (fit_width / 2.0) / (half_fov_tan * aspect);
-        let camera_z = dist_v.max(dist_h);
+        let radius = dist_v.max(dist_h);
 
-        // 4. Transformasi Kamera RH (Right-Handed)
-        let camera_pos = Vec3::new(0.0, center_y, camera_z);
-        let view = Mat4::look_at_rh(camera_pos, Vec3::new(0.0, center_y, 0.0), Vec3::Y);
+        // 4. Transformasi Kamera RH Orbit (Rotasi Spherical berdasarkan camera_yaw & camera_pitch)
+        let cos_pitch = self.camera_pitch.cos();
+        let sin_pitch = self.camera_pitch.sin();
+        let sin_yaw = self.camera_yaw.sin();
+        let cos_yaw = self.camera_yaw.cos();
+
+        let camera_pos = Vec3::new(
+            radius * cos_pitch * sin_yaw,
+            center_y + radius * sin_pitch,
+            radius * cos_pitch * cos_yaw,
+        );
+        let target = Vec3::new(0.0, center_y, 0.0);
+        let view = Mat4::look_at_rh(camera_pos, target, Vec3::Y);
         let proj = Mat4::perspective_rh(fov_rad, aspect, 0.05, 50.0);
         let view_proj = proj * view;
 
@@ -801,5 +817,15 @@ impl Renderer {
         output.present();
 
         Ok(())
+    }
+
+    pub fn rotate_camera(&mut self, delta_yaw: f32, delta_pitch: f32) {
+        self.camera_yaw += delta_yaw;
+        self.camera_pitch = (self.camera_pitch + delta_pitch).clamp(-1.2, 1.2);
+    }
+
+    pub fn reset_camera_rotation(&mut self) {
+        self.camera_yaw = 0.0;
+        self.camera_pitch = 0.0;
     }
 }

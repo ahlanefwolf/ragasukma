@@ -185,6 +185,14 @@ impl PoseManager {
         }
     }
 
+    pub fn apply_tuning_pose(&mut self, bones: &HashMap<String, [f32; 3]>) {
+        for (bone_name, rot) in bones {
+            let q = Quat::from_euler(EulerRot::XYZ, rot[0], rot[1], rot[2]);
+            self.target_quats.insert(bone_name.clone(), q);
+            self.current_quats.insert(bone_name.clone(), q);
+        }
+    }
+
     pub fn get_bone_quat(&self, bone_name: &str) -> Option<Quat> {
         self.current_quats.get(bone_name).copied()
     }

@@ -1,4 +1,4 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, onMount } from 'solid-js';
 import { 
   Play, 
   Pause, 
@@ -9,12 +9,11 @@ import {
   MicOff, 
   RefreshCw, 
   RotateCcw, 
-  Power,
   Sparkles,
   Bot,
-  Layers,
-  ArrowUpRight
+  Layers
 } from 'lucide-solid';
+import { api, AppStatePayload } from '../api';
 
 interface MenuTabProps {
   currentState: string;
@@ -27,50 +26,83 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
   const [voiceMuted, setVoiceMuted] = createSignal(false);
   const [micMuted, setMicMuted] = createSignal(false);
   const [isUpdating, setIsUpdating] = createSignal(false);
+  const [assistantName, setAssistantName] = createSignal('Laras');
+  const [ttsEngineName, setTtsEngineName] = createSignal('Google TTS');
 
-  const handleStart = () => {
-    setIsPaused(false);
-    props.setCurrentState('listening');
+  onMount(async () => {
+    const cfg = await api.getConfig();
+    if (cfg) {
+      setAssistantName(cfg.assistant_name || 'Laras');
+      setTtsEngineName(`${cfg.tts_engine.toUpperCase()} (${cfg.tts_lang})`);
+    }
+
+    const state = await api.getState();
+    if (state) {
+      props.setCurrentState(state.state);
+      setIsPaused(state.is_paused);
+      setVoiceMuted(state.voice_muted);
+      setMicMuted(state.mic_muted);
+    }
+  });
+
+  const syncState = async (newState: string, paused = isPaused(), vMuted = voiceMuted(), mMuted = micMuted()) => {
+    props.setCurrentState(newState);
+    setIsPaused(paused);
+    setVoiceMuted(vMuted);
+    setMicMuted(mMuted);
+
+    const payload: AppStatePayload = {
+      state: newState,
+      is_paused: paused,
+      voice_muted: vMuted,
+      mic_muted: mMuted,
+    };
+    await api.setState(payload);
+  };
+
+  const handleStart = async () => {
+    await syncState('listening', false);
     props.showToast('Voice Assistant mendengarkan...');
   };
 
-  const handlePause = () => {
-    setIsPaused(true);
-    props.setCurrentState('idle');
+  const handlePause = async () => {
+    await syncState('idle', true);
     props.showToast('Voice Assistant dijeda');
   };
 
-  const handleStop = () => {
-    setIsPaused(false);
-    props.setCurrentState('idle');
+  const handleStop = async () => {
+    await syncState('idle', false);
     props.showToast('Voice Assistant dihentikan');
   };
 
-  const toggleVoice = () => {
-    setVoiceMuted(!voiceMuted());
-    props.showToast(voiceMuted() ? 'Suara TTS Dinonaktifkan' : 'Suara TTS Diaktifkan');
+  const toggleVoice = async () => {
+    const next = !voiceMuted();
+    await syncState(props.currentState, isPaused(), next, micMuted());
+    props.showToast(next ? 'Suara TTS Dinonaktifkan' : 'Suara TTS Diaktifkan');
   };
 
-  const toggleMic = () => {
-    setMicMuted(!micMuted());
-    props.showToast(micMuted() ? 'Mikrofon STT Dinonaktifkan' : 'Mikrofon STT Diaktifkan');
+  const toggleMic = async () => {
+    const next = !micMuted();
+    await syncState(props.currentState, isPaused(), voiceMuted(), next);
+    props.showToast(next ? 'Mikrofon STT Dinonaktifkan' : 'Mikrofon STT Diaktifkan');
   };
 
   const handleCheckUpdate = () => {
     setIsUpdating(true);
     setTimeout(() => {
       setIsUpdating(false);
-      props.showToast('Ragasukma sudah versi terbaru (v0.1.1)');
-    }, 1500);
+      props.showToast('Ragasukma Engine sudah versi terbaru (v0.1.2)');
+    }, 1200);
   };
 
-  const handleResetSession = () => {
-    props.setCurrentState('idle');
+  const handleResetSession = async () => {
+    await syncState('idle', false);
     props.showToast('Memory session & context AI berhasil di-reset');
   };
 
-  const handleRestartEngine = () => {
-    props.showToast('Merestart 3D native engine...');
+  const handleRestartEngine = async () => {
+    await syncState('idle', false);
+    props.showToast('Sinkronisasi & reload state engine 3D selesai');
   };
 
   return (
@@ -87,10 +119,10 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             </span>
           </div>
           <h2 class="text-3xl font-bangers tracking-wide text-[#F2F2F2] mt-2">
-            RAGASUKMA VOICE ASSISTANT
+            RAGASUKMA - {assistantName().toUpperCase()}
           </h2>
           <p class="text-sm text-[#F2F2F2]/70 mt-1 max-w-lg">
-            Kendalikan status percakapan, mikrofon, pemutaran suara TTS, dan fungsi restart engine 3D native.
+            Kendalikan status percakapan, mikrofon, pemutaran suara TTS, dan fungsi sinkronisasi engine 3D native.
           </p>
         </div>
 
@@ -101,7 +133,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
           </div>
           <div>
             <span class="text-xs text-[#F2F2F2]/50 block">Voice Engine</span>
-            <span class="text-sm font-bold text-[#F2F2F2]">Edge TTS (Indonesian)</span>
+            <span class="text-sm font-bold text-[#F2F2F2]">{ttsEngineName()}</span>
           </div>
         </div>
       </div>
@@ -226,7 +258,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             class="flex items-center justify-center gap-2 p-3.5 rounded-xl text-sm font-semibold bg-[#282832] hover:bg-[#D96868]/20 text-[#D96868] border border-[#3B3B48] transition-all"
           >
             <RefreshCw size={16} />
-            <span>Restart 3D Engine</span>
+            <span>Sync 3D Engine</span>
           </button>
         </div>
       </div>

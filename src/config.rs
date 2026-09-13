@@ -53,8 +53,14 @@ pub struct UserConfig {
     pub tts_eleven_labs_key: String,
     pub elevenlabs_voice_id: String,
     pub avatar_type: String,
+    #[serde(default = "default_always_on_top")]
+    pub always_on_top: bool,
     #[serde(default)]
     pub enable_terminal_log: bool,
+}
+
+fn default_always_on_top() -> bool {
+    true
 }
 
 fn default_tts_lang() -> String {
@@ -82,6 +88,7 @@ impl Default for UserConfig {
             tts_eleven_labs_key: "".to_string(),
             elevenlabs_voice_id: "".to_string(),
             avatar_type: "vrm".to_string(),
+            always_on_top: true,
             enable_terminal_log: false,
         }
     }
@@ -175,6 +182,7 @@ pub struct AppConfig {
     pub user_callsign: String,
     pub personality_role: String,
     pub avatar_type: String,
+    pub always_on_top: bool,
     pub enable_terminal_log: bool,
 }
 
@@ -223,6 +231,7 @@ impl AppConfig {
             user_callsign: u.user_callsign,
             personality_role: u.personality_role,
             avatar_type: u.avatar_type,
+            always_on_top: u.always_on_top,
             enable_terminal_log: u.enable_terminal_log,
         }
     }
