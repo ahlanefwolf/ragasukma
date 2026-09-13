@@ -466,7 +466,7 @@ impl Renderer {
         }
     }
 
-    pub fn load_vrm_model(&mut self, model: VrmModelData) {
+    pub fn load_vrm_model(&mut self, mut model: VrmModelData) {
         let material_bind_group_layout = self.render_pipeline.get_bind_group_layout(2);
         let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::Repeat,
@@ -501,11 +501,20 @@ impl Renderer {
         }
 
         let mut gpu_materials = Vec::new();
-        for mat in &model.materials {
+        for mat in &mut model.materials {
+            let base_img = mat.base_color_texture.take();
+            let shade_img = mat.shade_texture.take();
+            let emissive_img = mat.emissive_texture.take();
+            let matcap_img = mat.matcap_texture.take();
+
+            let has_shade_tex = shade_img.is_some();
+            let has_emissive_tex = emissive_img.is_some();
+            let has_matcap_tex = matcap_img.is_some();
+
             let base_view = Self::create_texture_from_rgba(
                 &self.device,
                 &self.queue,
-                &mat.base_color_texture,
+                &base_img,
                 [255, 255, 255, 255],
                 &format!("Base_{}", mat.name),
             );
@@ -513,7 +522,7 @@ impl Renderer {
             let shade_view = Self::create_texture_from_rgba(
                 &self.device,
                 &self.queue,
-                &mat.shade_texture,
+                &shade_img,
                 [255, 255, 255, 255],
                 &format!("Shade_{}", mat.name),
             );
@@ -521,7 +530,7 @@ impl Renderer {
             let emissive_view = Self::create_texture_from_rgba(
                 &self.device,
                 &self.queue,
-                &mat.emissive_texture,
+                &emissive_img,
                 [0, 0, 0, 255],
                 &format!("Emissive_{}", mat.name),
             );
@@ -529,12 +538,12 @@ impl Renderer {
             let matcap_view = Self::create_texture_from_rgba(
                 &self.device,
                 &self.queue,
-                &mat.matcap_texture,
+                &matcap_img,
                 [0, 0, 0, 255],
                 &format!("Matcap_{}", mat.name),
             );
 
-            let is_emissive_active = mat.emissive_texture.is_some()
+            let is_emissive_active = has_emissive_tex
                 && (mat.emissive_factor[0] > 0.001
                     || mat.emissive_factor[1] > 0.001
                     || mat.emissive_factor[2] > 0.001);
@@ -563,8 +572,8 @@ impl Renderer {
                 shading_toony: mat.shading_toony,
                 alpha_cutoff: mat.alpha_cutoff,
                 has_emissive: if is_emissive_active { 1 } else { 0 },
-                has_matcap: if mat.matcap_texture.is_some() { 1 } else { 0 },
-                has_shade_tex: if mat.shade_texture.is_some() { 1 } else { 0 },
+                has_matcap: if has_matcap_tex { 1 } else { 0 },
+                has_shade_tex: if has_shade_tex { 1 } else { 0 },
                 _pad0: 0,
                 _pad1: 0,
             };
@@ -610,7 +619,7 @@ impl Renderer {
         }
 
         let mut gpu_primitives = Vec::new();
-        for prim in &model.primitives {
+        for prim in &mut model.primitives {
             let vertex_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Vertex Buffer"),
                 contents: bytemuck::cast_slice(&prim.vertices),
@@ -623,10 +632,18 @@ impl Renderer {
                 usage: wgpu::BufferUsages::INDEX,
             });
 
+            let index_count = prim.indices.len() as u32;
+
+            // Free CPU vertex data karena sudah di VRAM GPU
+            prim.vertices.clear();
+            prim.vertices.shrink_to_fit();
+            prim.indices.clear();
+            prim.indices.shrink_to_fit();
+
             gpu_primitives.push(GpuPrimitive {
                 vertex_buffer,
                 index_buffer,
-                index_count: prim.indices.len() as u32,
+                index_count,
                 material_index: prim.material_index.unwrap_or(0),
             });
         }
