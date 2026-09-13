@@ -39,7 +39,7 @@ impl AudioRecorder {
         let buffer = Arc::new(Mutex::new(Vec::<f32>::new()));
         let buffer_clone = Arc::clone(&buffer);
 
-        let err_fn = |err| eprintln!("Audio stream error: {err}");
+        let err_fn = |err| crate::term_err!("Audio stream error: {err}");
 
         let stream = match sample_format {
             cpal::SampleFormat::F32 => device.build_input_stream(
@@ -108,7 +108,190 @@ impl AudioRecorder {
         }
     }
 
-    /// Unified Continuous Turn Engine untuk merekam suara interaktif
+    /// Background Streaming Worker: Terus menerus merekam & VAD di background,
+    /// begitu satu giliran bicara selesai, audio siap saji langsung dikirim ke `turn_sender`.
+    pub fn start_continuous_worker(
+        &self,
+        stop_worker: Arc<AtomicBool>,
+        pause_worker: Arc<AtomicBool>,
+        turn_sender: std::sync::mpsc::Sender<Vec<f32>>,
+    ) {
+        self.clear_buffer();
+
+        let chunk_duration = std::time::Duration::from_millis(25);
+        let samples_per_chunk = self.sample_rate as usize * self.channels / 40; // ~25ms
+
+        let base_threshold = self.config.vad_activation_threshold;
+        let silence_limit_chunks = self.config.vad_silence_limit_chunks;
+
+        let cutoff = 160.0f32;
+        let rc = 1.0 / (2.0 * std::f32::consts::PI * cutoff);
+        let dt = 1.0 / self.sample_rate as f32;
+        let alpha = rc / (rc + dt);
+
+        let mut prev_in = 0.0f32;
+        let mut prev_out = 0.0f32;
+
+        let mut noise_floor = 0.008f32;
+        let mut peak_voice_rms = 0.020f32;
+        let mut voice_started = false;
+        let mut consecutive_voice = 0;
+        let mut consecutive_silence = 0;
+        let mut active_voice_chunks = 0;
+        let mut warmup_chunks = 0;
+
+        let mut pre_roll_buffer = Vec::<f32>::new();
+        let mut recorded_audio = Vec::<f32>::new();
+
+        while !stop_worker.load(Ordering::SeqCst) {
+            std::thread::sleep(chunk_duration);
+
+            if pause_worker.load(Ordering::SeqCst) {
+                voice_started = false;
+                consecutive_voice = 0;
+                consecutive_silence = 0;
+                active_voice_chunks = 0;
+                recorded_audio.clear();
+                pre_roll_buffer.clear();
+                self.clear_buffer();
+                continue;
+            }
+
+            let new_samples = {
+                let mut lock = match self.buffer.lock() {
+                    Ok(l) => l,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                if lock.is_empty() {
+                    Vec::new()
+                } else {
+                    let s = lock.clone();
+                    lock.clear();
+                    s
+                }
+            };
+
+            if new_samples.is_empty() {
+                continue;
+            }
+
+            // Hitung RMS vokal manusia
+            let mean: f32 = new_samples.iter().sum::<f32>() / new_samples.len() as f32;
+            let mut filtered_sum_sq = 0.0f32;
+            for &sample in &new_samples {
+                let cur_in = sample - mean;
+                let cur_out = alpha * (prev_out + cur_in - prev_in);
+                prev_in = cur_in;
+                prev_out = cur_out;
+                filtered_sum_sq += cur_out * cur_out;
+            }
+            let voice_rms = (filtered_sum_sq / new_samples.len() as f32).sqrt();
+
+            if !voice_started {
+                // Pre-roll buffer ~300ms
+                pre_roll_buffer.extend_from_slice(&new_samples);
+                let max_pre_roll = samples_per_chunk * 12;
+                if pre_roll_buffer.len() > max_pre_roll {
+                    let drain_len = pre_roll_buffer.len() - max_pre_roll;
+                    pre_roll_buffer.drain(0..drain_len);
+                }
+
+                // Kalibrasi noise floor
+                if warmup_chunks < 4 {
+                    warmup_chunks += 1;
+                    noise_floor = noise_floor * 0.8 + voice_rms * 0.2;
+                    continue;
+                }
+
+                noise_floor = noise_floor * 0.95 + voice_rms * 0.05;
+                // Threshold dinamis: 1.8x dari noise lantai ruangan riil, dibatasi minimum base_threshold
+                let trigger_threshold = (noise_floor * 1.8).max(base_threshold);
+
+                if voice_rms > trigger_threshold {
+                    consecutive_voice += 1;
+                    let required_voice = self.config.vad_consecutive_chunks.max(1);
+                    if consecutive_voice >= required_voice {
+                        voice_started = true;
+                        peak_voice_rms = voice_rms;
+                        active_voice_chunks = required_voice;
+                        recorded_audio.extend_from_slice(&pre_roll_buffer);
+                        pre_roll_buffer.clear();
+                        consecutive_silence = 0;
+                        TrayState::update(AssistantState::Listening, "Mendengarkan...");
+                        crate::term_log!("\r[MEREKAM...] Silakan bicara...");
+                    }
+                } else {
+                    consecutive_voice = 0;
+                }
+            } else {
+                recorded_audio.extend_from_slice(&new_samples);
+
+                if voice_rms > peak_voice_rms {
+                    peak_voice_rms = peak_voice_rms * 0.8 + voice_rms * 0.2;
+                }
+
+                // Voice continuation threshold yang lebih adaptif agar nafas/jeda pendek tidak langsung menutup rekaman
+                let speech_threshold = (noise_floor * 1.35).max(base_threshold * 0.65).min(peak_voice_rms * 0.40);
+
+                if voice_rms > speech_threshold {
+                    active_voice_chunks += 1;
+                    consecutive_silence = 0;
+                } else {
+                    consecutive_silence += 1;
+                }
+
+                // Minimum durasi hening sebelum dianggap selesai (sekitar ~450ms - 875ms)
+                let target_silence_chunks = silence_limit_chunks.max(14);
+                let max_length_exceeded = recorded_audio.len() > self.sample_rate as usize * self.channels * 25;
+
+                if consecutive_silence >= target_silence_chunks || max_length_exceeded {
+                    // Turn selesai! Proses audio dan kirim ke worker channel
+                    voice_started = false;
+                    consecutive_voice = 0;
+                    consecutive_silence = 0;
+
+                    if active_voice_chunks >= 4 && !recorded_audio.is_empty() {
+                        if let Ok(processed) = self.process_raw_audio(&recorded_audio) {
+                            if !processed.is_empty() {
+                                let _ = turn_sender.send(processed);
+                            }
+                        }
+                    }
+
+                    recorded_audio.clear();
+                    pre_roll_buffer.clear();
+                    active_voice_chunks = 0;
+                }
+            }
+        }
+    }
+
+    fn process_raw_audio(&self, raw: &[f32]) -> Result<Vec<f32>> {
+        let mono_samples = if self.channels > 1 {
+            raw.chunks_exact(self.channels)
+                .map(|frame| frame.iter().sum::<f32>() / self.channels as f32)
+                .collect::<Vec<f32>>()
+        } else {
+            raw.to_vec()
+        };
+
+        let mut resampled = if self.sample_rate != TARGET_SAMPLE_RATE {
+            resample_to_16k(&mono_samples, self.sample_rate)?
+        } else {
+            mono_samples
+        };
+
+        apply_noise_reduction(&mut resampled, TARGET_SAMPLE_RATE, self.config.noise_reduction_level);
+        normalize_volume(&mut resampled, 0.85, 8.0);
+
+        if resampled.len() < TARGET_SAMPLE_RATE as usize / 2 {
+            resampled.resize(TARGET_SAMPLE_RATE as usize / 2, 0.0);
+        }
+
+        Ok(resampled)
+    }
+
+    /// Unified Continuous Turn Engine untuk merekam suara interaktif (legacy manual)
     pub fn record_turn(&self, stop_flag: Arc<AtomicBool>) -> Result<Vec<f32>> {
         self.clear_buffer();
 
@@ -144,11 +327,15 @@ impl AudioRecorder {
             let new_samples = {
                 let mut lock = match self.buffer.lock() {
                     Ok(l) => l,
-                    Err(_) => break,
+                    Err(poisoned) => poisoned.into_inner(),
                 };
-                let s = lock.clone();
-                lock.clear();
-                s
+                if lock.is_empty() {
+                    Vec::new()
+                } else {
+                    let s = lock.clone();
+                    lock.clear();
+                    s
+                }
             };
 
             if new_samples.is_empty() {
@@ -184,21 +371,22 @@ impl AudioRecorder {
                 }
 
                 noise_floor = noise_floor * 0.98 + voice_rms * 0.02;
-                // Ambang aktivasi yang responsif untuk vokal manusia (tidak perlu teriak)
-                let trigger_threshold = (noise_floor * 2.0).max(base_threshold * 0.65).max(0.015);
+                // Ambang aktivasi yang disesuaikan dengan sensitivitas yang dipilih
+                let trigger_threshold = (noise_floor * 2.2).max(base_threshold);
 
                 if voice_rms > trigger_threshold {
                     consecutive_voice += 1;
-                    // Cukup 2 chunks (~50ms) di atas threshold untuk mulai merekam
-                    if consecutive_voice >= 2 {
+                    // Jumlah chunk konsekutif di atas threshold sebelum rekaman dimulai
+                    let required_voice = self.config.vad_consecutive_chunks.max(1);
+                    if consecutive_voice >= required_voice {
                         voice_started = true;
                         peak_voice_rms = voice_rms;
-                        active_voice_chunks = 2;
+                        active_voice_chunks = required_voice;
                         recorded_audio.extend_from_slice(&pre_roll_buffer);
                         pre_roll_buffer.clear();
                         consecutive_silence = 0;
                         TrayState::update(AssistantState::Listening, "Mendengarkan...");
-                        eprint!("\r[MEREKAM...] Silakan bicara...\x1b[K\n");
+                        crate::term_log!("\r[MEREKAM...] Silakan bicara...");
                     }
                 } else {
                     consecutive_voice = 0;

@@ -14,21 +14,36 @@ impl AppSession {
     pub fn start_chat_loop(&mut self) -> Result<()> {
         let is_auto = self.config.is_auto_mode();
 
-        println!("=== SESI PERCAKAPAN DIMULAI ===");
-        println!("   - Mode: {}", if is_auto { "Hands-Free (Bicara langsung ke mic)" } else { "Manual (Spasi)" });
-        println!("   - Tekan [P] untuk PAUSE / RESUME {} (Berhenti mendengarkan sementara)", self.config.assistant_name);
-        println!("   - Tekan [SPASI] saat {} bicara untuk MEMOTONG", self.config.assistant_name);
-        println!("   - Tekan [ESC] atau [Q] untuk KELUAR / KEMBALI KE MENU");
-        println!("----------------------------------------------------\n");
+        crate::term_log!("=== SESI PERCAKAPAN DIMULAI ===");
+        crate::term_log!("   - Mode: {}", if is_auto { "Hands-Free (Bicara langsung ke mic)" } else { "Manual (Spasi)" });
+        crate::term_log!("   - Tekan [P] untuk PAUSE / RESUME {} (Berhenti mendengarkan sementara)", self.config.assistant_name);
+        crate::term_log!("   - Tekan [SPASI] saat {} bicara untuk MEMOTONG", self.config.assistant_name);
+        crate::term_log!("   - Tekan [ESC] atau [Q] untuk KELUAR / KEMBALI KE MENU");
+        crate::term_log!("----------------------------------------------------\n");
 
         let mut is_paused = false;
+
+        let (turn_tx, turn_rx) = std::sync::mpsc::channel::<Vec<f32>>();
+        let stop_worker = Arc::new(AtomicBool::new(false));
+        let pause_worker = Arc::new(AtomicBool::new(false));
+
+        let stop_worker_clone = Arc::clone(&stop_worker);
+        let pause_worker_clone = Arc::clone(&pause_worker);
+        let recorder_ref = Arc::clone(&self.recorder);
+
+        // Spawn Continuous Audio Background Pipeline
+        let worker_handle = std::thread::spawn(move || {
+            recorder_ref.start_continuous_worker(stop_worker_clone, pause_worker_clone, turn_tx);
+        });
 
         loop {
             // Check if a command was sent from GUI or tray before starting the turn
             if let Some(cmd) = check_and_consume_cmd() {
                 if cmd == "stop_chat" || cmd == "quit" {
+                    stop_worker.store(true, Ordering::SeqCst);
+                    let _ = worker_handle.join();
                     TrayState::update(AssistantState::Idle, "Menu Utama");
-                    println!("\n[SELESAI] Sesi obrolan dihentikan.");
+                    crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                     return Ok(());
                 } else if cmd == "toggle_pause" {
                     is_paused = true;
@@ -40,34 +55,41 @@ impl AppSession {
 
             // Sesi Ngobrol Aktif
             if is_paused {
+                pause_worker.store(true, Ordering::SeqCst);
                 TrayState::update(AssistantState::Idle, "Dijeda");
-                println!("\n[DIJEDA] {} berhenti mendengarkan sementara.", self.config.assistant_name);
-                println!("Tekan [P] atau [SPASI] untuk MELANJUTKAN, atau [ESC/Q] untuk KELUAR.\n");
+                crate::term_log!("\n[DIJEDA] {} berhenti mendengarkan sementara.", self.config.assistant_name);
+                crate::term_log!("Tekan [P] atau [SPASI] untuk MELANJUTKAN, atau [ESC/Q] untuk KELUAR.\n");
                 enable_raw_mode()?;
                 loop {
                     if let Some(cmd) = check_and_consume_cmd() {
                         if cmd == "toggle_pause" || cmd == "start_chat" {
                             is_paused = false;
+                            pause_worker.store(false, Ordering::SeqCst);
                             break;
                         } else if cmd == "stop_chat" || cmd == "quit" {
                             disable_raw_mode()?;
+                            stop_worker.store(true, Ordering::SeqCst);
+                            let _ = worker_handle.join();
                             TrayState::update(AssistantState::Idle, "Menu Utama");
-                            println!("\n[SELESAI] Sesi obrolan dihentikan.");
+                            crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                             return Ok(());
                         }
                     }
-                    if event::poll(std::time::Duration::from_millis(50))? {
-                        if let Event::Key(key_event) = event::read()? {
+                    if let Ok(true) = event::poll(std::time::Duration::from_millis(50)) {
+                        if let Ok(Event::Key(key_event)) = event::read() {
                             if key_event.kind == KeyEventKind::Press {
                                 match key_event.code {
                                     KeyCode::Char('p') | KeyCode::Char('P') | KeyCode::Char(' ') => {
                                         is_paused = false;
+                                        pause_worker.store(false, Ordering::SeqCst);
                                         break;
                                     }
                                     KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => {
                                         disable_raw_mode()?;
+                                        stop_worker.store(true, Ordering::SeqCst);
+                                        let _ = worker_handle.join();
                                         TrayState::update(AssistantState::Idle, "Menu Utama");
-                                        println!("\n[SELESAI] Sesi obrolan dihentikan.");
+                                        crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                                         return Ok(());
                                     }
                                     _ => {}
@@ -76,54 +98,44 @@ impl AppSession {
                         }
                     }
                 }
-                disable_raw_mode()?;
-                println!("▶️  [DILANJUTKAN] {} siap mendengarkan lagi!\n", self.config.assistant_name);
+                let _ = disable_raw_mode();
+                crate::term_log!("▶️  [DILANJUTKAN] {} siap mendengarkan lagi!\n", self.config.assistant_name);
             }
 
             TrayState::update(AssistantState::Idle, "Siap Mendengarkan");
             if is_auto {
-                println!("Siap mendengarkan (Realtime)... [P: Pause | Q/ESC: Keluar]:");
+                crate::term_log!("Siap mendengarkan (Realtime)... [P: Pause | Q/ESC: Keluar]:");
             } else {
-                println!("Siap mendengarkan. Tekan [SPASI] untuk bicara [P: Pause | Q/ESC: Keluar]...");
+                crate::term_log!("Siap mendengarkan. Tekan [SPASI] untuk bicara [P: Pause | Q/ESC: Keluar]...");
             }
 
-            enable_raw_mode()?;
+            let _ = enable_raw_mode();
 
             let mut should_exit = false;
             let mut should_pause = false;
-            let stop_recording = Arc::new(AtomicBool::new(false));
-            let stop_recording_clone = Arc::clone(&stop_recording);
-            let recorder_ref = Arc::clone(&self.recorder);
-
-            let record_handle = std::thread::spawn(move || {
-                recorder_ref.record_turn(stop_recording_clone)
-            });
+            let mut audio_data = Vec::new();
 
             loop {
                 if let Some(cmd) = check_and_consume_cmd() {
                     if cmd == "toggle_pause" {
                         should_pause = true;
-                        stop_recording.store(true, Ordering::SeqCst);
                         break;
                     } else if cmd == "stop_chat" || cmd == "quit" {
                         should_exit = true;
-                        stop_recording.store(true, Ordering::SeqCst);
                         break;
                     }
                 }
 
-                if event::poll(std::time::Duration::from_millis(30))? {
-                    if let Event::Key(key_event) = event::read()? {
+                if let Ok(true) = event::poll(std::time::Duration::from_millis(30)) {
+                    if let Ok(Event::Key(key_event)) = event::read() {
                         if key_event.kind == KeyEventKind::Press {
                             match key_event.code {
                                 KeyCode::Char('p') | KeyCode::Char('P') => {
                                     should_pause = true;
-                                    stop_recording.store(true, Ordering::SeqCst);
                                     break;
                                 }
                                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => {
                                     should_exit = true;
-                                    stop_recording.store(true, Ordering::SeqCst);
                                     break;
                                 }
                                 _ => {}
@@ -132,21 +144,23 @@ impl AppSession {
                     }
                 }
 
-                if record_handle.is_finished() {
+                // Cek antrean audio dari continuous audio worker tanpa blocking
+                if let Ok(ready_audio) = turn_rx.try_recv() {
+                    audio_data = ready_audio;
                     break;
                 }
             }
 
-            let audio_data = record_handle
-                .join()
-                .map_err(|_| anyhow::anyhow!("Recording thread panicked"))??;
-
-            disable_raw_mode()?;
-            print!("\r\x1b[K");
+            let _ = disable_raw_mode();
+            if crate::config::is_terminal_log_enabled() {
+                print!("\r\x1b[K");
+            }
 
             if should_exit {
+                stop_worker.store(true, Ordering::SeqCst);
+                let _ = worker_handle.join();
                 TrayState::update(AssistantState::Idle, "Menu Utama");
-                println!("\n[SELESAI] Sesi obrolan dihentikan.");
+                crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                 break;
             }
 
@@ -172,11 +186,18 @@ impl AppSession {
             }
 
             TrayState::update(AssistantState::Thinking, "Transkripsi Audio...");
-            println!("⏹️  Selesai mendengar. Memproses...");
+            crate::term_log!("⏹️  Selesai mendengar. Memproses...");
 
             // 1. Transkrip Whisper STT
             let stt_start = Instant::now();
-            let raw_transcript = self.stt.transcribe(&audio_data)?;
+            let raw_transcript = match self.stt.transcribe(&audio_data) {
+                Ok(t) => t,
+                Err(e) => {
+                    crate::term_err!("⚠️ [STT Error]: {e}");
+                    TrayState::update(AssistantState::Idle, "Siap Mendengarkan");
+                    continue;
+                }
+            };
             let stt_elapsed = stt_start.elapsed();
 
             let clean_raw = raw_transcript.trim();
@@ -185,7 +206,7 @@ impl AppSession {
             if let Some(cmd) = check_and_consume_cmd() {
                 if cmd == "stop_chat" || cmd == "quit" {
                     TrayState::update(AssistantState::Idle, "Menu Utama");
-                    println!("\n[SELESAI] Sesi obrolan dihentikan.");
+                    crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                     return Ok(());
                 } else if cmd == "toggle_pause" {
                     is_paused = true;
@@ -194,7 +215,7 @@ impl AppSession {
             }
 
             if clean_raw.is_empty() {
-                println!("[INFO] (Suara tidak terdengar jelas / terlalu pelan)\n");
+                crate::term_log!("[INFO] (Suara tidak terdengar jelas / terlalu pelan)\n");
                 TrayState::update(AssistantState::Idle, "Siap Mendengarkan");
                 continue;
             }
@@ -227,8 +248,8 @@ impl AppSession {
             let user_transcript = clean_raw.to_string();
             let effective_input = user_transcript.clone();
 
-            println!("\n[User] Kamu [{:.2?}]:", stt_elapsed);
-            println!("   \"{}\"", user_transcript);
+            crate::term_log!("\n[User] Kamu [{:.2?}]:", stt_elapsed);
+            crate::term_log!("   \"{}\"", user_transcript);
 
             TrayState::emit_event("assistant:transcript", serde_json::json!({
                 "role": "user",
@@ -236,10 +257,14 @@ impl AppSession {
             }));
 
             // 2 & 3. Streaming LLM + Sentence-Level Streaming TTS (Interupsi Instan via Spasi / Q / GUI)
+            // Pause background audio worker saat asisten sedang berbicara agar suaranya sendiri tidak masuk ke mic (Echo Loop)
+            pause_worker.store(true, Ordering::SeqCst);
+            self.recorder.clear_buffer();
+
             TrayState::update(AssistantState::Thinking, "LLM Berpikir...");
             let llm_start = Instant::now();
             let asst_name = &self.config.assistant_name;
-            println!("\n[LLM] {} sedang merespons... (Tekan [SPASI] untuk memotong)", asst_name);
+            crate::term_log!("\n[LLM] {} sedang merespons... (Tekan [SPASI] untuk memotong)", asst_name);
 
             let is_interrupted = Arc::new(AtomicBool::new(false));
             let is_interrupted_clone = Arc::clone(&is_interrupted);
@@ -350,7 +375,9 @@ impl AppSession {
                     let first_elapsed = llm_start.elapsed();
                     first_token_time = Some(first_elapsed);
                     if !printed_header {
-                        print!("\r\n[{}] [{:.2?}]:\r\n   ", asst_name, first_elapsed);
+                        if crate::config::is_terminal_log_enabled() {
+                            print!("\r\n[{}] [{:.2?}]:\r\n   ", asst_name, first_elapsed);
+                        }
                         printed_header = true;
                     }
                 }
@@ -361,9 +388,11 @@ impl AppSession {
                     "speaker": asst_name
                 }));
 
-                print!("{} ", clean_sentence);
-                use std::io::Write;
-                let _ = std::io::stdout().flush();
+                if crate::config::is_terminal_log_enabled() {
+                    print!("{} ", clean_sentence);
+                    use std::io::Write;
+                    let _ = std::io::stdout().flush();
+                }
 
                 tts_clone.speak_interruptible(&clean_sentence, Arc::clone(&is_interrupted_clone))?;
                 if is_interrupted_clone.load(Ordering::SeqCst) {
@@ -379,10 +408,12 @@ impl AppSession {
                 }
             }
             disable_raw_mode()?;
-            print!("\r\n");
+            if crate::config::is_terminal_log_enabled() {
+                print!("\r\n");
+            }
 
             if is_user_cut.load(Ordering::SeqCst) && !exit_all {
-                println!("[DIPOTONG] {} berhenti bicara.", asst_name);
+                crate::term_log!("[DIPOTONG] {} berhenti bicara.", asst_name);
             }
 
             let full_response_text = match &result {
@@ -404,9 +435,9 @@ impl AppSession {
                     if let Some(matched_id) = cap.get(1) {
                         found_skill = true;
                         let id = matched_id.as_str().trim();
-                        println!("\n[MEMPROSES SKILL]: Memanggil ID '{}'...", id);
+                        crate::term_log!("\n[MEMPROSES SKILL]: Memanggil ID '{}'...", id);
                         if let Some((skill_name, output)) = execute_skill_by_id(id) {
-                            println!("[SKILL BERHASIL: {} ({})] -> {}", skill_name, id, output.trim());
+                            crate::term_log!("[SKILL BERHASIL: {} ({})] -> {}", skill_name, id, output.trim());
                             TrayState::emit_event("assistant:skill", serde_json::json!({
                                 "id": id,
                                 "name": skill_name,
@@ -414,7 +445,7 @@ impl AppSession {
                                 "output": output.trim()
                             }));
                         } else {
-                            eprintln!("[SKILL GAGAL]: ID '{}' tidak cocok di skill-command.md", id);
+                            crate::term_err!("[SKILL GAGAL]: ID '{}' tidak cocok di skill-command.md", id);
                             TrayState::emit_event("assistant:skill", serde_json::json!({
                                 "id": id,
                                 "name": id,
@@ -427,9 +458,9 @@ impl AppSession {
                 if !found_skill {
                     let lower_in = effective_input.to_lowercase();
                     if lower_in.contains("buka terminal") || lower_in.contains("open terminal") || lower_in.contains("bukain terminal") || lower_in.contains("buka console") {
-                        println!("\n[SMART FALLBACK]: Terdeteksi permintaan buka terminal.");
+                        crate::term_log!("\n[SMART FALLBACK]: Terdeteksi permintaan buka terminal.");
                         if let Some((skill_name, output)) = execute_skill_by_id("SYS-000") {
-                            println!("[SKILL BERHASIL: {}] -> {}", skill_name, output.trim());
+                            crate::term_log!("[SKILL BERHASIL: {}] -> {}", skill_name, output.trim());
                             TrayState::emit_event("assistant:skill", serde_json::json!({
                                 "id": "SYS-000",
                                 "name": skill_name,
@@ -441,20 +472,30 @@ impl AppSession {
                 }
             }
 
+            crate::term_log!("----------------------------------------------------\n");
+
+            // Buang semua sisa buffer / pantulan audio speaker sebelum mic diaktifkan kembali
+            self.recorder.clear_buffer();
+            while turn_rx.try_recv().is_ok() {}
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            self.recorder.clear_buffer();
+            while turn_rx.try_recv().is_ok() {}
+            pause_worker.store(false, Ordering::SeqCst);
+
             if let Err(err) = result {
-                eprintln!("[ERROR] Jaringan terganggu: {err}\n");
+                crate::term_err!("[ERROR] Jaringan terganggu: {err}\n");
             }
 
             if exit_all {
                 TrayState::update(AssistantState::Idle, "Menu Utama");
-                println!("\n[SELESAI] Sesi obrolan dihentikan.");
+                crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                 break;
             }
 
             std::thread::sleep(std::time::Duration::from_millis(300));
             self.recorder.clear_buffer();
 
-            println!("----------------------------------------------------\n");
+            crate::term_log!("----------------------------------------------------\n");
         }
 
         Ok(())

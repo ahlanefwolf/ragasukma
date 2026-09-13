@@ -216,11 +216,13 @@
       <div class="form-group">
         <label class="form-label">Sensitivitas Mic</label>
         <select id="mic_sensitivity" class="form-select">
-          <option value="0">0 - Sangat Rendah (Ruangan Ramai)</option>
-          <option value="1">1 - Rendah</option>
-          <option value="2">2 - Normal (Standar)</option>
-          <option value="3" selected>3 - Tinggi (Responsif)</option>
-          <option value="4">4 - Ultra Sensitif (Bisikan)</option>
+          <option value="0">0 - Ekstra Kebal / Anti-Bocor (Ruangan Berisik/Kipas/TV)</option>
+          <option value="1">1 - Sangat Rendah (Suara Jelas & Dekat Mic)</option>
+          <option value="2">2 - Rendah (Mengurangi Noise Lingkungan)</option>
+          <option value="3">3 - Normal (Standar Ruangan Tenang)</option>
+          <option value="4" selected>4 - Tinggi (Responsif)</option>
+          <option value="5">5 - Sangat Tinggi (Jarak Jauh)</option>
+          <option value="6">6 - Ultra Sensitif (Bisikan Halus)</option>
         </select>
       </div>
       <div class="form-group">
@@ -251,19 +253,40 @@
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Kecepatan Bicara (Khusus Google TTS)</label>
-        <input type="number" step="0.05" id="tts_speed" class="form-input" value="1.15" placeholder="1.15 (Default)" />
+        <label class="form-label">Bahasa / Kode Negara (Google TTS)</label>
+        <select id="tts_lang" class="form-select">
+          <option value="id">id - Indonesia (Default)</option>
+          <option value="ja">ja - Jepang (Japanese)</option>
+          <option value="en">en - Inggris (English)</option>
+          <option value="ko">ko - Korea (Korean)</option>
+          <option value="jv">jv - Jawa (Javanese)</option>
+          <option value="su">su - Sunda (Sundanese)</option>
+          <option value="ms">ms - Melayu (Malay)</option>
+          <option value="zh-CN">zh-CN - Mandarin (Simplified)</option>
+          <option value="ar">ar - Arab (Arabic)</option>
+          <option value="es">es - Spanyol (Spanish)</option>
+          <option value="fr">fr - Prancis (French)</option>
+          <option value="de">de - Jerman (German)</option>
+          <option value="ru">ru - Rusia (Russian)</option>
+          <option value="th">th - Thailand (Thai)</option>
+          <option value="vi">vi - Vietnam (Vietnamese)</option>
+          <option value="tl">tl - Filipina / Tagalog</option>
+        </select>
       </div>
     </div>
     <div class="grid-2">
       <div class="form-group">
-        <label class="form-label">ElevenLabs API Key</label>
-        <input type="password" id="tts_eleven_labs_key" class="form-input" placeholder="sk_..." />
+        <label class="form-label">Kecepatan Bicara (Khusus Google TTS)</label>
+        <input type="number" step="0.05" id="tts_speed" class="form-input" value="1.15" placeholder="1.15 (Default)" />
       </div>
       <div class="form-group">
         <label class="form-label">ElevenLabs Voice ID</label>
-        <input type="text" id="elevenlabs_voice_id" class="form-input" placeholder="pFZP..." />
+        <input type="text" id="elevenlabs_voice_id" class="form-input" placeholder="cgSgspJ2msm6clMCkdW9..." />
       </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ElevenLabs API Key (jika memakai ElevenLabs)</label>
+      <input type="password" id="tts_eleven_labs_key" class="form-input" placeholder="sk_..." />
     </div>
   </div>
 
@@ -342,6 +365,21 @@
       </div>
     </div>
   </div>
+
+  <!-- 6. Sistem & Debugging -->
+  <div class="card">
+    <div class="card-title">
+      <svg class="icon-sm" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+      <span>Sistem & Debugging</span>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mode Debug / Log Terminal</label>
+      <select id="enable_terminal_log" class="form-select">
+        <option value="false">Nonaktif (Default - Bersih, Hening & Ringan)</option>
+        <option value="true">Aktif (Tampilkan Semua Log di Terminal)</option>
+      </select>
+    </div>
+  </div>
   </div>
 
   <div class="bottom-nav">
@@ -410,17 +448,25 @@
     const fields = [
       'assistant_name', 'user_callsign', 'personality_role', 'llm_base_url', 'llm_model', 'llm_api_key',
       'stt_engine', 'groq_api_key', 'mic_sensitivity', 'vad_silence_limit',
-      'tts_engine', 'tts_speed', 'tts_eleven_labs_key', 'elevenlabs_voice_id', 'avatar_type'
+      'tts_engine', 'tts_lang', 'tts_speed', 'tts_eleven_labs_key', 'elevenlabs_voice_id', 'avatar_type',
+      'enable_terminal_log'
     ];
+
+    let initialDebugMode = null;
 
     async function loadConfig() {
       try {
         const cfg = await invoke('get_full_user_config');
         if (cfg) {
+          initialDebugMode = !!cfg.enable_terminal_log;
           fields.forEach(f => {
             const el = document.getElementById(f);
             if (el && cfg[f] !== undefined && cfg[f] !== null) {
-              el.value = cfg[f];
+              if (f === 'enable_terminal_log') {
+                el.value = cfg[f] ? 'true' : 'false';
+              } else {
+                el.value = cfg[f];
+              }
             }
           });
         }
@@ -436,6 +482,8 @@
         if (el) {
           if (f === 'tts_speed') {
             payload[f] = parseFloat(el.value) || 1.15;
+          } else if (f === 'enable_terminal_log') {
+            payload[f] = el.value === 'true';
           } else {
             payload[f] = el.value.trim();
           }
@@ -446,7 +494,15 @@
 
       try {
         await invoke('save_full_user_config', { config: payload });
-        showToast('Pengaturan berhasil disimpan');
+        const debugChanged = initialDebugMode !== null && initialDebugMode !== payload.enable_terminal_log;
+        if (debugChanged) {
+          showToast('Mode debug diubah. Me-restart program...');
+          setTimeout(async () => {
+            await invoke('restart_app');
+          }, 600);
+        } else {
+          showToast('Pengaturan berhasil disimpan');
+        }
       } catch (err) {
         showToast('Gagal menyimpan: ' + err);
       }

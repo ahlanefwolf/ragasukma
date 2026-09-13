@@ -15,6 +15,11 @@ pub fn open_browser_url_native(url: &str) {
 }
 
 #[tauri::command]
+pub fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
+#[tauri::command]
 pub fn open_browser_url(url: String) -> Result<(), String> {
     open_browser_url_native(&url);
     Ok(())

@@ -83,7 +83,11 @@ impl TextToSpeech {
         let u = crate::config::load_user_config();
         let playback_speed = u.tts_speed;
         let tts_engine = u.tts_engine.to_lowercase();
-        let tts_lang = "id".to_string();
+        let tts_lang = if !u.tts_lang.trim().is_empty() {
+            u.tts_lang.trim().to_string()
+        } else {
+            "id".to_string()
+        };
 
         let elevenlabs_api_key = if !u.tts_eleven_labs_key.trim().is_empty() {
             Some(u.tts_eleven_labs_key.trim().to_string())
@@ -133,7 +137,7 @@ impl TextToSpeech {
                         Ok(audio_bytes) => {
                             // Terapkan DSP Anime Filter (Formant Treble Booster + Pitch Shaper)
                             if let Err(e) = self.play_audio_buffer(audio_bytes, is_interrupted.clone(), true) {
-                                eprintln!("⚠️ [ElevenLabs Playback Error]: {}", e);
+                                crate::term_err!("⚠️ [ElevenLabs Playback Error]: {}", e);
                             } else {
                                 played_successfully = true;
                             }
@@ -141,10 +145,10 @@ impl TextToSpeech {
                         Err(e) => {
                             let err_str = e.to_string();
                             if err_str.contains("quota_exceeded") || err_str.contains("credits remaining") || err_str.contains("Status 401") || err_str.contains("Status 429") {
-                                eprintln!("⚠️ [ElevenLabs Kuota Habis/Kritis] Menonaktifkan ElevenLabs untuk sesi ini, langsung beralih ke Google TTS.");
+                                crate::term_err!("⚠️ [ElevenLabs Kuota Habis/Kritis] Menonaktifkan ElevenLabs untuk sesi ini, langsung beralih ke Google TTS.");
                                 self.elevenlabs_disabled.store(true, Ordering::Relaxed);
                             } else {
-                                eprintln!("⚠️ [ElevenLabs Fallback -> Google TTS]: {}", err_str);
+                                crate::term_err!("⚠️ [ElevenLabs Fallback -> Google TTS]: {}", err_str);
                             }
                         }
                     }
@@ -298,7 +302,7 @@ impl TextToSpeech {
                                 sink.append(source);
                             }
                             Err(e) => {
-                                eprintln!("⚠️ [Audio Decode Error]: {}", e);
+                                crate::term_err!("⚠️ [Audio Decode Error]: {}", e);
                             }
                         }
                     }

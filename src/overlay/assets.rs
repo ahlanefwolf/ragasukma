@@ -38,7 +38,7 @@ pub fn save_poses_config(app: tauri::AppHandle, config_json: String) -> Result<(
         let _ = fs::create_dir_all(parent);
     }
     let _ = fs::write(backup, &config_json);
-    println!("💾 [Pose Tuner] Berhasil menyimpan poses.json ke {:?}", path);
+    crate::term_log!("💾 [Pose Tuner] Berhasil menyimpan poses.json ke {:?}", path);
 
     crate::tray::TrayState::emit_event("assistant:poses-updated", serde_json::json!({
         "status": "success",
@@ -154,7 +154,7 @@ pub fn save_avatar_file(app: tauri::AppHandle, asset_type: String, file_bytes: V
     let home_path = home_assets.join(&target_filename);
     let _ = fs::write(&home_path, &file_bytes);
 
-    println!("🎨 [Avatar Custom] File avatar berhasil disimpan sebagai '{}' ({} bytes)", target_filename, file_bytes.len());
+    crate::term_log!("🎨 [Avatar Custom] File avatar berhasil disimpan sebagai '{}' ({} bytes)", target_filename, file_bytes.len());
 
     if let Some(main_win) = app.get_webview_window("main") {
         let _ = main_win.eval("if (window.reloadAvatar) { window.reloadAvatar(); }");
@@ -166,16 +166,16 @@ pub fn save_avatar_file(app: tauri::AppHandle, asset_type: String, file_bytes: V
 #[tauri::command]
 pub fn get_external_asset_bytes(filename: String) -> Result<Vec<u8>, String> {
     let path = get_asset_file_path(&filename);
-    println!("🔍 [Overlay Asset Request] filename: '{}', resolved path: {:?}", filename, path);
+    crate::term_log!("🔍 [Overlay Asset Request] filename: '{}', resolved path: {:?}", filename, path);
     let path = path.ok_or_else(|| {
-        eprintln!("❌ [Overlay Asset Error] File aset '{}' tidak ditemukan di folder assets eksternal!", filename);
+        crate::term_err!("❌ [Overlay Asset Error] File aset '{}' tidak ditemukan di folder assets eksternal!", filename);
         format!("File aset '{}' tidak ditemukan di folder assets eksternal", filename)
     })?;
     let bytes = fs::read(&path).map_err(|e| {
-        eprintln!("❌ [Overlay Asset Read Error] Gagal baca {:?}: {}", path, e);
+        crate::term_err!("❌ [Overlay Asset Read Error] Gagal baca {:?}: {}", path, e);
         e.to_string()
     })?;
-    println!("✅ [Overlay Asset Success] Berhasil membaca {:?} ({} bytes)", path, bytes.len());
+    crate::term_log!("✅ [Overlay Asset Success] Berhasil membaca {:?} ({} bytes)", path, bytes.len());
     Ok(bytes)
 }
 

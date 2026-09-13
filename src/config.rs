@@ -2,6 +2,35 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static TERMINAL_LOG_ENABLED: AtomicBool = AtomicBool::new(false);
+
+pub fn set_terminal_log_enabled(enabled: bool) {
+    TERMINAL_LOG_ENABLED.store(enabled, Ordering::SeqCst);
+}
+
+pub fn is_terminal_log_enabled() -> bool {
+    TERMINAL_LOG_ENABLED.load(Ordering::SeqCst)
+}
+
+#[macro_export]
+macro_rules! term_log {
+    ($($arg:tt)*) => {
+        if $crate::config::is_terminal_log_enabled() {
+            println!($($arg)*);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! term_err {
+    ($($arg:tt)*) => {
+        if $crate::config::is_terminal_log_enabled() {
+            eprintln!($($arg)*);
+        }
+    };
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserConfig {
@@ -18,10 +47,18 @@ pub struct UserConfig {
     pub vad_silence_limit: String,
     pub noise_reduction_level: u8,
     pub tts_engine: String,
+    #[serde(default = "default_tts_lang")]
+    pub tts_lang: String,
     pub tts_speed: f32,
     pub tts_eleven_labs_key: String,
     pub elevenlabs_voice_id: String,
     pub avatar_type: String,
+    #[serde(default)]
+    pub enable_terminal_log: bool,
+}
+
+fn default_tts_lang() -> String {
+    "id".to_string()
 }
 
 impl Default for UserConfig {
@@ -40,10 +77,12 @@ impl Default for UserConfig {
             vad_silence_limit: "2".to_string(),
             noise_reduction_level: 0,
             tts_engine: "google".to_string(),
+            tts_lang: "id".to_string(),
             tts_speed: 1.15f32,
             tts_eleven_labs_key: "".to_string(),
             elevenlabs_voice_id: "".to_string(),
             avatar_type: "vrm".to_string(),
+            enable_terminal_log: false,
         }
     }
 }
@@ -103,6 +142,7 @@ pub fn load_user_config() -> UserConfig {
 }
 
 pub fn save_user_config(cfg: &UserConfig) -> Result<(), String> {
+    set_terminal_log_enabled(cfg.enable_terminal_log);
     let path = get_config_file_path();
     let json = serde_json::to_string_pretty(cfg).map_err(|e| e.to_string())?;
 
@@ -123,9 +163,11 @@ pub struct AppConfig {
     pub llm_api_key: String,
     pub voice_mode: String,
     pub vad_activation_threshold: f32,
+    pub vad_consecutive_chunks: usize,
     pub vad_silence_limit_chunks: usize,
     pub noise_reduction_level: u8,
     pub tts_engine: String,
+    pub tts_lang: String,
     pub tts_speed: f32,
     pub tts_eleven_labs_key: String,
     pub elevenlabs_voice_id: String,
@@ -133,19 +175,23 @@ pub struct AppConfig {
     pub user_callsign: String,
     pub personality_role: String,
     pub avatar_type: String,
+    pub enable_terminal_log: bool,
 }
 
 impl AppConfig {
     pub fn load() -> Self {
         let u = load_user_config();
+        set_terminal_log_enabled(u.enable_terminal_log);
 
-        let vad_activation_threshold = match u.mic_sensitivity.trim().to_lowercase().as_str() {
-            "0" => 0.055f32,
-            "1" => 0.040f32,
-            "2" => 0.028f32,
-            "3" => 0.018f32,
-            "4" => 0.010f32,
-            other => other.parse::<f32>().unwrap_or(0.018f32),
+        let (vad_activation_threshold, required_consecutive) = match u.mic_sensitivity.trim().to_lowercase().as_str() {
+            "0" => (0.045f32, 2), // 0 - Ekstra Kebal (Ruangan Sangat Ramai)
+            "1" => (0.030f32, 2), // 1 - Sangat Rendah
+            "2" => (0.018f32, 2), // 2 - Rendah
+            "3" => (0.012f32, 2), // 3 - Normal (Standar)
+            "4" => (0.007f32, 1), // 4 - Tinggi (Responsif)
+            "5" => (0.004f32, 1), // 5 - Sangat Tinggi
+            "6" => (0.002f32, 1), // 6 - Ultra Sensitif (Bisikan)
+            other => (other.parse::<f32>().unwrap_or(0.012f32), 2),
         };
 
         let vad_silence_limit_chunks = match u.vad_silence_limit.trim().to_lowercase().as_str() {
@@ -165,9 +211,11 @@ impl AppConfig {
             llm_api_key: u.llm_api_key,
             voice_mode: u.voice_mode,
             vad_activation_threshold,
+            vad_consecutive_chunks: required_consecutive,
             vad_silence_limit_chunks,
             noise_reduction_level: u.noise_reduction_level,
             tts_engine: u.tts_engine,
+            tts_lang: u.tts_lang,
             tts_speed: u.tts_speed,
             tts_eleven_labs_key: u.tts_eleven_labs_key,
             elevenlabs_voice_id: u.elevenlabs_voice_id,
@@ -175,6 +223,7 @@ impl AppConfig {
             user_callsign: u.user_callsign,
             personality_role: u.personality_role,
             avatar_type: u.avatar_type,
+            enable_terminal_log: u.enable_terminal_log,
         }
     }
 

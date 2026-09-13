@@ -1,3 +1,6 @@
+// Prevents additional console window on Windows in release
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod audio;
 mod config;
 mod dsp;
@@ -18,9 +21,9 @@ fn main() -> Result<()> {
     let config = AppConfig::load();
     let config_clone = config.clone();
 
-    println!("====================================================");
-    println!("  Ragasukma - Asisten Pribadi: {} (Anime ID)", config.assistant_name);
-    println!("====================================================");
+    crate::term_log!("====================================================");
+    crate::term_log!("  Ragasukma - Asisten Pribadi: {} (Anime ID)", config.assistant_name);
+    crate::term_log!("====================================================");
 
     // Jalankan interactive session & audio engine di background thread
     let session_thread = std::thread::spawn(move || {

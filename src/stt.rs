@@ -33,14 +33,14 @@ impl SttEngine {
             let client = reqwest::blocking::Client::builder()
                 .timeout(std::time::Duration::from_secs(15))
                 .build()?;
-            println!("☁️  Engine STT: GROQ Cloud API (whisper-large-v3, Ultra Fast) siap.");
+            crate::term_log!("☁️  Engine STT: GROQ Cloud API (whisper-large-v3, Ultra Fast) siap.");
             return Ok(Self::Groq { api_key, client });
         }
 
         let client = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(15))
             .build()?;
-        println!("🌐 Engine STT: GOOGLE Speech API (Free, No API Key, Bahasa Indonesia) siap.");
+        crate::term_log!("🌐 Engine STT: GOOGLE Speech API (Free, No API Key, Bahasa Indonesia) siap.");
         Ok(Self::Google { client })
     }
 
@@ -63,7 +63,9 @@ impl SttEngine {
                     .context("Gagal menghubungi Google Speech Recognition API")?;
 
                 if !res.status().is_success() {
+                    let status = res.status();
                     let err_text = res.text().unwrap_or_default();
+                    crate::term_err!("⚠️ [Google Speech HTTP {}]: {}", status, err_text);
                     anyhow::bail!("Google Speech API Error: {err_text}");
                 }
 

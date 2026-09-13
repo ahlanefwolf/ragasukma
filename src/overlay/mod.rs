@@ -81,7 +81,8 @@ impl NativeOverlay {
                 check_for_updates,
                 set_window_mode,
                 minimize_window,
-                toggle_maximize_window
+                toggle_maximize_window,
+                restart_app
             ])
             .setup(move |app| {
                 if let Ok(mut guard) = APP_HANDLE.lock() {
@@ -91,7 +92,7 @@ impl NativeOverlay {
                 // Otomatis spawn dan tampilkan avatar overlay window (main) saat startup
                 let handle = app.handle().clone();
                 if let Err(e) = create_avatar_window(&handle) {
-                    eprintln!("⚠️ Gagal membuat avatar overlay window saat startup: {e}");
+                    crate::term_err!("⚠️ Gagal membuat avatar overlay window saat startup: {e}");
                 }
 
                 // Background watcher untuk sinyal quit (100% in-memory thread-safe)
@@ -114,7 +115,7 @@ impl NativeOverlay {
                 app.run(|_app_handle, _event| {});
             }
             Err(err) => {
-                eprintln!("⚠️ Gagal menginisialisasi Tauri overlay: {}", err);
+                crate::term_err!("⚠️ Gagal menginisialisasi Tauri overlay: {}", err);
             }
         }
     }

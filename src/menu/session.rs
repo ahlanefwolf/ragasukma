@@ -25,15 +25,15 @@ pub(crate) fn check_and_consume_cmd() -> Option<String> {
 impl AppSession {
     pub fn new(config: AppConfig) -> Result<Self> {
         let recorder = Arc::new(AudioRecorder::new(config.clone())?);
-        println!("🎤 Input Device : {}", recorder.device_name());
+        crate::term_log!("🎤 Input Device : {}", recorder.device_name());
 
         let stt = SttEngine::new(&config.stt_engine)?;
 
         let llm = LlmClient::new();
-        println!("🎀 Karakter {} (Imut & Pemalu) siap menemani {}.", config.assistant_name, config.user_callsign);
+        crate::term_log!("🎀 Karakter {} (Imut & Pemalu) siap menemani {}.", config.assistant_name, config.user_callsign);
 
         let tts = Arc::new(TextToSpeech::new());
-        println!(
+        crate::term_log!(
             "🔊 Engine TTS: {} siap.",
             config.tts_engine.to_uppercase()
         );
@@ -55,6 +55,7 @@ impl AppSession {
             || latest_config.groq_api_key != self.config.groq_api_key;
 
         let tts_changed = latest_config.tts_engine != self.config.tts_engine
+            || latest_config.tts_lang != self.config.tts_lang
             || (latest_config.tts_speed - self.config.tts_speed).abs() > 0.01
             || latest_config.tts_eleven_labs_key != self.config.tts_eleven_labs_key
             || latest_config.elevenlabs_voice_id != self.config.elevenlabs_voice_id;
@@ -73,25 +74,25 @@ impl AppSession {
         if vad_changed {
             if let Ok(new_recorder) = AudioRecorder::new(latest_config.clone()) {
                 self.recorder = Arc::new(new_recorder);
-                println!("🔄 [Reactive Update] VAD Threshold & Recorder diupdate realtime!");
+                crate::term_log!("🔄 [Reactive Update] VAD Threshold & Recorder diupdate realtime!");
             }
         }
 
         if stt_changed {
             if let Ok(new_stt) = SttEngine::new(&latest_config.stt_engine) {
                 self.stt = new_stt;
-                println!("🔄 [Reactive Update] STT Engine dialihkan ke: {}", latest_config.stt_engine.to_uppercase());
+                crate::term_log!("🔄 [Reactive Update] STT Engine dialihkan ke: {}", latest_config.stt_engine.to_uppercase());
             }
         }
 
         if tts_changed {
             self.tts = Arc::new(TextToSpeech::new());
-            println!("🔄 [Reactive Update] TTS Engine dialihkan ke: {}", latest_config.tts_engine.to_uppercase());
+            crate::term_log!("🔄 [Reactive Update] TTS Engine / Bahasa dialihkan ke: {} (Lang: {})", latest_config.tts_engine.to_uppercase(), latest_config.tts_lang);
         }
 
         if llm_changed {
             self.llm = LlmClient::new();
-            println!("🔄 [Reactive Update] LLM Persona / Model dialihkan ke: {} ({})", latest_config.llm_model, latest_config.assistant_name);
+            crate::term_log!("🔄 [Reactive Update] LLM Persona / Model dialihkan ke: {} ({})", latest_config.llm_model, latest_config.assistant_name);
         }
 
         self.config = latest_config;
@@ -105,16 +106,16 @@ impl AppSession {
         TrayState::clear_commands();
         TrayState::update(AssistantState::Idle, "Menu Utama");
 
-        println!("----------------------------------------------------");
-        println!("💡 MENU UTAMA:");
-        println!("   - Tekan [SPASI] / [ENTER] untuk MULAI NGOBROL");
-        println!("   - Tekan [T] untuk TES SUARA {}", self.config.assistant_name.to_uppercase());
-        println!("   - Tekan [M] untuk TES MIC & FILTER SUARA");
-        println!("   - Tekan [ESC] atau [Q] untuk KELUAR");
-        println!("====================================================\n");
+        crate::term_log!("----------------------------------------------------");
+        crate::term_log!("💡 MENU UTAMA:");
+        crate::term_log!("   - Tekan [SPASI] / [ENTER] untuk MULAI NGOBROL");
+        crate::term_log!("   - Tekan [T] untuk TES SUARA {}", self.config.assistant_name.to_uppercase());
+        crate::term_log!("   - Tekan [M] untuk TES MIC & FILTER SUARA");
+        crate::term_log!("   - Tekan [ESC] atau [Q] untuk KELUAR");
+        crate::term_log!("====================================================\n");
 
         loop {
-            println!("👉 Pilih menu: [SPASI/ENTER] Mulai Ngobrol | [T] Tes {} | [M] Tes Mic | [Q] Keluar", self.config.assistant_name);
+            crate::term_log!("👉 Pilih menu: [SPASI/ENTER] Mulai Ngobrol | [T] Tes {} | [M] Tes Mic | [Q] Keluar", self.config.assistant_name);
             enable_raw_mode()?;
 
             let action;
@@ -180,7 +181,7 @@ impl AppSession {
                 }
                 4 => {
                     TrayState::clear();
-                    println!("\n👋 Program selesai. Sampai jumpa!");
+                    crate::term_log!("\n👋 Program selesai. Sampai jumpa!");
                     return Ok(());
                 }
                 _ => {
