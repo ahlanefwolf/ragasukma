@@ -8,7 +8,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi"],
+    "targets": "all",
     "copyright": "Copyright © 2025 Ragasukma Team",
     "shortDescription": "AI Virtual Assistant Overlay",
     "resources": [
