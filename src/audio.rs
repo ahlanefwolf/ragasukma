@@ -137,6 +137,7 @@ impl AudioRecorder {
         let mut pre_roll_buffer = Vec::<f32>::new();
         let mut recorded_audio = Vec::<f32>::new();
 
+        let mut was_interrupted = false;
         while !stop_flag.load(Ordering::SeqCst) {
             std::thread::sleep(chunk_duration);
 
@@ -231,6 +232,14 @@ impl AudioRecorder {
                     break;
                 }
             }
+        }
+
+        if stop_flag.load(Ordering::SeqCst) {
+            was_interrupted = true;
+        }
+
+        if was_interrupted {
+            return Ok(Vec::new());
         }
 
         // Jika vokal aktifnya terlalu sedikit (< 4 chunks = < 100ms), buang langsung

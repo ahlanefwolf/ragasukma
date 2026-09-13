@@ -102,6 +102,7 @@ impl AppSession {
         self.start_chat_loop()?;
 
         // Jika keluar dari sesi chat tapi program belum quit, sediakan menu standby
+        TrayState::clear_commands();
         TrayState::update(AssistantState::Idle, "Menu Utama");
 
         println!("----------------------------------------------------");
@@ -120,7 +121,7 @@ impl AppSession {
             loop {
                 if let Some(cmd) = check_and_consume_cmd() {
                     match cmd.as_str() {
-                        "start_chat" | "start" | "toggle_pause" => {
+                        "start_chat" | "start" => {
                             action = 1;
                             break;
                         }
@@ -183,7 +184,10 @@ impl AppSession {
                     return Ok(());
                 }
                 _ => {
+                    TrayState::clear_commands();
                     self.start_chat_loop()?;
+                    TrayState::clear_commands();
+                    TrayState::update(AssistantState::Idle, "Menu Utama");
                 }
             }
         }

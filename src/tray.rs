@@ -72,7 +72,15 @@ impl TrayState {
             QUIT_REQUESTED.store(true, Ordering::SeqCst);
         }
         if let Ok(mut queue) = COMMAND_QUEUE.lock() {
+            // Selalu simpan hanya 1 command terakhir yang relevan agar tidak terjadi stale/lagged state
+            queue.clear();
             queue.push_back(cmd);
+        }
+    }
+
+    pub fn clear_commands() {
+        if let Ok(mut queue) = COMMAND_QUEUE.lock() {
+            queue.clear();
         }
     }
 

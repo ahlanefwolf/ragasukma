@@ -97,6 +97,17 @@ let isPreviewing = false;
 let previewTime = 0;
 
 const notifEl = document.getElementById('notification');
+const loaderEl = document.getElementById('tuner-loader');
+
+function hideLoader() {
+  if (loaderEl) {
+    loaderEl.classList.add('hidden');
+    setTimeout(() => {
+      loaderEl.style.display = 'none';
+    }, 400);
+  }
+}
+
 function showNotification(msg) {
   notifEl.textContent = msg;
   notifEl.classList.add('show');
@@ -219,6 +230,7 @@ function handleLoadedVrm(gltf) {
 
   fitCameraToVrm(vrm);
   applyCurrentPose();
+  hideLoader();
   showNotification('Model VRM siap');
 }
 
@@ -273,6 +285,7 @@ async function loadVrmModel() {
     console.warn('Gagal memuat model VRM di Tuner:', e);
   }
 
+  hideLoader();
   showNotification('File char.vrm tidak ditemukan');
 }
 

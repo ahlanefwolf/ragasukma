@@ -67,6 +67,7 @@ pub fn set_window_mode(
             }
             state.is_panel_mode.store(true, std::sync::atomic::Ordering::SeqCst);
 
+            let _ = window.set_skip_taskbar(false);
             let _ = window.set_decorations(true);
             let _ = window.set_shadow(true);
 
@@ -155,6 +156,7 @@ pub fn set_window_mode(
             }
         } else {
             state.is_panel_mode.store(false, std::sync::atomic::Ordering::SeqCst);
+            let _ = window.set_skip_taskbar(true);
             let _ = window.unmaximize();
             let _ = window.set_decorations(false);
             let _ = window.set_shadow(false);

@@ -159,7 +159,6 @@ impl TextToSpeech {
             Ok(())
         };
 
-        crate::tray::TrayState::update(crate::tray::AssistantState::Listening, "Siap Mendengarkan");
         res
     }
 

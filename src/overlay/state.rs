@@ -32,18 +32,6 @@ pub fn get_app_state() -> Option<serde_json::Value> {
 
 #[tauri::command]
 pub fn send_command(cmd: String) {
-    if cmd == "test_voice" {
-        std::thread::spawn(|| {
-            let u = crate::config::load_user_config();
-            let user_callsign = u.user_callsign;
-
-            let tts = crate::tts::TextToSpeech::new();
-            let is_interrupted = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-            let text = format!("Halo {}! Ini adalah pengujian suara asisten. Suara saya sudah terdengar dengan jelas kan?", user_callsign);
-            let _ = tts.speak_interruptible(&text, is_interrupted);
-        });
-        return;
-    }
     crate::tray::TrayState::push_command(cmd);
 }
 

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::thread;
-use tauri::{Manager, PhysicalPosition, PhysicalSize};
+use tauri::Manager;
 
 use super::state::OverlayState;
 
@@ -108,8 +108,11 @@ pub fn get_actual_window_position(window: &tauri::Window) -> Option<(i32, i32)> 
     }
 
     if let Ok(pos) = window.outer_position() {
-        if pos.x > 0 || pos.y > 0 {
-            return Some((pos.x, pos.y));
+        let scale = window.scale_factor().unwrap_or(1.0);
+        let logical_x = ((pos.x as f64) / scale).round() as i32;
+        let logical_y = ((pos.y as f64) / scale).round() as i32;
+        if logical_x > 0 || logical_y > 0 {
+            return Some((logical_x, logical_y));
         }
     }
     None
@@ -148,22 +151,35 @@ pub fn get_sway_output_geometry() -> Option<(i32, i32, i32, i32)> {
     None
 }
 
-/// Dapatkan batas layar (width, height, offset_x, offset_y)
+/// Dapatkan batas layar dalam Logical Pixels (width, height, offset_x, offset_y)
 pub fn get_screen_bounds(window: &tauri::Window) -> (i32, i32, i32, i32) {
     if std::env::var("SWAYSOCK").is_ok() {
         get_sway_output_geometry().unwrap_or_else(|| {
             if let Ok(Some(m)) = window.primary_monitor() {
-                (m.size().width as i32, m.size().height as i32, m.position().x, m.position().y)
+                let scale = m.scale_factor();
+                (
+                    ((m.size().width as f64) / scale).round() as i32,
+                    ((m.size().height as f64) / scale).round() as i32,
+                    ((m.position().x as f64) / scale).round() as i32,
+                    ((m.position().y as f64) / scale).round() as i32,
+                )
             } else {
                 (1920, 1080, 0, 0)
             }
         })
-    } else if let Ok(Some(m)) = window.current_monitor() {
-        (m.size().width as i32, m.size().height as i32, m.position().x, m.position().y)
-    } else if let Ok(Some(m)) = window.primary_monitor() {
-        (m.size().width as i32, m.size().height as i32, m.position().x, m.position().y)
     } else {
-        (1920, 1080, 0, 0)
+        let monitor = window.current_monitor().ok().flatten().or_else(|| window.primary_monitor().ok().flatten());
+        if let Some(m) = monitor {
+            let scale = m.scale_factor();
+            (
+                ((m.size().width as f64) / scale).round() as i32,
+                ((m.size().height as f64) / scale).round() as i32,
+                ((m.position().x as f64) / scale).round() as i32,
+                ((m.position().y as f64) / scale).round() as i32,
+            )
+        } else {
+            (1920, 1080, 0, 0)
+        }
     }
 }
 
@@ -218,11 +234,17 @@ pub fn apply_position_to_window(window: &tauri::Window, cfg: &PositionConfig, av
 
     let (x, y) = get_current_overlay_coords(window, cfg, avatar_type);
 
-    let _ = window.set_size(tauri::Size::Physical(PhysicalSize {
-        width: w as u32,
-        height: h as u32,
-    }));
-    let _ = window.set_position(tauri::Position::Physical(PhysicalPosition { x, y }));
+    let win_clone = window.clone();
+    tauri::async_runtime::spawn(async move {
+        let _ = win_clone.set_position(tauri::Position::Logical(tauri::LogicalPosition {
+            x: x as f64,
+            y: y as f64,
+        }));
+        let _ = win_clone.set_size(tauri::Size::Logical(tauri::LogicalSize {
+            width: w as f64,
+            height: h as f64,
+        }));
+    });
     let _ = window.set_always_on_top(true);
 
     if std::env::var("SWAYSOCK").is_ok() {
@@ -263,9 +285,10 @@ pub fn drag_window_delta(
         cfg.custom_x = Some(new_x);
         cfg.custom_y = Some(new_y);
 
-        let _ = window.set_position(tauri::Position::Physical(PhysicalPosition {
-            x: new_x,
-            y: new_y,
+        let scale_factor = window.scale_factor().unwrap_or(1.0);
+        let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
+            x: (new_x as f64) / scale_factor,
+            y: (new_y as f64) / scale_factor,
         }));
 
         if std::env::var("SWAYSOCK").is_ok() {

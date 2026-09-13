@@ -441,13 +441,18 @@ function initVrmViewer() {
 
   loadVrmModelToScene();
 
+  let resizeTimeout = null;
   window.addEventListener('resize', () => {
     if (!renderer || !camera) return;
-    updateCameraProjection();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    if (renderer && scene && camera) {
-      renderer.render(scene, camera);
-    }
+    if (resizeTimeout) clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+      try {
+        updateCameraProjection();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      } catch (err) {
+        console.warn('⚠️ WebGL resize error handled:', err);
+      }
+    }, 16);
   });
 }
 
@@ -509,6 +514,31 @@ function setupInteractions() {
       contextMenu.style.display = 'flex';
     }
   });
+
+  // Scroll Wheel Resize (Perbesar / Perkecil Overlay saat kursor di atas avatar)
+  let isResizing = false;
+  window.addEventListener('wheel', (e) => {
+    // Abaikan jika sedang membuka popup menu atau panel iframe
+    if (contextMenu && contextMenu.style.display !== 'none') return;
+    if (panelContainer && panelContainer.style.display !== 'none') return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (isResizing) return;
+    isResizing = true;
+
+    const delta = e.deltaY < 0 ? 30 : -30;
+    invoke('change_size_delta', { delta })
+      .catch((err) => {
+        console.warn('[wheel resize error]:', err);
+      })
+      .finally(() => {
+        setTimeout(() => {
+          isResizing = false;
+        }, 120);
+      });
+  }, { passive: false });
 
   // Native Smooth Dragging
   root.addEventListener('mousedown', (e) => {
@@ -608,39 +638,6 @@ window.addEventListener('message', (event) => {
   }
 });
 
-let currentOverlaySize = 340;
-
-function updateSizeUI(size) {
-  currentOverlaySize = size;
-  const label = document.getElementById('label-overlay-size');
-  if (label) label.textContent = `${size}px`;
-
-  const input = document.getElementById('input-overlay-size');
-  if (input && document.activeElement !== input) {
-    input.value = size;
-  }
-
-  document.querySelectorAll('.context-size-btn').forEach((btn) => {
-    const btnSize = parseInt(btn.getAttribute('data-size'), 10);
-    if (Math.abs(btnSize - size) < 25) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
-  });
-}
-
-async function applyOverlaySize(newSize) {
-  const clamped = Math.max(160, Math.min(1400, newSize));
-  updateSizeUI(clamped);
-  try {
-    const actual = await invoke('set_overlay_size', { size: clamped });
-    if (actual) updateSizeUI(actual);
-  } catch (e) {
-    console.warn('[applyOverlaySize] error:', e);
-  }
-}
-
 function setupMenuActions() {
   const btnClosePopup = document.getElementById('btn-close-popup');
   const btnMenu = document.getElementById('btn-menu');
@@ -648,8 +645,6 @@ function setupMenuActions() {
   const btnSkills = document.getElementById('btn-skills');
   const btnTuner = document.getElementById('btn-tuner');
   const btnQuit = document.getElementById('btn-quit');
-  const btnSizeDown = document.getElementById('btn-size-down');
-  const btnSizeUp = document.getElementById('btn-size-up');
 
   if (btnClosePopup) {
     btnClosePopup.addEventListener('click', (e) => {
@@ -686,53 +681,6 @@ function setupMenuActions() {
     btnQuit.addEventListener('click', () => {
       if (contextMenu) contextMenu.style.display = 'none';
       invoke('send_command', { cmd: 'quit' });
-    });
-  }
-
-  // Size Preset Buttons
-  document.querySelectorAll('.context-size-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const size = parseInt(btn.getAttribute('data-size'), 10);
-      if (size) {
-        applyOverlaySize(size);
-      }
-    });
-  });
-
-  // Size Stepper Buttons (-30px / +30px)
-  if (btnSizeDown) {
-    btnSizeDown.addEventListener('click', () => {
-      applyOverlaySize(currentOverlaySize - 30);
-    });
-  }
-  if (btnSizeUp) {
-    btnSizeUp.addEventListener('click', () => {
-      applyOverlaySize(currentOverlaySize + 30);
-    });
-  }
-
-  // Size Number Manual Input
-  const inputSize = document.getElementById('input-overlay-size');
-  if (inputSize) {
-    const handleManualSizeChange = () => {
-      const val = parseInt(inputSize.value, 10);
-      if (!isNaN(val) && val >= 100) {
-        applyOverlaySize(val);
-      } else {
-        inputSize.value = currentOverlaySize;
-      }
-    };
-
-    inputSize.addEventListener('change', handleManualSizeChange);
-    inputSize.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-      if (e.key === 'Enter') {
-        inputSize.blur();
-        handleManualSizeChange();
-      }
-    });
-    inputSize.addEventListener('mousedown', (e) => {
-      e.stopPropagation();
     });
   }
 
@@ -780,6 +728,7 @@ async function loadExternalPoses() {
     console.warn('Gagal memuat poses.json:', e);
   }
 }
+window.loadExternalPoses = loadExternalPoses;
 window.reloadAvatar = function() {
   cachedSvgUrls = {};
   if (isVrm) {
@@ -916,8 +865,22 @@ async function initApp() {
     let listenFn = getListen();
 
     const attach = (listen) => {
+      // Forward SSE & Tauri Events ke Sub-Iframe Panel secara otomatis
+      const forwardToFrame = (eventName, data) => {
+        if (contentFrame && contentFrame.contentWindow) {
+          try {
+            contentFrame.contentWindow.postMessage({
+              type: 'tauri-event',
+              event: eventName,
+              payload: data
+            }, '*');
+          } catch (e) {}
+        }
+      };
+
       listen('assistant:state', (event) => {
         const data = event.payload;
+        forwardToFrame('assistant:state', data);
         if (!data) return;
         const state = data.class || 'idle';
         const emotion = data.emotion || 'neutral';
@@ -934,6 +897,7 @@ async function initApp() {
 
       listen('assistant:stream-chunk', (event) => {
         const payload = event.payload;
+        forwardToFrame('assistant:stream-chunk', payload);
         if (payload && payload.sentence) {
           currentState = 'speaking';
           if (currentVrm) {
@@ -958,18 +922,29 @@ async function initApp() {
         closePanel();
       });
 
-      listen('assistant:response-done', () => {
+      listen('assistant:response-done', (event) => {
+        forwardToFrame('assistant:response-done', event.payload);
         setTargetExpression('aa', 0.0);
         setTargetExpression('oh', 0.0);
         setTargetExpression('ee', 0.0);
       });
 
-      listen('assistant:poses-updated', () => {
+      listen('assistant:transcript', (event) => {
+        forwardToFrame('assistant:transcript', event.payload);
+      });
+
+      listen('assistant:skill', (event) => {
+        forwardToFrame('assistant:skill', event.payload);
+      });
+
+      listen('assistant:poses-updated', (event) => {
+        forwardToFrame('assistant:poses-updated', event.payload);
         loadExternalPoses();
       });
 
       listen('assistant:config-updated', (event) => {
         const cfg = event.payload;
+        forwardToFrame('assistant:config-updated', cfg);
         if (!cfg) return;
         if (cfg.assistant_name) {
           const titleEl = document.querySelector('.menu-title-text');
@@ -997,11 +972,13 @@ async function initApp() {
     if (listenFn) {
       attach(listenFn);
     } else {
+      let retries = 0;
       const t = setInterval(() => {
+        retries++;
         listenFn = getListen();
-        if (listenFn) {
+        if (listenFn || retries > 30) {
           clearInterval(t);
-          attach(listenFn);
+          if (listenFn) attach(listenFn);
         }
       }, 50);
     }

@@ -1,7 +1,7 @@
 {
   "assistant_name": "Laras",
   "user_callsign": "Mas",
-  "personality_role": "friend",
+  "personality_role": "partner",
   "stt_engine": "google",
   "groq_api_key": "",
   "llm_base_url": "http://localhost:20128/v1",

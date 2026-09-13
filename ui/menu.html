@@ -401,9 +401,23 @@
     }
 
     function updateButtonStates(desc) {
-      badgeEl.textContent = desc || 'Standby';
-      const isInMainMenu = desc.includes('Menu Utama') || !desc || desc === 'Standby';
+      badgeEl.textContent = desc || 'Menu Utama';
+      const isInMainMenu = !desc || desc.includes('Menu Utama');
       const isPaused = desc.includes('Dijeda') || desc.includes('Paused');
+
+      // Tombol pengujian audio hanya aktif saat sesi obrolan diakhiri (di Menu Utama)
+      if (btnVoice) {
+        btnVoice.disabled = !isInMainMenu;
+        btnVoice.style.opacity = isInMainMenu ? '1' : '0.45';
+        btnVoice.style.pointerEvents = isInMainMenu ? 'auto' : 'none';
+        btnVoice.title = isInMainMenu ? '' : 'Akhiri sesi ngobrol terlebih dahulu untuk melakukan pengujian audio';
+      }
+      if (btnMic) {
+        btnMic.disabled = !isInMainMenu;
+        btnMic.style.opacity = isInMainMenu ? '1' : '0.45';
+        btnMic.style.pointerEvents = isInMainMenu ? 'auto' : 'none';
+        btnMic.title = isInMainMenu ? '' : 'Akhiri sesi ngobrol terlebih dahulu untuk melakukan pengujian audio';
+      }
 
       if (isInMainMenu) {
         btnStart.style.display = 'flex';
@@ -433,27 +447,19 @@
     function setupSseEventHub() {
       let listenFn = getTauriListen();
 
-      const attachListeners = (listen) => {
-        // 1. Live State Event (Real-time reactive button & status updater)
-        listen('assistant:state', (event) => {
-          const data = event.payload;
-          if (!data) return;
-          const desc = data.description || data.class || '';
+      const handlers = {
+        'assistant:state': (payload) => {
+          if (!payload) return;
+          const desc = payload.description || payload.class || '';
           updateButtonStates(desc);
-        });
-
-        // 2. User Transcript Event
-        listen('assistant:transcript', (event) => {
-          const payload = event.payload;
+        },
+        'assistant:transcript': (payload) => {
           if (payload && payload.text) {
             appendStreamMessage('user', `${payload.text}`);
             currentAssistantMsgEl = null;
           }
-        });
-
-        // 3. Stream Chunk Event
-        listen('assistant:stream-chunk', (event) => {
-          const payload = event.payload;
+        },
+        'assistant:stream-chunk': (payload) => {
           if (payload && payload.sentence) {
             if (!currentAssistantMsgEl) {
               const asstName = payload.speaker || 'Assistant';
@@ -463,24 +469,16 @@
               if (streamBox) streamBox.scrollTop = streamBox.scrollHeight;
             }
           }
-        });
-
-        // 4. Response Done Event
-        listen('assistant:response-done', (event) => {
+        },
+        'assistant:response-done': () => {
           currentAssistantMsgEl = null;
-        });
-
-        // 5. Skill Executed Event
-        listen('assistant:skill', (event) => {
-          const payload = event.payload;
+        },
+        'assistant:skill': (payload) => {
           if (payload) {
             appendStreamMessage('skill', `[SKILL: ${payload.name || payload.id}] ${payload.output || ''}`);
           }
-        });
-
-        // 6. Config Updated Event (dari Settings)
-        listen('assistant:config-updated', (event) => {
-          const cfg = event.payload;
+        },
+        'assistant:config-updated': (cfg) => {
           if (cfg && cfg.assistant_name) {
             const titleSpan = titleEl.querySelector('span');
             if (titleSpan) titleSpan.textContent = `${cfg.assistant_name} Assistant`;
@@ -491,17 +489,37 @@
             ttsBadgeEl.textContent = cfg.tts_engine.toUpperCase();
           }
           showToast('Pengaturan disinkronkan');
+        }
+      };
+
+      // Jalur 1: Listener dari Parent Window melalui postMessage (100% instan di iframe)
+      window.addEventListener('message', (e) => {
+        if (e.data?.type === 'tauri-event' && e.data?.event) {
+          const fn = handlers[e.data.event];
+          if (fn) fn(e.data.payload);
+        }
+      });
+
+      const attachListeners = (listen) => {
+        // Jalur 2: Native Direct Tauri Listeners
+        Object.keys(handlers).forEach((evt) => {
+          listen(evt, (event) => {
+            const fn = handlers[evt];
+            if (fn) fn(event.payload);
+          });
         });
       };
 
       if (listenFn) {
         attachListeners(listenFn);
       } else {
+        let retries = 0;
         const retryTimer = setInterval(() => {
+          retries++;
           listenFn = getTauriListen();
-          if (listenFn) {
+          if (listenFn || retries > 30) {
             clearInterval(retryTimer);
-            attachListeners(listenFn);
+            if (listenFn) attachListeners(listenFn);
           }
         }, 50);
       }
@@ -576,14 +594,24 @@
         invoke('send_command', { cmd: 'quit' });
       });
 
-      // Inisialisasi status awal satu kali saat window dibuka (selebihnya murni event-driven)
-      try {
-        const state = await invoke('get_app_state');
-        if (state) {
-          const desc = state.description || state.class || '';
-          updateButtonStates(desc);
-        }
-      } catch (e) {}
+      // Inisialisasi status awal saat window dibuka & fallback poller ringan
+      const refreshState = async () => {
+        if (document.hidden) return;
+        try {
+          const state = await invoke('get_app_state');
+          if (state) {
+            const desc = state.description || state.class || '';
+            updateButtonStates(desc);
+          }
+        } catch (e) {}
+      };
+
+      await refreshState();
+      setInterval(refreshState, 500);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) refreshState();
+      });
+      window.addEventListener('focus', refreshState);
     }
 
     setupSseEventHub();

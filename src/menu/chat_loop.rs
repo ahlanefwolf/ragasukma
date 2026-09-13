@@ -22,9 +22,19 @@ impl AppSession {
         println!("----------------------------------------------------\n");
 
         let mut is_paused = false;
-        let mut silent_turns_count = 0;
 
         loop {
+            // Check if a command was sent from GUI or tray before starting the turn
+            if let Some(cmd) = check_and_consume_cmd() {
+                if cmd == "stop_chat" || cmd == "quit" {
+                    TrayState::update(AssistantState::Idle, "Menu Utama");
+                    println!("\n[SELESAI] Sesi obrolan dihentikan.");
+                    return Ok(());
+                } else if cmd == "toggle_pause" {
+                    is_paused = true;
+                }
+            }
+
             // Reload konfigurasi secara reactive sebelum mulai giliran mendengar berikutnya
             self.reload_config_if_changed();
 
@@ -41,8 +51,8 @@ impl AppSession {
                             break;
                         } else if cmd == "stop_chat" || cmd == "quit" {
                             disable_raw_mode()?;
-                            TrayState::clear();
-                            println!("\n[SELESAI] Sampai jumpa!");
+                            TrayState::update(AssistantState::Idle, "Menu Utama");
+                            println!("\n[SELESAI] Sesi obrolan dihentikan.");
                             return Ok(());
                         }
                     }
@@ -56,8 +66,8 @@ impl AppSession {
                                     }
                                     KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => {
                                         disable_raw_mode()?;
-                                        TrayState::clear();
-                                        println!("\n[SELESAI] Sampai jumpa!");
+                                        TrayState::update(AssistantState::Idle, "Menu Utama");
+                                        println!("\n[SELESAI] Sesi obrolan dihentikan.");
                                         return Ok(());
                                     }
                                     _ => {}
@@ -67,7 +77,6 @@ impl AppSession {
                     }
                 }
                 disable_raw_mode()?;
-                silent_turns_count = 0;
                 println!("▶️  [DILANJUTKAN] {} siap mendengarkan lagi!\n", self.config.assistant_name);
             }
 
@@ -136,8 +145,8 @@ impl AppSession {
             print!("\r\x1b[K");
 
             if should_exit {
-                TrayState::clear();
-                println!("\n[SELESAI] Sampai jumpa!");
+                TrayState::update(AssistantState::Idle, "Menu Utama");
+                println!("\n[SELESAI] Sesi obrolan dihentikan.");
                 break;
             }
 
@@ -172,12 +181,21 @@ impl AppSession {
 
             let clean_raw = raw_transcript.trim();
 
-            if clean_raw.is_empty() {
-                silent_turns_count += 1;
-                println!("[INFO] (Suara tidak terdengar jelas / terlalu pelan)\n");
-                if silent_turns_count >= 3 {
-                    TrayState::update(AssistantState::Idle, "Standby");
+            // Cek apakah ada request stop_chat / pause saat STT sedang berjalan
+            if let Some(cmd) = check_and_consume_cmd() {
+                if cmd == "stop_chat" || cmd == "quit" {
+                    TrayState::update(AssistantState::Idle, "Menu Utama");
+                    println!("\n[SELESAI] Sesi obrolan dihentikan.");
+                    return Ok(());
+                } else if cmd == "toggle_pause" {
+                    is_paused = true;
+                    continue;
                 }
+            }
+
+            if clean_raw.is_empty() {
+                println!("[INFO] (Suara tidak terdengar jelas / terlalu pelan)\n");
+                TrayState::update(AssistantState::Idle, "Siap Mendengarkan");
                 continue;
             }
 
@@ -202,14 +220,9 @@ impl AppSession {
                 || (lower.contains("terima kasih") && lower.matches("terima kasih").count() > 1);
 
             if is_hallucination {
-                silent_turns_count += 1;
-                if silent_turns_count >= 3 {
-                    TrayState::update(AssistantState::Idle, "Standby");
-                }
+                TrayState::update(AssistantState::Idle, "Siap Mendengarkan");
                 continue;
             }
-
-            silent_turns_count = 0;
 
             let user_transcript = clean_raw.to_string();
             let effective_input = user_transcript.clone();
@@ -222,7 +235,7 @@ impl AppSession {
                 "text": &user_transcript
             }));
 
-            // 2 & 3. Streaming LLM + Sentence-Level Streaming TTS (Interupsi Instan via Spasi / Q)
+            // 2 & 3. Streaming LLM + Sentence-Level Streaming TTS (Interupsi Instan via Spasi / Q / GUI)
             TrayState::update(AssistantState::Thinking, "LLM Berpikir...");
             let llm_start = Instant::now();
             let asst_name = &self.config.assistant_name;
@@ -292,7 +305,7 @@ impl AppSession {
 
             let result = self.llm.chat_stream(&effective_input, |sentence| {
                 if is_interrupted_clone.load(Ordering::SeqCst) {
-                    return Ok(());
+                    anyhow::bail!("Interrupted by user");
                 }
 
                 let clean_sentence = sentence.trim().to_string();
@@ -353,6 +366,9 @@ impl AppSession {
                 let _ = std::io::stdout().flush();
 
                 tts_clone.speak_interruptible(&clean_sentence, Arc::clone(&is_interrupted_clone))?;
+                if is_interrupted_clone.load(Ordering::SeqCst) {
+                    anyhow::bail!("Interrupted by user");
+                }
                 Ok(())
             });
 
@@ -430,8 +446,8 @@ impl AppSession {
             }
 
             if exit_all {
-                TrayState::clear();
-                println!("\n[SELESAI] Sampai jumpa!");
+                TrayState::update(AssistantState::Idle, "Menu Utama");
+                println!("\n[SELESAI] Sesi obrolan dihentikan.");
                 break;
             }
 
