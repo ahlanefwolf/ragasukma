@@ -74,9 +74,12 @@ pub struct Renderer {
     model_max_y: f32,
     model_max_extent_x: f32,
 
-    // Kontrol Orbit Rotasi Kamera (Klik Kanan Drag)
+    // Kontrol POV & Posisi Kamera di Layar Fullscreen
     pub camera_yaw: f32,
     pub camera_pitch: f32,
+    pub camera_zoom: f32,
+    pub camera_pan_x: f32,
+    pub camera_pan_y: f32,
 }
 
 impl Renderer {
@@ -119,7 +122,19 @@ impl Renderer {
             .find(|f| f.is_srgb())
             .unwrap_or(surface_caps.formats[0]);
 
-        let alpha_mode = surface_caps.alpha_modes[0];
+        let alpha_mode = surface_caps
+            .alpha_modes
+            .iter()
+            .copied()
+            .find(|m| {
+                *m == wgpu::CompositeAlphaMode::PreMultiplied
+                    || *m == wgpu::CompositeAlphaMode::PostMultiplied
+                    || *m == wgpu::CompositeAlphaMode::Inherit
+            })
+            .unwrap_or(surface_caps.alpha_modes[0]);
+
+        println!("🔍 [WGPU Surface] Formats: {:?}, Alpha Modes: {:?}", surface_caps.formats, surface_caps.alpha_modes);
+        println!("✨ [WGPU Surface] Alpha Mode Aktif: {:?}", alpha_mode);
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -365,11 +380,14 @@ impl Renderer {
             model_data: None,
             gpu_primitives: Vec::new(),
             gpu_materials: Vec::new(),
-            model_min_y: 0.0,
-            model_max_y: 1.55,
-            model_max_extent_x: 0.38,
+            model_min_y: -0.022,
+            model_max_y: 1.618,
+            model_max_extent_x: 0.35,
             camera_yaw: 0.0,
             camera_pitch: 0.0,
+            camera_zoom: 1.0,
+            camera_pan_x: 0.0,
+            camera_pan_y: 0.0,
         })
     }
 
@@ -393,6 +411,9 @@ impl Renderer {
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
+            if self.size == new_size && self.config.width == new_size.width && self.config.height == new_size.height {
+                return;
+            }
             self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
@@ -680,10 +701,11 @@ impl Renderer {
         let fit_height = model_height * safe_margin;
         let fit_width = fit_height * (9.0 / 16.0); // Standarisasi rasio 9:16
 
-        // 3. Jarak kamera vertikal & horizontal
+        // 3. Jarak kamera vertikal & horizontal + Zoom POV
         let dist_v = (fit_height / 2.0) / half_fov_tan;
         let dist_h = (fit_width / 2.0) / (half_fov_tan * aspect);
-        let radius = dist_v.max(dist_h);
+        let base_radius = dist_v.max(dist_h);
+        let radius = base_radius / self.camera_zoom.clamp(0.15, 6.0);
 
         // 4. Transformasi Kamera RH Orbit (Rotasi Spherical berdasarkan camera_yaw & camera_pitch)
         let cos_pitch = self.camera_pitch.cos();
@@ -691,12 +713,12 @@ impl Renderer {
         let sin_yaw = self.camera_yaw.sin();
         let cos_yaw = self.camera_yaw.cos();
 
+        let target = Vec3::new(self.camera_pan_x, center_y + self.camera_pan_y, 0.0);
         let camera_pos = Vec3::new(
-            radius * cos_pitch * sin_yaw,
-            center_y + radius * sin_pitch,
-            radius * cos_pitch * cos_yaw,
+            target.x + radius * cos_pitch * sin_yaw,
+            target.y + radius * sin_pitch,
+            target.z + radius * cos_pitch * cos_yaw,
         );
-        let target = Vec3::new(0.0, center_y, 0.0);
         let view = Mat4::look_at_rh(camera_pos, target, Vec3::Y);
         let proj = Mat4::perspective_rh(fov_rad, aspect, 0.05, 50.0);
         let view_proj = proj * view;
@@ -768,7 +790,14 @@ impl Renderer {
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let output = self.surface.get_current_texture()?;
+        let output = match self.surface.get_current_texture() {
+            Ok(frame) => frame,
+            Err(wgpu::SurfaceError::Outdated) => {
+                self.surface.configure(&self.device, &self.config);
+                self.surface.get_current_texture()?
+            }
+            Err(e) => return Err(e),
+        };
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -824,8 +853,34 @@ impl Renderer {
         self.camera_pitch = (self.camera_pitch + delta_pitch).clamp(-1.2, 1.2);
     }
 
-    pub fn reset_camera_rotation(&mut self) {
+    pub fn pan_camera(&mut self, delta_x: f32, delta_y: f32) {
+        let fov_rad = 28.0_f32.to_radians();
+        let half_fov_tan = (fov_rad / 2.0).tan();
+        let height = (self.config.height as f32).max(1.0);
+        let model_height = (self.model_max_y - self.model_min_y).max(1.2);
+        let base_radius = (model_height * 1.12 / 2.0) / half_fov_tan;
+        let current_radius = base_radius / self.camera_zoom.clamp(0.15, 6.0);
+
+        // Faktor konversi pixel layar ke koordinat 3D dunia
+        let pan_factor = (2.0 * half_fov_tan * current_radius) / height;
+        self.camera_pan_x -= delta_x * pan_factor;
+        self.camera_pan_y += delta_y * pan_factor;
+    }
+
+    pub fn zoom_camera(&mut self, scroll_delta: f32) {
+        let zoom_factor = 1.0 + (scroll_delta * 0.08);
+        self.camera_zoom = (self.camera_zoom * zoom_factor).clamp(0.2, 5.0);
+    }
+
+    pub fn reset_camera(&mut self) {
         self.camera_yaw = 0.0;
         self.camera_pitch = 0.0;
+        self.camera_zoom = 1.0;
+        self.camera_pan_x = 0.0;
+        self.camera_pan_y = 0.0;
+    }
+
+    pub fn reset_camera_rotation(&mut self) {
+        self.reset_camera();
     }
 }

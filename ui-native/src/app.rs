@@ -32,9 +32,24 @@ impl App {
             WindowLevel::Normal
         };
 
+        let monitor = window_target.primary_monitor().or_else(|| window_target.available_monitors().next());
+        let (screen_w, screen_h) = if let Some(m) = monitor {
+            let s = m.size();
+            (s.width as f64, s.height as f64)
+        } else {
+            (1920.0, 1080.0)
+        };
+
+        // Window ukuran kompak portrait (270x480) di pojok kanan bawah desktop
+        let win_w = 270.0;
+        let win_h = 480.0;
+        let pos_x = (screen_w - win_w - 40.0).max(0.0);
+        let pos_y = (screen_h - win_h - 60.0).max(0.0);
+
         let window = WindowBuilder::new()
             .with_title("Ragasukma Avatar Overlay (Native)")
-            .with_inner_size(winit::dpi::LogicalSize::new(270.0, 480.0)) // Rasio 9:16 standar portrait
+            .with_inner_size(winit::dpi::LogicalSize::new(win_w, win_h))
+            .with_position(winit::dpi::LogicalPosition::new(pos_x, pos_y))
             .with_decorations(false)
             .with_transparent(true)
             .with_window_level(initial_level)
@@ -111,22 +126,21 @@ impl App {
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 if button == MouseButton::Left && state == ElementState::Pressed {
-                    // Native Windows OS Dragging (Sangat smooth, 0 latency, GPU-accelerated)
+                    // Klik Kiri Drag: Pindahkan posisi jendela avatar di desktop secara native OS (super smooth, 0 CPU overhead)
                     let _ = self.window.drag_window();
                 } else if button == MouseButton::Right {
                     self.is_right_mouse_down = state == ElementState::Pressed;
                 } else if button == MouseButton::Middle && state == ElementState::Pressed {
-                    // Klik tombol tengah (wheel click): reset putaran kamera/karakter ke posisi depan
-                    self.renderer.reset_camera_rotation();
+                    // Klik Tengah: Reset rotasi & zoom kamera avatar
+                    self.renderer.reset_camera();
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 if let Some((prev_x, prev_y)) = self.last_cursor_pos {
                     if self.is_right_mouse_down {
+                        // Drag Klik Kanan: Orbit rotasi kamera 3D
                         let delta_x = (position.x - prev_x) as f32;
                         let delta_y = (position.y - prev_y) as f32;
-
-                        // Kecepatan putar orbit (sensitivitas halus)
                         let sensitivity = 0.008;
                         let delta_yaw = -delta_x * sensitivity;
                         let delta_pitch = delta_y * sensitivity;
@@ -138,19 +152,12 @@ impl App {
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 let scroll_y = match delta {
-                    MouseScrollDelta::LineDelta(_, y) => y * 15.0,
-                    MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
+                    MouseScrollDelta::LineDelta(_, y) => y,
+                    MouseScrollDelta::PixelDelta(pos) => (pos.y as f32) / 40.0,
                 };
 
-                let current_size = self.window.inner_size();
-                let aspect = current_size.width as f32 / current_size.height as f32;
-                let new_height = (current_size.height as f32 + scroll_y).clamp(160.0, 1400.0);
-                let new_width = (new_height * aspect).max(100.0);
-
-                let _ = self.window.request_inner_size(winit::dpi::PhysicalSize::new(
-                    new_width as u32,
-                    new_height as u32,
-                ));
+                // Scroll Mouse: POV Kamera Zoom In / Out halus
+                self.renderer.zoom_camera(scroll_y);
             }
             WindowEvent::RedrawRequested => {
                 let now = Instant::now();
