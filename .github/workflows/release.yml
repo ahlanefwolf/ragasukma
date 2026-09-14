@@ -22,10 +22,6 @@ jobs:
             target: 'x86_64-pc-windows-msvc'
             bin_name: 'ragasukma.exe'
             archive_ext: 'zip'
-          - platform: 'macos-latest'
-            target: 'aarch64-apple-darwin'
-            bin_name: 'ragasukma'
-            archive_ext: 'tar.gz'
 
     runs-on: ${{ matrix.platform }}
     steps:
