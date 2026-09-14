@@ -10,7 +10,7 @@ product-name = "Ragasukma"
 identifier = "com.ragasukma.assistant"
 category = "Utility"
 authors = ["Ahlan Saputra"]
-about = "AI Voice Assistant & 3D/2D Avatar Assistant"
+description = "AI Voice Assistant & 3D/2D Avatar Assistant"
 icons = ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"]
 resources = ["assets"]
 
