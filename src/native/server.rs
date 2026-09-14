@@ -179,11 +179,12 @@ pub fn find_file_in_candidates(filename: &str) -> PathBuf {
     // Fallback AppData Windows
     #[cfg(target_os = "windows")]
     if let Ok(appdata) = std::env::var("APPDATA") {
-        let p = PathBuf::from(appdata).join("ragasukma").join("assets").join(filename);
+        let appdata_path = PathBuf::from(appdata);
+        let p = appdata_path.join("ragasukma").join("assets").join(filename);
         if p.exists() {
             return p;
         }
-        let p_root = PathBuf::from(appdata).join("ragasukma").join(filename);
+        let p_root = appdata_path.join("ragasukma").join(filename);
         if p_root.exists() {
             return p_root;
         }
