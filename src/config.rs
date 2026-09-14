@@ -1,35 +1,81 @@
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
+use std::time::SystemTime;
 
-static TERMINAL_LOG_ENABLED: AtomicBool = AtomicBool::new(false);
-
-pub fn set_terminal_log_enabled(enabled: bool) {
-    TERMINAL_LOG_ENABLED.store(enabled, Ordering::SeqCst);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogEntry {
+    pub id: usize,
+    pub timestamp: String,
+    pub level: String,
+    pub message: String,
 }
 
-pub fn is_terminal_log_enabled() -> bool {
-    TERMINAL_LOG_ENABLED.load(Ordering::SeqCst)
+static LOG_BUFFER: Mutex<VecDeque<LogEntry>> = Mutex::new(VecDeque::new());
+static LOG_COUNTER: AtomicUsize = AtomicUsize::new(1);
+
+fn current_time_str() -> String {
+    if let Ok(duration) = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+        let total_secs = duration.as_secs();
+        let secs = total_secs % 60;
+        let mins = (total_secs / 60) % 60;
+        let hours = (total_secs / 3600) % 24;
+        format!("{:02}:{:02}:{:02}", hours, mins, secs)
+    } else {
+        "00:00:00".to_string()
+    }
+}
+
+pub fn push_log(level: &str, message: String) {
+    let id = LOG_COUNTER.fetch_add(1, Ordering::SeqCst);
+    let entry = LogEntry {
+        id,
+        timestamp: current_time_str(),
+        level: level.to_string(),
+        message,
+    };
+    if let Ok(mut buf) = LOG_BUFFER.lock() {
+        if buf.len() >= 1000 {
+            buf.pop_front();
+        }
+        buf.push_back(entry);
+    }
+}
+
+pub fn get_all_logs() -> Vec<LogEntry> {
+    if let Ok(buf) = LOG_BUFFER.lock() {
+        buf.iter().cloned().collect()
+    } else {
+        Vec::new()
+    }
+}
+
+pub fn clear_logs() {
+    if let Ok(mut buf) = LOG_BUFFER.lock() {
+        buf.clear();
+    }
 }
 
 #[macro_export]
 macro_rules! term_log {
-    ($($arg:tt)*) => {
-        if $crate::config::is_terminal_log_enabled() {
-            println!($($arg)*);
-        }
-    };
+    ($($arg:tt)*) => {{
+        let msg = format!($($arg)*);
+        println!("{}", msg);
+        $crate::config::push_log("info", msg);
+    }};
 }
 
 #[macro_export]
 macro_rules! term_err {
-    ($($arg:tt)*) => {
-        if $crate::config::is_terminal_log_enabled() {
-            eprintln!($($arg)*);
-        }
-    };
+    ($($arg:tt)*) => {{
+        let msg = format!($($arg)*);
+        eprintln!("{}", msg);
+        $crate::config::push_log("error", msg);
+    }};
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,8 +101,6 @@ pub struct UserConfig {
     pub avatar_type: String,
     #[serde(default = "default_always_on_top")]
     pub always_on_top: bool,
-    #[serde(default)]
-    pub enable_terminal_log: bool,
 }
 
 fn default_always_on_top() -> bool {
@@ -89,7 +133,6 @@ impl Default for UserConfig {
             elevenlabs_voice_id: "".to_string(),
             avatar_type: "vrm".to_string(),
             always_on_top: true,
-            enable_terminal_log: false,
         }
     }
 }
@@ -149,7 +192,6 @@ pub fn load_user_config() -> UserConfig {
 }
 
 pub fn save_user_config(cfg: &UserConfig) -> Result<(), String> {
-    set_terminal_log_enabled(cfg.enable_terminal_log);
     let path = get_config_file_path();
     let json = serde_json::to_string_pretty(cfg).map_err(|e| e.to_string())?;
 
@@ -183,13 +225,11 @@ pub struct AppConfig {
     pub personality_role: String,
     pub avatar_type: String,
     pub always_on_top: bool,
-    pub enable_terminal_log: bool,
 }
 
 impl AppConfig {
     pub fn load() -> Self {
         let u = load_user_config();
-        set_terminal_log_enabled(u.enable_terminal_log);
 
         let (vad_activation_threshold, required_consecutive) = match u.mic_sensitivity.trim().to_lowercase().as_str() {
             "0" => (0.045f32, 2), // 0 - Ekstra Kebal (Ruangan Sangat Ramai)
@@ -232,10 +272,10 @@ impl AppConfig {
             personality_role: u.personality_role,
             avatar_type: u.avatar_type,
             always_on_top: u.always_on_top,
-            enable_terminal_log: u.enable_terminal_log,
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_auto_mode(&self) -> bool {
         self.voice_mode.eq_ignore_ascii_case("auto")
     }

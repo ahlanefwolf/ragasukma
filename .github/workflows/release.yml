@@ -1,4 +1,4 @@
-name: "Release App (Multi-Platform CI/CD)"
+name: "Release App (Native Engine CI/CD)"
 
 on:
   push:
@@ -15,11 +15,17 @@ jobs:
       matrix:
         include:
           - platform: 'ubuntu-22.04'
-            args: ''
+            target: 'x86_64-unknown-linux-gnu'
+            bin_name: 'ragasukma'
+            archive_ext: 'tar.gz'
           - platform: 'windows-latest'
-            args: ''
+            target: 'x86_64-pc-windows-msvc'
+            bin_name: 'ragasukma.exe'
+            archive_ext: 'zip'
           - platform: 'macos-latest'
-            args: ''
+            target: 'aarch64-apple-darwin'
+            bin_name: 'ragasukma'
+            archive_ext: 'tar.gz'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -27,54 +33,91 @@ jobs:
         uses: actions/checkout@v4
 
       # ------------------------------------------------------------------------
-      # Linux Dependencies
+      # Linux System Dependencies
       # ------------------------------------------------------------------------
       - name: Install System Dependencies (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev \
-                                  build-essential \
+          sudo apt-get install -y build-essential \
                                   curl \
                                   wget \
                                   file \
-                                  libxdo-dev \
+                                  pkg-config \
                                   libssl-dev \
-                                  libayatana-appindicator3-dev \
-                                  librsvg2-dev \
                                   libasound2-dev
 
       # ------------------------------------------------------------------------
-      # Rust Setup
-      # ------------------------------------------------------------------------
-      - name: Setup Rust Stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust Cache
-        uses: swatinem/rust-cache@v2
-
-      # ------------------------------------------------------------------------
-      # Node.js for Tauri CLI
+      # Build Web Dashboard Assets (Required by rust-embed)
       # ------------------------------------------------------------------------
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'web/package-lock.json'
 
-      - name: Install Tauri CLI
-        run: npm install -g @tauri-apps/cli@latest
+      - name: Build Web Dashboard Frontend
+        run: |
+          cd web
+          npm ci
+          npm run build
 
       # ------------------------------------------------------------------------
-      # Build & Create Release Asset
+      # Rust Setup & Build
       # ------------------------------------------------------------------------
-      - name: Build Tauri Application & Generate Installers
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Rust Stable
+        uses: dtolnay/rust-toolchain@stable
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Ragasukma Voice ${{ github.ref_name }}'
-          releaseBody: 'Ragasukma Desktop Assistant - Automated Cross-Platform Release (Linux, Windows, macOS Universal).'
-          releaseDraft: false
-          prerelease: false
-          args: ${{ matrix.args }}
+          targets: ${{ matrix.target }}
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Build Unified Binary
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+
+      # ------------------------------------------------------------------------
+      # Package Bundle (Executable + Assets + Configs)
+      # ------------------------------------------------------------------------
+      - name: Package Release Bundle (Linux & macOS)
+        if: matrix.platform != 'windows-latest'
+        run: |
+          mkdir -p release-bundle
+          cp target/${{ matrix.target }}/release/${{ matrix.bin_name }} release-bundle/
+          cp -r assets release-bundle/
+          cp -r icons release-bundle/
+          cp poses.json release-bundle/
+          cp config-ai.json release-bundle/
+          cp skill-command.md release-bundle/
+          
+          PKG_NAME="ragasukma-${{ github.ref_name }}-${{ matrix.target }}.tar.gz"
+          tar -czvf "$PKG_NAME" -C release-bundle .
+          echo "ARCHIVE_PATH=$PKG_NAME" >> $GITHUB_ENV
+
+      - name: Package Release Bundle (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-bundle
+          Copy-Item target/${{ matrix.target }}/release/${{ matrix.bin_name }} -Destination release-bundle/
+          Copy-Item -Recurse assets -Destination release-bundle/
+          Copy-Item -Recurse icons -Destination release-bundle/
+          Copy-Item poses.json -Destination release-bundle/
+          Copy-Item config-ai.json -Destination release-bundle/
+          Copy-Item skill-command.md -Destination release-bundle/
+
+          $pkgName = "ragasukma-${{ github.ref_name }}-${{ matrix.target }}.zip"
+          Compress-Archive -Path release-bundle/* -DestinationPath $pkgName
+          Add-Content -Path $env:GITHUB_ENV -Value "ARCHIVE_PATH=$pkgName"
+
+      # ------------------------------------------------------------------------
+      # Upload Release Asset
+      # ------------------------------------------------------------------------
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            ${{ env.ARCHIVE_PATH }}

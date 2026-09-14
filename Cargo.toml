@@ -4,21 +4,28 @@ version = "0.1.1"
 edition = "2024"
 
 [dependencies]
+# Audio, STT, LLM, TTS
 cpal = "0.15"
 anyhow = "1.0"
 reqwest = { version = "0.12", features = ["json", "blocking", "multipart"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-crossterm = "0.28"
 rubato = "0.16"
 rodio = "0.19"
 form_urlencoded = "1.2"
 regex = "1.10"
 base64 = "0.22"
-tauri = { version = "2", default-features = false, features = ["wry", "compression", "macos-private-api"] }
 
-[build-dependencies]
-tauri-build = "2"
+# Windowing, 3D Graphics & Native Overlay Engine
+winit = "0.29"
+wgpu = "0.19"
+bytemuck = { version = "1.14", features = ["derive"] }
+image = { version = "0.24", default-features = false, features = ["png", "jpeg"] }
+gltf = "1.4"
+pollster = "0.3"
+glam = { version = "0.25", features = ["bytemuck"] }
+crossbeam-channel = "0.5"
+rust-embed = "8.5"
 
 [profile.release]
 opt-level = 3

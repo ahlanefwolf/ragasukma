@@ -125,6 +125,11 @@ impl TextToSpeech {
             return Ok(());
         }
 
+        if crate::native::server::is_voice_muted() {
+            crate::tray::TrayState::update(crate::tray::AssistantState::Speaking, &clean_text);
+            return Ok(());
+        }
+
         crate::tray::TrayState::update(crate::tray::AssistantState::Speaking, &clean_text);
 
         let mut played_successfully = false;

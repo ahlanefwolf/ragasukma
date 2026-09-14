@@ -6,7 +6,7 @@ mod config;
 mod dsp;
 mod llm;
 mod menu;
-mod overlay;
+pub mod native;
 pub mod skills;
 mod stt;
 mod tray;
@@ -15,7 +15,6 @@ mod tts;
 use anyhow::Result;
 use config::AppConfig;
 use menu::AppSession;
-use overlay::NativeOverlay;
 
 fn main() -> Result<()> {
     let config = AppConfig::load();
@@ -29,13 +28,11 @@ fn main() -> Result<()> {
     let session_thread = std::thread::spawn(move || {
         if let Ok(mut session) = AppSession::new(config_clone) {
             let _ = session.run_interactive_menu();
-            // Jika user keluar dari menu terminal, sinyalkan tauri untuk keluar
-            crate::tray::TrayState::request_quit();
         }
     });
 
-    // Jalankan GUI Overlay Tauri di main thread
-    NativeOverlay::run();
+    // Jalankan 3D VRM Native Overlay di main thread (winit EventLoop memerlukan main thread)
+    native::run_native_overlay();
 
     let _ = session_thread.join();
     std::process::exit(0);

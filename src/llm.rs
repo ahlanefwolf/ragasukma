@@ -149,6 +149,12 @@ Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh ka
         }
     }
 
+    pub fn reset_history(&mut self) {
+        if let Some(system_msg) = self.history.first().cloned() {
+            self.history = vec![system_msg];
+        }
+    }
+
     pub fn chat_stream<F>(&mut self, user_input: &str, mut on_sentence: F) -> Result<String>
     where
         F: FnMut(&str) -> Result<()>,

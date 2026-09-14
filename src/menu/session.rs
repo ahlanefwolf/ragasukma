@@ -1,13 +1,11 @@
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::sync::Arc;
 
 use crate::audio::AudioRecorder;
 use crate::config::AppConfig;
 use crate::llm::LlmClient;
 use crate::stt::SttEngine;
-use crate::tray::{AssistantState, TrayState};
+use crate::tray::TrayState;
 use crate::tts::TextToSpeech;
 
 pub struct AppSession {
@@ -99,100 +97,26 @@ impl AppSession {
     }
 
     pub fn run_interactive_menu(&mut self) -> Result<()> {
-        // Langsung mulai mode ngobrol / active loop saat dijalankan
+        // Langsung mulai mode ngobrol saat aplikasi berjalan
         self.start_chat_loop()?;
 
-        // Jika keluar dari sesi chat tapi program belum quit, sediakan menu standby
-        TrayState::clear_commands();
-        TrayState::update(AssistantState::Idle, "Menu Utama");
-
-        crate::term_log!("----------------------------------------------------");
-        crate::term_log!("💡 MENU UTAMA:");
-        crate::term_log!("   - Tekan [SPASI] / [ENTER] untuk MULAI NGOBROL");
-        crate::term_log!("   - Tekan [T] untuk TES SUARA {}", self.config.assistant_name.to_uppercase());
-        crate::term_log!("   - Tekan [M] untuk TES MIC & FILTER SUARA");
-        crate::term_log!("   - Tekan [ESC] atau [Q] untuk KELUAR");
-        crate::term_log!("====================================================\n");
-
         loop {
-            crate::term_log!("👉 Pilih menu: [SPASI/ENTER] Mulai Ngobrol | [T] Tes {} | [M] Tes Mic | [Q] Keluar", self.config.assistant_name);
-            let _ = enable_raw_mode();
-
-            let action;
-            loop {
-                if let Some(cmd) = check_and_consume_cmd() {
-                    match cmd.as_str() {
-                        "start_chat" | "start" => {
-                            action = 1;
-                            break;
-                        }
-                        "test_voice" => {
-                            action = 2;
-                            break;
-                        }
-                        "test_mic" => {
-                            action = 3;
-                            break;
-                        }
-                        "quit" => {
-                            action = 4;
-                            break;
-                        }
-                        _ => {}
+            // Standby mode: menunggu komando dari Web Dashboard atau 3D GUI Overlay
+            if let Some(cmd) = check_and_consume_cmd() {
+                match cmd.as_str() {
+                    "start_chat" | "start" => {
+                        TrayState::clear_commands();
+                        self.start_chat_loop()?;
                     }
-                }
-
-                if let Ok(true) = event::poll(std::time::Duration::from_millis(50)) {
-                    if let Ok(Event::Key(key_event)) = event::read() {
-                        if key_event.kind == KeyEventKind::Press {
-                            match key_event.code {
-                                KeyCode::Char(' ') | KeyCode::Enter => {
-                                    action = 1;
-                                    break;
-                                }
-                                KeyCode::Char('t') | KeyCode::Char('T') => {
-                                    action = 2;
-                                    break;
-                                }
-                                KeyCode::Char('m') | KeyCode::Char('M') => {
-                                    action = 3;
-                                    break;
-                                }
-                                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => {
-                                    action = 4;
-                                    break;
-                                }
-                                _ => {}
-                            }
-                        }
+                    "quit" => {
+                        TrayState::clear();
+                        crate::term_log!("\n👋 Program selesai. Sampai jumpa!");
+                        return Ok(());
                     }
-                } else {
-                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    _ => {}
                 }
             }
-            let _ = disable_raw_mode();
-
-            match action {
-                2 => {
-                    self.test_assistant_voice()?;
-                    continue;
-                }
-                3 => {
-                    self.test_mic_dsp()?;
-                    continue;
-                }
-                4 => {
-                    TrayState::clear();
-                    crate::term_log!("\n👋 Program selesai. Sampai jumpa!");
-                    return Ok(());
-                }
-                _ => {
-                    TrayState::clear_commands();
-                    self.start_chat_loop()?;
-                    TrayState::clear_commands();
-                    TrayState::update(AssistantState::Idle, "Menu Utama");
-                }
-            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
         }
     }
 }

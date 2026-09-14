@@ -1,9 +1,25 @@
-# Rust build artifacts
+# ------------------------------------------------------------------------------
+# Rust & Cargo build artifacts
+# ------------------------------------------------------------------------------
 /target/
 target/
+*.rs.bk
+*.pdb
 
-# Temporary runtime files, IPC states & logs
-# Models, Weights & Large Binaries
+# ------------------------------------------------------------------------------
+# Frontend & Web artifacts
+# ------------------------------------------------------------------------------
+node_modules/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+web/node_modules/
+
+# ------------------------------------------------------------------------------
+# Models, AI Weights & Large Binaries
+# ------------------------------------------------------------------------------
 /models/
 /assets/models/
 *.bin
@@ -14,29 +30,23 @@ target/
 *.pt
 *.ckpt
 
-# Frontend / Web / Tauri artifacts
-node_modules/
-dist/
-/gen/
-.npm/
-
-# Audio outputs & temporary recordings
+# ------------------------------------------------------------------------------
+# Audio recordings & Temporary runtime files
+# ------------------------------------------------------------------------------
 *.wav
 *.mp3
 *.ogg
 *.pcm
-
-# Temporary runtime files, IPC states & logs
 *.log
 nohup.out
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+*.tmp
 ai_voice_cmd.json
 ai_voice_state.json
 overlay_pos.json
 
-# OS & Editor metadata
+# ------------------------------------------------------------------------------
+# OS, IDE & Editor metadata
+# ------------------------------------------------------------------------------
 .DS_Store
 Thumbs.db
 .vscode/

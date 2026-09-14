@@ -6,7 +6,7 @@
   "groq_api_key": "",
   "llm_base_url": "http://localhost:20128/v1",
   "llm_model": "ag/gemini-3.8-flash-low",
-  "llm_api_key": "",
+  "llm_api_key": "sk-6193ecdf4d415f8e-95erfo-0eb6092b",
   "voice_mode": "auto",
   "mic_sensitivity": "2",
   "vad_silence_limit": "1",
@@ -17,6 +17,5 @@
   "tts_eleven_labs_key": "",
   "elevenlabs_voice_id": "",
   "avatar_type": "vrm",
-  "always_on_top": true,
-  "enable_terminal_log": false
+  "always_on_top": true
 }

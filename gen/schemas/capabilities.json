@@ -1,1 +1,0 @@
-{"default":{"identifier":"default","description":"Default capability for all windows","local":true,"windows":["assistant-menu","main","skills","settings","pose-tuner"],"permissions":["core:default"]}}

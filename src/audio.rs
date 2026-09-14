@@ -188,6 +188,12 @@ impl AudioRecorder {
             let voice_rms = (filtered_sum_sq / new_samples.len() as f32).sqrt();
 
             if !voice_started {
+                if crate::native::server::is_mic_muted() {
+                    pre_roll_buffer.clear();
+                    consecutive_voice = 0;
+                    continue;
+                }
+
                 // Pre-roll buffer ~300ms
                 pre_roll_buffer.extend_from_slice(&new_samples);
                 let max_pre_roll = samples_per_chunk * 12;
@@ -284,184 +290,6 @@ impl AudioRecorder {
         apply_noise_reduction(&mut resampled, TARGET_SAMPLE_RATE, self.config.noise_reduction_level);
         normalize_volume(&mut resampled, 0.85, 8.0);
 
-        if resampled.len() < TARGET_SAMPLE_RATE as usize / 2 {
-            resampled.resize(TARGET_SAMPLE_RATE as usize / 2, 0.0);
-        }
-
-        Ok(resampled)
-    }
-
-    /// Unified Continuous Turn Engine untuk merekam suara interaktif (legacy manual)
-    pub fn record_turn(&self, stop_flag: Arc<AtomicBool>) -> Result<Vec<f32>> {
-        self.clear_buffer();
-
-        let chunk_duration = std::time::Duration::from_millis(25);
-        let samples_per_chunk = self.sample_rate as usize * self.channels / 40; // ~25ms
-
-        let base_threshold = self.config.vad_activation_threshold;
-        let silence_limit_chunks = self.config.vad_silence_limit_chunks;
-
-        let cutoff = 160.0f32;
-        let rc = 1.0 / (2.0 * std::f32::consts::PI * cutoff);
-        let dt = 1.0 / self.sample_rate as f32;
-        let alpha = rc / (rc + dt);
-
-        let mut prev_in = 0.0f32;
-        let mut prev_out = 0.0f32;
-
-        let mut noise_floor = 0.008f32;
-        let mut peak_voice_rms = 0.020f32;
-        let mut voice_started = false;
-        let mut consecutive_voice = 0;
-        let mut consecutive_silence = 0;
-        let mut active_voice_chunks = 0;
-        let mut warmup_chunks = 0;
-
-        let mut pre_roll_buffer = Vec::<f32>::new();
-        let mut recorded_audio = Vec::<f32>::new();
-
-        let mut was_interrupted = false;
-        while !stop_flag.load(Ordering::SeqCst) {
-            std::thread::sleep(chunk_duration);
-
-            let new_samples = {
-                let mut lock = match self.buffer.lock() {
-                    Ok(l) => l,
-                    Err(poisoned) => poisoned.into_inner(),
-                };
-                if lock.is_empty() {
-                    Vec::new()
-                } else {
-                    let s = lock.clone();
-                    lock.clear();
-                    s
-                }
-            };
-
-            if new_samples.is_empty() {
-                continue;
-            }
-
-            // Hitung RMS vokal manusia
-            let mean: f32 = new_samples.iter().sum::<f32>() / new_samples.len() as f32;
-            let mut filtered_sum_sq = 0.0f32;
-            for &sample in &new_samples {
-                let cur_in = sample - mean;
-                let cur_out = alpha * (prev_out + cur_in - prev_in);
-                prev_in = cur_in;
-                prev_out = cur_out;
-                filtered_sum_sq += cur_out * cur_out;
-            }
-            let voice_rms = (filtered_sum_sq / new_samples.len() as f32).sqrt();
-
-            if !voice_started {
-                // Jaga pre-roll buffer ~300ms agar kata awal tidak pernah terpotong
-                pre_roll_buffer.extend_from_slice(&new_samples);
-                let max_pre_roll = samples_per_chunk * 12;
-                if pre_roll_buffer.len() > max_pre_roll {
-                    let drain_len = pre_roll_buffer.len() - max_pre_roll;
-                    pre_roll_buffer.drain(0..drain_len);
-                }
-
-                // 4 chunks pertama (~100ms) dipakai khusus kalibrasi noise floor ruangan riil
-                if warmup_chunks < 4 {
-                    warmup_chunks += 1;
-                    noise_floor = noise_floor * 0.8 + voice_rms * 0.2;
-                    continue;
-                }
-
-                noise_floor = noise_floor * 0.98 + voice_rms * 0.02;
-                // Ambang aktivasi yang disesuaikan dengan sensitivitas yang dipilih
-                let trigger_threshold = (noise_floor * 2.2).max(base_threshold);
-
-                if voice_rms > trigger_threshold {
-                    consecutive_voice += 1;
-                    // Jumlah chunk konsekutif di atas threshold sebelum rekaman dimulai
-                    let required_voice = self.config.vad_consecutive_chunks.max(1);
-                    if consecutive_voice >= required_voice {
-                        voice_started = true;
-                        peak_voice_rms = voice_rms;
-                        active_voice_chunks = required_voice;
-                        recorded_audio.extend_from_slice(&pre_roll_buffer);
-                        pre_roll_buffer.clear();
-                        consecutive_silence = 0;
-                        TrayState::update(AssistantState::Listening, "Mendengarkan...");
-                        crate::term_log!("\r[MEREKAM...] Silakan bicara...");
-                    }
-                } else {
-                    consecutive_voice = 0;
-                }
-            } else {
-                // Sedang merekam suara pembicaraan
-                recorded_audio.extend_from_slice(&new_samples);
-
-                if voice_rms > peak_voice_rms {
-                    peak_voice_rms = peak_voice_rms * 0.8 + voice_rms * 0.2;
-                }
-
-                // Threshold dinamis: 35% di bawah peak suara kamu saat bicara atau di atas noise floor
-                let speech_threshold = (noise_floor * 1.6).max(base_threshold).max(peak_voice_rms * 0.35);
-
-                if voice_rms > speech_threshold {
-                    active_voice_chunks += 1;
-                    consecutive_silence = 0;
-                } else {
-                    consecutive_silence += 1;
-                }
-
-                // Selesai jika jeda hening terpenuhi (maksimal 14-16 chunks = ~350 - 400ms cepat!)
-                let target_silence_chunks = silence_limit_chunks.min(16);
-                if consecutive_silence >= target_silence_chunks {
-                    break;
-                }
-
-                // Batas maksimal 15 detik bicara tanpa henti
-                if recorded_audio.len() > self.sample_rate as usize * self.channels * 15 {
-                    break;
-                }
-            }
-        }
-
-        if stop_flag.load(Ordering::SeqCst) {
-            was_interrupted = true;
-        }
-
-        if was_interrupted {
-            return Ok(Vec::new());
-        }
-
-        // Jika vokal aktifnya terlalu sedikit (< 4 chunks = < 100ms), buang langsung
-        if recorded_audio.is_empty() || active_voice_chunks < 4 {
-            if voice_started {
-                TrayState::update(AssistantState::Idle, "Siap Mendengarkan");
-            }
-            return Ok(Vec::new());
-        }
-
-        // 1. Convert multichannel ke mono
-        let mono_samples = if self.channels > 1 {
-            recorded_audio
-                .chunks_exact(self.channels)
-                .map(|frame| frame.iter().sum::<f32>() / self.channels as f32)
-                .collect::<Vec<f32>>()
-        } else {
-            recorded_audio
-        };
-
-        // 2. Resample ke 16,000 Hz jika microphone belum 16kHz
-        let mut resampled = if self.sample_rate != TARGET_SAMPLE_RATE {
-            resample_to_16k(&mono_samples, self.sample_rate)?
-        } else {
-            mono_samples
-        };
-
-        // 3. DSP Noise Reduction Pipeline
-        apply_noise_reduction(&mut resampled, TARGET_SAMPLE_RATE, self.config.noise_reduction_level);
-
-        // 4. Normalisasi Volume Peak
-        normalize_volume(&mut resampled, 0.85, 8.0);
-
-        // 5. Pastikan panjang audio minimal 0.5s (~8000 sampel) agar kalkulasi mel spectrogram tidak gagal
         if resampled.len() < TARGET_SAMPLE_RATE as usize / 2 {
             resampled.resize(TARGET_SAMPLE_RATE as usize / 2, 0.0);
         }

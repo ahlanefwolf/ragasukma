@@ -14,10 +14,12 @@ pub enum AssistantState {
 
 static COMMAND_QUEUE: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
 static CURRENT_STATE: Mutex<Option<serde_json::Value>> = Mutex::new(None);
+#[allow(dead_code)]
 static QUIT_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 pub struct TrayState;
 
+#[allow(dead_code)]
 impl TrayState {
     pub fn update(state: AssistantState, message: &str) {
         Self::update_with_emotion(state, message, "neutral");
@@ -47,16 +49,19 @@ impl TrayState {
             *lock = Some(json.clone());
         }
 
+        let visual_state = match state {
+            AssistantState::Idle => crate::native::pose_system::AssistantVisualState::Idle,
+            AssistantState::Listening => crate::native::pose_system::AssistantVisualState::Listening,
+            AssistantState::Processing | AssistantState::Thinking => crate::native::pose_system::AssistantVisualState::Thinking,
+            AssistantState::Speaking => crate::native::pose_system::AssistantVisualState::Speaking,
+        };
+        crate::native::server::update_visual_state(visual_state);
+
         Self::emit_event("assistant:state", json);
     }
 
-    pub fn emit_event(event_name: &str, payload: serde_json::Value) {
-        if let Ok(guard) = crate::overlay::APP_HANDLE.lock() {
-            if let Some(app) = guard.as_ref() {
-                use tauri::Emitter;
-                let _ = app.emit(event_name, payload);
-            }
-        }
+    pub fn emit_event(_event_name: &str, _payload: serde_json::Value) {
+        // Native overlay sync handled via HTTP/API state polling
     }
 
     pub fn get_state() -> Option<serde_json::Value> {
