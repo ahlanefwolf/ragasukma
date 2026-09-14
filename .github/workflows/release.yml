@@ -81,7 +81,7 @@ jobs:
       # Build Binaries & Native Installers (.deb, .AppImage, .rpm, .pacman, .exe NSIS, .dmg)
       # ------------------------------------------------------------------------
       - name: Install cargo-packager
-        uses: crabnebula-dev/cargo-packager/actions/setup@v0
+        run: cargo install cargo-packager --locked
 
       - name: Build & Package Native Installers
         run: |
