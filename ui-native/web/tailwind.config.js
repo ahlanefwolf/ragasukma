@@ -7,14 +7,26 @@ export default {
   theme: {
     extend: {
       colors: {
+        theme: {
+          bg: "#161D24",
+          surface: "#1D252E",
+          card: "#232D36",
+          border: "#2F3B46",
+          canvas: "#EFF7F6",
+          cyan: "#7BDFF2",
+          rose: "#F2B5D4",
+          dark: "#232D36",
+          text: "#EFF7F6",
+          muted: "#9AAAB7"
+        },
         anime: {
-          crimson: "#D96868",
-          light: "#F2F2F2",
-          sage: "#91AE6E",
-          forest: "#689D4B",
-          dark: "#1E1E24",
-          card: "#282832",
-          border: "#3B3B48"
+          crimson: "#F2B5D4",
+          light: "#EFF7F6",
+          sage: "#7BDFF2",
+          forest: "#7BDFF2",
+          dark: "#161D24",
+          card: "#232D36",
+          border: "#2F3B46"
         }
       },
       fontFamily: {

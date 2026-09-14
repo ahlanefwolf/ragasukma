@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-[#181820] text-[#F2F2F2] font-open;
+    @apply bg-[#161D24] text-[#EFF7F6] font-open;
   }
 
   h1, h2, h3, .font-heading {
@@ -19,28 +19,28 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #181820;
+  background: #161D24;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #3B3B48;
+  background: #2F3B46;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #D96868;
+  background: #7BDFF2;
 }
 
 /* Anime Style Glow & Shadows */
 .anime-shadow-red {
-  box-shadow: 0 4px 20px -2px rgba(217, 104, 104, 0.35);
+  box-shadow: 0 4px 20px -2px rgba(242, 181, 212, 0.35);
 }
 
 .anime-shadow-green {
-  box-shadow: 0 4px 20px -2px rgba(104, 157, 75, 0.35);
+  box-shadow: 0 4px 20px -2px rgba(123, 223, 242, 0.35);
 }
 
 .anime-border-focus:focus-within {
-  border-color: #D96868;
-  box-shadow: 0 0 0 2px rgba(217, 104, 104, 0.25);
+  border-color: #7BDFF2;
+  box-shadow: 0 0 0 2px rgba(123, 223, 242, 0.25);
 }

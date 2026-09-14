@@ -80,20 +80,20 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
   return (
     <div class="space-y-6">
       {/* Header Banner */}
-      <div class="rounded-2xl bg-gradient-to-r from-[#282832] via-[#202028] to-[#1E1E24] p-6 border border-[#3B3B48] flex items-center justify-between">
+      <div class="rounded-2xl bg-gradient-to-r from-[#232D36] via-[#1D252E] to-[#161D24] p-6 border border-[#2F3B46] flex items-center justify-between">
         <div>
           <div class="flex items-center gap-2">
-            <span class="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#91AE6E]/20 text-[#91AE6E] border border-[#91AE6E]/30">
+            <span class="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#7BDFF2]/20 text-[#7BDFF2] border border-[#7BDFF2]/30">
               Automation & Execution
             </span>
-            <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-[#181820] text-[#91AE6E] border border-[#3B3B48]">
+            <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-[#161D24] text-[#7BDFF2] border border-[#2F3B46]">
               skill-command.md
             </span>
           </div>
-          <h2 class="text-3xl font-bangers tracking-wide text-[#F2F2F2] mt-2">
+          <h2 class="text-3xl font-bangers tracking-wide text-[#EFF7F6] mt-2">
             SKILL COMMANDS REGISTRY
           </h2>
-          <p class="text-sm text-[#F2F2F2]/70 mt-1 max-w-xl">
+          <p class="text-sm text-[#EFF7F6]/70 mt-1 max-w-xl">
             Daftarkan script command terminal atau aplikasi yang bisa dipanggil secara otomatis oleh AI Assistant saat kamu berbicara.
           </p>
         </div>
@@ -101,29 +101,29 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
 
       {/* Skills List Container */}
       <div class="space-y-3">
-        <h3 class="text-lg font-bangers text-[#91AE6E] flex items-center gap-2">
+        <h3 class="text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
           <Terminal size={18} />
           DAFTAR SKILL TERDAFTAR ({skills().length})
         </h3>
 
         {loading() ? (
-          <div class="p-8 text-center text-xs text-[#F2F2F2]/50">Memuat skill-command.md...</div>
+          <div class="p-8 text-center text-xs text-[#EFF7F6]/50">Memuat skill-command.md...</div>
         ) : skills().length === 0 ? (
-          <div class="p-8 text-center text-xs text-[#F2F2F2]/50 bg-[#1E1E24] rounded-2xl border border-[#3B3B48]">
+          <div class="p-8 text-center text-xs text-[#EFF7F6]/50 bg-[#1D252E] rounded-2xl border border-[#2F3B46]">
             Belum ada skill yang terdaftar di skill-command.md. Tambahkan lewat formulir di bawah.
           </div>
         ) : (
           <div class="space-y-3">
             {skills().map((skill) => (
-              <div class="p-4 rounded-xl bg-[#1E1E24] border border-[#3B3B48] hover:border-[#91AE6E]/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div class="p-4 rounded-xl bg-[#1D252E] border border-[#2F3B46] hover:border-[#7BDFF2]/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div class="space-y-1 min-w-0 flex-1">
                   <div class="flex items-center gap-2">
-                    <span class="font-bold text-sm text-[#F2F2F2]">{skill.name}</span>
+                    <span class="font-bold text-sm text-[#EFF7F6]">{skill.name}</span>
                   </div>
-                  <p class="text-xs text-[#F2F2F2]/60">{skill.description}</p>
+                  <p class="text-xs text-[#EFF7F6]/60">{skill.description}</p>
                   <div class="flex items-center gap-1.5 pt-1">
-                    <span class="text-xs font-mono font-bold text-[#D96868]">$</span>
-                    <code class="text-xs font-mono px-2 py-0.5 rounded bg-[#181820] text-[#91AE6E] border border-[#3B3B48] truncate max-w-md">
+                    <span class="text-xs font-mono font-bold text-[#F2B5D4]">$</span>
+                    <code class="text-xs font-mono px-2 py-0.5 rounded bg-[#161D24] text-[#7BDFF2] border border-[#2F3B46] truncate max-w-md">
                       {skill.command}
                     </code>
                   </div>
@@ -133,14 +133,14 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
                 <div class="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => handleRunSkill(skill)}
-                    class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#689D4B] hover:bg-[#5b8c40] text-white flex items-center gap-1.5 transition-all shadow-sm anime-shadow-green"
+                    class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] flex items-center gap-1.5 transition-all shadow-sm anime-shadow-green"
                   >
                     <Play size={13} class="fill-current" />
                     <span>Run</span>
                   </button>
                   <button
                     onClick={() => handleDeleteSkill(skill.name)}
-                    class="p-1.5 rounded-lg text-xs font-semibold bg-[#282832] hover:bg-[#D96868]/20 text-[#D96868] border border-[#3B3B48] transition-all"
+                    class="p-1.5 rounded-lg text-xs font-semibold bg-[#232D36] hover:bg-[#F2B5D4]/20 text-[#F2B5D4] border border-[#2F3B46] transition-all"
                     title="Hapus Skill"
                   >
                     <Trash2 size={15} />
@@ -153,51 +153,51 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
       </div>
 
       {/* Add New Skill Form */}
-      <form onSubmit={handleAddSkill} class="p-5 rounded-2xl bg-[#1E1E24] border border-[#3B3B48] space-y-4">
-        <h3 class="text-lg font-bangers text-[#D96868] flex items-center gap-2">
+      <form onSubmit={handleAddSkill} class="p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+        <h3 class="text-lg font-bangers text-[#F2B5D4] flex items-center gap-2">
           <Plus size={18} />
           TAMBAH SKILL COMMAND BARU
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="space-y-1">
-            <label class="text-xs font-semibold text-[#F2F2F2]/80">Nama Skill</label>
+            <label class="text-xs font-semibold text-[#EFF7F6]/80">Nama Skill</label>
             <input
               type="text"
               value={newName()}
               onInput={(e) => setNewName(e.currentTarget.value)}
               placeholder="Contoh: Buka Kalkulator"
-              class="w-full bg-[#282832] border border-[#3B3B48] rounded-xl px-3.5 py-2 text-sm text-[#F2F2F2] outline-none focus:border-[#D96868] transition-all"
+              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2] transition-all"
             />
           </div>
 
           <div class="space-y-1">
-            <label class="text-xs font-semibold text-[#F2F2F2]/80">Deskripsi untuk AI</label>
+            <label class="text-xs font-semibold text-[#EFF7F6]/80">Deskripsi untuk AI</label>
             <input
               type="text"
               value={newDesc()}
               onInput={(e) => setNewDesc(e.currentTarget.value)}
               placeholder="Contoh: Membuka aplikasi kalkulator sistem"
-              class="w-full bg-[#282832] border border-[#3B3B48] rounded-xl px-3.5 py-2 text-sm text-[#F2F2F2] outline-none focus:border-[#D96868] transition-all"
+              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2] transition-all"
             />
           </div>
         </div>
 
         <div class="space-y-1">
-          <label class="text-xs font-semibold text-[#F2F2F2]/80">Script Shell / Command Prompt</label>
+          <label class="text-xs font-semibold text-[#EFF7F6]/80">Script Shell / Command Prompt</label>
           <input
             type="text"
             value={newCmd()}
             onInput={(e) => setNewCmd(e.currentTarget.value)}
             placeholder="Contoh: calc.exe"
-            class="w-full bg-[#282832] border border-[#3B3B48] rounded-xl px-3.5 py-2 text-sm font-mono text-[#F2F2F2] outline-none focus:border-[#D96868] transition-all"
+            class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2 text-sm font-mono text-[#EFF7F6] outline-none focus:border-[#7BDFF2] transition-all"
           />
         </div>
 
         <div class="flex justify-end pt-1">
           <button
             type="submit"
-            class="px-5 py-2.5 rounded-xl font-bold text-sm bg-[#D96868] hover:bg-[#c45a5a] text-white shadow-md anime-shadow-red flex items-center gap-2 transition-all"
+            class="px-5 py-2.5 rounded-xl font-bold text-sm bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] shadow-md anime-shadow-green flex items-center gap-2 transition-all font-semibold"
           >
             <Plus size={16} />
             <span>Simpan Skill Baru</span>
