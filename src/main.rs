@@ -21,12 +21,15 @@ fn main() -> Result<()> {
     crate::term_log!("  Ragasukma - Asisten Pribadi: {} (Anime ID)", config.assistant_name);
     crate::term_log!("====================================================");
 
-    // Jalankan interactive session & audio engine di background thread
-    let session_thread = std::thread::spawn(move || {
-        if let Ok(mut session) = AppSession::new(config_clone) {
-            let _ = session.run_interactive_menu();
-        }
-    });
+    // Perbesar stack size session thread agar aman di AppImage/portable Linux
+    let session_thread = std::thread::Builder::new()
+        .stack_size(8 * 1024 * 1024) // 8 MB stack
+        .spawn(move || {
+            if let Ok(mut session) = AppSession::new(config_clone) {
+                let _ = session.run_interactive_menu();
+            }
+        })
+        .expect("Gagal membuat session thread");
 
     // Jalankan 3D VRM Native Overlay di main thread (winit EventLoop memerlukan main thread)
     native::run_native_overlay();
