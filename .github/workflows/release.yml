@@ -83,7 +83,11 @@ jobs:
       - name: Install cargo-packager
         run: cargo install cargo-packager --locked
 
-      - name: Build & Package Native Installers
+      - name: Build Binary
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Package Native Installers
         run: |
           cargo packager --release --target ${{ matrix.target }}
 
