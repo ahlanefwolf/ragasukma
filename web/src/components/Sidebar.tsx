@@ -102,7 +102,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
         </div>
         <div class="flex items-center justify-between text-[11px]">
           <span>Dashboard Port</span>
-          <span class="font-mono text-[#EFF7F6]/80">4242</span>
+          <span class="font-mono text-[#EFF7F6]/80">42128</span>
         </div>
       </div>
     </aside>

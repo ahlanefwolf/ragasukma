@@ -1,4 +1,4 @@
-const API_BASE = 'http://127.0.0.1:4242';
+const API_BASE = 'http://127.0.0.1:42128';
 
 export interface UserConfig {
   assistant_name: string;

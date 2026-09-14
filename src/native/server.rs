@@ -217,12 +217,42 @@ pub fn save_poses(poses: &PosesConfig) -> Result<(), String> {
     Ok(())
 }
 
+fn open_browser(url: &str) {
+    let url = url.to_string();
+    thread::spawn(move || {
+        // Beri sedikit jeda agar listener TCP siap menerima koneksi
+        thread::sleep(std::time::Duration::from_millis(150));
+
+        #[cfg(target_os = "windows")]
+        {
+            let _ = std::process::Command::new("cmd")
+                .args(["/C", "start", &url])
+                .spawn();
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            let _ = std::process::Command::new("open")
+                .arg(&url)
+                .spawn();
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            let _ = std::process::Command::new("xdg-open")
+                .arg(&url)
+                .spawn();
+        }
+    });
+}
+
 pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
     thread::spawn(move || {
-        let addr = "127.0.0.1:4242";
+        let addr = "127.0.0.1:42128";
         let listener = match TcpListener::bind(addr) {
             Ok(l) => {
                 println!("🌐 [Web Dashboard & API Server] Berjalan di http://{}", addr);
+                open_browser(&format!("http://{}", addr));
                 l
             }
             Err(e) => {

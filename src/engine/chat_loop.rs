@@ -14,7 +14,7 @@ impl AppSession {
         crate::term_log!("====================================================");
         crate::term_log!("✨ SESI PERCAKAPAN RAGASUKMA DIMULAI");
         crate::term_log!("   - Asisten : {}", self.config.assistant_name);
-        crate::term_log!("   - Dashboard: http://127.0.0.1:4242");
+        crate::term_log!("   - Dashboard: http://127.0.0.1:42128");
         crate::term_log!("====================================================\n");
 
         let mut is_paused = false;

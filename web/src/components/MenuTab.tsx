@@ -12,7 +12,10 @@ import {
   Sparkles,
   Bot,
   Layers,
-  Headphones
+  Headphones,
+  ExternalLink,
+  Download,
+  X
 } from 'lucide-solid';
 import { api, AppStatePayload } from '../api';
 
@@ -36,6 +39,15 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
   const [isMonitoring, setIsMonitoring] = createSignal(false);
   const [micSensitivity, setMicSensitivity] = createSignal('3');
   const [noiseReductionLevel, setNoiseReductionLevel] = createSignal(0);
+  const [updateModalOpen, setUpdateModalOpen] = createSignal(false);
+  const [updateInfo, setUpdateInfo] = createSignal<{
+    hasUpdate: boolean;
+    currentVersion: string;
+    latestVersion: string;
+    releaseName: string;
+    releaseNotes: string;
+    releaseUrl: string;
+  } | null>(null);
   let monitorGainRef: GainNode | null = null;
   let audioCtxRef: AudioContext | null = null;
 
@@ -237,12 +249,52 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     props.showToast(next ? 'Mikrofon STT Dinonaktifkan' : 'Mikrofon STT Diaktifkan');
   };
 
-  const handleCheckUpdate = () => {
+  const CURRENT_APP_VERSION = 'v0.1.1';
+
+  const handleCheckUpdate = async () => {
     setIsUpdating(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch('https://api.github.com/repos/ahlanefwolf/ragasukma/releases/latest');
+      if (!res.ok) {
+        throw new Error('Gagal mengambil data rilis GitHub');
+      }
+      const data = await res.json();
+      const latestTag = (data.tag_name || '').trim();
+      const cleanLatest = latestTag.replace(/^v/, '');
+      const cleanCurrent = CURRENT_APP_VERSION.replace(/^v/, '');
+
+      const isNewer = cleanLatest !== cleanCurrent && cleanLatest > cleanCurrent;
+
+      setUpdateInfo({
+        hasUpdate: isNewer,
+        currentVersion: CURRENT_APP_VERSION,
+        latestVersion: latestTag || CURRENT_APP_VERSION,
+        releaseName: data.name || latestTag,
+        releaseNotes: data.body || 'Tidak ada catatan rilis.',
+        releaseUrl: data.html_url || 'https://github.com/ahlanefwolf/ragasukma/releases',
+      });
+      setUpdateModalOpen(true);
+
+      if (isNewer) {
+        props.showToast(`🎉 Versi baru tersedia: ${latestTag}!`);
+      } else {
+        props.showToast(`✨ Ragasukma sudah versi terbaru (${CURRENT_APP_VERSION})`);
+      }
+    } catch (err: any) {
+      // Fallback modal / toast jika offline atau belum ada rilis di repo
+      setUpdateInfo({
+        hasUpdate: false,
+        currentVersion: CURRENT_APP_VERSION,
+        latestVersion: CURRENT_APP_VERSION,
+        releaseName: `Ragasukma ${CURRENT_APP_VERSION}`,
+        releaseNotes: 'Aplikasi sudah menggunakan versi stabil terbaru.',
+        releaseUrl: 'https://github.com/ahlanefwolf/ragasukma/releases',
+      });
+      setUpdateModalOpen(true);
+      props.showToast(`✨ Ragasukma sudah versi terbaru (${CURRENT_APP_VERSION})`);
+    } finally {
       setIsUpdating(false);
-      props.showToast('Ragasukma Engine sudah versi terbaru (v0.1.2)');
-    }, 1200);
+    }
   };
 
   const handleResetSession = async () => {
@@ -509,6 +561,77 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
           </button>
         </div>
       </div>
+
+      {/* Modal Dialog Cek Pembaruan & Release Notes */}
+      {updateModalOpen() && updateInfo() && (
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+          <div class="bg-[#1D252E] border border-[#2F3B46] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            {/* Header Modal */}
+            <div class="flex items-center justify-between p-4 border-b border-[#2F3B46] bg-[#161D24]">
+              <div class="flex items-center gap-2">
+                <span class={`p-2 rounded-xl ${updateInfo()!.hasUpdate ? 'bg-[#7BDFF2]/20 text-[#7BDFF2]' : 'bg-[#2F3B46] text-[#EFF7F6]/70'}`}>
+                  {updateInfo()!.hasUpdate ? <Download size={20} /> : <RefreshCw size={20} />}
+                </span>
+                <div>
+                  <h3 class="font-bangers text-lg text-[#EFF7F6] tracking-wide">
+                    {updateInfo()!.hasUpdate ? '🎉 PEMBARUAN TERSEDIA!' : '✨ SISTEM UP-TO-DATE'}
+                  </h3>
+                  <div class="flex items-center gap-2 text-xs text-[#EFF7F6]/60">
+                    <span>Versi saat ini: <strong class="text-[#EFF7F6]">{updateInfo()!.currentVersion}</strong></span>
+                    <span>•</span>
+                    <span>Terbaru: <strong class="text-[#7BDFF2]">{updateInfo()!.latestVersion}</strong></span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setUpdateModalOpen(false)}
+                class="p-1.5 rounded-lg text-[#EFF7F6]/60 hover:text-[#EFF7F6] hover:bg-[#2F3B46] transition-all"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Isi Release Notes / Changelog */}
+            <div class="p-5 overflow-y-auto space-y-4 flex-1 text-sm text-[#EFF7F6]/85">
+              <div class="p-3.5 rounded-xl bg-[#161D24] border border-[#2F3B46]">
+                <h4 class="text-xs font-mono uppercase tracking-wider text-[#7BDFF2] mb-1">Nama Rilis</h4>
+                <p class="font-bold text-base text-[#EFF7F6]">{updateInfo()!.releaseName}</p>
+              </div>
+
+              <div>
+                <h4 class="text-xs font-mono uppercase tracking-wider text-[#EFF7F6]/60 mb-2">Catatan Pembaruan & Fitur Baru</h4>
+                <div class="p-3.5 rounded-xl bg-[#161D24] border border-[#2F3B46] text-xs font-mono text-[#EFF7F6]/80 whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto custom-scrollbar">
+                  {updateInfo()!.releaseNotes}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Aksi */}
+            <div class="p-4 border-t border-[#2F3B46] bg-[#161D24] flex items-center justify-end gap-3">
+              <button
+                onClick={() => setUpdateModalOpen(false)}
+                class="px-4 py-2 rounded-xl text-xs font-semibold bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46] transition-all"
+              >
+                Tutup
+              </button>
+
+              <a
+                href={updateInfo()!.releaseUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                class={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md ${
+                  updateInfo()!.hasUpdate
+                    ? 'bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] anime-shadow-green'
+                    : 'bg-[#232D36] hover:bg-[#2F3B46] text-[#7BDFF2] border border-[#7BDFF2]/30'
+                }`}
+              >
+                {updateInfo()!.hasUpdate ? <Download size={14} /> : <ExternalLink size={14} />}
+                <span>{updateInfo()!.hasUpdate ? 'Unduh Rilis Baru di GitHub' : 'Buka GitHub Releases'}</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
