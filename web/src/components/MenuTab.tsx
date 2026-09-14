@@ -249,7 +249,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     props.showToast(next ? 'Mikrofon STT Dinonaktifkan' : 'Mikrofon STT Diaktifkan');
   };
 
-  const CURRENT_APP_VERSION = 'v0.1.1';
+  const CURRENT_APP_VERSION = 'v0.1.2';
 
   const handleCheckUpdate = async () => {
     setIsUpdating(true);
