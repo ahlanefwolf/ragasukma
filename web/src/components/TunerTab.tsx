@@ -1,12 +1,14 @@
 import { Component, createSignal, onMount, onCleanup } from 'solid-js';
 import { 
   Save, 
-  RotateCcw,
-  Play,
-  Square,
-  RefreshCw,
-  Sliders,
-  Sparkles
+  RotateCcw, 
+  Play, 
+  Square, 
+  Sliders, 
+  Sparkles,
+  Copy,
+  FlipHorizontal,
+  Layers
 } from 'lucide-solid';
 import { api, PosesConfig } from '../api';
 import { BONE_CATEGORIES, BONE_LABELS, MIRROR_MAP } from './tunerBones';
@@ -18,15 +20,15 @@ interface TunerTabProps {
 export const TunerTab: Component<TunerTabProps> = (props) => {
   const [activePoseTab, setActivePoseTab] = createSignal<'pose_a' | 'pose_b'>('pose_a');
   const [selectedState, setSelectedState] = createSignal('idle');
-  const [selectedEmotion, setSelectedEmotion] = createSignal('shy');
-  const [speed, setSpeed] = createSignal(1.2);
+  const [selectedEmotion, setSelectedEmotion] = createSignal('neutral');
+  const [speed, setSpeed] = createSignal(2.5);
   const [activeBoneCategory, setActiveBoneCategory] = createSignal('body');
   const [posesData, setPosesData] = createSignal<PosesConfig>({});
   const [isSaving, setIsSaving] = createSignal(false);
   const [isPreviewing, setIsPreviewing] = createSignal(false);
 
   let previewInterval: number | null = null;
-  let previewTime = 0;
+  let syncTimeout: number | null = null;
 
   const getCurrentKeyframeBones = (): Record<string, [number, number, number]> => {
     const st = posesData()[selectedState()];
@@ -46,8 +48,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
       setPosesData(data);
       const curState = data[selectedState()];
       if (curState) {
-        setSelectedEmotion(curState.emotion || 'neutral');
-        setSpeed(curState.speed || 1.2);
+        setSpeed(curState.speed || 2.5);
       }
       syncLiveTuner(true);
     }
@@ -59,15 +60,16 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
 
   onCleanup(() => {
     if (previewInterval) clearInterval(previewInterval);
-    api.setTunerLive(false);
+    if (syncTimeout) { cancelAnimationFrame(syncTimeout); syncTimeout = null; }
+    // Reset tuner mode ke false dan kosongkan live tuning bones di backend
+    api.setTunerLive(false, {}, 'neutral');
   });
 
   const handleStateChange = (st: string) => {
     setSelectedState(st);
     const cur = posesData()[st];
     if (cur) {
-      setSelectedEmotion(cur.emotion || 'neutral');
-      setSpeed(cur.speed || 1.2);
+      setSpeed(cur.speed || 2.5);
     }
     syncLiveTuner(true);
   };
@@ -90,7 +92,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     const stKey = selectedState();
     let st = all[stKey];
     if (!st) {
-      st = { emotion: selectedEmotion(), speed: speed(), pose_a: {}, pose_b: {} };
+      st = { speed: speed(), pose_a: {}, pose_b: {} };
       all[stKey] = st;
     }
 
@@ -102,14 +104,15 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     st[keyframeName] = curPose;
     setPosesData(all);
 
-    // Throttle / requestAnimationFrame live sync agar tidak spam ratusan HTTP request per detik
+    // Throttle / requestAnimationFrame live sync agar tidak spam HTTP request
     scheduleLiveSync(curPose);
   };
 
-  let syncTimeout: number | null = null;
   const scheduleLiveSync = (pose: Record<string, [number, number, number]>) => {
     if (syncTimeout) cancelAnimationFrame(syncTimeout);
     syncTimeout = requestAnimationFrame(() => {
+      syncTimeout = null;
+      if (isPreviewing()) return; // jangan override saat preview sedang berjalan
       api.setTunerLive(true, pose, selectedEmotion(), selectedState());
     });
   };
@@ -125,7 +128,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     st[keyframeName] = curPose;
     setPosesData(all);
 
-    api.setTunerLive(true, curPose);
+    api.setTunerLive(true, curPose, selectedEmotion(), selectedState());
     props.showToast(`Bone "${BONE_LABELS[bone] || bone}" di-reset ke [0, 0, 0]`);
   };
 
@@ -178,20 +181,21 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
 
   const togglePreview = async () => {
     const next = !isPreviewing();
-    setIsPreviewing(next);
+
+    if (syncTimeout) { cancelAnimationFrame(syncTimeout); syncTimeout = null; }
 
     if (next) {
       const all = { ...posesData() };
       if (all[selectedState()]) {
-        all[selectedState()].emotion = selectedEmotion();
         all[selectedState()].speed = speed();
       }
-      // Kirim data pose terkini ke engine & jalankan loop animasi native 60fps
-      await api.savePoses(all);
-      await api.setTunerLive(false, {}, selectedEmotion(), selectedState());
+      // Kirim data preview ke engine secara in-memory (tanpa overwrite poses.json di disk!)
+      await api.setTunerPreview(all, selectedEmotion(), selectedState());
+      setIsPreviewing(true);
       props.showToast(`Preview loop animasi ${selectedState().toUpperCase()} (60 FPS Native SLERP)`);
     } else {
       // Kembali ke mode freeze keyframe editing
+      setIsPreviewing(false);
       syncLiveTuner(true);
       props.showToast('Kembali ke mode edit keyframe');
     }
@@ -201,7 +205,6 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     setIsSaving(true);
     const all = { ...posesData() };
     if (all[selectedState()]) {
-      all[selectedState()].emotion = selectedEmotion();
       all[selectedState()].speed = speed();
     }
 
@@ -228,54 +231,89 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
 
   return (
     <div class="space-y-6">
-      {/* Top Tuner Bar */}
-      <div class="p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-4">
-          <div class="flex items-center gap-2">
-            <h2 class="text-2xl font-bangers tracking-wide text-[#EFF7F6]">
-              POSE & MOTION TUNER
-            </h2>
-            <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-[#232D36] text-[#7BDFF2] border border-[#2F3B46]">
-              poses.json
-            </span>
+      {/* Top Tuner Control Bar */}
+      <div class="p-4 sm:p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+        {/* 1. Header Banner */}
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div class="p-2.5 rounded-xl bg-[#7BDFF2]/20 text-[#7BDFF2] border border-[#7BDFF2]/30 shrink-0">
+              <Sliders size={22} />
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-xl sm:text-2xl font-bangers tracking-wide text-[#EFF7F6] leading-none">
+                  POSE & MOTION TUNER
+                </h2>
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#161D24] text-[#7BDFF2] border border-[#2F3B46]">
+                  poses.json
+                </span>
+              </div>
+              <p class="text-xs text-[#EFF7F6]/60 mt-0.5">
+                Visual bone keyframe editor & dynamic emotion preview
+              </p>
+            </div>
           </div>
 
-          {/* Action Tools */}
-          <div class="flex flex-wrap items-center gap-2">
-            <button 
-              onClick={() => handleCopy('a', 'b')}
-              class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46]"
-              title="Copy Pose A ke Pose B"
-            >
-              A→B
-            </button>
-            <button 
-              onClick={() => handleCopy('b', 'a')}
-              class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46]"
-              title="Copy Pose B ke Pose A"
-            >
-              B→A
-            </button>
-            <button 
-              onClick={() => handleMirror('a', 'b')}
-              class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46]"
-              title="Mirror simetri A ke B"
-            >
-              Mirror A→B
-            </button>
-            <button 
-              onClick={() => handleMirror('b', 'a')}
-              class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46]"
-              title="Mirror simetri B ke A"
-            >
-              Mirror B→A
-            </button>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-mono px-2.5 py-1 rounded-full bg-[#232D36] text-[#7BDFF2] border border-[#2F3B46] font-semibold">
+              State: <strong class="uppercase text-[#EFF7F6]">{selectedState()}</strong>
+            </span>
+          </div>
+        </div>
+
+        {/* 2. Structured Action Toolbar (Between: Kiri = Transfer & Reset, Kanan = Preview & Simpan) */}
+        <div class="p-2.5 rounded-xl bg-[#161D24] border border-[#2F3B46] flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+          {/* Sisi Kiri: Keyframe Copy & Mirror + Reset Tools */}
+          <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <div class="flex items-center bg-[#232D36] p-1 rounded-lg border border-[#2F3B46]">
+              <button 
+                onClick={() => handleCopy('a', 'b')}
+                class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-[#EFF7F6]/80 hover:text-[#EFF7F6] hover:bg-[#1D252E] transition-colors"
+                title="Copy Pose A ke Pose B"
+              >
+                A→B
+              </button>
+              <button 
+                onClick={() => handleCopy('b', 'a')}
+                class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-[#EFF7F6]/80 hover:text-[#EFF7F6] hover:bg-[#1D252E] transition-colors"
+                title="Copy Pose B ke Pose A"
+              >
+                B→A
+              </button>
+              <div class="w-px h-3.5 bg-[#2F3B46] mx-1" />
+              <button 
+                onClick={() => handleMirror('a', 'b')}
+                class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-[#EFF7F6]/80 hover:text-[#EFF7F6] hover:bg-[#1D252E] transition-colors"
+                title="Mirror simetri A ke B"
+              >
+                Mir A→B
+              </button>
+              <button 
+                onClick={() => handleMirror('b', 'a')}
+                class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-[#EFF7F6]/80 hover:text-[#EFF7F6] hover:bg-[#1D252E] transition-colors"
+                title="Mirror simetri B ke A"
+              >
+                Mir B→A
+              </button>
+            </div>
 
             <button 
+              onClick={handleResetAllKeyframe}
+              class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#232D36] hover:bg-[#FF7B7B]/20 text-[#FF7B7B] border border-[#FF7B7B]/30 flex items-center gap-1.5 transition-all"
+              title="Reset seluruh bone keyframe aktif ke [0, 0, 0]"
+            >
+              <RotateCcw size={12} />
+              <span>Reset</span>
+            </button>
+          </div>
+
+          {/* Sisi Kanan: Preview Loop & CTA Simpan Live */}
+          <div class="flex items-center gap-2 justify-end">
+            <button 
               onClick={togglePreview}
-              class={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+              class={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm ${
                 isPreviewing()
-                  ? 'bg-[#7BDFF2] text-[#232D36] shadow anime-shadow-green'
+                  ? 'bg-[#F2B5D4] text-[#232D36] anime-shadow-red font-bold'
                   : 'bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46]'
               }`}
             >
@@ -284,31 +322,25 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
             </button>
 
             <button 
-              onClick={handleResetAllKeyframe}
-              class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#232D36] hover:bg-[#F2B5D4]/20 text-[#F2B5D4] border border-[#2F3B46]"
-            >
-              Reset All
-            </button>
-
-            <button 
               onClick={handleSave}
               disabled={isSaving()}
-              class="px-4 py-1.5 rounded-lg text-xs font-bold bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] shadow anime-shadow-green flex items-center gap-1.5 font-semibold"
+              class="px-4 py-1.5 rounded-lg text-xs font-bold bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] shadow-md anime-shadow-green flex items-center gap-1.5 transition-all"
             >
-              <Save size={14} />
+              <Save size={13} />
               <span>{isSaving() ? 'Menyimpan...' : 'Simpan Live'}</span>
             </button>
           </div>
         </div>
 
-        {/* State, Emotion, Speed & Keyframe Selector Bar */}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-[#2F3B46]/60">
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-[#EFF7F6]/70">Target State</label>
+        {/* 3. State, Emotion, Speed & Keyframe Selector Bar */}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+          {/* Target State */}
+          <div class="space-y-1.5 flex flex-col justify-between">
+            <label class="text-xs font-semibold text-[#EFF7F6]/70 block h-4">Target State</label>
             <select
               value={selectedState()}
               onChange={(e) => handleStateChange(e.currentTarget.value)}
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3 py-2 text-xs text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full h-[38px] bg-[#232D36] border border-[#2F3B46] rounded-xl px-3 text-xs text-[#EFF7F6] outline-none focus:border-[#7BDFF2] transition-colors"
             >
               <option value="idle">Idle (Standby)</option>
               <option value="listening">Listening (Mendengarkan)</option>
@@ -317,65 +349,70 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
             </select>
           </div>
 
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-[#EFF7F6]/70">Ekspresi Emosi</label>
+          {/* Ekspresi Emosi */}
+          <div class="space-y-1.5 flex flex-col justify-between">
+            <label class="text-xs font-semibold text-[#EFF7F6]/70 block h-4">Ekspresi Emosi</label>
             <select
               value={selectedEmotion()}
               onChange={(e) => {
                 const val = e.currentTarget.value;
                 setSelectedEmotion(val);
-                const all = { ...posesData() };
-                if (all[selectedState()]) {
-                  all[selectedState()].emotion = val;
-                  setPosesData(all);
+                if (isPreviewing()) {
+                  api.setTunerPreview(posesData(), val, selectedState());
+                } else {
+                  api.setTunerLive(true, getCurrentKeyframeBones(), val, selectedState());
                 }
-                api.setTunerLive(true, getCurrentKeyframeBones(), val);
               }}
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3 py-2 text-xs text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full h-[38px] bg-[#232D36] border border-[#2F3B46] rounded-xl px-3 text-xs text-[#EFF7F6] outline-none focus:border-[#7BDFF2] transition-colors"
             >
-              <option value="neutral">Neutral</option>
-              <option value="happy">Happy</option>
-              <option value="shy">Shy</option>
-              <option value="surprised">Surprised</option>
-              <option value="thinking">Thinking</option>
-              <option value="sad">Sad</option>
-              <option value="excited">Excited</option>
+              <option value="neutral">Neutral (Biasa)</option>
+              <option value="happy">Happy (Senang)</option>
+              <option value="shy">Shy (Malu / Blushing)</option>
+              <option value="surprised">Surprised (Kaget)</option>
+              <option value="thinking">Thinking (Mikir)</option>
+              <option value="sad">Sad (Sedih)</option>
+              <option value="excited">Excited (Semangat)</option>
+              <option value="angry">Angry (Marah / Cemberut)</option>
             </select>
           </div>
 
-          <div class="space-y-1">
-            <div class="flex items-center justify-between">
+          {/* Speed Siklus */}
+          <div class="space-y-1.5 flex flex-col justify-between">
+            <div class="flex items-center justify-between h-4">
               <label class="text-xs font-semibold text-[#EFF7F6]/70">Speed Siklus</label>
-              <span class="text-xs font-mono font-bold text-[#7BDFF2]">{speed().toFixed(1)}x</span>
+              <span class="text-xs font-mono font-bold text-[#7BDFF2]">{speed().toFixed(1)}s</span>
             </div>
-            <input 
-              type="range" 
-              min="0.2" 
-              max="4.0" 
-              step="0.1" 
-              value={speed()}
-              onInput={(e) => {
-                const val = parseFloat(e.currentTarget.value);
-                setSpeed(val);
-                const all = { ...posesData() };
-                if (all[selectedState()]) {
-                  all[selectedState()].speed = val;
-                  setPosesData(all);
-                }
-                if (isPreviewing()) {
-                  api.savePoses(all);
-                }
-              }}
-              class="w-full h-2 bg-[#232D36] rounded-lg appearance-none cursor-pointer accent-[#7BDFF2] mt-2"
-            />
+            <div class="w-full h-[38px] bg-[#232D36] border border-[#2F3B46] rounded-xl px-3 flex items-center">
+              <input 
+                type="range" 
+                min="0.5" 
+                max="5.0" 
+                step="0.1" 
+                value={speed()}
+                onInput={(e) => {
+                  const val = parseFloat(e.currentTarget.value);
+                  setSpeed(val);
+                  const all = { ...posesData() };
+                  if (all[selectedState()]) {
+                    all[selectedState()].speed = val;
+                    setPosesData(all);
+                  }
+                  if (isPreviewing()) {
+                    api.setTunerPreview(all, selectedEmotion(), selectedState());
+                  }
+                }}
+                class="w-full h-1.5 bg-[#161D24] rounded-lg appearance-none cursor-pointer accent-[#7BDFF2]"
+              />
+            </div>
           </div>
 
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-[#EFF7F6]/70">Keyframe</label>
-            <div class="grid grid-cols-2 gap-1 bg-[#232D36] p-1 rounded-xl border border-[#2F3B46]">
+          {/* Keyframe Pose A / B Toggle */}
+          <div class="space-y-1.5 flex flex-col justify-between">
+            <label class="text-xs font-semibold text-[#EFF7F6]/70 block h-4">Keyframe Target</label>
+            <div class="grid grid-cols-2 gap-1.5 bg-[#232D36] p-1 rounded-xl border border-[#2F3B46] h-[38px] items-center">
               <button
                 onClick={() => handleKeyframeTabChange('pose_a')}
-                class={`py-1 rounded-lg text-xs font-bold transition-all ${
+                class={`h-full flex items-center justify-center rounded-lg text-xs font-bold transition-all ${
                   activePoseTab() === 'pose_a'
                     ? 'bg-[#F2B5D4] text-[#232D36] shadow'
                     : 'text-[#EFF7F6]/60 hover:text-[#EFF7F6]'
@@ -385,7 +422,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
               </button>
               <button
                 onClick={() => handleKeyframeTabChange('pose_b')}
-                class={`py-1 rounded-lg text-xs font-bold transition-all ${
+                class={`h-full flex items-center justify-center rounded-lg text-xs font-bold transition-all ${
                   activePoseTab() === 'pose_b'
                     ? 'bg-[#7BDFF2] text-[#232D36] shadow'
                     : 'text-[#EFF7F6]/60 hover:text-[#EFF7F6]'
@@ -398,18 +435,18 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
         </div>
       </div>
 
-      {/* Category Tabs */}
-      <div class="flex flex-wrap gap-2">
+      {/* Category Navigation Pills */}
+      <div class="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
         {BONE_CATEGORIES.map((cat) => {
           const isCurrent = () => activeBoneCategory() === cat.id;
 
           return (
             <button
               onClick={() => setActiveBoneCategory(cat.id)}
-              class={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              class={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 isCurrent()
-                  ? 'bg-[#7BDFF2] text-[#232D36] shadow anime-shadow-green font-semibold'
-                  : 'bg-[#1D252E] text-[#EFF7F6]/70 border border-[#2F3B46] hover:bg-[#232D36]'
+                  ? 'bg-[#7BDFF2] text-[#232D36] shadow anime-shadow-green font-bold'
+                  : 'bg-[#1D252E] text-[#EFF7F6]/70 border border-[#2F3B46] hover:bg-[#232D36] hover:text-[#EFF7F6]'
               }`}
             >
               {cat.label}
@@ -426,8 +463,8 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
             const vals = () => getBoneRotation(boneName);
 
             return (
-              <div class="p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-3.5">
-                <div class="flex items-center justify-between border-b border-[#2F3B46]/50 pb-2">
+              <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-3 shadow-lg">
+                <div class="flex items-center justify-between border-b border-[#2F3B46]/50 pb-2.5">
                   <div>
                     <h4 class="font-bold text-sm text-[#EFF7F6]">
                       {BONE_LABELS[boneName] || boneName}
@@ -438,7 +475,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                   </div>
                   <button
                     onClick={() => resetSingleBone(boneName)}
-                    class="px-2 py-1 rounded text-[11px] font-semibold bg-[#232D36] hover:bg-[#F2B5D4]/20 text-[#F2B5D4] border border-[#2F3B46] flex items-center gap-1 transition-all"
+                    class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#232D36] hover:bg-[#FF7B7B]/20 text-[#FF7B7B] border border-[#FF7B7B]/30 flex items-center gap-1 transition-all"
                     title="Reset bone ini ke [0, 0, 0]"
                   >
                     <RotateCcw size={11} />
@@ -460,11 +497,11 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                         step="0.01"
                         value={parseFloat(vals()[0].toFixed(2))}
                         onInput={(e) => updateBoneAxis(boneName, 0, parseFloat(e.currentTarget.value) || 0)}
-                        class="w-16 bg-[#232D36] border border-[#2F3B46] rounded px-1.5 py-0.5 text-xs text-right font-mono text-[#EFF7F6] outline-none focus:border-[#F2B5D4]"
+                        class="w-20 bg-[#232D36] border border-[#2F3B46] rounded-lg px-2.5 py-1 text-xs text-right font-mono font-semibold text-[#EFF7F6] outline-none focus:border-[#F2B5D4] transition-colors"
                       />
                       <button
                         onClick={() => resetSingleAxis(boneName, 0)}
-                        class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#232D36] hover:bg-[#F2B5D4]/30 text-[#F2B5D4] border border-[#2F3B46] transition-colors"
+                        class="px-2 py-1 rounded-lg text-[10px] font-bold bg-[#232D36] hover:bg-[#F2B5D4]/30 text-[#F2B5D4] border border-[#2F3B46] transition-colors"
                         title="Reset X ke 0.00"
                       >
                         0
@@ -496,11 +533,11 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                         step="0.01"
                         value={parseFloat(vals()[1].toFixed(2))}
                         onInput={(e) => updateBoneAxis(boneName, 1, parseFloat(e.currentTarget.value) || 0)}
-                        class="w-16 bg-[#232D36] border border-[#2F3B46] rounded px-1.5 py-0.5 text-xs text-right font-mono text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+                        class="w-20 bg-[#232D36] border border-[#2F3B46] rounded-lg px-2.5 py-1 text-xs text-right font-mono font-semibold text-[#EFF7F6] outline-none focus:border-[#7BDFF2] transition-colors"
                       />
                       <button
                         onClick={() => resetSingleAxis(boneName, 1)}
-                        class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#232D36] hover:bg-[#7BDFF2]/30 text-[#7BDFF2] border border-[#2F3B46] transition-colors"
+                        class="px-2 py-1 rounded-lg text-[10px] font-bold bg-[#232D36] hover:bg-[#7BDFF2]/30 text-[#7BDFF2] border border-[#2F3B46] transition-colors"
                         title="Reset Y ke 0.00"
                       >
                         0
@@ -532,11 +569,11 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                         step="0.01"
                         value={parseFloat(vals()[2].toFixed(2))}
                         onInput={(e) => updateBoneAxis(boneName, 2, parseFloat(e.currentTarget.value) || 0)}
-                        class="w-16 bg-[#232D36] border border-[#2F3B46] rounded px-1.5 py-0.5 text-xs text-right font-mono text-[#EFF7F6] outline-none focus:border-[#EFF7F6]"
+                        class="w-20 bg-[#232D36] border border-[#2F3B46] rounded-lg px-2.5 py-1 text-xs text-right font-mono font-semibold text-[#EFF7F6] outline-none focus:border-[#EFF7F6] transition-colors"
                       />
                       <button
                         onClick={() => resetSingleAxis(boneName, 2)}
-                        class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#232D36] hover:bg-[#EFF7F6]/30 text-[#EFF7F6] border border-[#2F3B46] transition-colors"
+                        class="px-2 py-1 rounded-lg text-[10px] font-bold bg-[#232D36] hover:bg-[#EFF7F6]/30 text-[#EFF7F6] border border-[#2F3B46] transition-colors"
                         title="Reset Z ke 0.00"
                       >
                         0

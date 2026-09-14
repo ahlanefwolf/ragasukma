@@ -310,9 +310,9 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
   return (
     <div class="space-y-6">
       {/* Top Banner Status Header */}
-      <div class="rounded-2xl bg-gradient-to-r from-[#232D36] via-[#1D252E] to-[#161D24] p-6 border border-[#2F3B46] flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div class="rounded-2xl bg-gradient-to-r from-[#232D36] via-[#1D252E] to-[#161D24] p-4 sm:p-6 border border-[#2F3B46] flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <span class="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#F2B5D4]/20 text-[#F2B5D4] border border-[#F2B5D4]/30">
               Menu Kontrol Utama
             </span>
@@ -320,29 +320,29 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
               State: {props.currentState}
             </span>
           </div>
-          <h2 class="text-3xl font-bangers tracking-wide text-[#EFF7F6] mt-2">
+          <h2 class="text-2xl sm:text-3xl font-bangers tracking-wide text-[#EFF7F6] mt-2">
             RAGASUKMA - {assistantName().toUpperCase()}
           </h2>
-          <p class="text-sm text-[#EFF7F6]/70 mt-1 max-w-lg">
+          <p class="text-xs sm:text-sm text-[#EFF7F6]/70 mt-1 max-w-lg">
             Kendalikan status percakapan, mikrofon, pemutaran suara TTS, dan fungsi sinkronisasi engine 3D native.
           </p>
         </div>
 
         {/* State Indicator Pill */}
-        <div class="p-4 rounded-xl bg-[#161D24] border border-[#2F3B46] flex items-center gap-4 shrink-0">
-          <div class="w-12 h-12 rounded-xl bg-[#232D36] flex items-center justify-center text-[#7BDFF2]">
-            <Bot size={24} />
+        <div class="p-3.5 sm:p-4 rounded-xl bg-[#161D24] border border-[#2F3B46] flex items-center gap-3.5 sm:gap-4 shrink-0">
+          <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-[#232D36] flex items-center justify-center text-[#7BDFF2]">
+            <Bot size={22} />
           </div>
           <div>
-            <span class="text-xs text-[#EFF7F6]/50 block">Voice Engine</span>
+            <span class="text-[11px] text-[#EFF7F6]/50 block">Voice Engine</span>
             <span class="text-sm font-bold text-[#EFF7F6]">{ttsEngineName()}</span>
           </div>
         </div>
       </div>
 
       {/* 1. Kontrol Voice Assistant */}
-      <div class="p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+      <div class="p-4 sm:p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+        <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
           <Sparkles size={18} />
           1. KONTROL VOICE ASSISTANT
         </h3>
@@ -350,7 +350,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
         <div>
           <button
             onClick={toggleAssistant}
-            class={`w-full flex items-center justify-center gap-3 p-4 rounded-xl font-bold text-base transition-all shadow-md ${
+            class={`w-full flex items-center justify-center gap-3 p-4 rounded-xl font-bold text-sm sm:text-base transition-all shadow-md ${
               isRunning()
                 ? 'bg-[#232D36] hover:bg-[#F2B5D4]/20 text-[#F2B5D4] border border-[#F2B5D4]/50'
                 : 'bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] anime-shadow-green'
@@ -358,12 +358,12 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
           >
             {isRunning() ? (
               <>
-                <Square size={20} class="fill-current" />
+                <Square size={18} class="fill-current" />
                 <span>Hentikan Voice Assistant</span>
               </>
             ) : (
               <>
-                <Play size={20} class="fill-current" />
+                <Play size={18} class="fill-current" />
                 <span>Mulai / Aktifkan Voice Assistant</span>
               </>
             )}
@@ -372,14 +372,14 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       </div>
 
       {/* 2. Realtime Mic Input Level (VU Meter) */}
-      <div class="p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+      <div class="p-4 sm:p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 class="text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+            <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
               <Mic size={18} />
               2. REALTIME INPUT MIKROFON (VU METER)
             </h3>
-            <div class="flex items-center gap-2 text-xs text-[#EFF7F6]/60 mt-0.5 font-mono">
+            <div class="flex flex-wrap items-center gap-2 text-xs text-[#EFF7F6]/60 mt-0.5 font-mono">
               <span>{sensitivityLabel()}</span>
               <span>•</span>
               <span>
@@ -389,7 +389,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
           </div>
 
           <div class="flex items-center gap-2">
-            <span class={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase font-mono ${
+            <span class={`text-[11px] sm:text-xs px-2.5 py-0.5 rounded-full font-bold uppercase font-mono ${
               micMuted()
                 ? 'bg-[#F2B5D4]/20 text-[#F2B5D4]'
                 : micLevel() > vadThresholdPercent()
@@ -398,7 +398,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             }`}>
               {micMuted() ? 'MUTED' : micLevel() > vadThresholdPercent() ? 'VOICE DETECTED' : 'QUIET'}
             </span>
-            <span class="text-sm font-mono font-bold text-[#EFF7F6]">
+            <span class="text-xs sm:text-sm font-mono font-bold text-[#EFF7F6]">
               {micMuted() ? '0%' : `${micLevel()}%`}
             </span>
           </div>
@@ -455,8 +455,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
         {/* Real-time Audio Passthrough Loopback Toggle */}
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3 border-t border-[#2F3B46]/60">
           <div class="flex items-center gap-2 text-xs text-[#EFF7F6]/60">
-            <Headphones size={15} class={isMonitoring() ? 'text-[#7BDFF2] animate-pulse' : 'text-[#EFF7F6]/40'} />
-            <span>Review Passthrough (Dengarkan hasil filter DSP ke speaker/headphone)</span>
+            <Headphones size={15} class={isMonitoring() ? 'text-[#7BDFF2] animate-pulse shrink-0' : 'text-[#EFF7F6]/40 shrink-0'} />
+            <span class="text-[11px] sm:text-xs">Review Passthrough (Dengarkan hasil filter DSP ke headphone)</span>
           </div>
 
           <button
@@ -474,29 +474,29 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       </div>
 
       {/* 3. Toggle Audio & Input */}
-      <div class="p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-lg font-bangers text-[#F2B5D4] flex items-center gap-2">
+      <div class="p-4 sm:p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+        <h3 class="text-base sm:text-lg font-bangers text-[#F2B5D4] flex items-center gap-2">
           <Volume2 size={18} />
           3. TOGGLE SUARA & MIKROFON
         </h3>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <button
             onClick={toggleVoice}
-            class={`flex items-center justify-between p-4 rounded-xl border font-bold text-sm transition-all ${
+            class={`flex items-center justify-between p-3.5 sm:p-4 rounded-xl border font-bold text-sm transition-all ${
               voiceMuted()
                 ? 'bg-[#232D36] border-[#F2B5D4] text-[#F2B5D4]'
                 : 'bg-[#232D36] border-[#7BDFF2] text-[#7BDFF2]'
             }`}
           >
             <div class="flex items-center gap-3">
-              {voiceMuted() ? <VolumeX size={20} /> : <Volume2 size={20} />}
+              {voiceMuted() ? <VolumeX size={20} class="shrink-0" /> : <Volume2 size={20} class="shrink-0" />}
               <div class="text-left">
-                <span class="block text-sm text-[#EFF7F6]">Suara Karakter (TTS)</span>
-                <span class="text-xs text-[#EFF7F6]/60 font-normal">{voiceMuted() ? 'Muted' : 'Aktif Bersuara'}</span>
+                <span class="block text-xs sm:text-sm text-[#EFF7F6]">Suara Karakter (TTS)</span>
+                <span class="text-[11px] sm:text-xs text-[#EFF7F6]/60 font-normal">{voiceMuted() ? 'Muted' : 'Aktif Bersuara'}</span>
               </div>
             </div>
-            <span class={`text-[11px] px-2.5 py-1 rounded-full uppercase font-mono ${
+            <span class={`text-[10px] sm:text-[11px] px-2.5 py-1 rounded-full uppercase font-mono ${
               voiceMuted() ? 'bg-[#F2B5D4]/20 text-[#F2B5D4]' : 'bg-[#7BDFF2]/20 text-[#7BDFF2]'
             }`}>
               {voiceMuted() ? 'Muted' : 'Unmuted'}
@@ -505,20 +505,20 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
 
           <button
             onClick={toggleMic}
-            class={`flex items-center justify-between p-4 rounded-xl border font-bold text-sm transition-all ${
+            class={`flex items-center justify-between p-3.5 sm:p-4 rounded-xl border font-bold text-sm transition-all ${
               micMuted()
                 ? 'bg-[#232D36] border-[#F2B5D4] text-[#F2B5D4]'
                 : 'bg-[#232D36] border-[#7BDFF2] text-[#7BDFF2]'
             }`}
           >
             <div class="flex items-center gap-3">
-              {micMuted() ? <MicOff size={20} /> : <Mic size={20} />}
+              {micMuted() ? <MicOff size={20} class="shrink-0" /> : <Mic size={20} class="shrink-0" />}
               <div class="text-left">
-                <span class="block text-sm text-[#EFF7F6]">Input Mikrofon (STT)</span>
-                <span class="text-xs text-[#EFF7F6]/60 font-normal">{micMuted() ? 'Muted' : 'Mendengarkan'}</span>
+                <span class="block text-xs sm:text-sm text-[#EFF7F6]">Input Mikrofon (STT)</span>
+                <span class="text-[11px] sm:text-xs text-[#EFF7F6]/60 font-normal">{micMuted() ? 'Muted' : 'Mendengarkan'}</span>
               </div>
             </div>
-            <span class={`text-[11px] px-2.5 py-1 rounded-full uppercase font-mono ${
+            <span class={`text-[10px] sm:text-[11px] px-2.5 py-1 rounded-full uppercase font-mono ${
               micMuted() ? 'bg-[#F2B5D4]/20 text-[#F2B5D4]' : 'bg-[#7BDFF2]/20 text-[#7BDFF2]'
             }`}>
               {micMuted() ? 'Muted' : 'Active'}
@@ -528,17 +528,17 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       </div>
 
       {/* 4. Tindakan Cepat (Quick Actions) */}
-      <div class="p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+      <div class="p-4 sm:p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+        <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
           <Layers size={18} />
           4. TINDAKAN CEPAT & SISTEM
         </h3>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
           <button
             onClick={handleCheckUpdate}
             disabled={isUpdating()}
-            class="flex items-center justify-center gap-2 p-3.5 rounded-xl text-sm font-semibold bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46] transition-all"
+            class="flex items-center justify-center gap-2 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm font-semibold bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46] transition-all"
           >
             <RefreshCw size={16} class={isUpdating() ? 'animate-spin text-[#7BDFF2]' : ''} />
             <span>{isUpdating() ? 'Memeriksa...' : 'Cek Pembaruan'}</span>
@@ -546,7 +546,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
 
           <button
             onClick={handleResetSession}
-            class="flex items-center justify-center gap-2 p-3.5 rounded-xl text-sm font-semibold bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46] transition-all"
+            class="flex items-center justify-center gap-2 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm font-semibold bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46] transition-all"
           >
             <RotateCcw size={16} />
             <span>Reset AI Session</span>
@@ -554,7 +554,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
 
           <button
             onClick={handleRestartEngine}
-            class="flex items-center justify-center gap-2 p-3.5 rounded-xl text-sm font-semibold bg-[#232D36] hover:bg-[#F2B5D4]/20 text-[#F2B5D4] border border-[#2F3B46] transition-all"
+            class="flex items-center justify-center gap-2 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm font-semibold bg-[#232D36] hover:bg-[#F2B5D4]/20 text-[#F2B5D4] border border-[#2F3B46] transition-all"
           >
             <RefreshCw size={16} />
             <span>Sync 3D Engine</span>

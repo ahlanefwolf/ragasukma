@@ -172,15 +172,15 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
   return (
     <form onSubmit={handleSave} class="space-y-6">
       {/* Header Banner */}
-      <div class="rounded-2xl bg-gradient-to-r from-[#232D36] via-[#1D252E] to-[#161D24] p-6 border border-[#2F3B46] flex items-center justify-between">
+      <div class="rounded-2xl bg-gradient-to-r from-[#232D36] via-[#1D252E] to-[#161D24] p-4 sm:p-6 border border-[#2F3B46] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <span class="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#7BDFF2]/20 text-[#7BDFF2] border border-[#7BDFF2]/30">
             System & Engine Preferences
           </span>
-          <h2 class="text-3xl font-bangers tracking-wide text-[#EFF7F6] mt-2">
+          <h2 class="text-2xl sm:text-3xl font-bangers tracking-wide text-[#EFF7F6] mt-2">
             PENGATURAN LENGKAP SISTEM
           </h2>
-          <p class="text-sm text-[#EFF7F6]/70 mt-1 max-w-xl">
+          <p class="text-xs sm:text-sm text-[#EFF7F6]/70 mt-1 max-w-xl">
             Atur persona nama, LLM Brain endpoint, sensitivitas mikrofon STT, mesin TTS, dan logging config-ai.json.
           </p>
         </div>
@@ -188,7 +188,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         <button
           type="submit"
           disabled={isSaving()}
-          class="px-6 py-3 rounded-xl font-bold text-sm bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] shadow-md anime-shadow-green flex items-center gap-2 transition-all shrink-0 font-semibold"
+          class="w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-sm bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] shadow-md anime-shadow-green flex items-center justify-center gap-2 transition-all shrink-0 font-semibold"
         >
           <Save size={16} />
           <span>{isSaving() ? 'Menyimpan...' : 'Simpan Semua'}</span>
@@ -196,12 +196,12 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       </div>
 
       {/* 1. Persona & Panggilan */}
-      <div class="p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+      <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+        <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
           1. PERSONA & IDENTITAS ASISTEN
         </h3>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <div class="space-y-1.5">
             <label class="text-xs font-semibold text-[#EFF7F6]/80">Nama Asisten</label>
             <input
@@ -241,8 +241,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       </div>
 
       {/* 2. Pengaturan AI Brain (LLM Provider) */}
-      <div class="p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-lg font-bangers text-[#F2B5D4] flex items-center gap-2">
+      <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+        <h3 class="text-base sm:text-lg font-bangers text-[#F2B5D4] flex items-center gap-2">
           <Brain size={18} />
           2. AI BRAIN (LLM PROVIDER)
         </h3>
@@ -297,8 +297,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       </div>
 
       {/* 3. Audio & Speech-to-Text (STT) */}
-      <div class="p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+      <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+        <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
           <Mic size={18} />
           3. AUDIO & SPEECH-TO-TEXT (STT)
         </h3>
@@ -364,8 +364,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       </div>
 
       {/* 4. Text-to-Speech (TTS) Voice */}
-      <div class="p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-lg font-bangers text-[#F2B5D4] flex items-center gap-2">
+      <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+        <h3 class="text-base sm:text-lg font-bangers text-[#F2B5D4] flex items-center gap-2">
           <Volume2 size={18} />
           4. SUARA KARAKTER (TEXT-TO-SPEECH)
         </h3>
@@ -440,9 +440,9 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         )}
       </div>
       {/* 5. Avatar & Model Management */}
-      <div class="p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-5">
+      <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-5">
         <div class="flex items-center justify-between">
-          <h3 class="text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+          <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
             <Sparkles size={18} />
             5. AVATAR & MODEL ASSETS (VRM / 2D)
           </h3>
@@ -606,8 +606,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       </div>
 
       {/* 6. Desktop Overlay & Window Preferences */}
-      <div class="p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+      <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+        <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
           <Monitor size={18} />
           6. DESKTOP OVERLAY & WINDOW
         </h3>

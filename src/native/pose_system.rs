@@ -22,8 +22,6 @@ impl Default for AssistantVisualState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PoseKeyframes {
-    #[serde(default)]
-    pub emotion: Option<String>,
     pub pose_a: HashMap<String, [f32; 3]>,
     pub pose_b: HashMap<String, [f32; 3]>,
     #[serde(default = "default_speed")]

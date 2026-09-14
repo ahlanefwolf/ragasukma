@@ -159,6 +159,24 @@ export const api = {
     }
   },
 
+  // Live Tuner Preview (in-memory, tidak menyentuh poses.json di disk)
+  async setTunerPreview(
+    poses: PosesConfig,
+    emotion?: string,
+    state?: string
+  ): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/api/tuner/preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ poses, emotion, state }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   // Live Tuner Sync
   async setTunerLive(
     active: boolean,

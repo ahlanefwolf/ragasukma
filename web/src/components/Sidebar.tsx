@@ -1,11 +1,12 @@
-import { Component } from 'solid-js';
+import { Component, Show } from 'solid-js';
 import { 
   Menu as MenuIcon, 
   Zap, 
   Sliders, 
   Settings as SettingsIcon,
   Terminal,
-  Bot
+  X,
+  Sparkles
 } from 'lucide-solid';
 import { BrandLogo } from './BrandLogo';
 
@@ -14,6 +15,8 @@ interface SidebarProps {
   setActiveTab: (tab: string) => void;
   overlayConnected: boolean;
   currentState: string;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: Component<SidebarProps> = (props) => {
@@ -25,26 +28,46 @@ export const Sidebar: Component<SidebarProps> = (props) => {
     { id: 'settings', label: 'Pengaturan', icon: SettingsIcon },
   ];
 
-  return (
-    <aside class="w-64 bg-[#1D252E] border-r border-[#2F3B46] flex flex-col justify-between p-5 select-none shrink-0">
+  const handleSelectTab = (id: string) => {
+    props.setActiveTab(id);
+    if (props.onCloseMobile) {
+      props.onCloseMobile();
+    }
+  };
+
+  const SidebarContent = () => (
+    <div class="flex flex-col justify-between h-full select-none">
       <div>
         {/* Brand Header */}
-        <div class="flex items-center gap-3 mb-8 px-2">
-          <div class="w-11 h-11 rounded-2xl overflow-hidden shadow-lg anime-shadow-green shrink-0 flex items-center justify-center">
-            <BrandLogo size={44} />
+        <div class="flex items-center justify-between mb-6 px-1">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl overflow-hidden shadow-lg anime-shadow-green shrink-0 flex items-center justify-center">
+              <BrandLogo size={40} />
+            </div>
+            <div>
+              <h1 class="text-2xl font-bangers tracking-wider text-[#EFF7F6] leading-none">
+                RAGASUKMA
+              </h1>
+              <p class="text-[11px] text-[#7BDFF2] font-semibold tracking-wide flex items-center gap-1">
+                <Sparkles size={11} /> NATIVE AI DESKTOP
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 class="text-2xl font-bangers tracking-wider text-[#EFF7F6] leading-none">
-              RAGASUKMA
-            </h1>
-            <p class="text-xs text-[#7BDFF2] font-semibold tracking-wide">
-              NATIVE AI DESKTOP
-            </p>
-          </div>
+
+          {/* Close button on mobile drawer */}
+          <Show when={props.isMobileOpen}>
+            <button
+              onClick={props.onCloseMobile}
+              class="p-2 rounded-xl text-[#EFF7F6]/60 hover:text-[#EFF7F6] hover:bg-[#232D36] md:hidden transition-colors"
+              aria-label="Tutup Menu"
+            >
+              <X size={20} />
+            </button>
+          </Show>
         </div>
 
         {/* Live Overlay Status Pill */}
-        <div class="mb-6 p-3 rounded-xl bg-[#232D36] border border-[#2F3B46] flex items-center justify-between">
+        <div class="mb-5 p-3 rounded-xl bg-[#232D36] border border-[#2F3B46] flex items-center justify-between">
           <div class="flex items-center gap-2">
             <span 
               class={`w-2.5 h-2.5 rounded-full ${
@@ -62,23 +85,23 @@ export const Sidebar: Component<SidebarProps> = (props) => {
           </span>
         </div>
 
-        {/* 4 Main Tabs Navigation */}
-        <nav class="space-y-2">
+        {/* 5 Main Tabs Navigation */}
+        <nav class="space-y-1.5">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = () => props.activeTab === item.id;
 
             return (
               <button
-                onClick={() => props.setActiveTab(item.id)}
+                onClick={() => handleSelectTab(item.id)}
                 class={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                   isActive()
-                    ? 'bg-[#7BDFF2] text-[#232D36] shadow-md anime-shadow-green font-semibold'
+                    ? 'bg-[#7BDFF2] text-[#232D36] shadow-md anime-shadow-green font-bold'
                     : 'text-[#EFF7F6]/75 hover:bg-[#232D36] hover:text-[#EFF7F6]'
                 }`}
               >
                 <div class="flex items-center gap-3">
-                  <Icon size={19} class={isActive() ? 'stroke-[2.5]' : 'stroke-[2]'} />
+                  <Icon size={18} class={isActive() ? 'stroke-[2.5]' : 'stroke-[2]'} />
                   <span class="tracking-wide">{item.label}</span>
                 </div>
                 {item.badge && (
@@ -95,16 +118,36 @@ export const Sidebar: Component<SidebarProps> = (props) => {
       </div>
 
       {/* Footer System Info */}
-      <div class="pt-4 border-t border-[#2F3B46]/60 text-xs text-[#EFF7F6]/50 px-2 space-y-1.5">
+      <div class="pt-4 border-t border-[#2F3B46]/60 text-xs text-[#EFF7F6]/50 px-1 space-y-1.5">
         <div class="flex items-center justify-between">
           <span>Engine Status</span>
-          <span class="text-[#7BDFF2] font-semibold">Vulkan / WGPU Native</span>
+          <span class="text-[#7BDFF2] font-semibold text-[11px]">WGPU 1:1 Three-VRM</span>
         </div>
         <div class="flex items-center justify-between text-[11px]">
           <span>Dashboard Port</span>
-          <span class="font-mono text-[#EFF7F6]/80">42128</span>
+          <span class="font-mono text-[#EFF7F6]/80 font-bold">42128</span>
         </div>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Persistent Sidebar */}
+      <aside class="hidden md:flex w-64 bg-[#1D252E] border-r border-[#2F3B46] p-5 shrink-0 flex-col justify-between">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile Drawer Backdrop */}
+      <Show when={props.isMobileOpen}>
+        <div 
+          class="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 md:hidden animate-fade-in"
+          onClick={props.onCloseMobile}
+        />
+        <aside class="fixed inset-y-0 left-0 w-72 bg-[#1D252E] border-r border-[#2F3B46] p-5 z-50 md:hidden flex flex-col justify-between shadow-2xl animate-slide-right">
+          <SidebarContent />
+        </aside>
+      </Show>
+    </>
   );
 };

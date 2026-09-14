@@ -1,4 +1,5 @@
 pub mod camera;
+pub mod expressions;
 pub mod overlay;
 pub mod pipeline_2d;
 pub mod pipeline_3d;
@@ -314,7 +315,7 @@ impl Renderer {
         );
 
         if let Some(model) = self.model_data.as_mut() {
-            pipeline_3d::update_facial_expressions_and_lip_sync(
+            expressions::update_facial_expressions_and_lip_sync(
                 &self.queue,
                 model,
                 &self.gpu_primitives,

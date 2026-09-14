@@ -38,6 +38,8 @@ pub struct ServerSharedState {
     pub vrm_updated: bool,
     pub tuning_mode: bool,
     pub live_tuning_bones: HashMap<String, [f32; 3]>,
+    /// Live preview pose in-memory tanpa overwrite poses.json di disk
+    pub preview_poses: Option<PosesConfig>,
     pub state_version: u64,
 }
 
@@ -82,6 +84,28 @@ pub fn update_visual_state_with_emotion(state: AssistantVisualState, emotion: &s
             }
         }
     }
+}
+
+pub fn is_session_running() -> bool {
+    if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
+        if let Some(shared) = lock.as_ref() {
+            if let Ok(s) = shared.lock() {
+                return s.is_running;
+            }
+        }
+    }
+    false
+}
+
+pub fn is_tuning_mode() -> bool {
+    if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
+        if let Some(shared) = lock.as_ref() {
+            if let Ok(s) = shared.lock() {
+                return s.tuning_mode;
+            }
+        }
+    }
+    false
 }
 
 pub fn is_voice_muted() -> bool {
@@ -497,6 +521,37 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
                 send_json_response(&mut stream, 400, "{\"error\":\"Invalid JSON config\"}");
             }
         }
+        ("POST", "/api/tuner/preview") => {
+            #[derive(Deserialize)]
+            struct TunerPreviewPayload {
+                poses: PosesConfig,
+                #[serde(default)]
+                emotion: Option<String>,
+                #[serde(default)]
+                state: Option<String>,
+            }
+            if let Ok(payload) = serde_json::from_str::<TunerPreviewPayload>(body_str) {
+                if let Ok(mut lock) = shared.lock() {
+                    lock.tuning_mode = false;
+                    lock.live_tuning_bones.clear();
+                    lock.preview_poses = Some(payload.poses);
+                    if let Some(st_str) = payload.state {
+                        lock.current_state = match st_str.to_lowercase().as_str() {
+                            "listening" => crate::native::pose_system::AssistantVisualState::Listening,
+                            "speaking" => crate::native::pose_system::AssistantVisualState::Speaking,
+                            "thinking" => crate::native::pose_system::AssistantVisualState::Thinking,
+                            _ => crate::native::pose_system::AssistantVisualState::Idle,
+                        };
+                    }
+                    if let Some(emo) = payload.emotion {
+                        lock.current_emotion = emo;
+                    }
+                }
+                send_json_response(&mut stream, 200, "{\"success\":true}");
+            } else {
+                send_json_response(&mut stream, 400, "{\"error\":\"Invalid preview payload\"}");
+            }
+        }
         ("POST", "/api/tuner/live") => {
             #[derive(Deserialize)]
             struct TunerLivePayload {
@@ -510,20 +565,30 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
             }
             if let Ok(payload) = serde_json::from_str::<TunerLivePayload>(body_str) {
                 if let Ok(mut lock) = shared.lock() {
-                    lock.tuning_mode = payload.active;
-                    if let Some(st_str) = payload.state {
-                        lock.current_state = match st_str.to_lowercase().as_str() {
-                            "listening" => crate::native::pose_system::AssistantVisualState::Listening,
-                            "speaking" => crate::native::pose_system::AssistantVisualState::Speaking,
-                            "thinking" => crate::native::pose_system::AssistantVisualState::Thinking,
-                            _ => crate::native::pose_system::AssistantVisualState::Idle,
-                        };
-                    }
                     if payload.active {
+                        lock.tuning_mode = true;
+                        if let Some(st_str) = payload.state {
+                            lock.current_state = match st_str.to_lowercase().as_str() {
+                                "listening" => crate::native::pose_system::AssistantVisualState::Listening,
+                                "speaking" => crate::native::pose_system::AssistantVisualState::Speaking,
+                                "thinking" => crate::native::pose_system::AssistantVisualState::Thinking,
+                                _ => crate::native::pose_system::AssistantVisualState::Idle,
+                            };
+                        }
                         lock.live_tuning_bones = payload.bones;
                         if let Some(emo) = payload.emotion {
                             lock.current_emotion = emo;
                         }
+                    } else {
+                        // KELUAR DARI TUNER / BATAL: Kembalikan 100% ke real runtime state & source of truth poses.json di disk
+                        lock.tuning_mode = false;
+                        lock.live_tuning_bones.clear();
+                        lock.preview_poses = None;
+                        lock.poses_updated = true;
+
+                        let (real_state, real_emotion) = crate::tray::TrayState::get_current_runtime_state();
+                        lock.current_state = real_state;
+                        lock.current_emotion = real_emotion;
                     }
                 }
                 send_json_response(&mut stream, 200, "{\"success\":true}");
@@ -542,6 +607,7 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
                     send_json_response(&mut stream, 500, &format!("{{\"error\":\"{}\"}}", e));
                 } else {
                     if let Ok(mut lock) = shared.lock() {
+                        lock.preview_poses = None;
                         lock.poses_updated = true;
                     }
                     send_json_response(&mut stream, 200, "{\"success\":true}");

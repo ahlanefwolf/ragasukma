@@ -4,7 +4,8 @@ import {
   Trash2, 
   Plus, 
   Terminal, 
-  FileCode
+  Zap,
+  Sparkles
 } from 'lucide-solid';
 import { api, SkillItem } from '../api';
 
@@ -80,7 +81,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
   return (
     <div class="space-y-6">
       {/* Header Banner */}
-      <div class="rounded-2xl bg-gradient-to-r from-[#232D36] via-[#1D252E] to-[#161D24] p-6 border border-[#2F3B46] flex items-center justify-between">
+      <div class="rounded-2xl bg-gradient-to-r from-[#232D36] via-[#1D252E] to-[#161D24] p-4 sm:p-6 border border-[#2F3B46] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div class="flex items-center gap-2">
             <span class="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#7BDFF2]/20 text-[#7BDFF2] border border-[#7BDFF2]/30">
@@ -90,10 +91,10 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
               skill-command.md
             </span>
           </div>
-          <h2 class="text-3xl font-bangers tracking-wide text-[#EFF7F6] mt-2">
+          <h2 class="text-2xl sm:text-3xl font-bangers tracking-wide text-[#EFF7F6] mt-2">
             SKILL COMMANDS REGISTRY
           </h2>
-          <p class="text-sm text-[#EFF7F6]/70 mt-1 max-w-xl">
+          <p class="text-xs sm:text-sm text-[#EFF7F6]/70 mt-1 max-w-xl">
             Daftarkan script command terminal atau aplikasi yang bisa dipanggil secara otomatis oleh AI Assistant saat kamu berbicara.
           </p>
         </div>
@@ -101,7 +102,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
 
       {/* Skills List Container */}
       <div class="space-y-3">
-        <h3 class="text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+        <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
           <Terminal size={18} />
           DAFTAR SKILL TERDAFTAR ({skills().length})
         </h3>
@@ -115,22 +116,22 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
         ) : (
           <div class="space-y-3">
             {skills().map((skill) => (
-              <div class="p-4 rounded-xl bg-[#1D252E] border border-[#2F3B46] hover:border-[#7BDFF2]/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div class="p-4 rounded-xl bg-[#1D252E] border border-[#2F3B46] hover:border-[#7BDFF2]/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                 <div class="space-y-1 min-w-0 flex-1">
                   <div class="flex items-center gap-2">
                     <span class="font-bold text-sm text-[#EFF7F6]">{skill.name}</span>
                   </div>
                   <p class="text-xs text-[#EFF7F6]/60">{skill.description}</p>
-                  <div class="flex items-center gap-1.5 pt-1">
-                    <span class="text-xs font-mono font-bold text-[#F2B5D4]">$</span>
-                    <code class="text-xs font-mono px-2 py-0.5 rounded bg-[#161D24] text-[#7BDFF2] border border-[#2F3B46] truncate max-w-md">
+                  <div class="flex items-center gap-1.5 pt-1 overflow-x-auto max-w-full">
+                    <span class="text-xs font-mono font-bold text-[#F2B5D4] shrink-0">$</span>
+                    <code class="text-[11px] sm:text-xs font-mono px-2 py-0.5 rounded bg-[#161D24] text-[#7BDFF2] border border-[#2F3B46] truncate max-w-full">
                       {skill.command}
                     </code>
                   </div>
                 </div>
 
                 {/* Action Buttons */}
-                <div class="flex items-center gap-2 shrink-0">
+                <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                   <button
                     onClick={() => handleRunSkill(skill)}
                     class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] flex items-center gap-1.5 transition-all shadow-sm anime-shadow-green"
@@ -140,7 +141,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
                   </button>
                   <button
                     onClick={() => handleDeleteSkill(skill.name)}
-                    class="p-1.5 rounded-lg text-xs font-semibold bg-[#232D36] hover:bg-[#F2B5D4]/20 text-[#F2B5D4] border border-[#2F3B46] transition-all"
+                    class="p-1.5 rounded-lg text-xs font-semibold bg-[#232D36] hover:bg-[#FF7B7B]/20 text-[#FF7B7B] border border-[#FF7B7B]/30 transition-all"
                     title="Hapus Skill"
                   >
                     <Trash2 size={15} />
@@ -153,8 +154,8 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
       </div>
 
       {/* Add New Skill Form */}
-      <form onSubmit={handleAddSkill} class="p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-lg font-bangers text-[#F2B5D4] flex items-center gap-2">
+      <form onSubmit={handleAddSkill} class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+        <h3 class="text-base sm:text-lg font-bangers text-[#F2B5D4] flex items-center gap-2">
           <Plus size={18} />
           TAMBAH SKILL COMMAND BARU
         </h3>
@@ -197,7 +198,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
         <div class="flex justify-end pt-1">
           <button
             type="submit"
-            class="px-5 py-2.5 rounded-xl font-bold text-sm bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] shadow-md anime-shadow-green flex items-center gap-2 transition-all font-semibold"
+            class="w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-sm bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] shadow-md anime-shadow-green flex items-center justify-center gap-2 transition-all font-semibold"
           >
             <Plus size={16} />
             <span>Simpan Skill Baru</span>

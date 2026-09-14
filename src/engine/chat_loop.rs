@@ -224,46 +224,17 @@ impl AppSession {
             let mut first_token_time = None;
             let mut printed_header = false;
 
-            let result = self.llm.chat_stream(&effective_input, |sentence| {
+            let result = self.llm.chat_stream(&effective_input, |sentence, emotion| {
                 let clean_sentence = sentence.trim().to_string();
 
                 if clean_sentence.is_empty() {
                     return Ok(());
                 }
 
-                if first_token_time.is_none() {
-                    let lower_s = clean_sentence.to_lowercase();
-                    let emotion = if lower_s.contains("*malu*") || lower_s.contains("*blush*") || lower_s.contains("*tersipu*") {
-                        "shy"
-                    } else if lower_s.contains("*senang*") || lower_s.contains("*gembira*") || lower_s.contains("*happy*") {
-                        "happy"
-                    } else if lower_s.contains("*semangat*") || lower_s.contains("*excited*") {
-                        "excited"
-                    } else if lower_s.contains("*kaget*") || lower_s.contains("*terkejut*") || lower_s.contains("*surprised*") {
-                        "surprised"
-                    } else if lower_s.contains("*mikir*") || lower_s.contains("*thinking*") || lower_s.contains("*bingung*") || lower_s.contains("*confused*") {
-                        "thinking"
-                    } else if lower_s.contains("*sedih*") || lower_s.contains("*sad*") {
-                        "sad"
-                    } else if lower_s.contains("*netral*") || lower_s.contains("*neutral*") {
-                        "neutral"
-                    } else if lower_s.contains("tersipu") || lower_s.contains("malu") || lower_s.contains("aduh") {
-                        "shy"
-                    } else if lower_s.contains("bingung") || lower_s.contains("kurang paham") || lower_s.contains("hmm") {
-                        "thinking"
-                    } else if lower_s.contains("senang") || lower_s.contains("suka") || lower_s.contains("alhamdulillah") || lower_s.contains("hehe") {
-                        "happy"
-                    } else if lower_s.contains("wah") || lower_s.contains("siap") || lower_s.contains("tentu") || lower_s.contains("hebat") || lower_s.contains("dong") {
-                        "excited"
-                    } else if lower_s.contains("kaget") || lower_s.contains("astaga") || lower_s.contains("masa") || lower_s.contains("beneran") {
-                        "surprised"
-                    } else if lower_s.contains("sedih") || lower_s.contains("kecewa") || lower_s.contains("maaf") {
-                        "sad"
-                    } else {
-                        "neutral"
-                    };
+                // Update emosi avatar real-time ke renderer 3D
+                TrayState::update_with_emotion(AssistantState::Speaking, &format!("{asst_name} Berbicara"), emotion);
 
-                    TrayState::update_with_emotion(AssistantState::Speaking, &format!("{asst_name} Berbicara"), emotion);
+                if first_token_time.is_none() {
                     let first_elapsed = llm_start.elapsed();
                     first_token_time = Some(first_elapsed);
                     if !printed_header {

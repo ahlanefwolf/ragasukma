@@ -130,6 +130,7 @@ Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh ka
      * *kaget*   -> untuk respon terkejut, takjub, atau heran
      * *mikir*   -> untuk respon berpikir, menganalisis, atau bingung
      * *sedih*   -> untuk respon prihatin, minta maaf, atau sedih
+     * *marah*   -> untuk respon kesal, cemberut, ngambek, atau protes
      * *netral*  -> untuk respon datar, formal, atau santai biasa
    - Tag dalam bintang otomatis diolah untuk ekspresi wajah 3D dan TIDAK akan diucapkan oleh TTS.
    - Contoh respon ideal:
@@ -165,7 +166,7 @@ Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh ka
 
     pub fn chat_stream<F>(&mut self, user_input: &str, mut on_sentence: F) -> Result<String>
     where
-        F: FnMut(&str) -> Result<()>,
+        F: FnMut(&str, &str) -> Result<()>,
     {
         if user_input.trim().is_empty() {
             return Ok(String::new());
@@ -211,6 +212,7 @@ Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh ka
             let reader = std::io::BufReader::new(response);
             let mut full_reply = String::new();
             let mut current_sentence = String::new();
+            let mut active_emotion = "neutral";
 
             for line in reader.lines() {
                 let line = line?;
@@ -251,16 +253,26 @@ Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh ka
                                     }
                                     let sentence = current_sentence[..=pos].to_string();
                                     current_sentence = current_sentence[pos + 1..].to_string();
+
+                                    // Deteksi emosi dari teks mentah SEBELUM tag bintang dibersihkan
+                                    if let Some(emo) = crate::native::renderer::expressions::detect_emotion(&sentence) {
+                                        active_emotion = emo;
+                                    }
+
                                     let clean = clean_ai_text(&sentence);
                                     if !clean.is_empty() {
-                                        on_sentence(&clean)?;
+                                        on_sentence(&clean, active_emotion)?;
                                     }
                                 }
 
                                 if has_skill_closed {
+                                    if let Some(emo) = crate::native::renderer::expressions::detect_emotion(&current_sentence) {
+                                        active_emotion = emo;
+                                    }
+
                                     let clean = clean_ai_text(&current_sentence);
                                     if !clean.is_empty() {
-                                        on_sentence(&clean)?;
+                                        on_sentence(&clean, active_emotion)?;
                                         current_sentence.clear();
                                     }
                                 }
@@ -271,9 +283,13 @@ Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh ka
             }
 
             // Sisa teks terakhir jika belum berakhiran tanda baca
+            if let Some(emo) = crate::native::renderer::expressions::detect_emotion(&current_sentence) {
+                active_emotion = emo;
+            }
+
             let remaining = clean_ai_text(&current_sentence);
             if !remaining.is_empty() {
-                on_sentence(&remaining)?;
+                on_sentence(&remaining, active_emotion)?;
             }
 
             let final_reply = clean_ai_text(&full_reply);
@@ -286,10 +302,13 @@ Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh ka
             return Ok(full_reply);
         }
 
-        self.chat_fallback_ollama(user_input)
+        self.chat_fallback_ollama(user_input, on_sentence)
     }
 
-    fn chat_fallback_ollama(&mut self, _user_input: &str) -> Result<String> {
+    fn chat_fallback_ollama<F>(&mut self, _user_input: &str, mut on_sentence: F) -> Result<String>
+    where
+        F: FnMut(&str, &str) -> Result<()>,
+    {
         let ollama_endpoint = format!("{}/api/chat", self.base_url.trim_end_matches('/'));
         let req_body = OllamaChatRequest {
             model: self.model.clone(),
@@ -310,7 +329,13 @@ Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh ka
         }
 
         let chat_res: OllamaChatResponse = res.json().context("Gagal parse response Ollama")?;
-            let final_reply = clean_ai_text(&chat_res.message.content);
+        let emo = crate::native::renderer::expressions::detect_emotion_with_fallback(&chat_res.message.content);
+        let final_reply = clean_ai_text(&chat_res.message.content);
+
+        if !final_reply.is_empty() {
+            on_sentence(&final_reply, emo)?;
+        }
+
         self.history.push(ChatMessage {
             role: "assistant".to_string(),
             content: final_reply,
@@ -379,7 +404,25 @@ fn clean_ai_text(text: &str) -> String {
                     || lower.contains("gigil")
                     || lower.contains("pipi merah")
                     || lower.contains("mata bulat")
-                    || lower.contains("wajah sedikit merah");
+                    || lower.contains("wajah sedikit merah")
+                    || lower == "senang"
+                    || lower == "malu"
+                    || lower == "semangat"
+                    || lower == "kaget"
+                    || lower == "mikir"
+                    || lower == "sedih"
+                    || lower == "marah"
+                    || lower == "kesal"
+                    || lower == "ngambek"
+                    || lower == "netral"
+                    || lower == "happy"
+                    || lower == "shy"
+                    || lower == "excited"
+                    || lower == "surprised"
+                    || lower == "thinking"
+                    || lower == "sad"
+                    || lower == "angry"
+                    || lower == "neutral";
 
                 if !is_roleplay_action && !trimmed.is_empty() {
                     result.push_str(trimmed);

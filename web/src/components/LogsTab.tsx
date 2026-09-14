@@ -8,7 +8,8 @@ import {
   ArrowDown, 
   Filter, 
   Check, 
-  RefreshCw 
+  RefreshCw,
+  Sliders
 } from 'lucide-solid';
 
 interface LogsTabProps {
@@ -24,10 +25,19 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
   const [isRefreshing, setIsRefreshing] = createSignal(false);
 
   let logsContainerRef: HTMLDivElement | undefined;
+  let isFetching = false;
 
   const fetchLogs = async () => {
-    const data = await api.getLogs();
-    setLogs(data);
+    if (isFetching) return;
+    isFetching = true;
+    try {
+      const data = await api.getLogs();
+      setLogs(data);
+    } catch {
+      // ignore network errors during tab unmount/background polling
+    } finally {
+      isFetching = false;
+    }
   };
 
   const handleManualRefresh = async () => {
@@ -107,122 +117,137 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
 
   return (
     <div class="space-y-6">
-      {/* Header Panel */}
-      <div class="p-6 rounded-2xl bg-[#232D36] border border-[#2F3B46] shadow-xl">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Top Header Card */}
+      <div class="p-4 sm:p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4 shadow-xl">
+        {/* 1. Header Banner */}
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="flex items-center gap-3">
-            <div class="p-2.5 rounded-xl bg-[#7BDFF2]/20 text-[#7BDFF2] border border-[#7BDFF2]/30">
-              <Terminal size={24} />
+            <div class="p-2.5 rounded-xl bg-[#7BDFF2]/20 text-[#7BDFF2] border border-[#7BDFF2]/30 shrink-0">
+              <Terminal size={22} />
             </div>
             <div>
-              <h2 class="text-xl font-bold text-[#EFF7F6] flex items-center gap-2">
-                Live Console & System Logs
+              <div class="flex items-center gap-2">
+                <h2 class="text-xl sm:text-2xl font-bangers tracking-wide text-[#EFF7F6] leading-none">
+                  LIVE CONSOLE & SYSTEM LOGS
+                </h2>
                 <span class="text-xs px-2 py-0.5 rounded-full font-mono font-bold bg-[#7BDFF2]/20 text-[#7BDFF2] border border-[#7BDFF2]/30">
                   {filteredLogs().length} baris
                 </span>
-              </h2>
-              <p class="text-xs text-[#EFF7F6]/60">
+              </div>
+              <p class="text-xs text-[#EFF7F6]/60 mt-0.5">
                 Log percakapan AI, transkrip STT, pemanggilan skill, dan aktivitas sistem real-time
               </p>
             </div>
           </div>
 
-          {/* Action Toolbar */}
-          <div class="flex items-center flex-wrap gap-2">
-            <button
-              onClick={handleManualRefresh}
-              class="p-2 rounded-xl bg-[#161D24] text-[#EFF7F6]/80 hover:text-[#7BDFF2] border border-[#2F3B46] hover:border-[#7BDFF2]/50 transition-all"
-              title="Refresh Log"
-            >
-              <RefreshCw size={16} class={isRefreshing() ? 'animate-spin text-[#7BDFF2]' : ''} />
-            </button>
-
-            <button
-              onClick={() => setAutoScroll(!autoScroll())}
-              class={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                autoScroll()
-                  ? 'bg-[#7BDFF2]/20 text-[#7BDFF2] border-[#7BDFF2]/40 shadow-sm'
-                  : 'bg-[#161D24] text-[#EFF7F6]/60 border-[#2F3B46]'
-              }`}
-            >
-              <ArrowDown size={14} class={autoScroll() ? 'animate-bounce' : ''} />
-              <span>Auto-Scroll</span>
-            </button>
-
-            <button
-              onClick={handleCopyLogs}
-              class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-[#161D24] text-[#EFF7F6]/80 hover:text-[#7BDFF2] border border-[#2F3B46] hover:border-[#7BDFF2]/50 transition-all"
-            >
-              {copied() ? <Check size={14} class="text-[#7BDFF2]" /> : <Copy size={14} />}
-              <span>{copied() ? 'Tersalin' : 'Salin Semua'}</span>
-            </button>
-
-            <button
-              onClick={handleClearLogs}
-              class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-[#FF7B7B]/10 text-[#FF7B7B] hover:bg-[#FF7B7B]/20 border border-[#FF7B7B]/30 transition-all"
-            >
-              <Trash2 size={14} />
-              <span>Bersihkan</span>
-            </button>
+          {/* Realtime Stream Indicator Badge */}
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-mono px-3 py-1 rounded-full bg-[#161D24] text-[#7BDFF2] border border-[#2F3B46] flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-[#7BDFF2] animate-pulse" />
+              <span>LIVE LOG STREAM</span>
+            </span>
           </div>
         </div>
 
-        {/* Filter & Search Bar */}
-        <div class="mt-5 pt-4 border-t border-[#2F3B46] flex flex-col sm:flex-row items-center justify-between gap-3">
-          {/* Search Box */}
-          <div class="relative w-full sm:w-80">
-            <Search size={15} class="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#EFF7F6]/40" />
-            <input
-              type="text"
-              placeholder="Cari kata kunci log..."
-              value={searchQuery()}
-              onInput={(e) => setSearchQuery(e.currentTarget.value)}
-              class="w-full pl-9 pr-3.5 py-2 rounded-xl bg-[#161D24] border border-[#2F3B46] text-xs text-[#EFF7F6] focus:border-[#7BDFF2] focus:outline-none transition-all placeholder:text-[#EFF7F6]/30 font-mono"
-            />
+        {/* 2. Structured Action & Filter Toolbar (Between: Kiri = Search & Filter, Kanan = Actions) */}
+        <div class="p-2.5 rounded-xl bg-[#161D24] border border-[#2F3B46] flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Sisi Kiri: Search Input & Level Filter Pills */}
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2.5 flex-1 max-w-full lg:max-w-xl">
+            {/* Search Box */}
+            <div class="relative flex-1">
+              <Search size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-[#EFF7F6]/40" />
+              <input
+                type="text"
+                placeholder="Cari kata kunci log..."
+                value={searchQuery()}
+                onInput={(e) => setSearchQuery(e.currentTarget.value)}
+                class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#232D36] border border-[#2F3B46] text-xs text-[#EFF7F6] focus:border-[#7BDFF2] focus:outline-none transition-all placeholder:text-[#EFF7F6]/30 font-mono"
+              />
+            </div>
+
+            {/* Level Filter Segmented Control */}
+            <div class="flex items-center bg-[#232D36] p-1 rounded-lg border border-[#2F3B46] shrink-0">
+              <button
+                onClick={() => setLevelFilter('all')}
+                class={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                  levelFilter() === 'all'
+                    ? 'bg-[#7BDFF2] text-[#232D36] font-bold shadow'
+                    : 'text-[#EFF7F6]/70 hover:text-[#EFF7F6]'
+                }`}
+              >
+                Semua
+              </button>
+              <button
+                onClick={() => setLevelFilter('info')}
+                class={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                  levelFilter() === 'info'
+                    ? 'bg-[#7BDFF2] text-[#232D36] font-bold shadow'
+                    : 'text-[#EFF7F6]/70 hover:text-[#EFF7F6]'
+                }`}
+              >
+                Info
+              </button>
+              <button
+                onClick={() => setLevelFilter('error')}
+                class={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                  levelFilter() === 'error'
+                    ? 'bg-[#FF7B7B] text-[#232D36] font-bold shadow'
+                    : 'text-[#FF7B7B]/80 hover:text-[#FF7B7B]'
+                }`}
+              >
+                Error
+              </button>
+            </div>
           </div>
 
-          {/* Level Filter Pill */}
-          <div class="flex items-center gap-1.5 w-full sm:w-auto justify-end">
-            <span class="text-xs text-[#EFF7F6]/50 mr-1 flex items-center gap-1">
-              <Filter size={13} /> Filter:
-            </span>
+          {/* Sisi Kanan: Action Buttons Toolbar */}
+          <div class="flex items-center flex-wrap gap-2 justify-end shrink-0">
+            {/* Refresh Button */}
             <button
-              onClick={() => setLevelFilter('all')}
-              class={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                levelFilter() === 'all'
-                  ? 'bg-[#7BDFF2] text-[#232D36] font-bold'
-                  : 'bg-[#161D24] text-[#EFF7F6]/60 hover:text-[#EFF7F6] border border-[#2F3B46]'
-              }`}
+              onClick={handleManualRefresh}
+              class="p-2 rounded-lg bg-[#232D36] text-[#EFF7F6]/80 hover:text-[#7BDFF2] border border-[#2F3B46] hover:border-[#7BDFF2]/50 transition-all"
+              title="Refresh Log"
             >
-              Semua
+              <RefreshCw size={14} class={isRefreshing() ? 'animate-spin text-[#7BDFF2]' : ''} />
             </button>
+
+            {/* Auto-Scroll Toggle */}
             <button
-              onClick={() => setLevelFilter('info')}
-              class={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                levelFilter() === 'info'
-                  ? 'bg-[#7BDFF2]/20 text-[#7BDFF2] border border-[#7BDFF2]/50'
-                  : 'bg-[#161D24] text-[#EFF7F6]/60 hover:text-[#EFF7F6] border border-[#2F3B46]'
+              onClick={() => setAutoScroll(!autoScroll())}
+              class={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                autoScroll()
+                  ? 'bg-[#7BDFF2]/20 text-[#7BDFF2] border-[#7BDFF2]/40 shadow-sm font-bold'
+                  : 'bg-[#232D36] text-[#EFF7F6]/60 border-[#2F3B46]'
               }`}
             >
-              Info
+              <ArrowDown size={13} class={autoScroll() ? 'animate-bounce' : ''} />
+              <span>Auto-Scroll</span>
             </button>
+
+            {/* Copy Logs */}
             <button
-              onClick={() => setLevelFilter('error')}
-              class={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                levelFilter() === 'error'
-                  ? 'bg-[#FF7B7B]/20 text-[#FF7B7B] border border-[#FF7B7B]/50'
-                  : 'bg-[#161D24] text-[#EFF7F6]/60 hover:text-[#EFF7F6] border border-[#2F3B46]'
-              }`}
+              onClick={handleCopyLogs}
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#232D36] text-[#EFF7F6]/80 hover:text-[#7BDFF2] border border-[#2F3B46] hover:border-[#7BDFF2]/50 transition-all"
             >
-              Error
+              {copied() ? <Check size={13} class="text-[#7BDFF2]" /> : <Copy size={13} />}
+              <span>{copied() ? 'Tersalin' : 'Salin Semua'}</span>
+            </button>
+
+            {/* Clear Logs */}
+            <button
+              onClick={handleClearLogs}
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#232D36] hover:bg-[#FF7B7B]/20 text-[#FF7B7B] border border-[#FF7B7B]/30 transition-all"
+            >
+              <Trash2 size={13} />
+              <span>Bersihkan</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Terminal Display Screen */}
-      <div class="rounded-2xl bg-[#161D24] border border-[#2F3B46] shadow-2xl overflow-hidden flex flex-col h-[520px]">
-        {/* Terminal Header Bar */}
+      <div class="rounded-2xl bg-[#161D24] border border-[#2F3B46] shadow-2xl overflow-hidden flex flex-col h-[480px] sm:h-[540px]">
+        {/* Terminal Window Header Bar */}
         <div class="px-4 py-3 bg-[#1D252E] border-b border-[#2F3B46] flex items-center justify-between select-none">
           <div class="flex items-center gap-2">
             <span class="w-3 h-3 rounded-full bg-[#FF5F56] inline-block" />
@@ -240,7 +265,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
         {/* Terminal Content Log Body */}
         <div
           ref={logsContainerRef}
-          class="flex-1 p-5 overflow-y-auto font-mono text-xs leading-relaxed space-y-1 select-text scroll-smooth"
+          class="flex-1 p-4 sm:p-5 overflow-y-auto font-mono text-xs leading-relaxed space-y-1 select-text scroll-smooth"
         >
           <Show
             when={filteredLogs().length > 0}

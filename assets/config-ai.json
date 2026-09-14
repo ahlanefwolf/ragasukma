@@ -1,11 +1,11 @@
 {
   "assistant_name": "Sukma",
   "user_callsign": "Mas",
-  "personality_role": "partner",
+  "personality_role": "tsundere",
   "stt_engine": "google",
   "groq_api_key": "",
   "llm_base_url": "http://localhost:20128/v1",
-  "llm_model": "ag/gemini-3.8-flash-low",
+  "llm_model": "",
   "llm_api_key": "",
   "voice_mode": "auto",
   "mic_sensitivity": "3",

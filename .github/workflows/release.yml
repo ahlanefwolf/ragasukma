@@ -14,18 +14,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # - platform: 'ubuntu-22.04'
-          #   target: 'x86_64-unknown-linux-gnu'
-          #   bin_name: 'ragasukma'
-          #   archive_ext: 'tar.gz'
+          - platform: 'ubuntu-22.04'
+            target: 'x86_64-unknown-linux-gnu'
           - platform: 'windows-latest'
             target: 'x86_64-pc-windows-msvc'
-            bin_name: 'ragasukma.exe'
-            archive_ext: 'zip'
-          # - platform: 'macos-latest'
-          #   target: 'aarch64-apple-darwin'
-          #   bin_name: 'ragasukma'
-          #   archive_ext: 'tar.gz'
+          - platform: 'macos-latest'
+            target: 'aarch64-apple-darwin'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -46,7 +40,6 @@ jobs:
                                   pkg-config \
                                   libssl-dev \
                                   libasound2-dev \
-                                  rpm \
                                   squashfs-tools \
                                   libfuse2
 
@@ -78,7 +71,7 @@ jobs:
         uses: swatinem/rust-cache@v2
 
       # ------------------------------------------------------------------------
-      # Build Binaries & Native Installers (.deb, .AppImage, .rpm, .pacman, .exe NSIS, .dmg)
+      # Build Binaries & Native Installers (.AppImage, .dmg, .exe)
       # ------------------------------------------------------------------------
       - name: Install cargo-packager
         run: cargo install cargo-packager --locked
@@ -91,22 +84,31 @@ jobs:
         run: |
           cargo packager --release --target ${{ matrix.target }}
 
-      # Debug: list output files
-      - name: List packager output (debug)
-        if: matrix.platform == 'windows-latest'
+      # Debug: List packager output files
+      - name: List packager output (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: |
+          find target/${{ matrix.target }}/release -type f \( -name "*.AppImage" -o -name "*.dmg" -o -name "*.exe" \) || true
+
+      - name: List packager output (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           Get-ChildItem -Recurse target\${{ matrix.target }}\release\ -Include *.exe, *.msi | Select-Object FullName
 
       # ------------------------------------------------------------------------
-      # Upload Release Asset
+      # Upload Release Assets (Overwrites .AppImage, .dmg, .exe)
       # ------------------------------------------------------------------------
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
+            target/${{ matrix.target }}/release/*.AppImage
+            target/${{ matrix.target }}/release/**/*.AppImage
+            target/${{ matrix.target }}/release/*.dmg
+            target/${{ matrix.target }}/release/**/*.dmg
             target/${{ matrix.target }}/release/*.exe
             target/${{ matrix.target }}/release/**/*.exe
           fail_on_unmatched_files: false
-          overwrite_files: true
+          overwrite: true

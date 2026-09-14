@@ -123,6 +123,7 @@ impl App {
             vrm_updated: false,
             tuning_mode: false,
             live_tuning_bones: std::collections::HashMap::new(),
+            preview_poses: None,
             state_version: 1,
         }));
 
@@ -324,17 +325,25 @@ impl App {
                 self.last_frame_time = now;
 
                 let mut is_tuning = false;
+                let mut is_previewing = false;
+                let mut live_tuner_emotion = String::new();
+
                 // Sync state & live poses reload dari Web HTTP Dashboard
                 if let Ok(mut lock) = self.shared_server_state.lock() {
                     self.pose_manager.current_state = lock.current_state;
-                    self.renderer.current_emotion = lock.current_emotion.clone();
                     is_tuning = lock.tuning_mode;
+                    is_previewing = lock.preview_poses.is_some();
+                    live_tuner_emotion = lock.current_emotion.clone();
 
                     if is_tuning {
                         // Freeze animasi siklus, aplikasikan langsung live bone rotation dari tuner
                         self.pose_manager.apply_tuning_pose(&lock.live_tuning_bones);
                     } else {
-                        if lock.poses_updated {
+                        if let Some(preview) = &lock.preview_poses {
+                            // Gunakan preview poses in-memory tanpa overwrite poses.json di disk
+                            self.pose_manager.config = preview.clone();
+                        } else if lock.poses_updated {
+                            // Reload 100% dari file poses.json resmi di disk (Source of Truth)
                             let path = server::find_file_in_candidates("poses.json");
                             self.pose_manager.load_from_file(&path);
                             lock.poses_updated = false;
@@ -378,6 +387,19 @@ impl App {
                 let delta_sim = if is_tuning { 0.0 } else { delta };
                 self.renderer.current_visual_state = self.pose_manager.current_state;
                 self.renderer.elapsed_time += delta;
+
+                // Hirarki Emosi (diupdate SEBELUM update_camera_and_bones agar diaplikasikan pada frame ini):
+                // 1. Jika sedang di Pose Tuner (Tuning edit mode atau Preview loop), gunakan emosi realtime yang dipilih user di UI
+                // 2. Jika sedang Thinking, tampilkan ekspresi thinking
+                // 3. Saat Speaking, Idle, atau Listening, pertahankan emosi terakhir (misal tetap tersipu/senang/cemberut saat idle)!
+                if is_tuning || is_previewing {
+                    self.renderer.current_emotion = live_tuner_emotion;
+                } else if self.pose_manager.current_state == crate::native::pose_system::AssistantVisualState::Thinking {
+                    self.renderer.current_emotion = "thinking".to_string();
+                } else {
+                    self.renderer.current_emotion = live_tuner_emotion;
+                }
+
                 self.renderer.update_camera_and_bones(&mut self.pose_manager, delta_sim, is_tuning);
 
                 match self.renderer.render() {

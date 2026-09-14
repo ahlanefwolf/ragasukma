@@ -146,7 +146,12 @@ impl AudioRecorder {
         while !stop_worker.load(Ordering::SeqCst) {
             std::thread::sleep(chunk_duration);
 
-            if pause_worker.load(Ordering::SeqCst) {
+            let session_active = crate::native::server::is_session_running();
+            let tuning_active = crate::native::server::is_tuning_mode();
+            let mic_muted = crate::native::server::is_mic_muted();
+            let is_paused = pause_worker.load(Ordering::SeqCst) || crate::native::server::is_paused();
+
+            if !session_active || tuning_active || mic_muted || is_paused {
                 voice_started = false;
                 consecutive_voice = 0;
                 consecutive_silence = 0;

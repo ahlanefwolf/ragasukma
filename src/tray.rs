@@ -21,7 +21,12 @@ pub struct TrayState;
 
 impl TrayState {
     pub fn update(state: AssistantState, message: &str) {
-        Self::update_with_emotion(state, message, "neutral");
+        let current_emo = CURRENT_STATE
+            .lock()
+            .ok()
+            .and_then(|l| l.as_ref().and_then(|v| v.get("emotion").and_then(|e| e.as_str().map(|s| s.to_string()))))
+            .unwrap_or_else(|| "neutral".to_string());
+        Self::update_with_emotion(state, message, &current_emo);
     }
 
     pub fn update_with_emotion(state: AssistantState, message: &str, emotion: &str) {
@@ -55,6 +60,23 @@ impl TrayState {
             AssistantState::Speaking => crate::native::pose_system::AssistantVisualState::Speaking,
         };
         crate::native::server::update_visual_state_with_emotion(visual_state, emotion);
+    }
+
+    pub fn get_current_runtime_state() -> (crate::native::pose_system::AssistantVisualState, String) {
+        if let Ok(lock) = CURRENT_STATE.lock() {
+            if let Some(val) = lock.as_ref() {
+                let class_str = val.get("class").and_then(|v| v.as_str()).unwrap_or("idle");
+                let emotion_str = val.get("emotion").and_then(|v| v.as_str()).unwrap_or("neutral").to_string();
+                let visual_state = match class_str {
+                    "listening" => crate::native::pose_system::AssistantVisualState::Listening,
+                    "speaking" => crate::native::pose_system::AssistantVisualState::Speaking,
+                    "thinking" | "processing" => crate::native::pose_system::AssistantVisualState::Thinking,
+                    _ => crate::native::pose_system::AssistantVisualState::Idle,
+                };
+                return (visual_state, emotion_str);
+            }
+        }
+        (crate::native::pose_system::AssistantVisualState::Idle, "neutral".to_string())
     }
 
     pub fn emit_event(_event_name: &str, _payload: serde_json::Value) {}

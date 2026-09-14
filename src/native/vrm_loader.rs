@@ -433,30 +433,34 @@ impl VrmModelData {
             }
         }
 
-        // VRM 1.0 Expressions
+        // VRM 1.0 Expressions (preset & custom)
         if let Some(vrm_1) = gltf_json.as_ref().and_then(|j| j.get("extensions")).and_then(|e| e.get("VRMC_vrm")) {
-            if let Some(preset_obj) = vrm_1.get("expressions").and_then(|e| e.get("preset")).and_then(|p| p.as_object()) {
-                for (preset_name, expr_val) in preset_obj {
-                    let name = preset_name.to_lowercase();
-                    let mut binds = Vec::new();
-                    if let Some(morph_binds) = expr_val.get("morphTargetBinds").and_then(|m| m.as_array()) {
-                        for b in morph_binds {
-                            let node_idx = b.get("node").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                            let mesh_index = nodes.iter().find(|n| n.index == node_idx).and_then(|n| n.mesh_index).unwrap_or(0);
-                            let target_index = b.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                            let weight = b.get("weight").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
-                            binds.push(BlendShapeBind {
-                                mesh_index,
-                                primitive_index: 0,
-                                target_index,
-                                weight,
+            if let Some(exprs_obj) = vrm_1.get("expressions").and_then(|e| e.as_object()) {
+                for (_category, sub_val) in exprs_obj {
+                    if let Some(obj) = sub_val.as_object() {
+                        for (expr_name, expr_val) in obj {
+                            let name = expr_name.to_lowercase();
+                            let mut binds = Vec::new();
+                            if let Some(morph_binds) = expr_val.get("morphTargetBinds").and_then(|m| m.as_array()) {
+                                for b in morph_binds {
+                                    let node_idx = b.get("node").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                                    let mesh_index = nodes.iter().find(|n| n.index == node_idx).and_then(|n| n.mesh_index).unwrap_or(0);
+                                    let target_index = b.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                                    let weight = b.get("weight").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
+                                    binds.push(BlendShapeBind {
+                                        mesh_index,
+                                        primitive_index: 0,
+                                        target_index,
+                                        weight,
+                                    });
+                                }
+                            }
+                            expressions.insert(name.clone(), VrmExpressionData {
+                                name,
+                                binds,
                             });
                         }
                     }
-                    expressions.insert(name.clone(), VrmExpressionData {
-                        name,
-                        binds,
-                    });
                 }
             }
         }
