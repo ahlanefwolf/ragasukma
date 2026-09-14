@@ -100,3 +100,5 @@ jobs:
         with:
           files: |
             target/${{ matrix.target }}/release/packager/*.exe
+          fail_on_unmatched_files: false
+          overwrite: true
