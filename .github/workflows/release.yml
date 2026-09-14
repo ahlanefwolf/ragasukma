@@ -91,6 +91,13 @@ jobs:
         run: |
           cargo packager --release --target ${{ matrix.target }}
 
+      # Debug: list output files
+      - name: List packager output (debug)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse target\${{ matrix.target }}\release\ -Include *.exe, *.msi | Select-Object FullName
+
       # ------------------------------------------------------------------------
       # Upload Release Asset
       # ------------------------------------------------------------------------
@@ -99,6 +106,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            target/${{ matrix.target }}/release/packager/*.exe
+            target/${{ matrix.target }}/release/*.exe
+            target/${{ matrix.target }}/release/**/*.exe
           fail_on_unmatched_files: false
-          overwrite: true
+          overwrite_files: true
