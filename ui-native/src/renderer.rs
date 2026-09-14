@@ -1,5 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
+use std::collections::HashMap;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
@@ -68,6 +69,7 @@ pub struct Renderer {
     pub size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
 
+    msaa_texture: wgpu::TextureView,
     depth_texture: wgpu::TextureView,
 
     camera_buffer: wgpu::Buffer,
@@ -168,8 +170,6 @@ impl Renderer {
             desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &config);
-
-        let depth_texture = Self::create_depth_view(&device, &config);
 
         let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -343,7 +343,7 @@ impl Renderer {
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 1,
+                count: 4,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -457,9 +457,16 @@ impl Renderer {
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
-            multisample: wgpu::MultisampleState::default(),
+            multisample: wgpu::MultisampleState {
+                count: 4,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
             multiview: None,
         });
+
+        let msaa_texture = Self::create_msaa_view(&device, &config);
+        let depth_texture = Self::create_depth_view(&device, &config);
 
         Ok(Self {
             surface,
@@ -468,6 +475,7 @@ impl Renderer {
             config,
             size,
             render_pipeline,
+            msaa_texture,
             depth_texture,
             camera_buffer,
             camera_bind_group,
@@ -501,6 +509,10 @@ impl Renderer {
                 West | NorthWest | SouthWest => {
                     self.anchor_center_x += new_w - old_w;
                 }
+                East | NorthEast | SouthEast => {
+                    // Tarik sisi kanan: geser anchor secara halus agar karakter mengikuti posisi tengah horizontal
+                    self.anchor_center_x += (new_w - old_w) * 0.5;
+                }
                 _ => {}
             }
             match d {
@@ -510,6 +522,27 @@ impl Renderer {
                 _ => {}
             }
         }
+        // Pastikan anchor tidak pernah lari ke luar batas window
+        self.anchor_center_x = self.anchor_center_x.clamp(new_w * 0.1, new_w * 0.9);
+        self.anchor_center_y = self.anchor_center_y.clamp(new_h * 0.1, new_h * 0.9);
+    }
+
+    fn create_msaa_view(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> wgpu::TextureView {
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("MSAA Multisample Texture"),
+            size: wgpu::Extent3d {
+                width: config.width.max(1),
+                height: config.height.max(1),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 4,
+            dimension: wgpu::TextureDimension::D2,
+            format: config.format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        texture.create_view(&wgpu::TextureViewDescriptor::default())
     }
 
     fn create_depth_view(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> wgpu::TextureView {
@@ -521,7 +554,7 @@ impl Renderer {
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count: 4,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
@@ -539,19 +572,52 @@ impl Renderer {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+            self.msaa_texture = Self::create_msaa_view(&self.device, &self.config);
             self.depth_texture = Self::create_depth_view(&self.device, &self.config);
         }
+    }
+
+    fn fast_downscale_half(src: &[u8], w: usize, h: usize) -> Vec<u8> {
+        let new_w = (w / 2).max(1);
+        let new_h = (h / 2).max(1);
+        let mut dst = vec![0u8; new_w * new_h * 4];
+
+        for y in 0..new_h {
+            let src_y1 = (y * 2).min(h - 1);
+            let src_y2 = (y * 2 + 1).min(h - 1);
+            for x in 0..new_w {
+                let src_x1 = (x * 2).min(w - 1);
+                let src_x2 = (x * 2 + 1).min(w - 1);
+
+                let i00 = (src_y1 * w + src_x1) * 4;
+                let i10 = (src_y1 * w + src_x2) * 4;
+                let i01 = (src_y2 * w + src_x1) * 4;
+                let i11 = (src_y2 * w + src_x2) * 4;
+
+                let out_idx = (y * new_w + x) * 4;
+                for c in 0..4 {
+                    let sum = src[i00 + c] as u32 + src[i10 + c] as u32 + src[i01 + c] as u32 + src[i11 + c] as u32;
+                    dst[out_idx + c] = (sum / 4) as u8;
+                }
+            }
+        }
+        dst
     }
 
     fn create_texture_from_rgba(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        img_opt: &Option<image::RgbaImage>,
+        img_opt: Option<&image::RgbaImage>,
         fallback_rgba: [u8; 4],
         label: &str,
     ) -> wgpu::TextureView {
-        if let Some(ref img) = img_opt {
+        if let Some(img) = img_opt {
             let dimensions = img.dimensions();
+            let max_dim = dimensions.0.max(dimensions.1);
+            // Batasi hingga 5 level mipmap (cukup dari 2048px hingga 128px) untuk performa & memori instan
+            let calculated_mips = (max_dim as f32).log2().floor() as u32 + 1;
+            let mip_level_count = calculated_mips.min(6);
+
             let texture_size = wgpu::Extent3d {
                 width: dimensions.0,
                 height: dimensions.1,
@@ -560,7 +626,7 @@ impl Renderer {
             let texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(label),
                 size: texture_size,
-                mip_level_count: 1,
+                mip_level_count,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Rgba8UnormSrgb,
@@ -568,6 +634,7 @@ impl Renderer {
                 view_formats: &[],
             });
 
+            // Tulis Mip Level 0 (Ukuran Asli)
             queue.write_texture(
                 wgpu::ImageCopyTexture {
                     texture: &texture,
@@ -583,6 +650,40 @@ impl Renderer {
                 },
                 texture_size,
             );
+
+            // Generate rantai Mipmap dengan Fast 2x2 Box Filter instan
+            let mut current_bytes = img.as_raw().clone();
+            let mut cur_w = dimensions.0 as usize;
+            let mut cur_h = dimensions.1 as usize;
+
+            for mip in 1..mip_level_count {
+                current_bytes = Self::fast_downscale_half(&current_bytes, cur_w, cur_h);
+                cur_w = (cur_w / 2).max(1);
+                cur_h = (cur_h / 2).max(1);
+
+                let mip_size = wgpu::Extent3d {
+                    width: cur_w as u32,
+                    height: cur_h as u32,
+                    depth_or_array_layers: 1,
+                };
+
+                queue.write_texture(
+                    wgpu::ImageCopyTexture {
+                        texture: &texture,
+                        mip_level: mip,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    &current_bytes,
+                    wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: Some(4 * cur_w as u32),
+                        rows_per_image: Some(cur_h as u32),
+                    },
+                    mip_size,
+                );
+            }
+
             texture.create_view(&wgpu::TextureViewDescriptor::default())
         } else {
             let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -648,7 +749,51 @@ impl Renderer {
             println!("📐 [Model Bounds] Y: [{:.3} .. {:.3}], Extent X: {:.3}", min_y, max_y, self.model_max_extent_x);
         }
 
+        let dummy_white_view = Self::create_texture_from_rgba(
+            &self.device,
+            &self.queue,
+            None,
+            [255, 255, 255, 255],
+            "Shared_Dummy_White",
+        );
+
+        let dummy_black_view = Self::create_texture_from_rgba(
+            &self.device,
+            &self.queue,
+            None,
+            [0, 0, 0, 255],
+            "Shared_Dummy_Black",
+        );
+
         let mut gpu_materials = Vec::new();
+        let mut gpu_texture_cache: HashMap<usize, std::sync::Arc<wgpu::TextureView>> = HashMap::new();
+
+        let get_or_create_gpu_view = |device: &wgpu::Device,
+                                      queue: &wgpu::Queue,
+                                      img_opt: Option<std::sync::Arc<image::RgbaImage>>,
+                                      default_color: [u8; 4],
+                                      label: &str,
+                                      cache: &mut HashMap<usize, std::sync::Arc<wgpu::TextureView>>|
+         -> Option<std::sync::Arc<wgpu::TextureView>> {
+            if let Some(arc_img) = img_opt {
+                let key = std::sync::Arc::as_ptr(&arc_img) as usize;
+                if let Some(view) = cache.get(&key) {
+                    return Some(view.clone());
+                }
+                let view = std::sync::Arc::new(Self::create_texture_from_rgba(
+                    device,
+                    queue,
+                    Some(&arc_img),
+                    default_color,
+                    label,
+                ));
+                cache.insert(key, view.clone());
+                Some(view)
+            } else {
+                None
+            }
+        };
+
         for mat in &mut model.materials {
             let base_img = mat.base_color_texture.take();
             let shade_img = mat.shade_texture.take();
@@ -659,37 +804,45 @@ impl Renderer {
             let has_emissive_tex = emissive_img.is_some();
             let has_matcap_tex = matcap_img.is_some();
 
-            let base_view = Self::create_texture_from_rgba(
+            let custom_base_view = get_or_create_gpu_view(
                 &self.device,
                 &self.queue,
-                &base_img,
+                base_img,
                 [255, 255, 255, 255],
                 &format!("Base_{}", mat.name),
+                &mut gpu_texture_cache,
             );
+            let base_view_ref: &wgpu::TextureView = custom_base_view.as_deref().unwrap_or(&dummy_white_view);
 
-            let shade_view = Self::create_texture_from_rgba(
+            let custom_shade_view = get_or_create_gpu_view(
                 &self.device,
                 &self.queue,
-                &shade_img,
+                shade_img,
                 [255, 255, 255, 255],
                 &format!("Shade_{}", mat.name),
+                &mut gpu_texture_cache,
             );
+            let shade_view_ref: &wgpu::TextureView = custom_shade_view.as_deref().unwrap_or(&dummy_white_view);
 
-            let emissive_view = Self::create_texture_from_rgba(
+            let custom_emissive_view = get_or_create_gpu_view(
                 &self.device,
                 &self.queue,
-                &emissive_img,
+                emissive_img,
                 [0, 0, 0, 255],
                 &format!("Emissive_{}", mat.name),
+                &mut gpu_texture_cache,
             );
+            let emissive_view_ref: &wgpu::TextureView = custom_emissive_view.as_deref().unwrap_or(&dummy_black_view);
 
-            let matcap_view = Self::create_texture_from_rgba(
+            let custom_matcap_view = get_or_create_gpu_view(
                 &self.device,
                 &self.queue,
-                &matcap_img,
+                matcap_img,
                 [0, 0, 0, 255],
                 &format!("Matcap_{}", mat.name),
+                &mut gpu_texture_cache,
             );
+            let matcap_view_ref: &wgpu::TextureView = custom_matcap_view.as_deref().unwrap_or(&dummy_black_view);
 
             let is_emissive_active = has_emissive_tex
                 && (mat.emissive_factor[0] > 0.001
@@ -745,19 +898,19 @@ impl Renderer {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: wgpu::BindingResource::TextureView(&base_view),
+                        resource: wgpu::BindingResource::TextureView(base_view_ref),
                     },
                     wgpu::BindGroupEntry {
                         binding: 3,
-                        resource: wgpu::BindingResource::TextureView(&shade_view),
+                        resource: wgpu::BindingResource::TextureView(shade_view_ref),
                     },
                     wgpu::BindGroupEntry {
                         binding: 4,
-                        resource: wgpu::BindingResource::TextureView(&emissive_view),
+                        resource: wgpu::BindingResource::TextureView(emissive_view_ref),
                     },
                     wgpu::BindGroupEntry {
                         binding: 5,
-                        resource: wgpu::BindingResource::TextureView(&matcap_view),
+                        resource: wgpu::BindingResource::TextureView(matcap_view_ref),
                     },
                 ],
                 label: Some("material_bind_group"),
@@ -796,6 +949,12 @@ impl Renderer {
             });
         }
 
+        // Free semua CPU data material & primitive karena sudah berada di VRAM GPU
+        model.materials.clear();
+        model.materials.shrink_to_fit();
+        model.primitives.clear();
+        model.primitives.shrink_to_fit();
+
         self.gpu_materials = gpu_materials;
         self.gpu_primitives = gpu_primitives;
         self.model_data = Some(model);
@@ -806,35 +965,22 @@ impl Renderer {
 
         let width = self.config.width as f32;
         let height = (self.config.height as f32).max(1.0);
-        let _aspect = width / height;
+        let aspect = width / height;
 
         let fov_rad = 28.0_f32.to_radians();
 
-        // 1. Titik tengah dan tinggi aktual model (Min Y: -0.022, Max Y: 1.618)
+        // 1. Titik tengah dan tinggi aktual model
         let center_y = (self.model_min_y + self.model_max_y) * 0.5;
         let model_height = (self.model_max_y - self.model_min_y).max(1.2);
 
-        // 2. Margin standar 12% agar rambut teratas (ahoge) & sepatu memiliki padding lega
+        // Margin standar agar avatar pas di dalam frame viewport
         let safe_margin = 1.12_f32;
         let fit_height = model_height * safe_margin;
 
-        // Jarak kamera murni konstan standar 3D camera
         let dist_v = (fit_height / 2.0) / (fov_rad / 2.0).tan();
         let radius = dist_v / self.camera_zoom.clamp(0.15, 6.0);
 
-        // SISTEM CROP DESKTOP 100%: Karakter 100% DIAM di posisi layar
-        // Posisi tengah karakter tetap di anchor_center (relatif terhadap window awal)
-        let near = 0.05_f32;
-        let init_h = 480.0_f32;
-        let half_h_world = near * (fov_rad / 2.0).tan();
-        let pixel_to_world = (half_h_world * 2.0) / init_h;
-
-        let left = -self.anchor_center_x * pixel_to_world;
-        let right = (width - self.anchor_center_x) * pixel_to_world;
-        let top = self.anchor_center_y * pixel_to_world;
-        let bottom = -(height - self.anchor_center_y) * pixel_to_world;
-
-        // 3. Transformasi Kamera RH Orbit (Rotasi Spherical berdasarkan camera_yaw & camera_pitch)
+        // 2. Transformasi Kamera Orbit RH Standar (Yaw & Pitch)
         let cos_pitch = self.camera_pitch.cos();
         let sin_pitch = self.camera_pitch.sin();
         let sin_yaw = self.camera_yaw.sin();
@@ -848,16 +994,10 @@ impl Renderer {
         );
         let view = Mat4::look_at_rh(camera_pos, target, Vec3::Y);
 
+        // Standar Perspective Matrix 3D
+        let near = 0.05_f32;
         let far = 50.0_f32;
-        let r_l = right - left;
-        let t_b = top - bottom;
-        let f_n = far - near;
-        let proj = Mat4::from_cols_array(&[
-            (2.0 * near) / r_l, 0.0, 0.0, 0.0,
-            0.0, (2.0 * near) / t_b, 0.0, 0.0,
-            (right + left) / r_l, (top + bottom) / t_b, -far / f_n, -1.0,
-            0.0, 0.0, -(far * near) / f_n, 0.0,
-        ]);
+        let proj = Mat4::perspective_rh(fov_rad, aspect, near, far);
         let view_proj = proj * view;
 
         let camera_uniform = CameraUniform {
@@ -955,8 +1095,8 @@ impl Renderer {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
+                    view: &self.msaa_texture,
+                    resolve_target: Some(&view),
                     ops: wgpu::Operations {
                         // Background 100% transparan
                         load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),

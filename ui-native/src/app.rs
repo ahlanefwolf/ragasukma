@@ -23,6 +23,7 @@ pub struct App {
     pub is_window_focused: bool,
     pub active_resize_dir: Option<winit::window::ResizeDirection>,
     pub prev_win_size: (f32, f32),
+    pub was_maximized: bool,
 }
 
 impl App {
@@ -118,6 +119,7 @@ impl App {
             is_window_focused: false,
             active_resize_dir: None,
             prev_win_size: (win_w as f32, win_h as f32),
+            was_maximized: false,
         })
     }
 
@@ -138,11 +140,8 @@ impl App {
                 elwt.exit();
             }
             WindowEvent::Resized(physical_size) => {
-                let old_w = self.prev_win_size.0;
-                let old_h = self.prev_win_size.1;
                 let new_w = physical_size.width as f32;
                 let new_h = physical_size.height as f32;
-                self.renderer.update_anchor_on_resize(old_w, old_h, new_w, new_h, self.active_resize_dir);
                 self.prev_win_size = (new_w, new_h);
                 self.renderer.resize(physical_size);
             }

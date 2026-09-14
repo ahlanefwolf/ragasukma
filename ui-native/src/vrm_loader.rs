@@ -33,13 +33,13 @@ pub enum MaterialCategory {
 
 pub struct MaterialData {
     pub name: String,
-    pub base_color_texture: Option<image::RgbaImage>,
+    pub base_color_texture: Option<std::sync::Arc<image::RgbaImage>>,
     pub base_color_factor: [f32; 4],
-    pub shade_texture: Option<image::RgbaImage>,
+    pub shade_texture: Option<std::sync::Arc<image::RgbaImage>>,
     pub shade_color_factor: [f32; 3],
-    pub emissive_texture: Option<image::RgbaImage>,
+    pub emissive_texture: Option<std::sync::Arc<image::RgbaImage>>,
     pub emissive_factor: [f32; 3],
-    pub matcap_texture: Option<image::RgbaImage>,
+    pub matcap_texture: Option<std::sync::Arc<image::RgbaImage>>,
     pub matcap_factor: [f32; 3],
     pub shading_shift: f32,
     pub shading_toony: f32,
@@ -77,31 +77,39 @@ pub struct VrmModelData {
 }
 
 fn extract_image_rgba(
-    img_idx: usize,
-    images: &[gltf::image::Data],
-) -> Option<image::RgbaImage> {
-    let img_data = images.get(img_idx)?;
-    match img_data.format {
-        gltf::image::Format::R8G8B8 => {
-            let mut rgba_vec = Vec::with_capacity(img_data.width as usize * img_data.height as usize * 4);
-            for chunk in img_data.pixels.chunks_exact(3) {
-                rgba_vec.push(chunk[0]);
-                rgba_vec.push(chunk[1]);
-                rgba_vec.push(chunk[2]);
-                rgba_vec.push(255);
-            }
-            image::RgbaImage::from_raw(img_data.width, img_data.height, rgba_vec)
+    image: gltf::Image,
+    buffers: &[gltf::buffer::Data],
+    cache: &mut HashMap<usize, std::sync::Arc<image::RgbaImage>>,
+) -> Option<std::sync::Arc<image::RgbaImage>> {
+    let img_idx = image.index();
+    if let Some(cached) = cache.get(&img_idx) {
+        return Some(cached.clone());
+    }
+
+    let raw_img_opt = match image.source() {
+        gltf::image::Source::View { view, .. } => {
+            let parent_buffer = &buffers[view.buffer().index()];
+            let begin = view.offset();
+            let end = begin + view.length();
+            let data = &parent_buffer[begin..end];
+            image::load_from_memory(data).ok().map(|dyn_img| dyn_img.to_rgba8())
         }
-        gltf::image::Format::R8G8B8A8 => {
-            image::RgbaImage::from_raw(img_data.width, img_data.height, img_data.pixels.clone())
+        gltf::image::Source::Uri { .. } => None,
+    };
+
+    if let Some(mut img) = raw_img_opt {
+        let (w, h) = img.dimensions();
+        // Optimasi Memori: Batasi resolusi tekstur ke 1024px
+        if w > 1024 || h > 1024 {
+            let new_w = (w / 2).max(512);
+            let new_h = (h / 2).max(512);
+            img = image::imageops::resize(&img, new_w, new_h, image::imageops::FilterType::Triangle);
         }
-        _ => {
-            if let Ok(dyn_img) = image::load_from_memory(&img_data.pixels) {
-                Some(dyn_img.to_rgba8())
-            } else {
-                image::RgbaImage::from_raw(img_data.width, img_data.height, img_data.pixels.clone())
-            }
-        }
+        let arc_img = std::sync::Arc::new(img);
+        cache.insert(img_idx, arc_img.clone());
+        Some(arc_img)
+    } else {
+        None
     }
 }
 
@@ -110,7 +118,9 @@ impl VrmModelData {
         let path_ref = path.as_ref();
         println!("📦 [VRM Loader] Membaca model VRM 1:1 Three.js: {:?}", path_ref);
 
-        let (document, buffers, images) = gltf::import(path_ref)?;
+        let gltf = gltf::Gltf::open(path_ref)?;
+        let buffers = gltf::import_buffers(&gltf.document, path_ref.parent(), gltf.blob)?;
+        let document = gltf.document;
 
         // Baca raw JSON dari GLB untuk parsing extensions MToon & VRMC_vrm secara akurat
         let mut gltf_json: Option<serde_json::Value> = None;
@@ -128,6 +138,7 @@ impl VrmModelData {
 
         // 1. Ekstrak Material, MToon & KHR_materials_unlit Extensions
         let mut materials = Vec::new();
+        let mut image_cache = HashMap::new();
         let json_materials = gltf_json.as_ref().and_then(|j| j.get("materials")).and_then(|m| m.as_array());
 
         for (mat_idx, mat) in document.materials().enumerate() {
@@ -158,8 +169,7 @@ impl VrmModelData {
 
             // Base Color Texture
             let base_color_texture = if let Some(tex_info) = pbr.base_color_texture() {
-                let img_idx = tex_info.texture().source().index();
-                extract_image_rgba(img_idx, &images)
+                extract_image_rgba(tex_info.texture().source(), &buffers, &mut image_cache)
             } else {
                 None
             };
@@ -167,8 +177,7 @@ impl VrmModelData {
             // Emissive Texture & Factor
             let emissive_factor = mat.emissive_factor();
             let emissive_texture = if let Some(tex_info) = mat.emissive_texture() {
-                let img_idx = tex_info.texture().source().index();
-                extract_image_rgba(img_idx, &images)
+                extract_image_rgba(tex_info.texture().source(), &buffers, &mut image_cache)
             } else {
                 None
             };
@@ -209,12 +218,12 @@ impl VrmModelData {
                     }
                     if let Some(st_idx) = mtoon_json.get("shadeMultiplyTexture").and_then(|t| t.get("index")).and_then(|i| i.as_u64()) {
                         if let Some(tex) = document.textures().nth(st_idx as usize) {
-                            shade_texture = extract_image_rgba(tex.source().index(), &images);
+                            shade_texture = extract_image_rgba(tex.source(), &buffers, &mut image_cache);
                         }
                     }
                     if let Some(mt_idx) = mtoon_json.get("matcapTexture").and_then(|t| t.get("index")).and_then(|i| i.as_u64()) {
                         if let Some(tex) = document.textures().nth(mt_idx as usize) {
-                            matcap_texture = extract_image_rgba(tex.source().index(), &images);
+                            matcap_texture = extract_image_rgba(tex.source(), &buffers, &mut image_cache);
                         }
                     }
                 }
