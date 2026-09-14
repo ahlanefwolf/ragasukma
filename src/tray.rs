@@ -19,19 +19,18 @@ static QUIT_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 pub struct TrayState;
 
-#[allow(dead_code)]
 impl TrayState {
     pub fn update(state: AssistantState, message: &str) {
         Self::update_with_emotion(state, message, "neutral");
     }
 
     pub fn update_with_emotion(state: AssistantState, message: &str, emotion: &str) {
-        let (_icon, class_name) = match state {
-            AssistantState::Idle => (" ", "idle"),
-            AssistantState::Listening => (" ", "listening"),
-            AssistantState::Processing => (" ", "processing"),
-            AssistantState::Thinking => (" ", "thinking"),
-            AssistantState::Speaking => (" ", "speaking"),
+        let class_name = match state {
+            AssistantState::Idle => "idle",
+            AssistantState::Listening => "listening",
+            AssistantState::Processing => "processing",
+            AssistantState::Thinking => "thinking",
+            AssistantState::Speaking => "speaking",
         };
 
         let tooltip = format!("{}: {}", class_name, message);
@@ -55,29 +54,16 @@ impl TrayState {
             AssistantState::Processing | AssistantState::Thinking => crate::native::pose_system::AssistantVisualState::Thinking,
             AssistantState::Speaking => crate::native::pose_system::AssistantVisualState::Speaking,
         };
-        crate::native::server::update_visual_state(visual_state);
-
-        Self::emit_event("assistant:state", json);
+        crate::native::server::update_visual_state_with_emotion(visual_state, emotion);
     }
 
-    pub fn emit_event(_event_name: &str, _payload: serde_json::Value) {
-        // Native overlay sync handled via HTTP/API state polling
-    }
-
-    pub fn get_state() -> Option<serde_json::Value> {
-        if let Ok(lock) = CURRENT_STATE.lock() {
-            lock.clone()
-        } else {
-            None
-        }
-    }
+    pub fn emit_event(_event_name: &str, _payload: serde_json::Value) {}
 
     pub fn push_command(cmd: String) {
         if cmd == "quit" {
             QUIT_REQUESTED.store(true, Ordering::SeqCst);
         }
         if let Ok(mut queue) = COMMAND_QUEUE.lock() {
-            // Selalu simpan hanya 1 command terakhir yang relevan agar tidak terjadi stale/lagged state
             queue.clear();
             queue.push_back(cmd);
         }
@@ -95,15 +81,6 @@ impl TrayState {
         } else {
             None
         }
-    }
-
-    pub fn is_quit_requested() -> bool {
-        QUIT_REQUESTED.load(Ordering::SeqCst)
-    }
-
-    pub fn request_quit() {
-        QUIT_REQUESTED.store(true, Ordering::SeqCst);
-        Self::push_command("quit".to_string());
     }
 
     pub fn clear() {

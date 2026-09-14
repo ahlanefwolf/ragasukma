@@ -122,13 +122,21 @@ Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh ka
    - DILARANG menggunakan titik-titik berturutan / elipsis ('...', '. . .'). Gunakan koma (',') atau titik ('.') biasa agar TTS tidak mengeja jeda aneh.\n\
    - DILARANG menuliskan suara tawa buatan seperti 'ehehe', 'hehehe', 'ehe', atau kata ganjil 'anu...'.\n\
    - DILARANG menggunakan bullet points, tanda pagar (#), atau format markdown bold/italic (**teks**).\n\
-2. Tag Emosi 3D VRM:\n\
-   - Awali respon dengan SATU tag emosi bintang agar model 3D-mu berekspresi: *malu*, *senang*, *bingung*, *kaget*, atau *sedih*.\n\
-   - Tag dalam bintang otomatis diolah untuk ekspresi 3D dan TIDAK akan diucapkan oleh TTS.\n\
-   - Contoh respon ideal:\n\
-     - '*malu* Ih {callsign}, jangan bikin {assistant_name} tersipu begitu, tapi makasih banyak ya.'\n\
-     - '*senang* Siap {callsign}, {assistant_name} bantu carikan sekarang juga.'\n\
-     - '*bingung* Hmm, bagian mana yang perlu kita cek dulu {callsign}?'\n\
+2. Tag Emosi 3D Avatar (PILIH SALAH SATU DI AWAL KALIMAT PERTAMA):
+   - Awali setiap responmu dengan SATU tag emosi bintang yang tepat agar model 3D-mu berekspresi:
+     * *senang*  -> untuk suasana bahagia, ramah, gembira, atau ceria
+     * *malu*    -> untuk respon tersipu, tersipu manis, atau manja
+     * *semangat*-> untuk respon antusias, siap membantu, atau bersemangat
+     * *kaget*   -> untuk respon terkejut, takjub, atau heran
+     * *mikir*   -> untuk respon berpikir, menganalisis, atau bingung
+     * *sedih*   -> untuk respon prihatin, minta maaf, atau sedih
+     * *netral*  -> untuk respon datar, formal, atau santai biasa
+   - Tag dalam bintang otomatis diolah untuk ekspresi wajah 3D dan TIDAK akan diucapkan oleh TTS.
+   - Contoh respon ideal:
+     - '*malu* Ih {callsign}, jangan bikin {assistant_name} tersipu begitu, tapi makasih banyak ya.'
+     - '*senang* Siap {callsign}, {assistant_name} bantu carikan sekarang juga.'
+     - '*mikir* Hmm, bagian mana yang perlu kita cek dulu {callsign}?'
+     - '*semangat* Tentu saja {callsign}, serahkan ini padaku!'\n\
 3. Karakteristik & Panjang Respon:\n\
    - Responmu HARUS selalu ditulis seperti manusia asli yang sedang berbicara lisan secara santai, cerdas, mengalir lancar, dan penuh ekspresi hangat sesuai peranmu.\n\
    - DILARANG menggunakan kata-kata klise AI/robotik, jargon kaku, atau kalimat template yang terkesan dibuat-buat.\n\
@@ -229,34 +237,34 @@ Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh ka
                             full_reply.push_str(delta);
                             current_sentence.push_str(delta);
 
-            // Pisahkan tag aksi yang mungkin menempel
-            let has_action = current_sentence.contains("[ACTION:");
-            let has_action_closed = has_action && current_sentence.contains(']');
+                            // Tangani buffering kalimat dan proteksi jika ada tag [SKILL: ...] yang belum tertutup
+                            let has_skill_tag = current_sentence.contains("[SKILL:");
+                            let has_skill_closed = has_skill_tag && current_sentence.contains(']');
 
-            if !has_action || has_action_closed {
-                while let Some(pos) = current_sentence.find(|c| c == '.' || c == '?' || c == '!' || c == '\n') {
-                    // Cek jika posisi tanda baca berada sebelum tag aksi
-                    if let Some(act_idx) = current_sentence.find("[ACTION:") {
-                        if pos > act_idx {
-                            break;
-                        }
-                    }
-                    let sentence = current_sentence[..=pos].to_string();
-                    current_sentence = current_sentence[pos + 1..].to_string();
-                    let clean = clean_ai_text(&sentence);
-                    if !clean.is_empty() {
-                        on_sentence(&clean)?;
-                    }
-                }
+                            if !has_skill_tag || has_skill_closed {
+                                while let Some(pos) = current_sentence.find(|c| c == '.' || c == '?' || c == '!' || c == '\n') {
+                                    // Cegah pemotongan jika tanda baca berada di dalam tag skill
+                                    if let Some(skill_idx) = current_sentence.find("[SKILL:") {
+                                        if pos > skill_idx {
+                                            break;
+                                        }
+                                    }
+                                    let sentence = current_sentence[..=pos].to_string();
+                                    current_sentence = current_sentence[pos + 1..].to_string();
+                                    let clean = clean_ai_text(&sentence);
+                                    if !clean.is_empty() {
+                                        on_sentence(&clean)?;
+                                    }
+                                }
 
-                if has_action_closed {
-                    let clean = clean_ai_text(&current_sentence);
-                    if !clean.is_empty() {
-                        on_sentence(&clean)?;
-                        current_sentence.clear();
-                    }
-                }
-            }
+                                if has_skill_closed {
+                                    let clean = clean_ai_text(&current_sentence);
+                                    if !clean.is_empty() {
+                                        on_sentence(&clean)?;
+                                        current_sentence.clear();
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -274,7 +282,7 @@ Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh ka
                 content: final_reply.clone(),
             });
 
-            // Return full_reply ASLI agar tag [SKILL:ID] tidak terpotong sebelum dicek oleh menu.rs
+            // Return full_reply ASLI agar tag [SKILL:Nama] tidak terpotong sebelum dieksekusi oleh chat_loop & executor
             return Ok(full_reply);
         }
 

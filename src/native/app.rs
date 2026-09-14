@@ -44,21 +44,38 @@ impl App {
             (1920.0, 1080.0)
         };
 
+        // Load icon window dari icons/icon.png
+        let window_icon = {
+            let icon_bytes = include_bytes!("../../icons/icon.png");
+            if let Ok(img) = image::load_from_memory(icon_bytes) {
+                let rgba = img.to_rgba8();
+                let (w, h) = rgba.dimensions();
+                winit::window::Icon::from_rgba(rgba.into_raw(), w, h).ok()
+            } else {
+                None
+            }
+        };
+
         // Window ukuran kompak portrait (270x480) di pojok kanan bawah desktop
         let win_w = 270.0;
         let win_h = 480.0;
         let pos_x = (screen_w - win_w - 40.0).max(0.0);
         let pos_y = (screen_h - win_h - 60.0).max(0.0);
 
-        let window = WindowBuilder::new()
+        let mut win_builder = WindowBuilder::new()
             .with_title("Ragasukma Avatar Overlay (Native)")
             .with_inner_size(winit::dpi::LogicalSize::new(win_w, win_h))
             .with_position(winit::dpi::LogicalPosition::new(pos_x, pos_y))
             .with_decorations(false)
             .with_transparent(true)
             .with_window_level(initial_level)
-            .with_resizable(true)
-            .build(window_target)?;
+            .with_resizable(true);
+
+        if let Some(icon) = window_icon {
+            win_builder = win_builder.with_window_icon(Some(icon));
+        }
+
+        let window = win_builder.build(window_target)?;
 
         let window = Arc::new(window);
         let mut renderer = Renderer::new(window.clone()).await?;
@@ -96,6 +113,8 @@ impl App {
 
         let shared_server_state = Arc::new(Mutex::new(ServerSharedState {
             current_state: AssistantVisualState::Idle,
+            current_emotion: "neutral".to_string(),
+            is_running: false,
             is_paused: false,
             voice_muted: false,
             mic_muted: false,
@@ -104,6 +123,7 @@ impl App {
             vrm_updated: false,
             tuning_mode: false,
             live_tuning_bones: std::collections::HashMap::new(),
+            state_version: 1,
         }));
 
         server::register_shared_state(Arc::clone(&shared_server_state));
@@ -138,7 +158,8 @@ impl App {
                 self.renderer.is_header_visible = self.is_window_focused;
             }
             WindowEvent::CloseRequested => {
-                elwt.exit();
+                println!("🛑 Menutup aplikasi Ragasukma...");
+                std::process::exit(0);
             }
             WindowEvent::Resized(physical_size) => {
                 let new_w = physical_size.width as f32;
@@ -162,10 +183,12 @@ impl App {
                             self.window.set_maximized(!is_max);
                         } else if c.eq_ignore_ascii_case("q") {
                             // Exit / Close
-                            elwt.exit();
+                            println!("🛑 Menutup aplikasi Ragasukma (Key Q)...");
+                            std::process::exit(0);
                         }
                     } else if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape) = &event.logical_key {
-                        elwt.exit();
+                        println!("🛑 Menutup aplikasi Ragasukma (Key ESC)...");
+                        std::process::exit(0);
                     }
                 }
             }
@@ -214,8 +237,8 @@ impl App {
                         if cur_y <= 28.0 {
                             // Tombol Close (✕)
                             if cur_x >= (w - 28.0) && cur_x <= (w - 4.0) {
-                                elwt.exit();
-                                return;
+                                println!("🛑 Menutup aplikasi Ragasukma (Header Close)...");
+                                std::process::exit(0);
                             }
                             // Tombol Maximize / Fullscreen (⛶)
                             if cur_x >= (w - 56.0) && cur_x <= (w - 32.0) {
@@ -304,6 +327,7 @@ impl App {
                 // Sync state & live poses reload dari Web HTTP Dashboard
                 if let Ok(mut lock) = self.shared_server_state.lock() {
                     self.pose_manager.current_state = lock.current_state;
+                    self.renderer.current_emotion = lock.current_emotion.clone();
                     is_tuning = lock.tuning_mode;
 
                     if is_tuning {
@@ -354,7 +378,7 @@ impl App {
                 let delta_sim = if is_tuning { 0.0 } else { delta };
                 self.renderer.current_visual_state = self.pose_manager.current_state;
                 self.renderer.elapsed_time += delta;
-                self.renderer.update_camera_and_bones(&mut self.pose_manager, delta_sim);
+                self.renderer.update_camera_and_bones(&mut self.pose_manager, delta_sim, is_tuning);
 
                 match self.renderer.render() {
                     Ok(_) => {}

@@ -1,12 +1,12 @@
 use anyhow::Result;
 use std::sync::Arc;
 
-use crate::audio::AudioRecorder;
+use crate::audio::recorder::AudioRecorder;
+use crate::audio::stt::SttEngine;
+use crate::audio::tts::TextToSpeech;
 use crate::config::AppConfig;
 use crate::llm::LlmClient;
-use crate::stt::SttEngine;
 use crate::tray::TrayState;
-use crate::tts::TextToSpeech;
 
 pub struct AppSession {
     pub(crate) config: AppConfig,
@@ -97,11 +97,10 @@ impl AppSession {
     }
 
     pub fn run_interactive_menu(&mut self) -> Result<()> {
-        // Langsung mulai mode ngobrol saat aplikasi berjalan
-        self.start_chat_loop()?;
+        TrayState::update(crate::tray::AssistantState::Idle, "Standby");
 
         loop {
-            // Standby mode: menunggu komando dari Web Dashboard atau 3D GUI Overlay
+            // Standby mode: menunggu komando dari Web Dashboard atau tombol Mulai
             if let Some(cmd) = check_and_consume_cmd() {
                 match cmd.as_str() {
                     "start_chat" | "start" => {

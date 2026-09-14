@@ -3,18 +3,15 @@
 
 mod audio;
 mod config;
-mod dsp;
+mod engine;
 mod llm;
-mod menu;
 pub mod native;
 pub mod skills;
-mod stt;
 mod tray;
-mod tts;
 
 use anyhow::Result;
 use config::AppConfig;
-use menu::AppSession;
+use engine::AppSession;
 
 fn main() -> Result<()> {
     let config = AppConfig::load();

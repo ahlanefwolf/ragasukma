@@ -303,7 +303,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           3. AUDIO & SPEECH-TO-TEXT (STT)
         </h3>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <div class="space-y-1.5">
             <label class="text-xs font-semibold text-[#EFF7F6]/80">STT Engine</label>
             <select
@@ -323,11 +323,13 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
               onChange={(e) => setMicSensitivity(e.currentTarget.value)}
               class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
             >
-              <option value="0">0 - Ekstra Kebal (Sangat Ramai)</option>
-              <option value="1">1 - Rendah</option>
-              <option value="2">2 - Normal (Standar)</option>
-              <option value="3">3 - Responsif</option>
-              <option value="4">4 - Sangat Sensitif</option>
+              <option value="0">0 - Ekstra Kebal (Ruangan Sangat Ramai)</option>
+              <option value="1">1 - Sangat Rendah</option>
+              <option value="2">2 - Rendah</option>
+              <option value="3">3 - Normal (Standar)</option>
+              <option value="4">4 - Tinggi (Responsif)</option>
+              <option value="5">5 - Sangat Tinggi</option>
+              <option value="6">6 - Ultra Sensitif (Bisikan)</option>
             </select>
           </div>
 
@@ -338,9 +340,24 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
               onChange={(e) => setVadSilenceLimit(e.currentTarget.value)}
               class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
             >
-              <option value="0">Cepat (0.6 Detik)</option>
-              <option value="1">Sedang (1.0 Detik)</option>
-              <option value="2">Panjang (1.5 Detik)</option>
+              <option value="0">Sangat Cepat (~0.5 Detik)</option>
+              <option value="1">Cepat (~0.7 Detik)</option>
+              <option value="2">Normal (~1.0 Detik)</option>
+              <option value="3">Santai (~1.3 Detik)</option>
+              <option value="4">Panjang (~1.7 Detik)</option>
+            </select>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-[#EFF7F6]/80">Noise Reduction (DSP Filter)</label>
+            <select
+              value={noiseReduction()}
+              onChange={(e) => setNoiseReduction(parseInt(e.currentTarget.value, 10))}
+              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+            >
+              <option value={0}>0 - Nonaktif (Direct Mic)</option>
+              <option value={1}>1 - Ringan (High-Pass + Noise Gate)</option>
+              <option value={2}>2 - Agresif (Deep Noise Gate)</option>
             </select>
           </div>
         </div>

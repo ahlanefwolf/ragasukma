@@ -3,13 +3,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::dsp::TARGET_SAMPLE_RATE;
+use crate::audio::dsp::TARGET_SAMPLE_RATE;
 use crate::tray::{AssistantState, TrayState};
 use super::executor::execute_skill_by_identifier;
 use super::session::{check_and_consume_cmd, AppSession};
 
 impl AppSession {
     pub fn start_chat_loop(&mut self) -> Result<()> {
+        crate::native::server::update_session_running(true);
         crate::term_log!("====================================================");
         crate::term_log!("✨ SESI PERCAKAPAN RAGASUKMA DIMULAI");
         crate::term_log!("   - Asisten : {}", self.config.assistant_name);
@@ -37,6 +38,7 @@ impl AppSession {
                 if cmd == "stop_chat" || cmd == "quit" {
                     stop_worker.store(true, Ordering::SeqCst);
                     let _ = worker_handle.join();
+                    crate::native::server::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Standby");
                     crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                     return Ok(());
@@ -65,6 +67,7 @@ impl AppSession {
                         } else if cmd == "stop_chat" || cmd == "quit" {
                             stop_worker.store(true, Ordering::SeqCst);
                             let _ = worker_handle.join();
+                            crate::native::server::update_session_running(false);
                             TrayState::update(AssistantState::Idle, "Standby");
                             crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                             return Ok(());
@@ -78,7 +81,7 @@ impl AppSession {
                 crate::term_log!("▶️  [DILANJUTKAN] {} siap mendengarkan lagi!\n", self.config.assistant_name);
             }
 
-            TrayState::update(AssistantState::Idle, "Siap Mendengarkan");
+            TrayState::update(AssistantState::Listening, "Siap Mendengarkan");
 
             let mut should_exit = false;
             let mut should_pause = false;
@@ -108,6 +111,7 @@ impl AppSession {
             if should_exit {
                 stop_worker.store(true, Ordering::SeqCst);
                 let _ = worker_handle.join();
+                crate::native::server::update_session_running(false);
                 TrayState::update(AssistantState::Idle, "Standby");
                 crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                 break;
@@ -130,7 +134,7 @@ impl AppSession {
             // Jika energi audio sangat rendah (< 0.006), ini hanya desis / noise background
             // Langsung lewati agar TIDAK buang-buang kuota atau kena rate limit Google/Groq STT
             if audio_rms < 0.006 {
-                TrayState::update(AssistantState::Idle, "Siap Mendengarkan");
+                TrayState::update(AssistantState::Listening, "Siap Mendengarkan");
                 continue;
             }
 
@@ -143,7 +147,7 @@ impl AppSession {
                 Ok(t) => t,
                 Err(e) => {
                     crate::term_err!("⚠️ [STT Error]: {e}");
-                    TrayState::update(AssistantState::Idle, "Siap Mendengarkan");
+                    TrayState::update(AssistantState::Listening, "Siap Mendengarkan");
                     continue;
                 }
             };
@@ -154,6 +158,7 @@ impl AppSession {
             // Cek apakah ada request stop_chat / pause saat STT sedang berjalan
             if let Some(cmd) = check_and_consume_cmd() {
                 if cmd == "stop_chat" || cmd == "quit" {
+                    crate::native::server::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Menu Utama");
                     crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                     return Ok(());
@@ -165,7 +170,7 @@ impl AppSession {
 
             if clean_raw.is_empty() {
                 crate::term_log!("[INFO] (Suara tidak terdengar jelas / terlalu pelan)\n");
-                TrayState::update(AssistantState::Idle, "Siap Mendengarkan");
+                TrayState::update(AssistantState::Listening, "Siap Mendengarkan");
                 continue;
             }
 
@@ -190,7 +195,7 @@ impl AppSession {
                 || (lower.contains("terima kasih") && lower.matches("terima kasih").count() > 1);
 
             if is_hallucination {
-                TrayState::update(AssistantState::Idle, "Siap Mendengarkan");
+                TrayState::update(AssistantState::Listening, "Siap Mendengarkan");
                 continue;
             }
 
@@ -215,48 +220,11 @@ impl AppSession {
             let asst_name = &self.config.assistant_name;
             crate::term_log!("\n[LLM] {} sedang merespons...", asst_name);
 
-            let is_interrupted = Arc::new(AtomicBool::new(false));
-            let is_interrupted_clone = Arc::clone(&is_interrupted);
             let tts_clone = Arc::clone(&self.tts);
-
-            let is_user_cut = Arc::new(AtomicBool::new(false));
-            let is_user_cut_clone = Arc::clone(&is_user_cut);
-            let stop_thread_flag = Arc::new(AtomicBool::new(false));
-            let stop_thread_flag_clone = Arc::clone(&stop_thread_flag);
-            let interrupt_speaker = Arc::clone(&is_interrupted);
-
-            let cmd_listener = std::thread::spawn(move || -> bool {
-                let mut requested_exit = false;
-                loop {
-                    if stop_thread_flag_clone.load(Ordering::SeqCst) {
-                        break;
-                    }
-                    if let Some(cmd) = check_and_consume_cmd() {
-                        if cmd == "toggle_pause" {
-                            interrupt_speaker.store(true, Ordering::SeqCst);
-                            is_user_cut_clone.store(true, Ordering::SeqCst);
-                            break;
-                        } else if cmd == "stop_chat" || cmd == "quit" {
-                            interrupt_speaker.store(true, Ordering::SeqCst);
-                            is_user_cut_clone.store(true, Ordering::SeqCst);
-                            requested_exit = true;
-                            break;
-                        }
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(20));
-                }
-                requested_exit
-            });
-
-            let mut exit_all = false;
             let mut first_token_time = None;
             let mut printed_header = false;
 
             let result = self.llm.chat_stream(&effective_input, |sentence| {
-                if is_interrupted_clone.load(Ordering::SeqCst) {
-                    anyhow::bail!("Interrupted by user");
-                }
-
                 let clean_sentence = sentence.trim().to_string();
 
                 if clean_sentence.is_empty() {
@@ -267,22 +235,22 @@ impl AppSession {
                     let lower_s = clean_sentence.to_lowercase();
                     let emotion = if lower_s.contains("*malu*") || lower_s.contains("*blush*") || lower_s.contains("*tersipu*") {
                         "shy"
-                    } else if lower_s.contains("*senang*") || lower_s.contains("*gembira*") {
+                    } else if lower_s.contains("*senang*") || lower_s.contains("*gembira*") || lower_s.contains("*happy*") {
                         "happy"
                     } else if lower_s.contains("*semangat*") || lower_s.contains("*excited*") {
                         "excited"
-                    } else if lower_s.contains("*kaget*") || lower_s.contains("*terkejut*") {
+                    } else if lower_s.contains("*kaget*") || lower_s.contains("*terkejut*") || lower_s.contains("*surprised*") {
                         "surprised"
-                    } else if lower_s.contains("*bingung*") || lower_s.contains("*confused*") {
-                        "confused"
+                    } else if lower_s.contains("*mikir*") || lower_s.contains("*thinking*") || lower_s.contains("*bingung*") || lower_s.contains("*confused*") {
+                        "thinking"
                     } else if lower_s.contains("*sedih*") || lower_s.contains("*sad*") {
                         "sad"
-                    } else if lower_s.contains("*thinking*") || lower_s.contains("*mikir*") {
-                        "thinking"
+                    } else if lower_s.contains("*netral*") || lower_s.contains("*neutral*") {
+                        "neutral"
                     } else if lower_s.contains("tersipu") || lower_s.contains("malu") || lower_s.contains("aduh") {
                         "shy"
                     } else if lower_s.contains("bingung") || lower_s.contains("kurang paham") || lower_s.contains("hmm") {
-                        "confused"
+                        "thinking"
                     } else if lower_s.contains("senang") || lower_s.contains("suka") || lower_s.contains("alhamdulillah") || lower_s.contains("hehe") {
                         "happy"
                     } else if lower_s.contains("wah") || lower_s.contains("siap") || lower_s.contains("tentu") || lower_s.contains("hebat") || lower_s.contains("dong") {
@@ -292,7 +260,7 @@ impl AppSession {
                     } else if lower_s.contains("sedih") || lower_s.contains("kecewa") || lower_s.contains("maaf") {
                         "sad"
                     } else {
-                        "happy"
+                        "neutral"
                     };
 
                     TrayState::update_with_emotion(AssistantState::Speaking, &format!("{asst_name} Berbicara"), emotion);
@@ -314,33 +282,28 @@ impl AppSession {
                 use std::io::Write;
                 let _ = std::io::stdout().flush();
 
-                tts_clone.speak_interruptible(&clean_sentence, Arc::clone(&is_interrupted_clone))?;
-                if is_interrupted_clone.load(Ordering::SeqCst) {
-                    anyhow::bail!("Interrupted by user");
-                }
+                tts_clone.speak(&clean_sentence)?;
                 Ok(())
             });
 
-            stop_thread_flag.store(true, Ordering::SeqCst);
-            if let Ok(was_exit) = cmd_listener.join() {
-                if was_exit {
-                    exit_all = true;
-                }
-            }
             println!();
 
-            if is_user_cut.load(Ordering::SeqCst) && !exit_all {
-                crate::term_log!("[DIPOTONG] {} berhenti bicara.", asst_name);
-            }
-
             let full_response_text = match &result {
-                Ok(txt) => txt.clone(),
-                Err(_) => String::new(),
+                Ok(txt) => {
+                    let clean = txt.trim();
+                    if !clean.is_empty() {
+                        crate::term_log!("[{}] \"{}\"", asst_name, clean);
+                    }
+                    txt.clone()
+                }
+                Err(e) => {
+                    crate::term_err!("⚠️ [LLM Error]: {e}");
+                    String::new()
+                }
             };
 
             TrayState::emit_event("assistant:response-done", serde_json::json!({
-                "text": &full_response_text,
-                "interrupted": is_user_cut.load(Ordering::SeqCst)
+                "text": &full_response_text
             }));
 
             // Eksekusi skill jika LLM menyertakan tag [SKILL:ID]
@@ -401,12 +364,6 @@ impl AppSession {
 
             if let Err(err) = result {
                 crate::term_err!("[ERROR] Jaringan terganggu: {err}\n");
-            }
-
-            if exit_all {
-                TrayState::update(AssistantState::Idle, "Menu Utama");
-                crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
-                break;
             }
 
             std::thread::sleep(std::time::Duration::from_millis(300));

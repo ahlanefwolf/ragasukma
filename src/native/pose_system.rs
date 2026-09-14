@@ -92,10 +92,12 @@ impl PoseManager {
             AssistantVisualState::Thinking => "thinking",
         };
 
+        let mut active_speed = 1.0f32;
+
         if let Some(state_data) = self.config.states.get(state_key) {
-            let speed = state_data.speed.max(0.1);
-            // Sinusoidal t (0.0 -> 1.0) persis formula Three.js
-            let t = ((self.elapsed_time * speed * 2.2).sin() + 1.0) / 2.0;
+            active_speed = state_data.speed.max(0.1);
+            // Sinusoidal t (0.0 -> 1.0) siklus pose A ⇄ B persis mengikuti speed dari poses.json
+            let t = ((self.elapsed_time * active_speed).sin() + 1.0) / 2.0;
 
             let pose_a = &state_data.pose_a;
             let pose_b = &state_data.pose_b;
@@ -104,19 +106,28 @@ impl PoseManager {
             for k in pose_a.keys() { all_bones.insert(k.clone()); }
             for k in pose_b.keys() { all_bones.insert(k.clone()); }
 
+            // Engine Natural Breathing: Ritme nafas hidup di dada, punggung, pundak, dan mikro-gerak kepala
+            let breath_rate = 1.35; // ~13 tarikan nafas per menit (ritme nafas santai)
+            let breath_sine = (self.elapsed_time * breath_rate).sin();
+            let breath_chest = breath_sine * 0.012;
+            let breath_spine = breath_sine * 0.006;
+            let breath_shoulder = breath_sine * 0.006;
+
             for bone_name in &all_bones {
                 let rot_a = pose_a.get(bone_name).copied().unwrap_or([0.0, 0.0, 0.0]);
                 let rot_b = pose_b.get(bone_name).copied().unwrap_or([0.0, 0.0, 0.0]);
 
-                // Ayunan nafas halus pada spine & chest
-                let mut breath_offset = 0.0;
-                if self.current_state == AssistantVisualState::Idle {
-                    if bone_name == "chest" || bone_name == "spine" {
-                        breath_offset = (self.elapsed_time * 2.4).sin() * 0.015;
-                    } else if bone_name == "leftShoulder" || bone_name == "rightShoulder" {
-                        breath_offset = (self.elapsed_time * 2.4).sin() * 0.01;
-                    }
-                }
+                let breath_offset = if bone_name == "chest" {
+                    breath_chest
+                } else if bone_name == "spine" {
+                    breath_spine
+                } else if bone_name == "leftShoulder" || bone_name == "rightShoulder" {
+                    breath_shoulder
+                } else if bone_name == "head" && self.current_state == AssistantVisualState::Idle {
+                    -breath_sine * 0.004
+                } else {
+                    0.0
+                };
 
                 let qa = Quat::from_euler(EulerRot::XYZ, rot_a[0] + breath_offset, rot_a[1], rot_a[2]);
                 let qb = Quat::from_euler(EulerRot::XYZ, rot_b[0] + breath_offset, rot_b[1], rot_b[2]);
@@ -124,56 +135,14 @@ impl PoseManager {
 
                 self.target_quats.insert(bone_name.clone(), target_q);
             }
-
-            // Finger natural gestures jika belum ada di keyframe
-            let finger_pulse = (self.elapsed_time * 3.5).sin() * 0.05;
-            let (curl_l, curl_r) = match self.current_state {
-                AssistantVisualState::Speaking => (0.45 + finger_pulse, 0.45 - finger_pulse),
-                AssistantVisualState::Listening => (0.35, 0.35),
-                AssistantVisualState::Thinking => (0.55, 0.40),
-                AssistantVisualState::Idle => (0.28, 0.28),
-            };
-
-            self.apply_fingers_curl("left", curl_l, &all_bones);
-            self.apply_fingers_curl("right", curl_r, &all_bones);
         }
 
-        // Smooth Exponential Slerp
-        let lerp_speed = (1.0 - (-delta_time * 12.0).exp()).clamp(0.0, 1.0);
+        // Transisi antar pose / state dinamis: Mengikuti proporsi kecepatan `speed` dari poses.json
+        let transition_rate = (active_speed * 3.2).clamp(1.5, 7.0);
+        let lerp_speed = (1.0 - (-delta_time * transition_rate).exp()).clamp(0.0, 1.0);
         for (bone, target_q) in &self.target_quats {
             let current_q = self.current_quats.entry(bone.clone()).or_insert(*target_q);
             *current_q = current_q.slerp(*target_q, lerp_speed);
-        }
-    }
-
-    fn apply_fingers_curl(&mut self, side: &str, curl_amount: f32, configured: &std::collections::HashSet<String>) {
-        let fingers = ["Index", "Middle", "Ring", "Little"];
-        let joints = ["Proximal", "Intermediate", "Distal"];
-
-        let thumb_meta = format!("{}ThumbMetacarpal", side);
-        let thumb_prox = format!("{}ThumbProximal", side);
-        let thumb_dist = format!("{}ThumbDistal", side);
-
-        if !configured.contains(&thumb_meta) {
-            self.target_quats.insert(thumb_meta, Quat::from_euler(EulerRot::XYZ, 0.12 * curl_amount, 0.12 * curl_amount, -0.18 * curl_amount));
-        }
-        if !configured.contains(&thumb_prox) {
-            self.target_quats.insert(thumb_prox, Quat::from_euler(EulerRot::XYZ, 0.18 * curl_amount, 0.0, -0.22 * curl_amount));
-        }
-        if !configured.contains(&thumb_dist) {
-            self.target_quats.insert(thumb_dist, Quat::from_euler(EulerRot::XYZ, 0.22 * curl_amount, 0.0, -0.25 * curl_amount));
-        }
-
-        for (f_idx, finger) in fingers.iter().enumerate() {
-            let f_factor = 1.0 + (f_idx as f32 * 0.1);
-            for (j_idx, joint) in joints.iter().enumerate() {
-                let bone_name = format!("{}{}{}", side, finger, joint);
-                if !configured.contains(&bone_name) {
-                    let z_rot = -0.35 * curl_amount * f_factor * if j_idx == 0 { 1.0 } else { 1.25 };
-                    let final_z = if side == "left" { z_rot } else { -z_rot };
-                    self.target_quats.insert(bone_name, Quat::from_euler(EulerRot::XYZ, 0.0, 0.0, final_z));
-                }
-            }
         }
     }
 

@@ -159,20 +159,29 @@ pub fn get_app_config_dir() -> PathBuf {
 }
 
 pub fn get_config_file_path() -> PathBuf {
-    // 1. Cek di root project lokal ./config-ai.json
+    // 1. Cek di assets/config-ai.json
+    let in_assets = PathBuf::from("assets/config-ai.json");
+    if in_assets.exists() {
+        return in_assets;
+    }
+
+    // 2. Cek di root project lokal ./config-ai.json
     let local = PathBuf::from("config-ai.json");
     if local.exists() {
         return local;
     }
 
-    // 2. Cek di user config dir (misal ~/.config/ragasukma/config-ai.json atau %APPDATA%/ragasukma/config-ai.json)
+    // 3. Cek di user config dir (misal ~/.config/ragasukma/assets/config-ai.json atau %APPDATA%/ragasukma/assets/config-ai.json)
+    let p_assets = get_app_config_dir().join("assets").join("config-ai.json");
+    if p_assets.exists() {
+        return p_assets;
+    }
+
     let p = get_app_config_dir().join("config-ai.json");
     if !p.exists() {
         // Tulis default config agar direktori tidak kosong
-        let def = UserConfig::default();
-        if let Ok(json) = serde_json::to_string_pretty(&def) {
-            let _ = fs::write(&p, json);
-        }
+        let default_cfg = UserConfig::default();
+        let _ = save_user_config(&default_cfg);
     }
     p
 }

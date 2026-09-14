@@ -9,6 +9,14 @@ pub struct SkillItem {
 }
 
 pub fn get_skills_path() -> PathBuf {
+    let in_assets = PathBuf::from("assets/skill-command.md");
+    if in_assets.exists() {
+        return in_assets;
+    }
+    let parent_assets = PathBuf::from("../assets/skill-command.md");
+    if parent_assets.exists() {
+        return parent_assets;
+    }
     let local = PathBuf::from("skill-command.md");
     if local.exists() {
         return local;
@@ -17,7 +25,11 @@ pub fn get_skills_path() -> PathBuf {
     if parent.exists() {
         return parent;
     }
-    PathBuf::from("skill-command.md")
+    let cfg_path = crate::config::get_app_config_dir().join("assets").join("skill-command.md");
+    if cfg_path.exists() {
+        return cfg_path;
+    }
+    PathBuf::from("assets/skill-command.md")
 }
 
 pub fn parse_skills_markdown() -> Vec<SkillItem> {
@@ -80,13 +92,7 @@ pub fn execute_command_by_os(cmd: &str) -> std::io::Result<()> {
             .args(["/C", "start", "", "cmd", "/C", cmd])
             .spawn()?;
     }
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("sh")
-            .args(["-c", cmd])
-            .spawn()?;
-    }
-    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    #[cfg(not(target_os = "windows"))]
     {
         std::process::Command::new("sh")
             .args(["-c", cmd])

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::config::AppConfig;
-use crate::dsp::{apply_noise_reduction, normalize_volume, TARGET_SAMPLE_RATE};
+use crate::audio::dsp::{apply_noise_reduction, normalize_volume, TARGET_SAMPLE_RATE};
 use crate::tray::{AssistantState, TrayState};
 
 pub struct AudioRecorder {

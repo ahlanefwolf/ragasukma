@@ -46,6 +46,7 @@ export interface LogEntry {
 
 export interface AppStatePayload {
   state: string;
+  is_running: boolean;
   is_paused: boolean;
   voice_muted: boolean;
   mic_muted: boolean;
@@ -159,12 +160,17 @@ export const api = {
   },
 
   // Live Tuner Sync
-  async setTunerLive(active: boolean, bones: Record<string, [number, number, number]> = {}): Promise<boolean> {
+  async setTunerLive(
+    active: boolean,
+    bones: Record<string, [number, number, number]> = {},
+    emotion?: string,
+    state?: string
+  ): Promise<boolean> {
     try {
       const res = await fetch(`${API_BASE}/api/tuner/live`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active, bones }),
+        body: JSON.stringify({ active, bones, emotion, state }),
       });
       return res.ok;
     } catch {
@@ -277,4 +283,20 @@ export const api = {
       return false;
     }
   },
+
+  // Real-time EventSource (SSE) listener
+  subscribeState(onStateChange: (state: AppStatePayload) => void): () => void {
+    const es = new EventSource(`${API_BASE}/api/events`);
+    es.onmessage = (event) => {
+      try {
+        const data: AppStatePayload = JSON.parse(event.data);
+        onStateChange(data);
+      } catch (err) {
+        console.error('Failed to parse SSE state:', err);
+      }
+    };
+    return () => {
+      es.close();
+    };
+  }
 };

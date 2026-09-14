@@ -15,11 +15,33 @@ pub struct Vertex {
     pub weights: [f32; 4],
 }
 
+#[derive(Clone, Debug)]
+pub struct MorphTargetData {
+    pub position_displacements: Vec<[f32; 3]>,
+}
+
 pub struct MeshPrimitiveData {
+    pub base_vertices: Vec<Vertex>,
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
     pub material_index: Option<usize>,
     pub node_index: usize,
+    pub mesh_index: usize,
+    pub morph_targets: Vec<MorphTargetData>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct BlendShapeBind {
+    pub mesh_index: usize,
+    pub primitive_index: usize,
+    pub target_index: usize,
+    pub weight: f32, // 0.0 - 1.0
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct VrmExpressionData {
+    pub name: String,
+    pub binds: Vec<BlendShapeBind>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -74,6 +96,7 @@ pub struct VrmModelData {
     pub root_nodes: Vec<usize>,
     pub skins: Vec<SkinData>,
     pub bone_mapping: HashMap<String, usize>,
+    pub expressions: HashMap<String, VrmExpressionData>,
 }
 
 fn extract_image_rgba(
@@ -331,11 +354,27 @@ impl VrmModelData {
 
                         let indices: Vec<u32> = reader.read_indices().map(|idx| idx.into_u32().collect()).unwrap_or_else(|| (0..positions.len() as u32).collect());
 
+                        // Ekstrak Morph Targets (Blend Shapes untuk Facial Expression & Lip Sync)
+                        let mut morph_targets = Vec::new();
+                        for (pos_opt, _norm_opt, _tan_opt) in reader.read_morph_targets() {
+                            if let Some(morph_pos_iter) = pos_opt {
+                                let position_displacements: Vec<[f32; 3]> = morph_pos_iter.collect();
+                                morph_targets.push(MorphTargetData {
+                                    position_displacements,
+                                });
+                            }
+                        }
+
+                        let base_vertices = vertices.clone();
+
                         primitives.push(MeshPrimitiveData {
+                            base_vertices,
                             vertices,
                             indices,
                             material_index: prim.material().index(),
                             node_index: node.index,
+                            mesh_index: mesh_idx,
+                            morph_targets,
                         });
                     }
                 }
@@ -358,13 +397,77 @@ impl VrmModelData {
             });
         }
 
+        // 5. Ekstrak Blend Shapes & Expressions (VRM 0.X & VRM 1.0)
+        let mut expressions = HashMap::new();
+
+        // VRM 0.X BlendShapeMaster
+        if let Some(vrm_0) = gltf_json.as_ref().and_then(|j| j.get("extensions")).and_then(|e| e.get("VRM")) {
+            if let Some(groups) = vrm_0.get("blendShapeMaster").and_then(|b| b.get("blendShapeGroups")).and_then(|g| g.as_array()) {
+                for group in groups {
+                    let name = group.get("name").and_then(|n| n.as_str())
+                        .or_else(|| group.get("presetName").and_then(|n| n.as_str()))
+                        .unwrap_or("").to_lowercase();
+                    if name.is_empty() {
+                        continue;
+                    }
+
+                    let mut binds = Vec::new();
+                    if let Some(bind_arr) = group.get("binds").and_then(|b| b.as_array()) {
+                        for b in bind_arr {
+                            let mesh_index = b.get("mesh").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                            let target_index = b.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                            let weight = (b.get("weight").and_then(|v| v.as_f64()).unwrap_or(100.0) / 100.0) as f32;
+                            binds.push(BlendShapeBind {
+                                mesh_index,
+                                primitive_index: 0,
+                                target_index,
+                                weight,
+                            });
+                        }
+                    }
+                    expressions.insert(name.clone(), VrmExpressionData {
+                        name,
+                        binds,
+                    });
+                }
+            }
+        }
+
+        // VRM 1.0 Expressions
+        if let Some(vrm_1) = gltf_json.as_ref().and_then(|j| j.get("extensions")).and_then(|e| e.get("VRMC_vrm")) {
+            if let Some(preset_obj) = vrm_1.get("expressions").and_then(|e| e.get("preset")).and_then(|p| p.as_object()) {
+                for (preset_name, expr_val) in preset_obj {
+                    let name = preset_name.to_lowercase();
+                    let mut binds = Vec::new();
+                    if let Some(morph_binds) = expr_val.get("morphTargetBinds").and_then(|m| m.as_array()) {
+                        for b in morph_binds {
+                            let node_idx = b.get("node").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                            let mesh_index = nodes.iter().find(|n| n.index == node_idx).and_then(|n| n.mesh_index).unwrap_or(0);
+                            let target_index = b.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                            let weight = b.get("weight").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
+                            binds.push(BlendShapeBind {
+                                mesh_index,
+                                primitive_index: 0,
+                                target_index,
+                                weight,
+                            });
+                        }
+                    }
+                    expressions.insert(name.clone(), VrmExpressionData {
+                        name,
+                        binds,
+                    });
+                }
+            }
+        }
+
         let root_nodes = if let Some(scene) = document.default_scene().or_else(|| document.scenes().next()) {
             scene.nodes().map(|n| n.index()).collect()
         } else {
             (0..nodes.len()).collect()
         };
 
-        println!("✨ [VRM Loader] Sukses memuat {} mesh parts, {} material layers", primitives.len(), materials.len());
+        println!("✨ [VRM Loader] Sukses memuat {} mesh parts, {} material layers, {} blend expressions", primitives.len(), materials.len(), expressions.len());
 
         Ok(Self {
             primitives,
@@ -373,6 +476,7 @@ impl VrmModelData {
             root_nodes,
             skins,
             bone_mapping,
+            expressions,
         })
     }
 }

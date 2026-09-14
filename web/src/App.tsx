@@ -1,4 +1,4 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, onMount, onCleanup } from 'solid-js';
 import { Sidebar } from './components/Sidebar';
 import { MenuTab } from './components/MenuTab';
 import { SkillsTab } from './components/SkillsTab';
@@ -6,6 +6,7 @@ import { TunerTab } from './components/TunerTab';
 import { LogsTab } from './components/LogsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { Sparkles, Bot } from 'lucide-solid';
+import { api } from './api';
 
 export const App: Component = () => {
   const [activeTab, setActiveTab] = createSignal('menu');
@@ -13,6 +14,18 @@ export const App: Component = () => {
   const [overlayConnected, setOverlayConnected] = createSignal(true);
   const [toastMessage, setToastMessage] = createSignal('');
   const [toastVisible, setToastVisible] = createSignal(false);
+
+  // Real-time EventSource (SSE) stream dari backend - 0 polling, instant event sync
+  onMount(() => {
+    const unsubscribe = api.subscribeState((st) => {
+      if (st) {
+        setCurrentState(st.state);
+        setOverlayConnected(true);
+      }
+    });
+
+    onCleanup(() => unsubscribe());
+  });
 
   const showToast = (msg: string) => {
     setToastMessage(msg);

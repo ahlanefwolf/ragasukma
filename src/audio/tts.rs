@@ -119,9 +119,9 @@ impl TextToSpeech {
         }
     }
 
-    pub fn speak_interruptible(&self, text: &str, is_interrupted: Arc<AtomicBool>) -> Result<()> {
+    pub fn speak(&self, text: &str) -> Result<()> {
         let clean_text = clean_text_for_speech(text);
-        if clean_text.trim().is_empty() || is_interrupted.load(Ordering::SeqCst) {
+        if clean_text.trim().is_empty() {
             return Ok(());
         }
 
@@ -134,14 +134,14 @@ impl TextToSpeech {
 
         let mut played_successfully = false;
 
-        // 1. Coba synthesize via ElevenLabs jika API Key diset dan belum dinonaktifkan karena kuota habis/kritis
-        if !played_successfully && self.tts_engine == "elevenlabs" {
+        // 1. Coba synthesize via ElevenLabs jika API Key diset dan belum dinonaktifkan
+        if self.tts_engine == "elevenlabs" {
             if let Some(ref api_key) = self.elevenlabs_api_key {
                 if !self.elevenlabs_disabled.load(Ordering::Relaxed) {
                     match self.synthesize_elevenlabs(&clean_text, api_key) {
                         Ok(audio_bytes) => {
-                            // Terapkan DSP Anime Filter (Formant Treble Booster + Pitch Shaper)
-                            if let Err(e) = self.play_audio_buffer(audio_bytes, is_interrupted.clone(), true) {
+                            // Terapkan DSP Anime Filter
+                            if let Err(e) = self.play_audio_buffer(audio_bytes, true) {
                                 crate::term_err!("⚠️ [ElevenLabs Playback Error]: {}", e);
                             } else {
                                 played_successfully = true;
@@ -161,14 +161,12 @@ impl TextToSpeech {
             }
         }
 
-        // 3. Seamless Fallback ke Google Translate TTS + Custom DSP Anime
-        let res = if !played_successfully && !is_interrupted.load(Ordering::SeqCst) {
-            self.play_google_stream(&clean_text, is_interrupted)
-        } else {
-            Ok(())
-        };
+        // 2. Seamless Fallback ke Google Translate TTS + Custom DSP Anime
+        if !played_successfully {
+            self.play_google_stream(&clean_text)?;
+        }
 
-        res
+        Ok(())
     }
 
     fn synthesize_elevenlabs(&self, text: &str, api_key: &str) -> Result<Vec<u8>> {
@@ -208,7 +206,7 @@ impl TextToSpeech {
         Ok(bytes.to_vec())
     }
 
-    fn play_audio_buffer(&self, raw_bytes: Vec<u8>, is_interrupted: Arc<AtomicBool>, apply_dsp: bool) -> Result<()> {
+    fn play_audio_buffer(&self, raw_bytes: Vec<u8>, apply_dsp: bool) -> Result<()> {
         let (_stream, stream_handle) =
             OutputStream::try_default().context("Gagal menginisialisasi output audio (speaker)")?;
         let sink = Sink::try_new(&stream_handle).context("Gagal membuat audio sink")?;
@@ -229,18 +227,11 @@ impl TextToSpeech {
             sink.append(SamplesBuffer::new(channels, sample_rate, samples));
         }
 
-        while !sink.empty() {
-            if is_interrupted.load(Ordering::SeqCst) {
-                sink.stop();
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(20));
-        }
-
+        sink.sleep_until_end();
         Ok(())
     }
 
-    fn play_google_stream(&self, text: &str, is_interrupted: Arc<AtomicBool>) -> Result<()> {
+    fn play_google_stream(&self, text: &str) -> Result<()> {
         let (_stream, stream_handle) =
             OutputStream::try_default().context("Gagal menginisialisasi output audio (speaker)")?;
         let sink = Sink::try_new(&stream_handle).context("Gagal membuat audio sink")?;
@@ -250,24 +241,21 @@ impl TextToSpeech {
             sink.set_speed(speed);
         }
 
-        let sentences: Vec<&str> = text
-            .split(&['.', '?', '!', '\n', ';'][..])
+        // Potong kalimat panjang menjadi sub-kalimat
+        let chunks: Vec<String> = text
+            .split(&[',', ';', '!', '?', '\n', '.'][..])
             .map(|s| s.trim())
-            .filter(|s| !s.is_empty() && s.len() > 1)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
             .collect();
 
-        let chunks = if sentences.is_empty() {
-            vec![text]
+        let chunks = if chunks.is_empty() {
+            vec![text.to_string()]
         } else {
-            sentences
+            chunks
         };
 
         for chunk in chunks {
-            if is_interrupted.load(Ordering::SeqCst) {
-                sink.stop();
-                return Ok(());
-            }
-
             let safe_chunk = if chunk.len() > 150 {
                 // Potong string berdasarkan UTF-8 char boundary yang aman agar tidak panic
                 let mut cut_idx = 150;
@@ -276,57 +264,55 @@ impl TextToSpeech {
                 }
                 &chunk[..cut_idx]
             } else {
-                chunk
+                &chunk
             };
 
-            let encoded: String = form_urlencoded::byte_serialize(safe_chunk.as_bytes()).collect();
+            let encoded_text: String =
+                form_urlencoded::byte_serialize(safe_chunk.as_bytes()).collect();
             let url = format!(
                 "https://translate.google.com/translate_tts?ie=UTF-8&q={}&tl={}&client=tw-ob",
-                encoded, self.tts_lang
+                encoded_text, self.tts_lang
             );
 
-            if let Ok(res) = self
-                .http_client
-                .get(&url)
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-                .header("Referer", "http://translate.google.com/")
-                .send()
-            {
-                if res.status().is_success() {
-                    if let Ok(raw_bytes) = res.bytes() {
-                        let cursor = Cursor::new(raw_bytes.to_vec());
-                        match Decoder::new(cursor) {
-                            Ok(decoder) => {
+            let mut attempts = 0;
+            let max_attempts = 2;
+            let mut fetch_success = false;
+
+            while attempts < max_attempts && !fetch_success {
+                attempts += 1;
+                let req_builder = self
+                    .http_client
+                    .get(&url)
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+
+                if let Ok(resp) = req_builder.send() {
+                    if resp.status().is_success() {
+                        if let Ok(bytes) = resp.bytes() {
+                            let cursor = Cursor::new(bytes.to_vec());
+                            if let Ok(decoder) = Decoder::new(cursor) {
                                 let sample_rate = decoder.sample_rate();
                                 let channels = decoder.channels();
                                 let samples: Vec<f32> = decoder.convert_samples::<f32>().collect();
 
-                                // Terapkan DSP Anime Enhancer (Formant Treble Booster + Low-cut + Ambience)
-                                let processed = apply_anime_dsp_filter(&samples, sample_rate);
-                                let source = SamplesBuffer::new(channels, sample_rate, processed);
-                                sink.append(source);
-                            }
-                            Err(e) => {
-                                crate::term_err!("⚠️ [Audio Decode Error]: {}", e);
+                                // DSP Anime Voice Filter
+                                let processed_samples = apply_anime_dsp_filter(&samples, sample_rate);
+                                sink.append(SamplesBuffer::new(channels, sample_rate, processed_samples));
+                                fetch_success = true;
                             }
                         }
                     }
                 }
+                if !fetch_success && attempts < max_attempts {
+                    std::thread::sleep(Duration::from_millis(50));
+                }
             }
 
-            while sink.len() > 1 && !is_interrupted.load(Ordering::SeqCst) {
+            while sink.len() > 1 {
                 std::thread::sleep(Duration::from_millis(50));
             }
         }
 
-        while !sink.empty() {
-            if is_interrupted.load(Ordering::SeqCst) {
-                sink.stop();
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(20));
-        }
-
+        sink.sleep_until_end();
         Ok(())
     }
 }

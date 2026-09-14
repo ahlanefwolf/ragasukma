@@ -1,0 +1,171 @@
+use glam::{Mat4, Vec3};
+use super::types::{BoneMatricesUniform, CameraUniform};
+use crate::native::pose_system::PoseManager;
+use crate::native::vrm_loader::VrmModelData;
+
+pub struct CameraState {
+    pub camera_yaw: f32,
+    pub camera_pitch: f32,
+    pub camera_zoom: f32,
+    pub camera_pan_x: f32,
+    pub camera_pan_y: f32,
+}
+
+impl Default for CameraState {
+    fn default() -> Self {
+        Self {
+            camera_yaw: 0.0,
+            camera_pitch: 0.0,
+            camera_zoom: 1.0,
+            camera_pan_x: 0.0,
+            camera_pan_y: 0.0,
+        }
+    }
+}
+
+impl CameraState {
+    pub fn rotate(&mut self, delta_yaw: f32, delta_pitch: f32) {
+        self.camera_yaw += delta_yaw;
+        self.camera_pitch = (self.camera_pitch + delta_pitch).clamp(-1.2, 1.2);
+    }
+
+    pub fn pan(&mut self, delta_x: f32, delta_y: f32, screen_h: f32, model_min_y: f32, model_max_y: f32) {
+        let fov_rad = 28.0_f32.to_radians();
+        let half_fov_tan = (fov_rad / 2.0).tan();
+        let height = screen_h.max(1.0);
+        let model_height = (model_max_y - model_min_y).max(1.2);
+        let base_radius = (model_height * 1.12 / 2.0) / half_fov_tan;
+        let current_radius = base_radius / self.camera_zoom.clamp(0.15, 6.0);
+
+        let pan_factor = (2.0 * half_fov_tan * current_radius) / height;
+        self.camera_pan_x -= delta_x * pan_factor;
+        self.camera_pan_y += delta_y * pan_factor;
+    }
+
+    pub fn zoom(&mut self, scroll_delta: f32) {
+        let zoom_factor = 1.0 + (scroll_delta * 0.08);
+        self.camera_zoom = (self.camera_zoom * zoom_factor).clamp(0.2, 5.0);
+    }
+
+    pub fn reset(&mut self) {
+        self.camera_yaw = 0.0;
+        self.camera_pitch = 0.0;
+        self.camera_zoom = 1.0;
+        self.camera_pan_x = 0.0;
+        self.camera_pan_y = 0.0;
+    }
+}
+
+pub fn update_camera_and_bones(
+    queue: &wgpu::Queue,
+    camera_buffer: &wgpu::Buffer,
+    bone_buffer: &wgpu::Buffer,
+    model_opt: Option<&VrmModelData>,
+    model_min_y: f32,
+    model_max_y: f32,
+    screen_w: f32,
+    screen_h: f32,
+    cam: &CameraState,
+    pose_manager: &mut PoseManager,
+    delta_seconds: f32,
+) {
+    pose_manager.update_poses(delta_seconds);
+
+    let width = screen_w;
+    let height = screen_h.max(1.0);
+    let aspect = width / height;
+
+    let fov_rad = 28.0_f32.to_radians();
+
+    // 1. Titik tengah dan tinggi aktual model
+    let center_y = (model_min_y + model_max_y) * 0.5;
+    let model_height = (model_max_y - model_min_y).max(1.2);
+
+    let safe_margin = 1.12_f32;
+    let fit_height = model_height * safe_margin;
+
+    let dist_v = (fit_height / 2.0) / (fov_rad / 2.0).tan();
+    let radius = dist_v / cam.camera_zoom.clamp(0.15, 6.0);
+
+    // 2. Transformasi Kamera Orbit RH Standar (Yaw & Pitch)
+    let cos_pitch = cam.camera_pitch.cos();
+    let sin_pitch = cam.camera_pitch.sin();
+    let sin_yaw = cam.camera_yaw.sin();
+    let cos_yaw = cam.camera_yaw.cos();
+
+    let target = Vec3::new(cam.camera_pan_x, center_y + cam.camera_pan_y, 0.0);
+    let camera_pos = Vec3::new(
+        target.x + radius * cos_pitch * sin_yaw,
+        target.y + radius * sin_pitch,
+        target.z + radius * cos_pitch * cos_yaw,
+    );
+    let view = Mat4::look_at_rh(camera_pos, target, Vec3::Y);
+
+    let near = 0.05_f32;
+    let far = 50.0_f32;
+    let proj = Mat4::perspective_rh(fov_rad, aspect, near, far);
+    let view_proj = proj * view;
+
+    let camera_uniform = CameraUniform {
+        view_proj: view_proj.to_cols_array_2d(),
+        camera_pos: camera_pos.to_array(),
+        _padding: 0.0,
+    };
+    queue.write_buffer(camera_buffer, 0, bytemuck::cast_slice(&[camera_uniform]));
+
+    // Update Matrix Tulang (Hierarki Pose Three.js)
+    if let Some(model) = model_opt {
+        let mut global_transforms = vec![Mat4::IDENTITY; model.nodes.len()];
+        let mut bone_matrices = [Mat4::IDENTITY.to_cols_array_2d(); 256];
+
+        for &root_idx in &model.root_nodes {
+            compute_global_transforms(root_idx, Mat4::IDENTITY, pose_manager, model, &mut global_transforms);
+        }
+
+        if let Some(skin) = model.skins.first() {
+            for (joint_i, &node_idx) in skin.joints.iter().enumerate() {
+                if joint_i < 256 {
+                    let inv_bind = skin.inverse_bind_matrices.get(joint_i).copied().unwrap_or(Mat4::IDENTITY);
+                    let global_joint = global_transforms[node_idx];
+                    let final_mat = global_joint * inv_bind;
+                    bone_matrices[joint_i] = final_mat.to_cols_array_2d();
+                }
+            }
+        }
+
+        let bone_uniform = BoneMatricesUniform {
+            matrices: bone_matrices,
+        };
+        queue.write_buffer(bone_buffer, 0, bytemuck::cast_slice(&[bone_uniform]));
+    }
+}
+
+fn compute_global_transforms(
+    node_idx: usize,
+    parent_transform: Mat4,
+    pose_manager: &PoseManager,
+    model: &VrmModelData,
+    globals: &mut [Mat4],
+) {
+    let node = &model.nodes[node_idx];
+    let mut rotation = node.initial_rotation;
+
+    if let Some((bone_name, _)) = model.bone_mapping.iter().find(|&(_, &idx)| idx == node_idx) {
+        if let Some(pose_rot) = pose_manager.get_bone_quat(bone_name) {
+            rotation = rotation * pose_rot;
+        }
+    }
+
+    let local_transform = Mat4::from_scale_rotation_translation(
+        node.initial_scale,
+        rotation,
+        node.initial_translation,
+    );
+
+    let global_transform = parent_transform * local_transform;
+    globals[node_idx] = global_transform;
+
+    for &child_idx in &node.children {
+        compute_global_transforms(child_idx, global_transform, pose_manager, model, globals);
+    }
+}

@@ -7,6 +7,7 @@ use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 
 use super::pose_system::{AssistantVisualState, PosesConfig};
 use crate::config::UserConfig;
@@ -19,6 +20,7 @@ pub struct EmbeddedWebDist;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppStatePayload {
     pub state: String,
+    pub is_running: bool,
     pub is_paused: bool,
     pub voice_muted: bool,
     pub mic_muted: bool,
@@ -26,6 +28,8 @@ pub struct AppStatePayload {
 
 pub struct ServerSharedState {
     pub current_state: AssistantVisualState,
+    pub current_emotion: String,
+    pub is_running: bool,
     pub is_paused: bool,
     pub voice_muted: bool,
     pub mic_muted: bool,
@@ -34,6 +38,7 @@ pub struct ServerSharedState {
     pub vrm_updated: bool,
     pub tuning_mode: bool,
     pub live_tuning_bones: HashMap<String, [f32; 3]>,
+    pub state_version: u64,
 }
 
 static GLOBAL_SHARED_STATE: Mutex<Option<Arc<Mutex<ServerSharedState>>>> = Mutex::new(None);
@@ -44,11 +49,36 @@ pub fn register_shared_state(shared: Arc<Mutex<ServerSharedState>>) {
     }
 }
 
-pub fn update_visual_state(state: AssistantVisualState) {
+pub fn update_session_running(running: bool) {
     if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
         if let Some(shared) = lock.as_ref() {
             if let Ok(mut s) = shared.lock() {
-                s.current_state = state;
+                if s.is_running != running {
+                    s.is_running = running;
+                    if !running {
+                        s.current_state = AssistantVisualState::Idle;
+                    }
+                    s.state_version = s.state_version.wrapping_add(1);
+                }
+            }
+        }
+    }
+}
+
+pub fn update_visual_state(state: AssistantVisualState) {
+    update_visual_state_with_emotion(state, "neutral");
+}
+
+pub fn update_visual_state_with_emotion(state: AssistantVisualState, emotion: &str) {
+    if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
+        if let Some(shared) = lock.as_ref() {
+            if let Ok(mut s) = shared.lock() {
+                let changed = s.current_state != state || s.current_emotion != emotion;
+                if changed {
+                    s.current_state = state;
+                    s.current_emotion = emotion.to_string();
+                    s.state_version = s.state_version.wrapping_add(1);
+                }
             }
         }
     }
@@ -88,6 +118,21 @@ pub fn is_paused() -> bool {
 }
 
 pub fn get_assets_dir() -> PathBuf {
+    // 1. Cek di samping binary saat diinstall (Windows, Linux Portable, AppImage)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let beside = exe_dir.join("assets");
+            if beside.exists() {
+                return beside;
+            }
+            // macOS .app bundle
+            let mac_resources = exe_dir.join("../Resources/assets");
+            if mac_resources.exists() {
+                return mac_resources;
+            }
+        }
+    }
+
     let local = PathBuf::from("assets");
     if local.exists() || PathBuf::from("Cargo.toml").exists() {
         let _ = fs::create_dir_all(&local);
@@ -103,27 +148,47 @@ pub fn get_assets_dir() -> PathBuf {
 }
 
 pub fn find_file_in_candidates(filename: &str) -> PathBuf {
-    let candidates = [
-        PathBuf::from(filename),
-        PathBuf::from(format!("assets/{}", filename)),
-        PathBuf::from(format!("../assets/{}", filename)),
-        PathBuf::from(format!("../{}", filename)),
-        crate::config::get_app_config_dir().join("assets").join(filename),
-        crate::config::get_app_config_dir().join(filename),
-    ];
+    let mut candidates = Vec::new();
+
+    // 1. Cek di samping executable / bundle installer
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.join("assets").join(filename));
+            candidates.push(exe_dir.join(filename));
+            candidates.push(exe_dir.join("../Resources/assets").join(filename));
+            candidates.push(exe_dir.join("../Resources").join(filename));
+        }
+    }
+
+    // 2. Working directory & project folder
+    candidates.push(PathBuf::from(filename));
+    candidates.push(PathBuf::from(format!("assets/{}", filename)));
+    candidates.push(PathBuf::from(format!("../assets/{}", filename)));
+    candidates.push(PathBuf::from(format!("../{}", filename)));
+
+    // 3. User config & appdata folder
+    candidates.push(crate::config::get_app_config_dir().join("assets").join(filename));
+    candidates.push(crate::config::get_app_config_dir().join(filename));
+
     for c in &candidates {
         if c.exists() {
             return c.clone();
         }
     }
-    // Fallback AppData
+
+    // Fallback AppData Windows
     #[cfg(target_os = "windows")]
     if let Ok(appdata) = std::env::var("APPDATA") {
-        let p = PathBuf::from(appdata).join("ragasukma").join(filename);
+        let p = PathBuf::from(appdata).join("ragasukma").join("assets").join(filename);
         if p.exists() {
             return p;
         }
+        let p_root = PathBuf::from(appdata).join("ragasukma").join(filename);
+        if p_root.exists() {
+            return p_root;
+        }
     }
+
     PathBuf::from(filename)
 }
 
@@ -407,12 +472,27 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
                 active: bool,
                 #[serde(default)]
                 bones: HashMap<String, [f32; 3]>,
+                #[serde(default)]
+                emotion: Option<String>,
+                #[serde(default)]
+                state: Option<String>,
             }
             if let Ok(payload) = serde_json::from_str::<TunerLivePayload>(body_str) {
                 if let Ok(mut lock) = shared.lock() {
                     lock.tuning_mode = payload.active;
+                    if let Some(st_str) = payload.state {
+                        lock.current_state = match st_str.to_lowercase().as_str() {
+                            "listening" => crate::native::pose_system::AssistantVisualState::Listening,
+                            "speaking" => crate::native::pose_system::AssistantVisualState::Speaking,
+                            "thinking" => crate::native::pose_system::AssistantVisualState::Thinking,
+                            _ => crate::native::pose_system::AssistantVisualState::Idle,
+                        };
+                    }
                     if payload.active {
                         lock.live_tuning_bones = payload.bones;
+                        if let Some(emo) = payload.emotion {
+                            lock.current_emotion = emo;
+                        }
                     }
                 }
                 send_json_response(&mut stream, 200, "{\"success\":true}");
@@ -528,6 +608,9 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
                 send_json_response(&mut stream, 400, "{\"error\":\"Invalid cmd payload\"}");
             }
         }
+        ("GET", "/api/events") => {
+            handle_sse_client(stream, shared);
+        }
         ("GET", "/api/state") => {
             if let Ok(lock) = shared.lock() {
                 let st_str = match lock.current_state {
@@ -538,6 +621,7 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
                 };
                 let payload = AppStatePayload {
                     state: st_str.to_string(),
+                    is_running: lock.is_running,
                     is_paused: lock.is_paused,
                     voice_muted: lock.voice_muted,
                     mic_muted: lock.mic_muted,
@@ -550,26 +634,21 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
             if let Ok(payload) = serde_json::from_str::<AppStatePayload>(body_str) {
                 let mut cmd_to_send = None;
                 if let Ok(mut lock) = shared.lock() {
+                    let prev_running = lock.is_running;
                     let prev_paused = lock.is_paused;
-                    let prev_state = lock.current_state;
-                    match payload.state.as_str() {
-                        "listening" => lock.current_state = AssistantVisualState::Listening,
-                        "speaking" => lock.current_state = AssistantVisualState::Speaking,
-                        "thinking" => lock.current_state = AssistantVisualState::Thinking,
-                        _ => lock.current_state = AssistantVisualState::Idle,
-                    }
+
+                    lock.is_running = payload.is_running;
                     lock.is_paused = payload.is_paused;
                     lock.voice_muted = payload.voice_muted;
                     lock.mic_muted = payload.mic_muted;
+                    lock.state_version = lock.state_version.wrapping_add(1);
 
-                    if payload.is_paused && !prev_paused {
-                        cmd_to_send = Some("toggle_pause".to_string());
-                    } else if !payload.is_paused && prev_paused {
-                        cmd_to_send = Some("toggle_pause".to_string());
-                    } else if payload.state == "listening" && prev_state != AssistantVisualState::Listening {
+                    if payload.is_running && !prev_running {
                         cmd_to_send = Some("start_chat".to_string());
-                    } else if payload.state == "idle" && prev_state != AssistantVisualState::Idle {
+                    } else if !payload.is_running && prev_running {
                         cmd_to_send = Some("stop_chat".to_string());
+                    } else if payload.is_paused != prev_paused {
+                        cmd_to_send = Some("toggle_pause".to_string());
                     }
                 }
                 if let Some(cmd) = cmd_to_send {
@@ -586,6 +665,59 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
         _ => {
             send_json_response(&mut stream, 404, "{\"error\":\"Not Found\"}");
         }
+    }
+}
+
+fn handle_sse_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
+    let header = "HTTP/1.1 200 OK\r\n\
+                  Content-Type: text/event-stream\r\n\
+                  Cache-Control: no-cache\r\n\
+                  Connection: keep-alive\r\n\
+                  Access-Control-Allow-Origin: *\r\n\r\n";
+    if stream.write_all(header.as_bytes()).is_err() {
+        return;
+    }
+
+    let mut last_seen_version: u64 = 0;
+    let mut initial_sent = false;
+
+    loop {
+        let (should_send, payload_json) = if let Ok(lock) = shared.lock() {
+            let ver = lock.state_version;
+            if !initial_sent || ver != last_seen_version {
+                last_seen_version = ver;
+                initial_sent = true;
+
+                let st_str = match lock.current_state {
+                    AssistantVisualState::Idle => "idle",
+                    AssistantVisualState::Listening => "listening",
+                    AssistantVisualState::Speaking => "speaking",
+                    AssistantVisualState::Thinking => "thinking",
+                };
+                let payload = AppStatePayload {
+                    state: st_str.to_string(),
+                    is_running: lock.is_running,
+                    is_paused: lock.is_paused,
+                    voice_muted: lock.voice_muted,
+                    mic_muted: lock.mic_muted,
+                };
+                (true, serde_json::to_string(&payload).unwrap_or_default())
+            } else {
+                (false, String::new())
+            }
+        } else {
+            (false, String::new())
+        };
+
+        if should_send {
+            let event_msg = format!("data: {}\n\n", payload_json);
+            if stream.write_all(event_msg.as_bytes()).is_err() {
+                break;
+            }
+            let _ = stream.flush();
+        }
+
+        thread::sleep(Duration::from_millis(50));
     }
 }
 

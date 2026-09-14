@@ -37,7 +37,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
   const syncLiveTuner = (active = true) => {
     if (isPreviewing()) return;
     const bones = getCurrentKeyframeBones();
-    api.setTunerLive(active, bones);
+    api.setTunerLive(active, bones, selectedEmotion(), selectedState());
   };
 
   const loadPoses = async () => {
@@ -102,7 +102,16 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     st[keyframeName] = curPose;
     setPosesData(all);
 
-    api.setTunerLive(true, curPose);
+    // Throttle / requestAnimationFrame live sync agar tidak spam ratusan HTTP request per detik
+    scheduleLiveSync(curPose);
+  };
+
+  let syncTimeout: number | null = null;
+  const scheduleLiveSync = (pose: Record<string, [number, number, number]>) => {
+    if (syncTimeout) cancelAnimationFrame(syncTimeout);
+    syncTimeout = requestAnimationFrame(() => {
+      api.setTunerLive(true, pose, selectedEmotion(), selectedState());
+    });
   };
 
   const resetSingleBone = (bone: string) => {
@@ -167,41 +176,24 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     props.showToast(`Mirroring simetri kiri-kanan Pose ${from.toUpperCase()} ke Pose ${to.toUpperCase()}`);
   };
 
-  const togglePreview = () => {
+  const togglePreview = async () => {
     const next = !isPreviewing();
     setIsPreviewing(next);
 
     if (next) {
-      previewTime = 0;
-      props.showToast('Preview loop animasi A ⇄ B aktif');
-      previewInterval = window.setInterval(() => {
-        previewTime += 0.03 * (speed() || 1.2) * 2.2;
-        const t = (Math.sin(previewTime) + 1.0) / 2.0;
-
-        const st = posesData()[selectedState()];
-        if (!st) return;
-
-        const poseA = st.pose_a || {};
-        const poseB = st.pose_b || {};
-        const interpolated: Record<string, [number, number, number]> = {};
-
-        const keys = new Set([...Object.keys(poseA), ...Object.keys(poseB)]);
-        for (const k of keys) {
-          const a = poseA[k] || [0, 0, 0];
-          const b = poseB[k] || [0, 0, 0];
-          interpolated[k] = [
-            a[0] + (b[0] - a[0]) * t,
-            a[1] + (b[1] - a[1]) * t,
-            a[2] + (b[2] - a[2]) * t,
-          ];
-        }
-        api.setTunerLive(true, interpolated);
-      }, 33);
+      const all = { ...posesData() };
+      if (all[selectedState()]) {
+        all[selectedState()].emotion = selectedEmotion();
+        all[selectedState()].speed = speed();
+      }
+      // Kirim data pose terkini ke engine & jalankan loop animasi native 60fps
+      await api.savePoses(all);
+      await api.setTunerLive(false, {}, selectedEmotion(), selectedState());
+      props.showToast(`Preview loop animasi ${selectedState().toUpperCase()} (60 FPS Native SLERP)`);
     } else {
-      if (previewInterval) clearInterval(previewInterval);
-      previewInterval = null;
+      // Kembali ke mode freeze keyframe editing
       syncLiveTuner(true);
-      props.showToast('Preview loop dihentikan');
+      props.showToast('Kembali ke mode edit keyframe');
     }
   };
 
@@ -329,7 +321,16 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
             <label class="text-xs font-semibold text-[#EFF7F6]/70">Ekspresi Emosi</label>
             <select
               value={selectedEmotion()}
-              onChange={(e) => setSelectedEmotion(e.currentTarget.value)}
+              onChange={(e) => {
+                const val = e.currentTarget.value;
+                setSelectedEmotion(val);
+                const all = { ...posesData() };
+                if (all[selectedState()]) {
+                  all[selectedState()].emotion = val;
+                  setPosesData(all);
+                }
+                api.setTunerLive(true, getCurrentKeyframeBones(), val);
+              }}
               class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3 py-2 text-xs text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
             >
               <option value="neutral">Neutral</option>
@@ -339,14 +340,13 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
               <option value="thinking">Thinking</option>
               <option value="sad">Sad</option>
               <option value="excited">Excited</option>
-              <option value="confused">Confused</option>
             </select>
           </div>
 
           <div class="space-y-1">
-            <div class="flex justify-between text-xs font-semibold">
-              <span class="text-[#EFF7F6]/70">Speed Siklus</span>
-              <span class="text-[#7BDFF2] font-mono">{speed().toFixed(1)}x</span>
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-semibold text-[#EFF7F6]/70">Speed Siklus</label>
+              <span class="text-xs font-mono font-bold text-[#7BDFF2]">{speed().toFixed(1)}x</span>
             </div>
             <input 
               type="range" 
@@ -354,7 +354,18 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
               max="4.0" 
               step="0.1" 
               value={speed()}
-              onInput={(e) => setSpeed(parseFloat(e.currentTarget.value))}
+              onInput={(e) => {
+                const val = parseFloat(e.currentTarget.value);
+                setSpeed(val);
+                const all = { ...posesData() };
+                if (all[selectedState()]) {
+                  all[selectedState()].speed = val;
+                  setPosesData(all);
+                }
+                if (isPreviewing()) {
+                  api.savePoses(all);
+                }
+              }}
               class="w-full h-2 bg-[#232D36] rounded-lg appearance-none cursor-pointer accent-[#7BDFF2] mt-2"
             />
           </div>
