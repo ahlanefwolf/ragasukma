@@ -12,7 +12,13 @@ pub fn run_native_overlay() {
     println!("✨ Memulai Ragasukma 3D Native Overlay (Ultra Lightweight WGPU)...");
 
     let event_loop = EventLoop::new().expect("Gagal membuat winit event loop");
-    let mut app = Box::new(pollster::block_on(app::App::new(&event_loop)).expect("Gagal menginisialisasi Native App"));
+    let mut app = match pollster::block_on(app::App::new(&event_loop)) {
+        Ok(a) => Box::new(a),
+        Err(e) => {
+            eprintln!("❌ Gagal menginisialisasi Native App: {:?}", e);
+            return;
+        }
+    };
 
     event_loop.run(move |event, elwt| {
         match event {

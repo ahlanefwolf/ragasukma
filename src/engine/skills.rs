@@ -17,6 +17,7 @@ pub struct InstalledApp {
 }
 
 pub fn get_installed_applications() -> Vec<InstalledApp> {
+    #[allow(unused_mut)]
     let mut apps = Vec::new();
 
     #[cfg(target_os = "linux")]
@@ -57,7 +58,7 @@ pub fn get_installed_applications() -> Vec<InstalledApp> {
             }
         }
 
-        apps.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        apps.sort_by_key(|a| a.name.to_lowercase());
     }
 
     apps

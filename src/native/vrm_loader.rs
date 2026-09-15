@@ -3,7 +3,7 @@ use glam::{Mat4, Quat, Vec3};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
@@ -140,7 +140,22 @@ fn extract_image_rgba(
 
 impl VrmModelData {
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let path_ref = path.as_ref();
+        let path_buf = path.as_ref().to_path_buf();
+
+        // Eksekusi parsing VRM & Texture Decoding di thread khusus ber-stack 32MB untuk mencegah stack overflow
+        let handle = std::thread::Builder::new()
+            .name("vrm-loader-worker".to_string())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(move || Self::load_from_file_internal(path_buf))?;
+
+        match handle.join() {
+            Ok(res) => res,
+            Err(_) => Err(anyhow::anyhow!("VRM Loader thread panicked during model parsing")),
+        }
+    }
+
+    fn load_from_file_internal(path_buf: PathBuf) -> anyhow::Result<Self> {
+        let path_ref = &path_buf;
         println!("📦 [VRM Loader] Membaca model VRM 1:1 Three.js: {:?}", path_ref);
 
         let gltf = gltf::Gltf::open(path_ref)?;
