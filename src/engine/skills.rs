@@ -61,7 +61,139 @@ pub fn get_installed_applications() -> Vec<InstalledApp> {
         apps.sort_by_key(|a| a.name.to_lowercase());
     }
 
+    #[cfg(target_os = "windows")]
+    {
+        use std::collections::HashSet;
+        let mut seen_names = HashSet::new();
+
+        // Scan shortcuts (.lnk) dari folder Start Menu
+        let mut start_menu_dirs: Vec<PathBuf> = Vec::new();
+
+        // Start Menu semua user
+        if let Ok(program_data) = std::env::var("ProgramData") {
+            start_menu_dirs.push(
+                PathBuf::from(&program_data)
+                    .join("Microsoft\\Windows\\Start Menu\\Programs"),
+            );
+        }
+        // Start Menu user saat ini
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            start_menu_dirs.push(
+                PathBuf::from(&appdata)
+                    .join("Microsoft\\Windows\\Start Menu\\Programs"),
+            );
+        }
+
+        for dir in &start_menu_dirs {
+            scan_lnk_dir(dir, &mut apps, &mut seen_names);
+        }
+
+        apps.sort_by_key(|a| a.name.to_lowercase());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use std::collections::HashSet;
+        let mut seen_names = HashSet::new();
+
+        let mut dirs = vec![
+            PathBuf::from("/Applications"),
+            PathBuf::from("/System/Applications"),
+            PathBuf::from("/System/Applications/Utilities"),
+        ];
+
+        if let Ok(home) = std::env::var("HOME") {
+            dirs.push(PathBuf::from(&home).join("Applications"));
+        }
+
+        for dir in &dirs {
+            scan_app_bundle_dir(dir, &mut apps, &mut seen_names);
+        }
+
+        apps.sort_by_key(|a| a.name.to_lowercase());
+    }
+
     apps
+}
+
+#[cfg(target_os = "macos")]
+fn scan_app_bundle_dir(
+    dir: &PathBuf,
+    apps: &mut Vec<InstalledApp>,
+    seen_names: &mut std::collections::HashSet<String>,
+) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()).map(|e| e.eq_ignore_ascii_case("app")).unwrap_or(false) {
+            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                let name = stem.to_string();
+                let key = name.to_lowercase();
+                if seen_names.contains(&key) {
+                    continue;
+                }
+                seen_names.insert(key);
+                // `open` adalah cara standar buka .app bundle di macOS
+                let exec = format!("open -a \"{}\"", name);
+                apps.push(InstalledApp {
+                    name,
+                    exec,
+                    icon: None,
+                    comment: None,
+                });
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn scan_lnk_dir(
+    dir: &PathBuf,
+    apps: &mut Vec<InstalledApp>,
+    seen_names: &mut std::collections::HashSet<String>,
+) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            // Rekursif masuk subfolder (misal "Accessories", "Games", dll.)
+            scan_lnk_dir(&path, apps, seen_names);
+        } else if path.extension().and_then(|e| e.to_str()).map(|e| e.eq_ignore_ascii_case("lnk")).unwrap_or(false) {
+            // Ambil nama dari filename tanpa ekstensi
+            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                let name = stem.to_string();
+                // Skip uninstaller / entry yang biasanya tidak relevan
+                let lower = name.to_lowercase();
+                if lower.contains("uninstall")
+                    || lower.contains("readme")
+                    || lower.contains("release note")
+                    || lower.contains("help")
+                    || lower.contains("documentation")
+                {
+                    continue;
+                }
+                let key = lower.clone();
+                if seen_names.contains(&key) {
+                    continue;
+                }
+                seen_names.insert(key);
+                // Gunakan path .lnk sebagai exec — AI bisa pakai `start "" "<path>"`
+                let exec = format!("start \"\" \"{}\"", path.display());
+                apps.push(InstalledApp {
+                    name,
+                    exec,
+                    icon: None,
+                    comment: None,
+                });
+            }
+        }
+    }
 }
 
 #[cfg(target_os = "linux")]

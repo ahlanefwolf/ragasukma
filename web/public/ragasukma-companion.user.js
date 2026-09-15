@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Ragasukma AI Web Companion
 // @namespace    https://github.com/ahlanefwolf/ragasukma
-// @version      1.0.0
+// @version      1.2.0
 // @description  Jembatan cerdas & ringan menghubungkan YouTube, YouTube Music, dan browser ke Ragasukma AI Voice Assistant
 // @author       Ahlan Saputra
 // @match        *://www.youtube.com/*
@@ -31,154 +31,151 @@
 
   function connect() {
     socket = new WebSocket("ws://127.0.0.1:42128/ws/browser");
-
     socket.onopen = () => {
       isConnected = true;
       console.log("✅ Ragasukma AI Companion: Terhubung ke Desktop Assistant!");
       sendTabInfo();
     };
-
     socket.onmessage = async (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        handleCommand(data);
-      } catch (err) {
-        console.error("Gagal memproses aksi AI:", err);
-      }
+      try { handleCommand(JSON.parse(event.data)); }
+      catch (err) { console.error("Gagal memproses aksi AI:", err); }
     };
+    socket.onclose = () => { isConnected = false; setTimeout(connect, 3000); };
+    socket.onerror = () => { socket.close(); };
+  }
 
-    socket.onclose = () => {
-      isConnected = false;
-      setTimeout(connect, 3000);
-    };
-
-    socket.onerror = () => {
-      socket.close();
-    };
+  function simulateClick(el) {
+    ['mouseenter', 'mouseover', 'mousedown', 'mouseup', 'click'].forEach(type => {
+      el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+    });
   }
 
   function handleCommand(data) {
     if (!data || !data.action) return;
-
-    // 1. YouTube & YouTube Music Media Control
     if (window.location.hostname.includes("youtube.com")) {
-    // 2. YouTube & YouTube Music Control (Play / Pause / Next / Prev / Toggle / Auto-Play Search Result)
-    if (window.location.hostname.includes("youtube.com") || window.location.hostname.includes("music.youtube.com")) {
       const video = document.querySelector("video");
       if (data.action === "pause" && video) video.pause();
       if (data.action === "play" && video) video.play();
-      if (data.action === "toggle" && video) {
-        video.paused ? video.play() : video.pause();
-      }
-
-      // Tombol Next Track di YT Music
+      if (data.action === "toggle" && video) video.paused ? video.play() : video.pause();
       if (data.action === "next") {
-        const nextBtn = document.querySelector(".next-button") || document.querySelector("button[aria-label='Lagu berikutnya']") || document.querySelector("button[aria-label='Next track']");
-        if (nextBtn) nextBtn.click();
+        const btn = document.querySelector(".next-button") ||
+          document.querySelector("button[aria-label='Lagu berikutnya']") ||
+          document.querySelector("button[aria-label='Next track']");
+        if (btn) btn.click();
       }
-
-      // Tombol Previous Track di YT Music
       if (data.action === "prev") {
-        const prevBtn = document.querySelector(".previous-button") || document.querySelector("button[aria-label='Lagu sebelumnya']") || document.querySelector("button[aria-label='Previous track']");
-        if (prevBtn) prevBtn.click();
+        const btn = document.querySelector(".previous-button") ||
+          document.querySelector("button[aria-label='Lagu sebelumnya']") ||
+          document.querySelector("button[aria-label='Previous track']");
+        if (btn) btn.click();
       }
     }
   }
 
-  // 3. Fitur Auto-Play Otomatis untuk YouTube & YouTube Music (Bypass Autoplay Policy)
-  function checkAndAutoPlayMusic() {
-    // A. Jika di halaman Watch / Playlist YouTube Music (/watch?v=...)
-    if (window.location.hostname.includes("music.youtube.com") && window.location.pathname.includes("/watch")) {
-      console.log("⏳ [Ragasukma] Menyiapkan auto-play YouTube Music...");
-
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts++;
-        const video = document.querySelector("video");
-        const playBtn = document.querySelector("#play-pause-button") || 
-                        document.querySelector(".play-pause-button") ||
-                        document.querySelector("ytmusic-player-bar #play-pause-button") ||
-                        document.querySelector("tp-yt-paper-icon-button#play-pause-button");
-
-        if (video) {
-          if (video.paused) {
-            // Trik Resmi Browser: Play dalam kondisi Muted (selalu diizinkan 100% oleh browser policy)
-            video.muted = true;
-            
-            const playPromise = video.play();
-            if (playPromise !== undefined) {
-              playPromise.then(() => {
-                // Begitu stream audio berjalan, kembalikan volume (unmute)
-                setTimeout(() => {
-                  video.muted = false;
-                  console.log("🔊 [Ragasukma] Autoplay sukses & audio unmuted!");
-                }, 200);
-              }).catch(() => {
-                // Fallback klik tombol play bar
-                if (playBtn) playBtn.click();
-              });
-            }
-          } else {
-            // Sudah berputar aktif & pastikan tidak mute
-            video.muted = false;
-            clearInterval(interval);
-            console.log("✅ [Ragasukma] Musik berputar aktif dengan suara!");
-          }
-        }
-
-        if (attempts >= 40) {
-          clearInterval(interval);
-        }
-      }, 300);
-      return;
-    }
-
-    // B. Jika di halaman Search YouTube Music (/search?q=...)
-    if (window.location.hostname.includes("music.youtube.com") && window.location.pathname.includes("/search")) {
-      console.log("🔍 [Ragasukma] Mendeteksi halaman search YouTube Music, mencari lagu/playlist teratas...");
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts++;
-
-        // Cari item pertama di Top Result atau daftar lagu
-        const topPlayBtn = document.querySelector("ytmusic-responsive-list-item-renderer #play-button") ||
-                           document.querySelector("ytmusic-card-shelf-renderer #play-button") ||
-                           document.querySelector("ytmusic-shelf-renderer ytmusic-responsive-list-item-renderer .play-button") ||
-                           document.querySelector("ytmusic-responsive-list-item-renderer .flex-columns a") ||
-                           document.querySelector("ytmusic-responsive-list-item-renderer a.yt-simple-endpoint");
-
-        if (topPlayBtn) {
-          clearInterval(interval);
-          console.log("▶️ [Ragasukma] Memutar lagu/playlist teratas di YouTube Music!");
-          topPlayBtn.click();
-        } else if (attempts >= 40) {
-          clearInterval(interval);
-        }
-      }, 350);
-      return;
-    }
-
-    // C. Jika di halaman Search YouTube Video Biasa (/results?search_query=...)
-    if (window.location.hostname.includes("youtube.com") && !window.location.hostname.includes("music.youtube.com") && window.location.pathname.includes("/results")) {
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts++;
-        const topVideo = document.querySelector("ytd-video-renderer a#thumbnail") ||
-                         document.querySelector("ytd-video-renderer a#video-title");
-
-        if (topVideo) {
-          clearInterval(interval);
-          console.log("▶️ [Ragasukma] Memutar video hasil pencarian teratas di YouTube...");
-          topVideo.click();
-        } else if (attempts >= 25) {
-          clearInterval(interval);
-        }
-      }, 400);
-    }
+  // Cari elemen play di halaman search YTM
+  function findYTMSearchTarget() {
+    return document.querySelector(
+      "ytmusic-responsive-list-item-renderer ytmusic-play-button-renderer[aria-label^='Play']"
+    ) || document.querySelector(
+      "ytmusic-card-shelf-renderer a.thumbnail-link"
+    );
   }
 
-  // Jalankan auto-play saat navigasi halaman berubah (SPA Navigation)
-  // Pantau perubahan judul tab secara real-time (misal ganti judul lagu di YT Music / video YouTube)
+  // Auto-play search YTM: cek langsung dulu, kalau belum ada pasang MutationObserver
+  function autoPlayYTMusicSearch() {
+    console.log("🔍 [Ragasukma] Halaman search YT Music — menunggu lagu teratas...");
+
+    // Cek apakah elemen sudah ada
+    const existing = findYTMSearchTarget();
+    if (existing) {
+      console.log("▶️ [Ragasukma] Elemen sudah ada, langsung play!", existing);
+      simulateClick(existing);
+      return;
+    }
+
+    // Belum ada — pasang MutationObserver
+    let triggered = false;
+    const timer = setTimeout(() => {
+      observer.disconnect();
+      console.warn("⚠️ [Ragasukma] Timeout 15s, elemen tidak muncul.");
+    }, 15000);
+
+    const observer = new MutationObserver(() => {
+      if (triggered) return;
+      const target = findYTMSearchTarget();
+      if (target) {
+        triggered = true;
+        observer.disconnect();
+        clearTimeout(timer);
+        console.log("▶️ [Ragasukma] Memutar lagu teratas di YouTube Music!", target);
+        simulateClick(target);
+      }
+    });
+
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  // Auto-play search YouTube biasa
+  function autoPlayYouTubeSearch() {
+    const existing = document.querySelector("ytd-video-renderer a#thumbnail") ||
+      document.querySelector("ytd-video-renderer a#video-title");
+    if (existing) { simulateClick(existing); return; }
+
+    let triggered = false;
+    const observer = new MutationObserver(() => {
+      if (triggered) return;
+      const el = document.querySelector("ytd-video-renderer a#thumbnail") ||
+        document.querySelector("ytd-video-renderer a#video-title");
+      if (el) {
+        triggered = true;
+        observer.disconnect();
+        console.log("▶️ [Ragasukma] Memutar video teratas di YouTube!");
+        simulateClick(el);
+      }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => observer.disconnect(), 15000);
+  }
+
+  // Auto-play halaman /watch (video/musik langsung)
+  function autoPlayWatch() {
+    console.log("⏳ [Ragasukma] Menyiapkan auto-play /watch...");
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      const video = document.querySelector("video");
+      if (video) {
+        if (video.paused) {
+          video.muted = true;
+          video.play().then(() => {
+            setTimeout(() => { video.muted = false; }, 200);
+          }).catch(() => {
+            const btn = document.querySelector("#play-pause-button") ||
+              document.querySelector("tp-yt-paper-icon-button#play-pause-button");
+            if (btn) btn.click();
+          });
+        } else {
+          video.muted = false;
+          clearInterval(interval);
+        }
+      }
+      if (attempts >= 40) clearInterval(interval);
+    }, 300);
+  }
+
+  function checkAndAutoPlay() {
+    const host = window.location.hostname;
+    const path = window.location.pathname;
+    const isYTMusic = host.includes("music.youtube.com");
+    const isYT = host.includes("youtube.com") && !isYTMusic;
+
+    if (isYTMusic && path.includes("/watch")) autoPlayWatch();
+    else if (isYTMusic && path.includes("/search")) autoPlayYTMusicSearch();
+    else if (isYT && path.includes("/results")) autoPlayYouTubeSearch();
+    else if (isYT && path.includes("/watch")) autoPlayWatch();
+  }
+
+  // Pantau judul tab untuk kirim info ke backend
   let lastTitle = document.title;
   setInterval(() => {
     if (document.title !== lastTitle) {
@@ -187,15 +184,21 @@
     }
   }, 2000);
 
-  window.addEventListener("yt-navigate-finish", () => {
-    setTimeout(sendTabInfo, 1000);
-  });
+  // Intercept history.pushState — cara YTM navigasi SPA
+  let lastUrl = window.location.href;
+  const origPushState = history.pushState.bind(history);
+  history.pushState = function (...args) {
+    origPushState(...args);
+    const newUrl = window.location.href;
+    if (newUrl !== lastUrl) {
+      lastUrl = newUrl;
+      sendTabInfo();
+      checkAndAutoPlay();
+    }
+  };
 
-  if (document.readyState === "complete" || document.readyState === "interactive") {
-    checkAndAutoPlayMusic();
-  } else {
-    window.addEventListener("DOMContentLoaded", checkAndAutoPlayMusic);
-  }
+  // Jalankan saat pertama load
+  checkAndAutoPlay();
 
   connect();
 })();
