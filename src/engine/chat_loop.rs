@@ -10,7 +10,7 @@ use super::session::{check_and_consume_cmd, AppSession};
 
 impl AppSession {
     pub fn start_chat_loop(&mut self) -> Result<()> {
-        crate::native::server::update_session_running(true);
+        crate::server::update_session_running(true);
         crate::term_log!("====================================================");
         crate::term_log!("✨ SESI PERCAKAPAN RAGASUKMA DIMULAI");
         crate::term_log!("   - Asisten : {}", self.config.assistant_name);
@@ -38,7 +38,7 @@ impl AppSession {
                 if cmd == "stop_chat" || cmd == "quit" {
                     stop_worker.store(true, Ordering::SeqCst);
                     let _ = worker_handle.join();
-                    crate::native::server::update_session_running(false);
+                    crate::server::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Standby");
                     crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                     return Ok(());
@@ -67,7 +67,7 @@ impl AppSession {
                         } else if cmd == "stop_chat" || cmd == "quit" {
                             stop_worker.store(true, Ordering::SeqCst);
                             let _ = worker_handle.join();
-                            crate::native::server::update_session_running(false);
+                            crate::server::update_session_running(false);
                             TrayState::update(AssistantState::Idle, "Standby");
                             crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                             return Ok(());
@@ -111,7 +111,7 @@ impl AppSession {
             if should_exit {
                 stop_worker.store(true, Ordering::SeqCst);
                 let _ = worker_handle.join();
-                crate::native::server::update_session_running(false);
+                crate::server::update_session_running(false);
                 TrayState::update(AssistantState::Idle, "Standby");
                 crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                 break;
@@ -158,7 +158,7 @@ impl AppSession {
             // Cek apakah ada request stop_chat / pause saat STT sedang berjalan
             if let Some(cmd) = check_and_consume_cmd() {
                 if cmd == "stop_chat" || cmd == "quit" {
-                    crate::native::server::update_session_running(false);
+                    crate::server::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Menu Utama");
                     crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                     return Ok(());

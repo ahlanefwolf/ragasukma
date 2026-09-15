@@ -59,7 +59,7 @@ impl TrayState {
             AssistantState::Processing | AssistantState::Thinking => crate::native::pose_system::AssistantVisualState::Thinking,
             AssistantState::Speaking => crate::native::pose_system::AssistantVisualState::Speaking,
         };
-        crate::native::server::update_visual_state_with_emotion(visual_state, emotion);
+        crate::server::update_visual_state_with_emotion(visual_state, emotion);
     }
 
     pub fn get_current_runtime_state() -> (crate::native::pose_system::AssistantVisualState, String) {

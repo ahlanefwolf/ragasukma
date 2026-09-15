@@ -70,6 +70,7 @@ export interface AppStatePayload {
   is_paused: boolean;
   voice_muted: boolean;
   mic_muted: boolean;
+  active_session_token?: string;
 }
 
 export interface AssetInfo {
@@ -207,7 +208,7 @@ export const api = {
     }
   },
 
-  // Live Tuner Sync
+  // Live Tuner Sync (Gunakan standard fetch tanpa timeout abort agresif agar Firefox tidak trigger NS_BINDING_ABORT)
   async setTunerLive(
     active: boolean,
     bones: Record<string, [number, number, number]> = {},
@@ -215,11 +216,11 @@ export const api = {
     state?: string
   ): Promise<boolean> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/tuner/live`, {
+      const res = await fetch(`${API_BASE}/api/tuner/live`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active, bones, emotion, state }),
-      }, 3000);
+      });
       return res.ok;
     } catch {
       return false;

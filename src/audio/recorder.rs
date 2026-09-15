@@ -11,11 +11,11 @@ use crate::audio::dsp::{apply_noise_reduction, normalize_volume, TARGET_SAMPLE_R
 use crate::tray::{AssistantState, TrayState};
 
 pub struct AudioRecorder {
-    _stream: Arc<cpal::Stream>,
+    _stream: cpal::Stream,
     buffer: Arc<Mutex<Vec<f32>>>,
     sample_rate: u32,
     channels: usize,
-    config: AppConfig,
+    config: Arc<Mutex<AppConfig>>,
 }
 
 unsafe impl Send for AudioRecorder {}
@@ -90,12 +90,18 @@ impl AudioRecorder {
         stream.play().context("Gagal memulai stream audio microphone berkelanjutan")?;
 
         Ok(Self {
-            _stream: Arc::new(stream),
+            _stream: stream,
             buffer,
             sample_rate,
             channels,
-            config,
+            config: Arc::new(Mutex::new(config)),
         })
+    }
+
+    pub fn update_config(&self, new_config: AppConfig) {
+        if let Ok(mut lock) = self.config.lock() {
+            *lock = new_config;
+        }
     }
 
     pub fn device_name(&self) -> String {
@@ -121,8 +127,13 @@ impl AudioRecorder {
         let chunk_duration = std::time::Duration::from_millis(25);
         let samples_per_chunk = self.sample_rate as usize * self.channels / 40; // ~25ms
 
-        let base_threshold = self.config.vad_activation_threshold;
-        let silence_limit_chunks = self.config.vad_silence_limit_chunks;
+        let (mut base_threshold, mut silence_limit_chunks, mut required_voice) = {
+            if let Ok(cfg) = self.config.lock() {
+                (cfg.vad_activation_threshold, cfg.vad_silence_limit_chunks, cfg.vad_consecutive_chunks.max(1))
+            } else {
+                (0.015, 20, 2)
+            }
+        };
 
         let cutoff = 160.0f32;
         let rc = 1.0 / (2.0 * std::f32::consts::PI * cutoff);
@@ -146,10 +157,17 @@ impl AudioRecorder {
         while !stop_worker.load(Ordering::SeqCst) {
             std::thread::sleep(chunk_duration);
 
-            let session_active = crate::native::server::is_session_running();
-            let tuning_active = crate::native::server::is_tuning_mode();
-            let mic_muted = crate::native::server::is_mic_muted();
-            let is_paused = pause_worker.load(Ordering::SeqCst) || crate::native::server::is_paused();
+            // Perbarui threshold secara live jika konfigurasi diubah di Web Dashboard
+            if let Ok(cfg) = self.config.lock() {
+                base_threshold = cfg.vad_activation_threshold;
+                silence_limit_chunks = cfg.vad_silence_limit_chunks;
+                required_voice = cfg.vad_consecutive_chunks.max(1);
+            }
+
+            let session_active = crate::server::is_session_running();
+            let tuning_active = crate::server::is_tuning_mode();
+            let mic_muted = crate::server::is_mic_muted();
+            let is_paused = pause_worker.load(Ordering::SeqCst) || crate::server::is_paused();
 
             if !session_active || tuning_active || mic_muted || is_paused {
                 voice_started = false;
@@ -193,7 +211,7 @@ impl AudioRecorder {
             let voice_rms = (filtered_sum_sq / new_samples.len() as f32).sqrt();
 
             if !voice_started {
-                if crate::native::server::is_mic_muted() {
+                if crate::server::is_mic_muted() {
                     pre_roll_buffer.clear();
                     consecutive_voice = 0;
                     continue;
@@ -220,7 +238,6 @@ impl AudioRecorder {
 
                 if voice_rms > trigger_threshold {
                     consecutive_voice += 1;
-                    let required_voice = self.config.vad_consecutive_chunks.max(1);
                     if consecutive_voice >= required_voice {
                         voice_started = true;
                         peak_voice_rms = voice_rms;
@@ -292,7 +309,8 @@ impl AudioRecorder {
             mono_samples
         };
 
-        apply_noise_reduction(&mut resampled, TARGET_SAMPLE_RATE, self.config.noise_reduction_level);
+        let noise_reduction_level = self.config.lock().map(|c| c.noise_reduction_level).unwrap_or(0);
+        apply_noise_reduction(&mut resampled, TARGET_SAMPLE_RATE, noise_reduction_level);
         normalize_volume(&mut resampled, 0.85, 8.0);
 
         if resampled.len() < TARGET_SAMPLE_RATE as usize / 2 {

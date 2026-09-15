@@ -8,13 +8,15 @@ import {
   Check,
   X,
   Sparkles,
-  Info,
   Layers,
   Search,
   Globe,
-  Sliders
+  Sliders,
+  Compass,
+  Puzzle,
+  ExternalLink
 } from 'lucide-solid';
-import { api, SkillItem, SystemAppItem } from '../api';
+import { api, SkillItem, InstalledApp } from '../api';
 
 interface SkillsTabProps {
   showToast: (msg: string) => void;
@@ -26,7 +28,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
 
   // System Apps State (Untuk preview informasi saja)
   const [showAppsInfo, setShowAppsInfo] = createSignal(false);
-  const [systemApps, setSystemApps] = createSignal<SystemAppItem[]>([]);
+  const [systemApps, setSystemApps] = createSignal<InstalledApp[]>([]);
   const [loadingApps, setLoadingApps] = createSignal(false);
   const [appSearch, setAppSearch] = createSignal('');
 
@@ -34,6 +36,11 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
   const [newName, setNewName] = createSignal('');
   const [newDesc, setNewDesc] = createSignal('');
   const [newCmd, setNewCmd] = createSignal('');
+
+  // Browser Extension State
+  const [showExtensionGuide, setShowExtensionGuide] = createSignal(false);
+  const [detectedBrowser, setDetectedBrowser] = createSignal('Chromium / Chrome');
+  const [managerUrl, setManagerUrl] = createSignal('https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo');
 
   // Inline Edit State
   const [editingOriginalName, setEditingOriginalName] = createSignal<string | null>(null);
@@ -56,8 +63,32 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
     setLoadingApps(false);
   };
 
+  const detectBrowser = () => {
+    const userAgent = navigator.userAgent.toLowerCase();
+    if (userAgent.includes('edg/')) {
+      setDetectedBrowser('Microsoft Edge');
+      setManagerUrl('https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepgglflgajnjeg');
+    } else if (userAgent.includes('brave')) {
+      setDetectedBrowser('Brave Browser');
+      setManagerUrl('https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo');
+    } else if (userAgent.includes('firefox')) {
+      setDetectedBrowser('Mozilla Firefox');
+      setManagerUrl('https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/');
+    } else if (userAgent.includes('chrome')) {
+      setDetectedBrowser('Google Chrome / Chromium');
+      setManagerUrl('https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo');
+    } else if (userAgent.includes('safari') && !userAgent.includes('chrome')) {
+      setDetectedBrowser('Safari');
+      setManagerUrl('https://apps.apple.com/app/tampermonkey/id1482490089');
+    } else {
+      setDetectedBrowser('Chromium Based Browser');
+      setManagerUrl('https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo');
+    }
+  };
+
   onMount(() => {
     loadSkills();
+    detectBrowser();
   });
 
   const handleRunSkill = async (skill: SkillItem) => {
@@ -109,20 +140,17 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
       command: editCmd().trim()
     };
 
-    // Update list di state
-    const currentList = skills();
-    const index = currentList.findIndex(s => s.name === origName);
-    if (index !== -1) {
-      const newList = [...currentList];
-      newList[index] = updatedSkill;
-      const ok = await api.saveAllSkills(newList);
-      if (ok) {
-        setSkills(newList);
-        setEditingOriginalName(null);
-        props.showToast(`Skill "${updatedSkill.name}" berhasil diperbarui!`);
-      } else {
-        props.showToast(`Gagal memperbarui skill "${updatedSkill.name}"`);
-      }
+    // Update skill via saveSkill (jika rename, hapus skill lama dan simpan yang baru)
+    if (origName && origName !== updatedSkill.name) {
+      await api.deleteSkill(origName);
+    }
+    const ok = await api.saveSkill(updatedSkill);
+    if (ok) {
+      setEditingOriginalName(null);
+      props.showToast(`Skill "${updatedSkill.name}" berhasil diperbarui!`);
+      await loadSkills();
+    } else {
+      props.showToast(`Gagal memperbarui skill "${updatedSkill.name}"`);
     }
   };
 
@@ -156,7 +184,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
     if (!q) return systemApps();
     return systemApps().filter(app => 
       app.name.toLowerCase().includes(q) || 
-      app.comment.toLowerCase().includes(q) ||
+      (app.comment && app.comment.toLowerCase().includes(q)) ||
       app.exec.toLowerCase().includes(q)
     );
   };
@@ -190,17 +218,26 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
             <Sparkles size={16} class="text-[#F2B5D4]" />
             <span>Kemampuan Bawaan AI (Selalu Aktif Otomatis):</span>
           </div>
-          <button
-            onClick={() => {
-              const next = !showAppsInfo();
-              setShowAppsInfo(next);
-              if (next) loadSystemApps();
-            }}
-            class="text-[11px] px-2.5 py-1 rounded bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6]/80 hover:text-[#7BDFF2] border border-[#2F3B46] transition-all flex items-center gap-1.5 self-start sm:self-auto"
-          >
-            <Layers size={13} />
-            <span>{showAppsInfo() ? 'Tutup Daftar Aplikasi OS' : 'Lihat Aplikasi OS yang Dikenali'}</span>
-          </button>
+          <div class="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              onClick={() => setShowExtensionGuide(!showExtensionGuide())}
+              class="text-[11px] px-2.5 py-1 rounded bg-[#F2B5D4]/15 hover:bg-[#F2B5D4]/25 text-[#F2B5D4] border border-[#F2B5D4]/30 transition-all flex items-center gap-1.5"
+            >
+              <Puzzle size={13} />
+              <span>{showExtensionGuide() ? 'Tutup Ekstensi' : 'Pasang Ekstensi Browser'}</span>
+            </button>
+            <button
+              onClick={() => {
+                const next = !showAppsInfo();
+                setShowAppsInfo(next);
+                if (next) loadSystemApps();
+              }}
+              class="text-[11px] px-2.5 py-1 rounded bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6]/80 hover:text-[#7BDFF2] border border-[#2F3B46] transition-all flex items-center gap-1.5"
+            >
+              <Layers size={13} />
+              <span>{showAppsInfo() ? 'Tutup Aplikasi OS' : 'Aplikasi OS'}</span>
+            </button>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-[#EFF7F6]/80">
@@ -210,13 +247,89 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
           </div>
           <div class="flex items-center gap-2 p-2 rounded-lg bg-[#161D24]/60 border border-[#2F3B46]/50">
             <Globe size={14} class="text-[#F2B5D4] shrink-0" />
-            <span><strong>Web:</strong> Buka YouTube, Cari Google, dll</span>
+            <span><strong>Web & Media:</strong> YouTube, YouTube Music, Cari Google</span>
           </div>
           <div class="flex items-center gap-2 p-2 rounded-lg bg-[#161D24]/60 border border-[#2F3B46]/50">
             <Layers size={14} class="text-[#7BDFF2] shrink-0" />
             <span><strong>Aplikasi:</strong> Cukup ucapkan <em>"Buka [Nama App]"</em></span>
           </div>
         </div>
+
+        {/* Extension Installation Guide Accordion */}
+        <Show when={showExtensionGuide()}>
+          <div class="mt-3 pt-3 border-t border-[#2F3B46] space-y-3 bg-[#161D24]/80 p-3.5 rounded-xl border border-[#F2B5D4]/30">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <Compass size={16} class="text-[#7BDFF2]" />
+                <span class="text-xs font-bold text-[#EFF7F6]">
+                  Browser: <span class="text-[#7BDFF2]">{detectedBrowser()}</span>
+                </span>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-[#7BDFF2]/20 text-[#7BDFF2] border border-[#7BDFF2]/30 font-mono">
+                1-Click Universal Companion
+              </span>
+            </div>
+
+            <p class="text-xs text-[#EFF7F6]/75">
+              Hubungkan YouTube, YouTube Music, dan tab browser kamu ke AI cukup dengan <strong>1x klik install</strong> di browser apa pun:
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              {/* Step 1: Add Extension Engine */}
+              <div class="p-3 rounded-lg bg-[#1D252E] border border-[#2F3B46] flex flex-col justify-between gap-2">
+                <div class="space-y-1">
+                  <div class="text-xs font-bold text-[#F2B5D4] flex items-center gap-1.5">
+                    <span class="w-4 h-4 rounded-full bg-[#F2B5D4]/20 text-[#F2B5D4] text-[10px] flex items-center justify-center font-bold">1</span>
+                    <span>Pasang Extension Manager</span>
+                  </div>
+                  <p class="text-[11px] text-[#EFF7F6]/60">
+                    Pasang Tampermonkey / Script Runner resmi untuk {detectedBrowser()}.
+                  </p>
+                </div>
+                <a
+                  href={managerUrl()}
+                  target="_blank"
+                  rel="noreferrer"
+                  class="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#232D36] hover:bg-[#2F3B46] text-[#7BDFF2] border border-[#7BDFF2]/30 flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <ExternalLink size={13} />
+                  <span>Buka Web Store ({detectedBrowser().split(' ')[0]})</span>
+                </a>
+              </div>
+
+              {/* Step 2: 1-Click Install Script */}
+              <div class="p-3 rounded-lg bg-[#1D252E] border border-[#7BDFF2]/40 flex flex-col justify-between gap-2">
+                <div class="space-y-1">
+                  <div class="text-xs font-bold text-[#7BDFF2] flex items-center gap-1.5">
+                    <span class="w-4 h-4 rounded-full bg-[#7BDFF2]/20 text-[#7BDFF2] text-[10px] flex items-center justify-center font-bold">2</span>
+                    <span>Klik 1x Install Companion Script</span>
+                  </div>
+                  <p class="text-[11px] text-[#EFF7F6]/60">
+                    Otomatis aktif di YouTube & YouTube Music tanpa setup manual.
+                  </p>
+                </div>
+                <a
+                  href="/ragasukma-companion.user.js"
+                  target="_blank"
+                  class="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                >
+                  <Sparkles size={13} />
+                  <span>⚡ 1-Click Install Script</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Khusus Firefox Tips Autoplay */}
+            <Show when={detectedBrowser().includes('Firefox')}>
+              <div class="p-2.5 rounded-lg bg-[#1D252E]/90 border border-[#7BDFF2]/30 text-[11px] text-[#EFF7F6]/80 flex items-start gap-2">
+                <span class="text-[#7BDFF2] text-sm leading-none">🦊</span>
+                <div>
+                  <strong class="text-[#7BDFF2]">Tips Firefox Autoplay:</strong> Agar lagu langsung berputar tanpa terblokir sistem keamanan Firefox: Buka tab <code class="text-[#F2B5D4]">music.youtube.com</code> $\rightarrow$ Klik icon <strong>gembok / perizinan situs</strong> di sebelah kiri URL bar $\rightarrow$ Pada baris <strong>Autoplay</strong>, pilih <strong>"Allow Audio and Video"</strong>.
+                </div>
+              </div>
+            </Show>
+          </div>
+        </Show>
 
         {/* Dropdown Viewer Aplikasi OS */}
         <Show when={showAppsInfo()}>

@@ -6,6 +6,33 @@ Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/id/
 
 ---
 
+## [v0.1.3] - 2026-09-16
+
+### ✨ Fitur Baru & Peningkatan
+- **Modular Architecture Overhaul**:
+  - Refaktor arsitektur modular backend Rust: `src/server/` terpisah rapi (`assets`, `handlers`, `state`), dan `src/engine/` (`skills`, `system_actions`).
+  - Pembersihan modul WhatsApp agar fokus penuh pada integrasi YouTube, YouTube Music, web navigasi, dan launcher aplikasi OS.
+- **Gestur Kontrol Kamera Layar 3D Lebih Presisi**:
+  - **Drag Kanan**: Orbit rotasi 3D.
+  - **Ctrl + Drag Kanan**: Pan / geser posisi 3D.
+  - **Scroll**: Zoom In / Zoom Out.
+  - **Klik Tengah**: Reset kamera ke default.
+- **Universal Browser Companion**:
+  - 1-Click install script web companion untuk kontrol YouTube & YouTube Music langsung via suara AI.
+- **Atomic Single-Client Session & Instant Revoke**:
+  - Proteksi anti-double tab menggunakan Server-Sent Events (SSE) token broadcast (<50ms instant lock).
+  - Mekanisme tombol *Ambil Alih* aman bebas race condition.
+- **In-Flight Lock & Throttled Pose Tuner**:
+  - Sinkronisasi real-time slider pose ditata ulang (max 20 req/dtk) dengan trailing-edge queue, mengeliminasi error Firefox `NS_BINDING_ABORT`.
+
+### 🐛 Perbaikan Bug & Optimasi
+- Mengatasi tabrakan (race condition) antara Live Pose Tuner dan aktivasi sesi percakapan obrolan (chat loop).
+- Sinkronisasi dinamis konfigurasi audio pada `AudioRecorder` tanpa memutus/merusak stream thread mikrofon di background.
+- Proteksi payload limit HTTP (100MB max) dan WebSocket (2MB max) untuk mencegah OOM/crash.
+- Optimalisasi alokasi memori RAM dan penanganan buffer audio.
+
+---
+
 ## [v0.1.2] - 2026-09-14
 
 ### ✨ Fitur Baru & Peningkatan

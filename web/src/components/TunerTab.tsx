@@ -4,7 +4,12 @@ import {
   RotateCcw, 
   Play, 
   Square, 
-  Sliders 
+  Sliders,
+  Move,
+  RotateCw,
+  ZoomIn,
+  MousePointer,
+  Sparkles
 } from 'lucide-solid';
 import { api, PosesConfig } from '../api';
 import { BONE_CATEGORIES, BONE_LABELS, MIRROR_MAP } from './tunerBones';
@@ -25,6 +30,9 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
 
   let previewInterval: number | null = null;
   let syncTimeout: number | null = null;
+  let lastSyncTime = 0;
+  let isSyncing = false;
+  let pendingPose: Record<string, [number, number, number]> | null = null;
 
   const getCurrentKeyframeBones = (): Record<string, [number, number, number]> => {
     const st = posesData()[selectedState()];
@@ -56,7 +64,8 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
 
   onCleanup(() => {
     if (previewInterval) clearInterval(previewInterval);
-    if (syncTimeout) { cancelAnimationFrame(syncTimeout); syncTimeout = null; }
+    if (syncTimeout) { clearTimeout(syncTimeout); syncTimeout = null; }
+    pendingPose = null;
     // Reset tuner mode ke false dan kosongkan live tuning bones di backend
     api.setTunerLive(false, {}, 'neutral');
   });
@@ -104,13 +113,44 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     scheduleLiveSync(curPose);
   };
 
+  const flushLiveSync = async (pose: Record<string, [number, number, number]>) => {
+    if (isPreviewing()) return;
+    isSyncing = true;
+    lastSyncTime = Date.now();
+    try {
+      await api.setTunerLive(true, pose, selectedEmotion(), selectedState());
+    } finally {
+      isSyncing = false;
+      if (pendingPose) {
+        const nextPose = pendingPose;
+        pendingPose = null;
+        flushLiveSync(nextPose);
+      }
+    }
+  };
+
   const scheduleLiveSync = (pose: Record<string, [number, number, number]>) => {
-    if (syncTimeout) cancelAnimationFrame(syncTimeout);
-    syncTimeout = requestAnimationFrame(() => {
-      syncTimeout = null;
-      if (isPreviewing()) return; // jangan override saat preview sedang berjalan
-      api.setTunerLive(true, pose, selectedEmotion(), selectedState());
-    });
+    if (isPreviewing()) return;
+    const now = Date.now();
+    const elapsed = now - lastSyncTime;
+    const THROTTLE_MS = 50; // Maksimal 20 req/detik (gerakan 3D tetap halus & network bebas flood)
+
+    if (elapsed >= THROTTLE_MS && !isSyncing) {
+      if (syncTimeout) { clearTimeout(syncTimeout); syncTimeout = null; }
+      flushLiveSync(pose);
+    } else {
+      pendingPose = pose;
+      if (!syncTimeout) {
+        syncTimeout = window.setTimeout(() => {
+          syncTimeout = null;
+          if (pendingPose && !isSyncing) {
+            const nextPose = pendingPose;
+            pendingPose = null;
+            flushLiveSync(nextPose);
+          }
+        }, Math.max(10, THROTTLE_MS - elapsed));
+      }
+    }
   };
 
   const resetSingleBone = (bone: string) => {
@@ -257,7 +297,75 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
           </div>
         </div>
 
-        {/* 2. Structured Action Toolbar (Between: Kiri = Transfer & Reset, Kanan = Preview & Simpan) */}
+        {/* 2. Navigasi Viewport & Gestur Kamera 3D Grid */}
+        <div class="rounded-xl bg-[#161D24] p-3 border border-[#2F3B46] space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-[#7BDFF2] flex items-center gap-1.5">
+              <Sparkles size={13} />
+              Panduan Navigasi Layar Avatar
+            </span>
+            <span class="text-[10px] text-[#EFF7F6]/50">Interaksi Mouse & Keyboard</span>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            {/* Card 1 */}
+            <div class="p-2 rounded-lg bg-[#1D252E] border border-[#2F3B46]/60 flex flex-col justify-between gap-1 hover:border-[#7BDFF2]/40 transition-colors">
+              <span class="text-[10px] text-[#EFF7F6]/60 flex items-center gap-1">
+                <Move size={11} class="text-[#7BDFF2]" />
+                Pindah Jendela
+              </span>
+              <kbd class="px-2 py-1 rounded bg-[#232D36] text-[#7BDFF2] text-[11px] font-mono font-bold text-center border border-[#2F3B46]">
+                Drag Kiri
+              </kbd>
+            </div>
+
+            {/* Card 2 */}
+            <div class="p-2 rounded-lg bg-[#1D252E] border border-[#2F3B46]/60 flex flex-col justify-between gap-1 hover:border-[#F2B5D4]/40 transition-colors">
+              <span class="text-[10px] text-[#EFF7F6]/60 flex items-center gap-1">
+                <RotateCw size={11} class="text-[#F2B5D4]" />
+                Orbit Putar 3D
+              </span>
+              <kbd class="px-2 py-1 rounded bg-[#232D36] text-[#F2B5D4] text-[11px] font-mono font-bold text-center border border-[#2F3B46]">
+                Drag Kanan
+              </kbd>
+            </div>
+
+            {/* Card 3 */}
+            <div class="p-2 rounded-lg bg-[#1D252E] border border-[#2F3B46]/60 flex flex-col justify-between gap-1 hover:border-[#F2B5D4]/40 transition-colors">
+              <span class="text-[10px] text-[#EFF7F6]/60 flex items-center gap-1">
+                <MousePointer size={11} class="text-[#F2B5D4]" />
+                Pan / Geser Model
+              </span>
+              <kbd class="px-2 py-1 rounded bg-[#232D36] text-[#F2B5D4] text-[11px] font-mono font-bold text-center border border-[#2F3B46]">
+                Ctrl + Drag Kanan
+              </kbd>
+            </div>
+
+            {/* Card 4 */}
+            <div class="p-2 rounded-lg bg-[#1D252E] border border-[#2F3B46]/60 flex flex-col justify-between gap-1 hover:border-[#EFF7F6]/40 transition-colors">
+              <span class="text-[10px] text-[#EFF7F6]/60 flex items-center gap-1">
+                <ZoomIn size={11} class="text-[#EFF7F6]/80" />
+                Zoom POV
+              </span>
+              <kbd class="px-2 py-1 rounded bg-[#232D36] text-[#EFF7F6] text-[11px] font-mono font-bold text-center border border-[#2F3B46]">
+                Scroll Mouse
+              </kbd>
+            </div>
+
+            {/* Card 5 */}
+            <div class="p-2 rounded-lg bg-[#1D252E] border border-[#2F3B46]/60 flex flex-col justify-between gap-1 col-span-2 sm:col-span-1 hover:border-[#EFF7F6]/40 transition-colors">
+              <span class="text-[10px] text-[#EFF7F6]/60 flex items-center gap-1">
+                <RotateCcw size={11} class="text-[#EFF7F6]/80" />
+                Reset Kamera
+              </span>
+              <kbd class="px-2 py-1 rounded bg-[#232D36] text-[#EFF7F6] text-[11px] font-mono font-bold text-center border border-[#2F3B46]">
+                Klik Tengah
+              </kbd>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Structured Action Toolbar (Between: Kiri = Transfer & Reset, Kanan = Preview & Simpan) */}
         <div class="p-2.5 rounded-xl bg-[#161D24] border border-[#2F3B46] flex flex-col md:flex-row md:items-center justify-between gap-2.5">
           {/* Sisi Kiri: Keyframe Copy & Mirror + Reset Tools */}
           <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">

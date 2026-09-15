@@ -1,4 +1,4 @@
-use crate::skills::{execute_command_by_os, get_installed_applications, SkillItem};
+use super::skills::{execute_command_by_os, get_installed_applications, SkillItem};
 
 /// Daftar aksi sistem bawaan yang otomatis aktif sesuai OS (Linux / Windows)
 pub fn get_builtin_system_skills() -> Vec<SkillItem> {
@@ -140,7 +140,41 @@ pub fn try_execute_builtin_or_app(target: &str) -> Option<(String, String)> {
 
     let target_clean = target_trim.to_lowercase().replace(['_', '-'], " ");
 
-    // 3. Cek dari daftar built-in system skills
+    // 3. Deteksi Kontrol Video YouTube & YouTube Music Dinamis (Play / Pause / Next / Prev)
+    if target_trim.to_lowercase().starts_with("putar youtube|") || target_trim.to_lowercase().starts_with("cari youtube|") {
+        if let Some((_, query)) = target_trim.split_once('|') {
+            let _ = crate::engine_browser::YouTubeEngine::search_or_play(query.trim());
+            return Some((format!("Cari YouTube: {}", query.trim()), "Mencari video di YouTube".to_string()));
+        }
+    }
+    if target_clean == "pause youtube" || target_clean == "jeda youtube" || target_clean == "stop youtube" || target_clean == "jeda lagu" {
+        crate::engine_browser::YouTubeEngine::pause();
+        return Some(("Jeda Media".to_string(), "Berhasil menjeda media".to_string()));
+    }
+    if target_clean == "play youtube" || target_clean == "lanjutkan youtube" || target_clean == "putar youtube" || target_clean == "putar lagu" {
+        crate::engine_browser::YouTubeEngine::play();
+        return Some(("Putar Media".to_string(), "Berhasil memutar media".to_string()));
+    }
+    if target_clean == "next track" || target_clean == "lagu berikutnya" || target_clean == "next lagu" {
+        crate::engine_browser::YouTubeMusicEngine::next();
+        return Some(("Lagu Berikutnya".to_string(), "Berhasil memutar lagu berikutnya".to_string()));
+    }
+    if target_clean == "prev track" || target_clean == "lagu sebelumnya" || target_clean == "prev lagu" {
+        crate::engine_browser::YouTubeMusicEngine::prev();
+        return Some(("Lagu Sebelumnya".to_string(), "Berhasil memutar lagu sebelumnya".to_string()));
+    }
+    if target_clean == "buka youtube music" || target_clean == "buka yt music" {
+        let _ = crate::engine_browser::YouTubeMusicEngine::open_main();
+        return Some(("Buka YouTube Music".to_string(), "Berhasil membuka YouTube Music".to_string()));
+    }
+    if target_trim.to_lowercase().starts_with("putar musik|") || target_trim.to_lowercase().starts_with("play music|") {
+        if let Some((_, query)) = target_trim.split_once('|') {
+            let _ = crate::engine_browser::YouTubeMusicEngine::search_or_play(query.trim());
+            return Some((format!("Putar Musik: {}", query.trim()), "Mencari musik di YouTube Music".to_string()));
+        }
+    }
+
+    // 5. Cek dari daftar built-in system skills
     for item in get_builtin_system_skills() {
         let name_clean = item.name.trim().to_lowercase();
         if name_clean == target_clean || name_clean.replace(['_', '-'], " ") == target_clean {

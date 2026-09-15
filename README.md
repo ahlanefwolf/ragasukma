@@ -31,11 +31,36 @@
   - **Otak AI (LLM)**: Terhubung ke berbagai model AI pilihan (Gemini, Groq, OpenAI, Ollama, DeepSeek, dll) dengan persona teman bicara yang hangat.
   - **Suara Natural (TTS)**: Suara ucapan yang jernih dan ekspresif (Google TTS & ElevenLabs).
 
-- ⚡ **Skill & Otomasi Perintah**:
-  - Ajarkan asisten untuk membuka aplikasi, menjalankan script, atau melakukan tugas otomatis di komputer melalui perintah suara.
+- ⚡ **Skill & Otomasi Perintah Cerdas**:
+  - **Kontrol Sistem Komputer**: Atur volume audio (+/- 10%), mute/unmute, ambil tangkapan layar (screenshot), hingga kunci layar (*lock workstation*) langsung via suara.
+  - **Peluncur Aplikasi Otomatis**: Cukup ucapkan *"Buka Spotify"*, *"Buka Steam"*, *"Buka VS Code"*, dsb. Ragasukma otomatis mendeteksi dan menjalankan aplikasi yang terpasang di OS.
+  - **Pencarian Web & Navigasi**: Buka website atau lakukan pencarian Google dinamis (*"Cari resep soto di Google"*, *"Buka GitHub"*).
+  - **YouTube & YouTube Music Control**:
+    - Putar dan cari lagu atau video (*"Putar musik lofi hip hop"*, *"Putar tutorial rust di YouTube"*).
+    - Kontrol media aktif (*"Jeda YouTube"*, *"Putar lagi videonya"*, *"Lagu berikutnya"*).
+  - **1-Click Universal Browser Companion**: Sambungkan tab browser kamu (Chrome, Edge, Brave, Firefox, Safari) ke asisten hanya dengan 1x klik install script tanpa setup rumit.
+  - **Custom Script Automation**: Tetap mendukung penambahan script bash / terminal buatanmu sendiri di dashboard.
 
 - 🎛️ **Dashboard Pengaturan Modern**:
   - Begitu aplikasi dijalankan, browser otomatis membuka panel kendali interaktif untuk mengatur sensitivitas suara, pose karakter, gaya bicara, dan melihat status sistem.
+
+---
+
+## 💻 Persyaratan Sistem (System Requirements)
+
+Untuk menjalankan Ragasukma dengan lancar menggunakan akselerasi grafis WGPU 3D dan audio realtime:
+
+- 🐧 **Linux**:
+  - **Distro**: Ubuntu 20.04+, Debian 11+, Fedora 36+, Arch Linux, atau distro modern lainnya.
+  - **Kernel**: Linux Kernel **5.4** ke atas.
+  - **Display Server**: X11 atau Wayland (dengan layer Vulkan / OpenGL aktif).
+  - **Paket Tambahan**: `fuse` / `libfuse2` (untuk menjalankan AppImage) dan `libasound2` (ALSA/PulseAudio/PipeWire).
+- 🪟 **Windows**:
+  - **Sistem Operasi**: Windows 10 (64-bit) versi 1909+ atau **Windows 11**.
+  - **Grafis**: Dukungan DirectX 12 / Vulkan.
+- 🍏 **macOS**:
+  - **Sistem Operasi**: macOS 12 Monterey ke atas (macOS 13/14/15+ disarankan).
+  - **Arsitektur**: Apple Silicon (**M1 / M2 / M3 / M4**) dengan Metal Graphics Engine.
 
 ---
 
@@ -43,7 +68,7 @@
 
 ### 1. Download & Pasang
 Unduh file installer resmi sesuai sistem operasi kamu di halaman [**GitHub Releases**](https://github.com/ahlanefwolf/ragasukma/releases):
-- **Linux**: File `.deb` atau `.AppImage`
+- **Linux**: File `.AppImage` (Portable)
 - **Windows**: File installer `.exe`
 - **macOS**: File `.dmg`
 

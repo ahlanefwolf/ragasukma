@@ -166,7 +166,7 @@ jobs:
             exit 1
           fi
 
-          echo "AppImage found:"
+          echo "Linux artifact found:"
           echo "$files"
 
       - name: Verify Windows Artifact

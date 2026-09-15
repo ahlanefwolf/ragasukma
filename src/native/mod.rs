@@ -1,7 +1,6 @@
 pub mod app;
 pub mod pose_system;
 pub mod renderer;
-pub mod server;
 pub mod vrm_loader;
 
 use winit::{

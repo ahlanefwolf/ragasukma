@@ -1,5 +1,5 @@
-use crate::skills::{execute_command_by_os, parse_skills_markdown};
-use crate::system_actions::try_execute_builtin_or_app;
+use super::skills::{execute_command_by_os, parse_skills_markdown};
+use super::system_actions::try_execute_builtin_or_app;
 
 pub fn execute_skill_by_identifier(identifier: &str) -> Option<(String, String)> {
     let target = identifier.trim().to_lowercase().replace(['_', '-'], " ");

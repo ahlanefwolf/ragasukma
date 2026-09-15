@@ -5,19 +5,14 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum AssistantVisualState {
+    #[default]
     Idle,
     Listening,
     Speaking,
     Thinking,
-}
-
-impl Default for AssistantVisualState {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,7 +52,7 @@ impl Default for PoseManager {
             current_quats: HashMap::new(),
         };
 
-        let path = super::server::find_file_in_candidates("poses.json");
+        let path = crate::server::find_file_in_candidates("poses.json");
         if path.exists() {
             manager.load_from_file(&path);
         }

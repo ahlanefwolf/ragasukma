@@ -208,7 +208,7 @@ pub fn load_2d_avatar_textures(
     for (state, candidates) in states {
         let mut loaded = None;
         for c in &candidates {
-            let path = crate::native::server::find_file_in_candidates(c);
+            let path = crate::server::find_file_in_candidates(c);
             if path.exists() {
                 if let Some((view, size)) = load_image_to_texture(device, queue, &path, &format!("Avatar2D_{:?}", state)) {
                     loaded = Some((view, size));
@@ -216,9 +216,9 @@ pub fn load_2d_avatar_textures(
                 }
             }
         }
-        // Fallback ke Idle jika slot tertentu belum ada gambarnya
+
         if loaded.is_none() && state != AssistantVisualState::Idle {
-            let path = crate::native::server::find_file_in_candidates("char-avatar-idle.png");
+            let path = crate::server::find_file_in_candidates("char-avatar-idle.png");
             if path.exists() {
                 loaded = load_image_to_texture(device, queue, &path, &format!("Avatar2D_Fallback_{:?}", state));
             }

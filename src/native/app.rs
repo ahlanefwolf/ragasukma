@@ -9,8 +9,8 @@ use winit::{
 
 use super::pose_system::{AssistantVisualState, PoseManager};
 use super::renderer::Renderer;
-use super::server::{self, ServerSharedState};
 use super::vrm_loader::VrmModelData;
+use crate::server::{self, ServerSharedState};
 
 pub fn open_browser(url: &str) {
     #[cfg(target_os = "windows")]
@@ -37,6 +37,7 @@ pub struct App {
     pub shared_server_state: Arc<Mutex<ServerSharedState>>,
     pub is_right_mouse_down: bool,
     pub is_left_mouse_down: bool,
+    pub is_ctrl_down: bool,
     pub right_press_pos: Option<(f64, f64)>,
     pub right_dragged: bool,
     pub last_cursor_pos: Option<(f64, f64)>,
@@ -128,8 +129,7 @@ impl App {
             eprintln!("⚠️ Gagal memuat avatar dari daftar path kandidat {:?}", candidates);
         }
 
-        let mut pose_manager = PoseManager::default();
-        pose_manager.current_state = AssistantVisualState::Idle;
+        let pose_manager = PoseManager::default();
 
         let shared_server_state = Arc::new(Mutex::new(ServerSharedState {
             current_state: AssistantVisualState::Idle,
@@ -158,6 +158,7 @@ impl App {
             shared_server_state,
             is_right_mouse_down: false,
             is_left_mouse_down: false,
+            is_ctrl_down: false,
             right_press_pos: None,
             right_dragged: false,
             last_cursor_pos: None,
@@ -173,6 +174,11 @@ impl App {
             WindowEvent::Focused(focused) => {
                 self.is_window_focused = focused;
                 self.renderer.is_header_visible = focused;
+                if !focused {
+                    self.is_left_mouse_down = false;
+                    self.is_right_mouse_down = false;
+                    self.is_ctrl_down = false;
+                }
             }
             WindowEvent::CursorEntered { .. } => {
                 self.renderer.is_header_visible = true;
@@ -180,6 +186,8 @@ impl App {
             WindowEvent::CursorLeft { .. } => {
                 self.renderer.cursor_pixel_pos = [-100.0, -100.0];
                 self.renderer.is_header_visible = self.is_window_focused;
+                self.is_left_mouse_down = false;
+                self.is_right_mouse_down = false;
             }
             WindowEvent::CloseRequested => {
                 println!("🛑 Menutup aplikasi Ragasukma...");
@@ -195,7 +203,14 @@ impl App {
                 let physical_size = self.window.inner_size();
                 self.renderer.resize(physical_size);
             }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.is_ctrl_down = modifiers.state().control_key();
+            }
             WindowEvent::KeyboardInput { event, .. } => {
+                if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Control) = &event.logical_key {
+                    self.is_ctrl_down = event.state == ElementState::Pressed;
+                }
+
                 if event.state == ElementState::Pressed {
                     if let winit::keyboard::Key::Character(c) = &event.logical_key {
                         if c.eq_ignore_ascii_case("m") {
@@ -219,13 +234,6 @@ impl App {
             WindowEvent::MouseInput { state, button, .. } => {
                 if button == MouseButton::Left && state == ElementState::Pressed {
                     self.is_left_mouse_down = true;
-
-                    // Jika Klik Kanan sedang ditekan bersamaan dengan Klik Kiri:
-                    // Mode Pan / Tarik Karakter (jangan trigger drag window OS)
-                    if self.is_right_mouse_down {
-                        self.right_dragged = true;
-                        return;
-                    }
 
                     let win_size = self.window.inner_size();
                     let w = win_size.width as f64;
@@ -304,11 +312,6 @@ impl App {
                     } else {
                         // Released
                         self.is_right_mouse_down = false;
-                        if !self.right_dragged {
-                            // Klik Kanan Biasa (Tanpa Drag): Langsung buka Web Dashboard Pengaturan di browser default
-                            println!("🌐 [Browser] Membuka Web Dashboard Pengaturan: http://127.0.0.1:42128");
-                            open_browser("http://127.0.0.1:42128");
-                        }
                     }
                 } else if button == MouseButton::Middle && state == ElementState::Pressed {
                     // Klik Tengah: Reset rotasi & zoom kamera avatar
@@ -352,11 +355,11 @@ impl App {
                         let delta_x = (position.x - prev_x) as f32;
                         let delta_y = (position.y - prev_y) as f32;
 
-                        if self.is_left_mouse_down {
-                            // Klik Kanan + Klik Kiri Drag: Pan / Tarik & Geser Posisi Karakter 3D
+                        if self.is_ctrl_down {
+                            // Ctrl + Klik Kanan Drag: Pan / Geser Posisi Karakter 3D
                             self.renderer.pan_camera(delta_x, delta_y);
                         } else {
-                            // Hany Klik Kanan Drag: Orbit rotasi kamera 3D
+                            // Klik Kanan Drag: Orbit rotasi kamera 3D
                             let sensitivity = 0.008;
                             let delta_yaw = -delta_x * sensitivity;
                             let delta_pitch = delta_y * sensitivity;

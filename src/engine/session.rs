@@ -70,10 +70,8 @@ impl AppSession {
             || latest_config.personality_role != self.config.personality_role;
 
         if vad_changed {
-            if let Ok(new_recorder) = AudioRecorder::new(latest_config.clone()) {
-                self.recorder = Arc::new(new_recorder);
-                crate::term_log!("🔄 [Reactive Update] VAD Threshold & Recorder diupdate realtime!");
-            }
+            self.recorder.update_config(latest_config.clone());
+            crate::term_log!("🔄 [Reactive Update] VAD Threshold & Audio Filter diupdate realtime!");
         }
 
         if stt_changed {

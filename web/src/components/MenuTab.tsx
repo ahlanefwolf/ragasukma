@@ -11,7 +11,10 @@ import {
   Sparkles, 
   Bot, 
   Layers, 
-  Headphones 
+  Headphones,
+  Download,
+  ExternalLink,
+  X
 } from 'lucide-solid';
 import { api, AppStatePayload } from '../api';
 

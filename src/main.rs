@@ -3,11 +3,11 @@
 
 mod audio;
 mod config;
-mod engine;
+pub mod engine;
+pub mod engine_browser;
 mod llm;
 pub mod native;
-pub mod skills;
-pub mod system_actions;
+pub mod server;
 mod tray;
 
 use anyhow::Result;
@@ -28,7 +28,7 @@ fn main() -> Result<()> {
     if single_instance_check.is_err() {
         println!("⚠️  [Single Instance] Ragasukma sudah berjalan di latar belakang!");
         println!("🌐 Membuka Dashboard yang sedang aktif di http://127.0.0.1:{} ...", server_port);
-        native::server::open_browser(&format!("http://127.0.0.1:{}", server_port));
+        server::open_browser(&format!("http://127.0.0.1:{}", server_port));
         std::process::exit(0);
     }
     // Drop listener pengecekan agar server utama di server.rs bisa bind dengan lancar

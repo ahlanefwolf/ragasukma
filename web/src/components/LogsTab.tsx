@@ -69,7 +69,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
 
   onMount(() => {
     fetchLogs();
-    const interval = setInterval(fetchLogs, 1200);
+    const interval = setInterval(fetchLogs, 4000);
     onCleanup(() => {
       clearInterval(interval);
       if (scrollRafId) cancelAnimationFrame(scrollRafId);

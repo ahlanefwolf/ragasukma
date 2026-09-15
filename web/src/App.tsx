@@ -17,7 +17,7 @@ export const App: Component = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = createSignal(false);
   const [isDuplicateTab, setIsDuplicateTab] = createSignal(false);
 
-  // ID Unik sesi tab/browser ini
+  // ID Unik sesi tab/browser ini (gunakan sessionStorage agar setiap tab baru memiliki token unik dan tidak bisa dibuka double)
   let sessionToken = sessionStorage.getItem('ragasukma_session_token');
   if (!sessionToken) {
     sessionToken = 'sess_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
@@ -28,7 +28,7 @@ export const App: Component = () => {
 
   // Single-Client Mutex Protection (Server-Side Lease: Bekerja di Beda Tab, Beda Browser, & Incognito)
   const checkSessionHeartbeat = async () => {
-    if (!sessionToken) return;
+    if (!sessionToken || document.hidden) return;
     const isActive = await api.sendHeartbeat(sessionToken);
     setIsDuplicateTab(!isActive);
   };
@@ -45,13 +45,17 @@ export const App: Component = () => {
   onMount(() => {
     // Inisialisasi pengecekan sesi ke backend
     checkSessionHeartbeat();
-    heartbeatTimer = window.setInterval(checkSessionHeartbeat, 1500);
+    heartbeatTimer = window.setInterval(checkSessionHeartbeat, 10000);
 
-    // Real-time EventSource (SSE) stream dari backend - 0 polling, instant event sync
+    // Real-time EventSource (SSE) stream dari backend - 0 polling, instant event sync & instant session takeover detection
     const unsubscribe = api.subscribeState(
       (st) => {
         if (st) {
           setCurrentState(st.state);
+          // Jika backend melaporkan active_session_token berbeda dari tab ini, tab lama langsung mengunci seketika!
+          if (st.active_session_token && sessionToken) {
+            setIsDuplicateTab(st.active_session_token !== sessionToken);
+          }
         }
       },
       (connected) => {
@@ -135,7 +139,7 @@ export const App: Component = () => {
       </main>
 
       {/* Duplicate Tab/Browser Warning Modal (Server-Side Single Client Protection) */}
-      {isDuplicateTab() && (
+      {overlayConnected() && isDuplicateTab() && (
         <div class="fixed inset-0 z-[110] bg-[#161D24]/95 backdrop-blur-md flex items-center justify-center p-4">
           <div class="max-w-md w-full p-6 rounded-2xl bg-[#232D36] border border-[#FFD166]/40 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
             <div class="w-14 h-14 mx-auto rounded-2xl bg-[#FFD166]/20 text-[#FFD166] border border-[#FFD166]/30 flex items-center justify-center text-2xl font-bold">

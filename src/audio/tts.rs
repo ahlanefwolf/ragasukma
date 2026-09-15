@@ -125,7 +125,7 @@ impl TextToSpeech {
             return Ok(());
         }
 
-        if crate::native::server::is_voice_muted() {
+        if crate::server::is_voice_muted() {
             return Ok(());
         }
 
