@@ -12,13 +12,33 @@ use super::renderer::Renderer;
 use super::server::{self, ServerSharedState};
 use super::vrm_loader::VrmModelData;
 
+pub fn open_browser(url: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(["/c", "start", "", url])
+            .spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open").arg(url).spawn();
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+    }
+}
+
 pub struct App {
     pub window: Arc<Window>,
-    pub renderer: Renderer,
+    pub renderer: Box<Renderer>,
     pub pose_manager: PoseManager,
     pub last_frame_time: Instant,
     pub shared_server_state: Arc<Mutex<ServerSharedState>>,
     pub is_right_mouse_down: bool,
+    pub is_left_mouse_down: bool,
+    pub right_press_pos: Option<(f64, f64)>,
+    pub right_dragged: bool,
     pub last_cursor_pos: Option<(f64, f64)>,
     pub is_window_focused: bool,
     pub active_resize_dir: Option<winit::window::ResizeDirection>,
@@ -78,7 +98,7 @@ impl App {
         let window = win_builder.build(window_target)?;
 
         let window = Arc::new(window);
-        let mut renderer = Renderer::new(window.clone()).await?;
+        let mut renderer = Box::new(Renderer::new(window.clone()).await?);
         renderer.avatar_type = initial_cfg.avatar_type.clone();
         // Simpan dimensi awal window untuk mengunci posisi karakter di layar
         renderer.anchor_center_x = (win_w * 0.5) as f32;
@@ -137,6 +157,9 @@ impl App {
             last_frame_time: Instant::now(),
             shared_server_state,
             is_right_mouse_down: false,
+            is_left_mouse_down: false,
+            right_press_pos: None,
+            right_dragged: false,
             last_cursor_pos: None,
             is_window_focused: false,
             active_resize_dir: None,
@@ -195,6 +218,15 @@ impl App {
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 if button == MouseButton::Left && state == ElementState::Pressed {
+                    self.is_left_mouse_down = true;
+
+                    // Jika Klik Kanan sedang ditekan bersamaan dengan Klik Kiri:
+                    // Mode Pan / Tarik Karakter (jangan trigger drag window OS)
+                    if self.is_right_mouse_down {
+                        self.right_dragged = true;
+                        return;
+                    }
+
                     let win_size = self.window.inner_size();
                     let w = win_size.width as f64;
                     let h = win_size.height as f64;
@@ -262,9 +294,22 @@ impl App {
                     // Klik Kiri Drag pada body avatar: Pindahkan posisi jendela avatar secara native OS
                     let _ = self.window.drag_window();
                 } else if button == MouseButton::Left && state == ElementState::Released {
+                    self.is_left_mouse_down = false;
                     self.active_resize_dir = None;
                 } else if button == MouseButton::Right {
-                    self.is_right_mouse_down = state == ElementState::Pressed;
+                    if state == ElementState::Pressed {
+                        self.is_right_mouse_down = true;
+                        self.right_press_pos = self.last_cursor_pos;
+                        self.right_dragged = false;
+                    } else {
+                        // Released
+                        self.is_right_mouse_down = false;
+                        if !self.right_dragged {
+                            // Klik Kanan Biasa (Tanpa Drag): Langsung buka Web Dashboard Pengaturan di browser default
+                            println!("🌐 [Browser] Membuka Web Dashboard Pengaturan: http://127.0.0.1:42128");
+                            open_browser("http://127.0.0.1:42128");
+                        }
+                    }
                 } else if button == MouseButton::Middle && state == ElementState::Pressed {
                     // Klik Tengah: Reset rotasi & zoom kamera avatar
                     self.renderer.reset_camera();
@@ -298,14 +343,25 @@ impl App {
 
                 if let Some((prev_x, prev_y)) = self.last_cursor_pos {
                     if self.is_right_mouse_down {
-                        // Drag Klik Kanan: Orbit rotasi kamera 3D
+                        let dx = (position.x - prev_x).abs();
+                        let dy = (position.y - prev_y).abs();
+                        if dx > 1.5 || dy > 1.5 {
+                            self.right_dragged = true;
+                        }
+
                         let delta_x = (position.x - prev_x) as f32;
                         let delta_y = (position.y - prev_y) as f32;
-                        let sensitivity = 0.008;
-                        let delta_yaw = -delta_x * sensitivity;
-                        let delta_pitch = delta_y * sensitivity;
 
-                        self.renderer.rotate_camera(delta_yaw, delta_pitch);
+                        if self.is_left_mouse_down {
+                            // Klik Kanan + Klik Kiri Drag: Pan / Tarik & Geser Posisi Karakter 3D
+                            self.renderer.pan_camera(delta_x, delta_y);
+                        } else {
+                            // Hany Klik Kanan Drag: Orbit rotasi kamera 3D
+                            let sensitivity = 0.008;
+                            let delta_yaw = -delta_x * sensitivity;
+                            let delta_pitch = delta_y * sensitivity;
+                            self.renderer.rotate_camera(delta_yaw, delta_pitch);
+                        }
                     }
                 }
                 self.last_cursor_pos = Some((position.x, position.y));

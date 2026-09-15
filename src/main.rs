@@ -14,6 +14,25 @@ use config::AppConfig;
 use engine::AppSession;
 
 fn main() -> Result<()> {
+    // Pastikan stack size default aman untuk lingkungan Linux AppImage / Embedded
+    if std::env::var("RUST_MIN_STACK").is_err() {
+        unsafe {
+            std::env::set_var("RUST_MIN_STACK", "16777216"); // 16 MB
+        }
+    }
+
+    // 🔒 Single Instance Check: Cegah aplikasi dibuka ganda
+    let server_port = 42128;
+    let single_instance_check = std::net::TcpListener::bind(("127.0.0.1", server_port));
+    if single_instance_check.is_err() {
+        println!("⚠️  [Single Instance] Ragasukma sudah berjalan di latar belakang!");
+        println!("🌐 Membuka Dashboard yang sedang aktif di http://127.0.0.1:{} ...", server_port);
+        native::server::open_browser(&format!("http://127.0.0.1:{}", server_port));
+        std::process::exit(0);
+    }
+    // Drop listener pengecekan agar server utama di server.rs bisa bind dengan lancar
+    drop(single_instance_check);
+
     let config = AppConfig::load();
     let config_clone = config.clone();
 

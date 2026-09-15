@@ -216,12 +216,12 @@ pub fn create_3d_pipeline(
         label: Some("camera_bind_group"),
     });
 
-    let initial_bones = BoneMatricesUniform {
+    let initial_bones = Box::new(BoneMatricesUniform {
         matrices: [Mat4::IDENTITY.to_cols_array_2d(); 256],
-    };
+    });
     let bone_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Buffer"),
-        contents: bytemuck::cast_slice(&[initial_bones]),
+        contents: bytemuck::cast_slice(&[*initial_bones]),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
     let bone_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -650,4 +650,3 @@ pub fn load_vrm_model_to_gpu(
         model,
     }
 }
-

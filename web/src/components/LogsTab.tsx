@@ -6,10 +6,8 @@ import {
   Copy, 
   Search, 
   ArrowDown, 
-  Filter, 
   Check, 
-  RefreshCw,
-  Sliders
+  RefreshCw 
 } from 'lucide-solid';
 
 interface LogsTabProps {
@@ -26,15 +24,20 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
 
   let logsContainerRef: HTMLDivElement | undefined;
   let isFetching = false;
+  let scrollRafId: number | null = null;
 
   const fetchLogs = async () => {
-    if (isFetching) return;
+    if (isFetching || document.hidden) return;
     isFetching = true;
     try {
       const data = await api.getLogs();
-      setLogs(data);
+      if (data && Array.isArray(data)) {
+        // Ambil maksimal 250 log terakhir agar browser super responsif dan tidak membebani DOM
+        const trimmed = data.length > 250 ? data.slice(data.length - 250) : data;
+        setLogs(trimmed);
+      }
     } catch {
-      // ignore network errors during tab unmount/background polling
+      // ignore network errors during background polling
     } finally {
       isFetching = false;
     }
@@ -66,8 +69,11 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
 
   onMount(() => {
     fetchLogs();
-    const interval = setInterval(fetchLogs, 800);
-    onCleanup(() => clearInterval(interval));
+    const interval = setInterval(fetchLogs, 1200);
+    onCleanup(() => {
+      clearInterval(interval);
+      if (scrollRafId) cancelAnimationFrame(scrollRafId);
+    });
   });
 
   const filteredLogs = () => {
@@ -82,14 +88,15 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
   };
 
   createEffect(() => {
-    // Auto-scroll when new logs arrive
+    // Auto-scroll halus saat log baru datang menggunakan requestAnimationFrame
     filteredLogs();
     if (autoScroll() && logsContainerRef) {
-      setTimeout(() => {
+      if (scrollRafId) cancelAnimationFrame(scrollRafId);
+      scrollRafId = requestAnimationFrame(() => {
         if (logsContainerRef) {
           logsContainerRef.scrollTop = logsContainerRef.scrollHeight;
         }
-      }, 50);
+      });
     }
   });
 

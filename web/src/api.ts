@@ -1,5 +1,18 @@
 const API_BASE = 'http://127.0.0.1:42128';
 
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return res;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+}
+
 export interface UserConfig {
   assistant_name: string;
   user_callsign: string;
@@ -64,7 +77,7 @@ export const api = {
   // Config
   async getConfig(): Promise<UserConfig | null> {
     try {
-      const res = await fetch(`${API_BASE}/api/config`);
+      const res = await fetchWithTimeout(`${API_BASE}/api/config`);
       if (!res.ok) return null;
       return await res.json();
     } catch {
@@ -74,7 +87,7 @@ export const api = {
 
   async saveConfig(config: UserConfig): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/api/config`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
@@ -88,7 +101,7 @@ export const api = {
   // Poses
   async getPoses(): Promise<PosesConfig | null> {
     try {
-      const res = await fetch(`${API_BASE}/api/poses`);
+      const res = await fetchWithTimeout(`${API_BASE}/api/poses`);
       if (!res.ok) return null;
       return await res.json();
     } catch {
@@ -98,7 +111,7 @@ export const api = {
 
   async savePoses(poses: PosesConfig): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/api/poses`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/poses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(poses),
@@ -112,7 +125,7 @@ export const api = {
   // Skills
   async getSkills(): Promise<SkillItem[]> {
     try {
-      const res = await fetch(`${API_BASE}/api/skills`);
+      const res = await fetchWithTimeout(`${API_BASE}/api/skills`);
       if (!res.ok) return [];
       return await res.json();
     } catch {
@@ -122,7 +135,7 @@ export const api = {
 
   async saveSkill(skill: SkillItem): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/api/skills`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/skills`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(skill),
@@ -135,7 +148,7 @@ export const api = {
 
   async deleteSkill(name: string): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/api/skills/delete`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/skills/delete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -148,7 +161,7 @@ export const api = {
 
   async runSkill(command: string): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/api/skills/run`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/skills/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command }),
@@ -166,11 +179,11 @@ export const api = {
     state?: string
   ): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/api/tuner/preview`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/tuner/preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ poses, emotion, state }),
-      });
+      }, 4000);
       return res.ok;
     } catch {
       return false;
@@ -185,11 +198,11 @@ export const api = {
     state?: string
   ): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/api/tuner/live`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/tuner/live`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active, bones, emotion, state }),
-      });
+      }, 3000);
       return res.ok;
     } catch {
       return false;
@@ -199,7 +212,7 @@ export const api = {
   // Logs
   async getLogs(): Promise<LogEntry[]> {
     try {
-      const res = await fetch(`${API_BASE}/api/logs`);
+      const res = await fetchWithTimeout(`${API_BASE}/api/logs`, {}, 4000);
       if (!res.ok) return [];
       return await res.json();
     } catch {
@@ -209,7 +222,7 @@ export const api = {
 
   async clearLogs(): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/api/logs/clear`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/logs/clear`, {
         method: 'POST',
       });
       return res.ok;
@@ -221,7 +234,7 @@ export const api = {
   // State & Commands
   async sendCommand(cmd: string): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/api/cmd`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/cmd`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cmd }),
@@ -235,7 +248,7 @@ export const api = {
   // Assets Upload & Management
   async getAssetsInfo(): Promise<AssetInfo | null> {
     try {
-      const res = await fetch(`${API_BASE}/api/assets/info`);
+      const res = await fetchWithTimeout(`${API_BASE}/api/assets/info`);
       if (!res.ok) return null;
       return await res.json();
     } catch {
@@ -302,16 +315,55 @@ export const api = {
     }
   },
 
-  // Real-time EventSource (SSE) listener
-  subscribeState(onStateChange: (state: AppStatePayload) => void): () => void {
+  // Single Client Session Lock
+  async sendHeartbeat(token: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/api/session/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      return !!data.is_active;
+    } catch {
+      return false;
+    }
+  },
+
+  async takeoverSession(token: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/api/session/takeover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  // Real-time EventSource (SSE) listener dengan callback koneksi offline / online
+  subscribeState(
+    onStateChange: (state: AppStatePayload) => void,
+    onConnectionChange?: (connected: boolean) => void
+  ): () => void {
     const es = new EventSource(`${API_BASE}/api/events`);
+    es.onopen = () => {
+      onConnectionChange?.(true);
+    };
     es.onmessage = (event) => {
       try {
         const data: AppStatePayload = JSON.parse(event.data);
+        onConnectionChange?.(true);
         onStateChange(data);
       } catch (err) {
         console.error('Failed to parse SSE state:', err);
       }
+    };
+    es.onerror = () => {
+      onConnectionChange?.(false);
     };
     return () => {
       es.close();

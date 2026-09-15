@@ -96,7 +96,9 @@ pub struct VrmModelData {
     pub root_nodes: Vec<usize>,
     pub skins: Vec<SkinData>,
     pub bone_mapping: HashMap<String, usize>,
+    pub node_to_bone: Vec<Option<String>>,
     pub expressions: HashMap<String, VrmExpressionData>,
+    pub known_mesh_indices: Vec<usize>,
 }
 
 fn extract_image_rgba(
@@ -471,6 +473,15 @@ impl VrmModelData {
             (0..nodes.len()).collect()
         };
 
+        // Precompute node_to_bone reverse mapping & known_mesh_indices untuk O(1) direct lookup saat render loop
+        let mut node_to_bone = vec![None; nodes.len()];
+        for (bone_name, &node_idx) in &bone_mapping {
+            if node_idx < node_to_bone.len() {
+                node_to_bone[node_idx] = Some(bone_name.clone());
+            }
+        }
+        let known_mesh_indices: Vec<usize> = primitives.iter().map(|p| p.mesh_index).collect();
+
         println!("✨ [VRM Loader] Sukses memuat {} mesh parts, {} material layers, {} blend expressions", primitives.len(), materials.len(), expressions.len());
 
         Ok(Self {
@@ -480,7 +491,9 @@ impl VrmModelData {
             root_nodes,
             skins,
             bone_mapping,
+            node_to_bone,
             expressions,
+            known_mesh_indices,
         })
     }
 }

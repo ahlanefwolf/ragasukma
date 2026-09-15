@@ -1,7 +1,6 @@
 import { Component, createSignal, onMount, onCleanup } from 'solid-js';
 import { 
   Play, 
-  Pause, 
   Square, 
   Volume2, 
   VolumeX, 
@@ -9,13 +8,10 @@ import {
   MicOff, 
   RefreshCw, 
   RotateCcw, 
-  Sparkles,
-  Bot,
-  Layers,
-  Headphones,
-  ExternalLink,
-  Download,
-  X
+  Sparkles, 
+  Bot, 
+  Layers, 
+  Headphones 
 } from 'lucide-solid';
 import { api, AppStatePayload } from '../api';
 
@@ -74,17 +70,6 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       case '5': return 'Level 5 (Sangat Tinggi)';
       case '6': return 'Level 6 (Ultra Sensitif)';
       default: return `Level ${micSensitivity()}`;
-    }
-  };
-
-  const fetchCurrentState = async () => {
-    const state = await api.getState();
-    if (state) {
-      props.setCurrentState(state.state);
-      setIsRunning(state.is_running);
-      setIsPaused(state.is_paused);
-      setVoiceMuted(state.voice_muted);
-      setMicMuted(state.mic_muted);
     }
   };
 
@@ -151,31 +136,39 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
 
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
+        const barsBuffer = new Array<number>(24).fill(0);
+        let lastUpdateTime = 0;
 
-        const updateLevel = () => {
+        const updateLevel = (timestamp: number) => {
           if (!analyser) return;
-          if (micMuted()) {
-            setMicLevel(0);
-            setMicBars(new Array(24).fill(0));
-          } else {
-            analyser.getByteFrequencyData(dataArray);
-            let sum = 0;
-            const bars: number[] = [];
-            const step = Math.floor(bufferLength / 24) || 1;
-            for (let i = 0; i < 24; i++) {
-              const val = dataArray[i * step] || 0;
-              const norm = Math.min(100, Math.round((val / 255) * 100));
-              bars.push(norm);
-              sum += val;
+
+          // Throttle visualizer UI update ke ~30 FPS dan skip saat browser tab di background
+          if (!document.hidden && timestamp - lastUpdateTime >= 33) {
+            lastUpdateTime = timestamp;
+
+            if (micMuted()) {
+              setMicLevel(0);
+              barsBuffer.fill(0);
+              setMicBars([...barsBuffer]);
+            } else {
+              analyser.getByteFrequencyData(dataArray);
+              let sum = 0;
+              const step = Math.floor(bufferLength / 24) || 1;
+              for (let i = 0; i < 24; i++) {
+                const val = dataArray[i * step] || 0;
+                const norm = Math.min(100, Math.round((val / 255) * 100));
+                barsBuffer[i] = norm;
+                sum += val;
+              }
+              const avg = sum / (bufferLength || 1);
+              const percent = Math.min(100, Math.round((avg / 120) * 100));
+              setMicLevel(percent);
+              setMicBars([...barsBuffer]);
             }
-            const avg = sum / (bufferLength || 1);
-            const percent = Math.min(100, Math.round((avg / 120) * 100));
-            setMicLevel(percent);
-            setMicBars(bars);
           }
           animId = requestAnimationFrame(updateLevel);
         };
-        updateLevel();
+        animId = requestAnimationFrame(updateLevel);
       } catch (e) {
         console.warn('Microphone access for visualizer:', e);
         setMicActive(false);

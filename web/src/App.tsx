@@ -15,17 +15,54 @@ export const App: Component = () => {
   const [toastMessage, setToastMessage] = createSignal('');
   const [toastVisible, setToastVisible] = createSignal(false);
   const [mobileMenuOpen, setMobileMenuOpen] = createSignal(false);
+  const [isDuplicateTab, setIsDuplicateTab] = createSignal(false);
 
-  // Real-time EventSource (SSE) stream dari backend - 0 polling, instant event sync
+  // ID Unik sesi tab/browser ini
+  let sessionToken = sessionStorage.getItem('ragasukma_session_token');
+  if (!sessionToken) {
+    sessionToken = 'sess_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+    sessionStorage.setItem('ragasukma_session_token', sessionToken);
+  }
+
+  let heartbeatTimer: number | null = null;
+
+  // Single-Client Mutex Protection (Server-Side Lease: Bekerja di Beda Tab, Beda Browser, & Incognito)
+  const checkSessionHeartbeat = async () => {
+    if (!sessionToken) return;
+    const isActive = await api.sendHeartbeat(sessionToken);
+    setIsDuplicateTab(!isActive);
+  };
+
+  const handleTakeover = async () => {
+    if (!sessionToken) return;
+    const ok = await api.takeoverSession(sessionToken);
+    if (ok) {
+      setIsDuplicateTab(false);
+      showToast('Sesi kontrol berhasil diambil alih');
+    }
+  };
+
   onMount(() => {
-    const unsubscribe = api.subscribeState((st) => {
-      if (st) {
-        setCurrentState(st.state);
-        setOverlayConnected(true);
-      }
-    });
+    // Inisialisasi pengecekan sesi ke backend
+    checkSessionHeartbeat();
+    heartbeatTimer = window.setInterval(checkSessionHeartbeat, 1500);
 
-    onCleanup(() => unsubscribe());
+    // Real-time EventSource (SSE) stream dari backend - 0 polling, instant event sync
+    const unsubscribe = api.subscribeState(
+      (st) => {
+        if (st) {
+          setCurrentState(st.state);
+        }
+      },
+      (connected) => {
+        setOverlayConnected(connected);
+      }
+    );
+
+    onCleanup(() => {
+      unsubscribe();
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+    });
   });
 
   const showToast = (msg: string) => {
@@ -96,6 +133,56 @@ export const App: Component = () => {
           {activeTab() === 'settings' && <SettingsTab showToast={showToast} />}
         </div>
       </main>
+
+      {/* Duplicate Tab/Browser Warning Modal (Server-Side Single Client Protection) */}
+      {isDuplicateTab() && (
+        <div class="fixed inset-0 z-[110] bg-[#161D24]/95 backdrop-blur-md flex items-center justify-center p-4">
+          <div class="max-w-md w-full p-6 rounded-2xl bg-[#232D36] border border-[#FFD166]/40 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div class="w-14 h-14 mx-auto rounded-2xl bg-[#FFD166]/20 text-[#FFD166] border border-[#FFD166]/30 flex items-center justify-center text-2xl font-bold">
+              ⚡
+            </div>
+            <div>
+              <h3 class="text-lg font-bold text-[#EFF7F6]">Dashboard Sedang Aktif di Sesi Lain</h3>
+              <p class="text-xs text-[#EFF7F6]/60 mt-1">
+                Dashboard Ragasukma sedang aktif di tab/browser lain. Untuk menjaga sinkronisasi real-time dan mencegah konflik data, hanya 1 sesi kontrol yang diizinkan aktif.
+              </p>
+            </div>
+            <div class="flex items-center justify-center gap-3 pt-2">
+              <button
+                onClick={handleTakeover}
+                class="px-5 py-2.5 rounded-xl bg-[#7BDFF2] hover:bg-[#7BDFF2]/90 text-[#161D24] text-xs font-bold transition-all shadow-lg hover:shadow-[#7BDFF2]/30"
+              >
+                Gunakan Tab/Browser Ini (Ambil Alih)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Disconnected / Closed App Backdrop Modal */}
+      {!overlayConnected() && (
+        <div class="fixed inset-0 z-[100] bg-[#161D24]/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div class="max-w-md w-full p-6 rounded-2xl bg-[#232D36] border border-[#FF7B7B]/40 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div class="w-14 h-14 mx-auto rounded-2xl bg-[#FF7B7B]/20 text-[#FF7B7B] border border-[#FF7B7B]/30 flex items-center justify-center text-2xl font-bold">
+              ✕
+            </div>
+            <div>
+              <h3 class="text-lg font-bold text-[#EFF7F6]">Aplikasi Ragasukma Telah Ditutup</h3>
+              <p class="text-xs text-[#EFF7F6]/60 mt-1">
+                Overlay avatar dan engine native telah dihentikan. Anda dapat menutup tab browser ini atau jalankan kembali aplikasi Ragasukma.
+              </p>
+            </div>
+            <div class="flex items-center justify-center gap-3 pt-2">
+              <button
+                onClick={() => window.location.reload()}
+                class="px-4 py-2 rounded-xl bg-[#7BDFF2]/20 hover:bg-[#7BDFF2]/30 text-[#7BDFF2] border border-[#7BDFF2]/40 text-xs font-semibold transition-all"
+              >
+                Coba Hubungkan Ulang
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Animated Toast Notification */}
       <div 

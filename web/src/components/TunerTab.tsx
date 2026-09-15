@@ -4,11 +4,7 @@ import {
   RotateCcw, 
   Play, 
   Square, 
-  Sliders, 
-  Sparkles,
-  Copy,
-  FlipHorizontal,
-  Layers
+  Sliders 
 } from 'lucide-solid';
 import { api, PosesConfig } from '../api';
 import { BONE_CATEGORIES, BONE_LABELS, MIRROR_MAP } from './tunerBones';

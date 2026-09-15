@@ -282,7 +282,7 @@ pub fn update_facial_expressions_and_lip_sync(
     }
 
     // 4. Update Posisi Vertex Morph Targets pada Mesh Wajah di GPU Buffer
-    let known_mesh_indices: Vec<usize> = model.primitives.iter().map(|p| p.mesh_index).collect();
+    let known_mesh_indices = &model.known_mesh_indices;
 
     for (prim_idx, prim) in model.primitives.iter_mut().enumerate() {
         if prim.morph_targets.is_empty() || prim.base_vertices.is_empty() {

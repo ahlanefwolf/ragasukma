@@ -45,6 +45,12 @@ pub struct ServerSharedState {
 
 static GLOBAL_SHARED_STATE: Mutex<Option<Arc<Mutex<ServerSharedState>>>> = Mutex::new(None);
 
+struct ActiveWebSession {
+    token: String,
+    last_seen: std::time::Instant,
+}
+static ACTIVE_WEB_SESSION: Mutex<Option<ActiveWebSession>> = Mutex::new(None);
+
 pub fn register_shared_state(shared: Arc<Mutex<ServerSharedState>>) {
     if let Ok(mut lock) = GLOBAL_SHARED_STATE.lock() {
         *lock = Some(shared);
@@ -242,7 +248,7 @@ pub fn save_poses(poses: &PosesConfig) -> Result<(), String> {
     Ok(())
 }
 
-fn open_browser(url: &str) {
+pub fn open_browser(url: &str) {
     let url = url.to_string();
     thread::spawn(move || {
         // Beri sedikit jeda agar listener TCP siap menerima koneksi
@@ -682,6 +688,57 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
                 }
             } else {
                 send_json_response(&mut stream, 400, "{\"error\":\"Invalid run payload\"}");
+            }
+        }
+        ("POST", "/api/session/heartbeat") => {
+            #[derive(Deserialize)]
+            struct HeartbeatPayload {
+                token: String,
+            }
+            if let Ok(payload) = serde_json::from_str::<HeartbeatPayload>(body_str) {
+                let now = std::time::Instant::now();
+                let mut is_active = false;
+                if let Ok(mut lock) = ACTIVE_WEB_SESSION.lock() {
+                    if let Some(sess) = lock.as_mut() {
+                        if sess.token == payload.token {
+                            sess.last_seen = now;
+                            is_active = true;
+                        } else if now.duration_since(sess.last_seen) > Duration::from_secs(4) {
+                            // Sesi lama sudah offline > 4 detik -> ambil alih otomatis
+                            *sess = ActiveWebSession {
+                                token: payload.token,
+                                last_seen: now,
+                            };
+                            is_active = true;
+                        }
+                    } else {
+                        *lock = Some(ActiveWebSession {
+                            token: payload.token,
+                            last_seen: now,
+                        });
+                        is_active = true;
+                    }
+                }
+                send_json_response(&mut stream, 200, &format!("{{\"is_active\":{}}}", is_active));
+            } else {
+                send_json_response(&mut stream, 400, "{\"error\":\"Invalid payload\"}");
+            }
+        }
+        ("POST", "/api/session/takeover") => {
+            #[derive(Deserialize)]
+            struct TakeoverPayload {
+                token: String,
+            }
+            if let Ok(payload) = serde_json::from_str::<TakeoverPayload>(body_str) {
+                if let Ok(mut lock) = ACTIVE_WEB_SESSION.lock() {
+                    *lock = Some(ActiveWebSession {
+                        token: payload.token,
+                        last_seen: std::time::Instant::now(),
+                    });
+                }
+                send_json_response(&mut stream, 200, "{\"success\":true}");
+            } else {
+                send_json_response(&mut stream, 400, "{\"error\":\"Invalid payload\"}");
             }
         }
         ("GET", "/api/logs") => {

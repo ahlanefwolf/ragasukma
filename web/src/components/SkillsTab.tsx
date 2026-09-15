@@ -3,9 +3,7 @@ import {
   Play, 
   Trash2, 
   Plus, 
-  Terminal, 
-  Zap,
-  Sparkles
+  Terminal 
 } from 'lucide-solid';
 import { api, SkillItem } from '../api';
 

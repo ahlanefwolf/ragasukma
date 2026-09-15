@@ -63,16 +63,18 @@ pub fn update_camera_and_bones(
     model_opt: Option<&VrmModelData>,
     model_min_y: f32,
     model_max_y: f32,
-    screen_w: f32,
-    screen_h: f32,
+    screen_width: f32,
+    screen_height: f32,
     cam: &CameraState,
     pose_manager: &mut PoseManager,
     delta_seconds: f32,
+    global_transforms: &mut Vec<Mat4>,
+    bone_uniform: &mut BoneMatricesUniform,
 ) {
     pose_manager.update_poses(delta_seconds);
 
-    let width = screen_w;
-    let height = screen_h.max(1.0);
+    let width = screen_width;
+    let height = screen_height.max(1.0);
     let aspect = width / height;
 
     let fov_rad = 28.0_f32.to_radians();
@@ -113,13 +115,16 @@ pub fn update_camera_and_bones(
     };
     queue.write_buffer(camera_buffer, 0, bytemuck::cast_slice(&[camera_uniform]));
 
-    // Update Matrix Tulang (Hierarki Pose Three.js)
+    // Update Matrix Tulang (Hierarki Pose Three.js) - 0 Allocation
     if let Some(model) = model_opt {
-        let mut global_transforms = vec![Mat4::IDENTITY; model.nodes.len()];
-        let mut bone_matrices = [Mat4::IDENTITY.to_cols_array_2d(); 256];
+        if global_transforms.len() != model.nodes.len() {
+            global_transforms.resize(model.nodes.len(), Mat4::IDENTITY);
+        } else {
+            global_transforms.fill(Mat4::IDENTITY);
+        }
 
         for &root_idx in &model.root_nodes {
-            compute_global_transforms(root_idx, Mat4::IDENTITY, pose_manager, model, &mut global_transforms);
+            compute_global_transforms(root_idx, Mat4::IDENTITY, pose_manager, model, global_transforms);
         }
 
         if let Some(skin) = model.skins.first() {
@@ -128,15 +133,12 @@ pub fn update_camera_and_bones(
                     let inv_bind = skin.inverse_bind_matrices.get(joint_i).copied().unwrap_or(Mat4::IDENTITY);
                     let global_joint = global_transforms[node_idx];
                     let final_mat = global_joint * inv_bind;
-                    bone_matrices[joint_i] = final_mat.to_cols_array_2d();
+                    bone_uniform.matrices[joint_i] = final_mat.to_cols_array_2d();
                 }
             }
         }
 
-        let bone_uniform = BoneMatricesUniform {
-            matrices: bone_matrices,
-        };
-        queue.write_buffer(bone_buffer, 0, bytemuck::cast_slice(&[bone_uniform]));
+        queue.write_buffer(bone_buffer, 0, bytemuck::cast_slice(&[*bone_uniform]));
     }
 }
 
@@ -150,7 +152,7 @@ fn compute_global_transforms(
     let node = &model.nodes[node_idx];
     let mut rotation = node.initial_rotation;
 
-    if let Some((bone_name, _)) = model.bone_mapping.iter().find(|&(_, &idx)| idx == node_idx) {
+    if let Some(Some(bone_name)) = model.node_to_bone.get(node_idx) {
         if let Some(pose_rot) = pose_manager.get_bone_quat(bone_name) {
             rotation = rotation * pose_rot;
         }

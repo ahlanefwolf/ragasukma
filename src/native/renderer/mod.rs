@@ -31,6 +31,8 @@ pub struct Renderer {
 
     bone_buffer: wgpu::Buffer,
     bone_bind_group: wgpu::BindGroup,
+    cached_global_transforms: Vec<glam::Mat4>,
+    cached_bone_uniform: Box<BoneMatricesUniform>,
 
     model_data: Option<VrmModelData>,
     gpu_primitives: Vec<GpuPrimitive>,
@@ -162,6 +164,10 @@ impl Renderer {
             camera_bind_group: pipeline_3d.camera_bind_group,
             bone_buffer: pipeline_3d.bone_buffer,
             bone_bind_group: pipeline_3d.bone_bind_group,
+            cached_global_transforms: Vec::with_capacity(128),
+            cached_bone_uniform: Box::new(BoneMatricesUniform {
+                matrices: [glam::Mat4::IDENTITY.to_cols_array_2d(); 256],
+            }),
             model_data: None,
             gpu_primitives: Vec::new(),
             gpu_materials: Vec::new(),
@@ -312,6 +318,8 @@ impl Renderer {
             &cam,
             pose_manager,
             delta_seconds,
+            &mut self.cached_global_transforms,
+            &mut self.cached_bone_uniform,
         );
 
         if let Some(model) = self.model_data.as_mut() {
