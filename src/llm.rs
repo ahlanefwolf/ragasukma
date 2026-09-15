@@ -2,30 +2,56 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 pub fn load_skills_summary() -> String {
-    let skills = crate::skills::parse_skills_markdown();
-    if skills.is_empty() {
+    use std::collections::HashSet;
+    let mut seen_names = HashSet::new();
+    let mut lines = Vec::new();
+
+    // 1. Skill Kustom User dari markdown
+    let custom_skills = crate::skills::parse_skills_markdown();
+    for s in &custom_skills {
+        let key = s.name.trim().to_lowercase();
+        if !seen_names.contains(&key) {
+            seen_names.insert(key);
+            lines.push(format!("- Perintah: `{}` -> Deskripsi: {}", s.name, s.description));
+        }
+    }
+
+    // 2. Skill Bawaan Sistem OS (Built-in)
+    let builtin_skills = crate::system_actions::get_builtin_system_skills();
+    for s in &builtin_skills {
+        let key = s.name.trim().to_lowercase();
+        if !seen_names.contains(&key) {
+            seen_names.insert(key);
+            lines.push(format!("- Perintah: `{}` -> Deskripsi: {}", s.name, s.description));
+        }
+    }
+
+    if lines.is_empty() {
         return String::new();
     }
 
-    let mut lines = Vec::new();
-    for s in &skills {
-        lines.push(format!("- Perintah: `{}` -> Deskripsi: {}", s.name, s.description));
-    }
-
     format!(
-        "\n4. FITUR KONTROL SISTEM & SKILL (skill-command.md):\n\
-Kamu MEMILIKI KEMAMPUAN untuk mengontrol sistem laptop/komputer secara langsung (seperti mengatur kecerahan layar, volume suara, membuka browser/aplikasi, dll) menggunakan perintah di bawah.\n\
-JANGAN PERNAH menolak atau berkata kamu tidak bisa mengontrol aplikasi/sistem!\n\
-Daftar skill yang tersedia:\n{}\n\
+        "\n4. FITUR KONTROL SISTEM & SKILL OTOMATIS:\n\
+Kamu MEMILIKI KEMAMPUAN untuk mengontrol sistem laptop/komputer dan internet secara langsung (seperti mengatur volume suara, mute audio, membuka browser/aplikasi sistem/file explorer, membuka website apa saja, atau mencari di Google) menggunakan tag perintah.\n\
+JANGAN PERNAH menolak atau berkata kamu tidak bisa mengontrol aplikasi/sistem/website!\n\
+Daftar skill yang terdaftar:\n{}\n\
 ATURAN EKSEKUSI SKILL:\n\
-- Jika pengguna meminta suatu aksi (misal: 'buka browser', 'buka kalkulator'), kamu WAJIB menyetujuinya dengan ramah dan MENYERTAKAN tag `[SKILL:Nama Skill]` di kalimatmu.\n\
+- Jika pengguna meminta suatu aksi atau membuka aplikasi yang terpasang di komputernya, kamu WAJIB menyetujuinya dengan ramah dan MENYERTAKAN tag `[SKILL:Nama Skill]` atau `[SKILL:Buka NamaAplikasi]` di kalimatmu.\n\
+- Jika pengguna meminta membuka website atau web tertentu (seperti YouTube, Gmail, GitHub, Wikipedia, dsb), gunakan tag `[SKILL:Buka Website|https://alamat.url]`.\n\
+- Jika pengguna meminta mencari sesuatu di Google/Internet, gunakan tag `[SKILL:Cari Google|kata kunci pencarian]`.\n\
   Contoh:\n\
-  - User: 'Tolong bukakan browser dong'\n\
-    Respon: '*senang* Siap, browser internetnya aku bukakan ya! [SKILL:Buka Browser]'\n\
+  - User: 'Tolong bukakan YouTube dong'\n\
+    Respon: '*senang* Siap, YouTube aku bukakan sekarang ya! [SKILL:Buka Website|https://youtube.com]'\n\
+  - User: 'Cari resep rendang di Google'\n\
+    Respon: '*semangat* Baik, ini hasil pencarian resep rendang di Google. [SKILL:Cari Google|resep rendang padang]'\n\
+  - User: 'Tolong besarin volumenya'\n\
+    Respon: '*tersenyum* Oke, volumenya aku naikkan ya! [SKILL:Naikkan Volume]'\n\
   - User: 'Buka kalkulator'\n\
     Respon: '*senang* Baik, ini kalkulatornya ya. [SKILL:Buka Kalkulator]'\n\
-- Tag `[SKILL:Nama Skill]` otomatis dieksekusi oleh sistem di latar belakang dan TIDAK akan dibaca keras oleh TTS.\n\
-- Jika hanya obrolan santai biasa tanpa meminta aksi sistem, jangan sertakan tag `[SKILL:...`.\n",
+  - User: 'Bisa bukakan Steam?'\n\
+    Respon: '*semangat* Tentu, membuka Steam sekarang! [SKILL:Buka Steam]'\n\
+- Tag `[SKILL:...]` otomatis dieksekusi oleh sistem di latar belakang dan TIDAK akan dibaca keras oleh TTS.\n\
+- Jika hanya obrolan santai biasa tanpa meminta aksi sistem/aplikasi/web, jangan sertakan tag `[SKILL:...`.\n",
         lines.join("\n")
     )
 }

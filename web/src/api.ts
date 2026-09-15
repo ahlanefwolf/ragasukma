@@ -41,6 +41,13 @@ export interface SkillItem {
   command: string;
 }
 
+export interface InstalledApp {
+  name: string;
+  exec: string;
+  icon?: string;
+  comment?: string;
+}
+
 export interface PoseKeyframes {
   emotion?: string;
   speed: number;
@@ -169,6 +176,16 @@ export const api = {
       return res.ok;
     } catch {
       return false;
+    }
+  },
+
+  async getSystemApps(): Promise<InstalledApp[]> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/system/apps`);
+      if (!res.ok) return [];
+      return await res.json();
+    } catch {
+      return [];
     }
   },
 

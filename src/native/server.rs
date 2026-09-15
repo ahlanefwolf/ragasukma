@@ -11,7 +11,10 @@ use std::time::Duration;
 
 use super::pose_system::{AssistantVisualState, PosesConfig};
 use crate::config::UserConfig;
-use crate::skills::{execute_command_by_os, parse_skills_markdown, save_skills_markdown, SkillItem};
+use crate::skills::{
+    execute_command_by_os, get_installed_applications, parse_skills_markdown,
+    save_skills_markdown, SkillItem,
+};
 
 #[derive(RustEmbed)]
 #[folder = "web/dist"]
@@ -625,6 +628,11 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
         ("GET", "/api/skills") => {
             let skills = parse_skills_markdown();
             let json = serde_json::to_string(&skills).unwrap_or_default();
+            send_json_response(&mut stream, 200, &json);
+        }
+        ("GET", "/api/system/apps") => {
+            let apps = get_installed_applications();
+            let json = serde_json::to_string(&apps).unwrap_or_default();
             send_json_response(&mut stream, 200, &json);
         }
         ("POST", "/api/skills") => {

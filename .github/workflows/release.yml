@@ -3,68 +3,89 @@ name: "Release App (Native Engine CI/CD)"
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   release:
-    permissions:
-      contents: write
+    name: Release ${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }}
+
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: 'ubuntu-22.04'
-            target: 'x86_64-unknown-linux-gnu'
-            package_format: 'appimage'
-          - platform: 'windows-latest'
-            target: 'x86_64-pc-windows-msvc'
-            package_format: 'nsis'
-          - platform: 'macos-latest'
-            target: 'aarch64-apple-darwin'
-            package_format: 'dmg'
+          # ------------------------------------------------------------------
+          # Linux
+          # ------------------------------------------------------------------
+          - platform: "ubuntu-22.04"
+            target: "x86_64-unknown-linux-gnu"
+            package_format: "appimage"
+            os_name: "linux"
 
-    runs-on: ${{ matrix.platform }}
+          # ------------------------------------------------------------------
+          # Windows
+          # ------------------------------------------------------------------
+          - platform: "windows-latest"
+            target: "x86_64-pc-windows-msvc"
+            package_format: "nsis"
+            os_name: "windows"
+
+          # ------------------------------------------------------------------
+          # macOS Apple Silicon
+          # ------------------------------------------------------------------
+          - platform: "macos-latest"
+            target: "aarch64-apple-darwin"
+            package_format: "dmg"
+            os_name: "macos"
+
     steps:
+      # ======================================================================
+      # CHECKOUT
+      # ======================================================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ------------------------------------------------------------------------
-      # Linux System Dependencies & Packaging Tools
-      # ------------------------------------------------------------------------
+      # ======================================================================
+      # LINUX DEPENDENCIES
+      # ======================================================================
       - name: Install System Dependencies (Linux)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential \
-                                  curl \
-                                  wget \
-                                  file \
-                                  pkg-config \
-                                  libssl-dev \
-                                  libasound2-dev \
-                                  squashfs-tools \
-                                  libfuse2
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            wget \
+            file \
+            pkg-config \
+            libssl-dev \
+            libasound2-dev \
+            squashfs-tools \
+            libfuse2
 
-      # ------------------------------------------------------------------------
-      # Build Web Dashboard Assets (Required by rust-embed)
-      # ------------------------------------------------------------------------
+      # ======================================================================
+      # NODE.JS / WEB DASHBOARD
+      # ======================================================================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: 'web/package-lock.json'
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
       - name: Build Web Dashboard Frontend
+        working-directory: web
         run: |
-          cd web
           npm ci
           npm run build
 
-      # ------------------------------------------------------------------------
-      # Rust Toolchain Setup
-      # ------------------------------------------------------------------------
+      # ======================================================================
+      # RUST TOOLCHAIN & CACHE
+      # ======================================================================
       - name: Setup Rust Stable
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -72,46 +93,256 @@ jobs:
 
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
 
-      # ------------------------------------------------------------------------
-      # Build Binaries & Native Installers (.AppImage, .dmg, .exe)
-      # ------------------------------------------------------------------------
+      # ======================================================================
+      # CARGO-PACKAGER
+      # ======================================================================
       - name: Install cargo-packager
-        run: cargo install cargo-packager --locked
-
-      - name: Build Binary
         run: |
-          cargo build --release --target ${{ matrix.target }}
+          cargo install cargo-packager --locked
 
-      - name: Package Native Installers
+      # ======================================================================
+      # BUILD
+      # ======================================================================
+      - name: Build Release Binary
         run: |
-          cargo packager --release --target ${{ matrix.target }} --formats ${{ matrix.package_format }}
+          cargo build \
+            --release \
+            --target ${{ matrix.target }}
 
-      # Debug: List packager output files
-      - name: List packager output (Linux / macOS)
+      # ======================================================================
+      # PACKAGE
+      # ======================================================================
+      - name: Package Native Installer
+        run: |
+          cargo packager \
+            --release \
+            --target ${{ matrix.target }} \
+            --formats ${{ matrix.package_format }}
+
+      # ======================================================================
+      # LIST OUTPUT (DEBUG)
+      # ======================================================================
+      - name: List Linux / macOS Output
         if: runner.os != 'Windows'
+        shell: bash
         run: |
-          find target/${{ matrix.target }}/release -type f \( -name "*.AppImage" -o -name "*.dmg" -o -name "*.exe" \) || true
+          echo "=== Packager output ==="
+          find "target/${{ matrix.target }}/release" \
+            -type f \
+            \( \
+              -name "*.AppImage" \
+              -o -name "*.dmg" \
+              -o -name "*.exe" \
+            \) \
+            -print
 
-      - name: List packager output (Windows)
+      - name: List Windows Output
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Get-ChildItem -Recurse target\${{ matrix.target }}\release\ -Include *.exe, *.msi | Select-Object FullName
+          Write-Host "=== Packager output ==="
+          Get-ChildItem `
+            -Recurse `
+            "target\${{ matrix.target }}\release" `
+            -Include *.exe, *.msi |
+            Select-Object FullName, Length
 
-      # ------------------------------------------------------------------------
-      # Upload Release Assets (Overwrites .AppImage, .dmg, .exe)
-      # ------------------------------------------------------------------------
+      # ======================================================================
+      # VERIFY RELEASE ARTIFACTS EXIST
+      # ======================================================================
+      - name: Verify Linux Artifact
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          files=$(find "target/${{ matrix.target }}/release" \
+            -type f \
+            -name "*.AppImage")
+
+          if [ -z "$files" ]; then
+            echo "ERROR: AppImage was not generated."
+            exit 1
+          fi
+
+          echo "AppImage found:"
+          echo "$files"
+
+      - name: Verify Windows Artifact
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem `
+            -Recurse `
+            "target\${{ matrix.target }}\release" `
+            -Filter *.exe
+
+          if ($files.Count -eq 0) {
+            Write-Error "ERROR: Windows EXE was not generated."
+            exit 1
+          }
+
+          Write-Host "Windows EXE found:"
+          $files | Select-Object FullName, Length
+
+      - name: Verify macOS Artifact
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          files=$(find "target/${{ matrix.target }}/release" \
+            -type f \
+            -name "*.dmg")
+
+          if [ -z "$files" ]; then
+            echo "ERROR: DMG was not generated."
+            exit 1
+          fi
+
+          echo "DMG found:"
+          echo "$files"
+
+      # ======================================================================
+      # SHA-256 CHECKSUMS
+      # ======================================================================
+      - name: Generate SHA-256 Checksums (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          cd "target/${{ matrix.target }}/release"
+          find . \
+            -type f \
+            -name "*.AppImage" \
+            -print0 |
+            xargs -0 sha256sum > SHA256SUMS-linux.txt
+
+          cat SHA256SUMS-linux.txt
+
+      - name: Generate SHA-256 Checksums (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cd "target/${{ matrix.target }}/release"
+          : > SHA256SUMS-macos.txt
+
+          find . \
+            -type f \
+            -name "*.dmg" \
+            -print0 |
+            while IFS= read -r -d '' file; do
+              shasum -a 256 "$file" >> SHA256SUMS-macos.txt
+            done
+
+          cat SHA256SUMS-macos.txt
+
+      - name: Generate SHA-256 Checksums (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $output = "target\${{ matrix.target }}\release\SHA256SUMS-windows.txt"
+          Remove-Item $output -ErrorAction SilentlyContinue
+
+          Get-ChildItem `
+            -Recurse `
+            "target\${{ matrix.target }}\release" `
+            -Filter *.exe |
+            ForEach-Object {
+              $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+              "$hash  $($_.Name)" | Out-File `
+                -FilePath $output `
+                -Append `
+                -Encoding utf8
+            }
+
+          Get-Content $output
+
+      # ======================================================================
+      # WINDOWS SIGNATURE CHECK
+      # ======================================================================
+      - name: Check Windows Digital Signature
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem `
+            -Recurse `
+            "target\${{ matrix.target }}\release" `
+            -Filter *.exe
+
+          foreach ($file in $files) {
+            Write-Host ""
+            Write-Host "========================================"
+            Write-Host "Checking: $($file.FullName)"
+            Write-Host "========================================"
+
+            $signature = Get-AuthenticodeSignature $file.FullName
+            Write-Host "Status    : $($signature.Status)"
+            Write-Host "Signer    : $($signature.SignerCertificate.Subject)"
+            Write-Host "Thumbprint: $($signature.SignerCertificate.Thumbprint)"
+          }
+
+      # ======================================================================
+      # PREPARE RELEASE FILES
+      # ======================================================================
+      - name: Prepare Release Directory
+        shell: bash
+        run: |
+          mkdir -p release
+
+      - name: Copy Linux Release Files
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          find "target/${{ matrix.target }}/release" \
+            -type f \
+            -name "*.AppImage" \
+            -exec cp {} release/ \;
+
+          cp "target/${{ matrix.target }}/release/SHA256SUMS-linux.txt" \
+            release/
+
+          ls -lah release/
+
+      - name: Copy Windows Release Files
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Get-ChildItem `
+            -Recurse `
+            "target\${{ matrix.target }}\release" `
+            -Filter *.exe |
+            ForEach-Object {
+              Copy-Item $_.FullName release\
+            }
+
+          Copy-Item `
+            "target\${{ matrix.target }}\release\SHA256SUMS-windows.txt" `
+            release\
+
+          Get-ChildItem release
+
+      - name: Copy macOS Release Files
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          find "target/${{ matrix.target }}/release" \
+            -type f \
+            -name "*.dmg" \
+            -exec cp {} release/ \;
+
+          cp "target/${{ matrix.target }}/release/SHA256SUMS-macos.txt" \
+            release/
+
+          ls -lah release/
+
+      # ======================================================================
+      # UPLOAD GITHUB RELEASE
+      # ======================================================================
       - name: Upload Release Asset
-        uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
         with:
-          files: |
-            target/${{ matrix.target }}/release/*.AppImage
-            target/${{ matrix.target }}/release/**/*.AppImage
-            target/${{ matrix.target }}/release/*.dmg
-            target/${{ matrix.target }}/release/**/*.dmg
-            target/${{ matrix.target }}/release/*.exe
-            target/${{ matrix.target }}/release/**/*.exe
-          fail_on_unmatched_files: false
+          files: release/*
+          fail_on_unmatched_files: true
           overwrite: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

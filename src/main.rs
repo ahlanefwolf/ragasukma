@@ -7,6 +7,7 @@ mod engine;
 mod llm;
 pub mod native;
 pub mod skills;
+pub mod system_actions;
 mod tray;
 
 use anyhow::Result;
