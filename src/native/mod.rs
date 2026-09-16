@@ -16,13 +16,13 @@ pub fn run_native_overlay() {
         #[cfg(target_os = "linux")]
         {
             // Coba bangun event loop standar (Wayland jika tersedia), jika Wayland NoCompositor, fallback otomatis ke X11
-            EventLoopBuilder::new()
+            EventLoopBuilderExtX11::with_any_thread(&mut EventLoopBuilder::new(), true)
                 .build()
                 .or_else(|_| {
                     println!("⚠️ [Wayland] Tidak terdeteksi atau koneksi ditolak, fallback ke X11 backend...");
-                    EventLoopBuilder::new()
-                        .with_x11()
-                        .build()
+                    let mut b = EventLoopBuilder::new();
+                    EventLoopBuilderExtX11::with_any_thread(&mut b, true);
+                    b.with_x11().build()
                 })
                 .expect("Gagal membuat winit event loop (Wayland & X11 fallback)")
         }

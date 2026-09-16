@@ -16,13 +16,26 @@ use config::AppConfig;
 use engine::AppSession;
 
 fn main() -> Result<()> {
-    // Pastikan stack size default aman untuk worker threads di lingkungan Linux AppImage
-    if std::env::var("RUST_MIN_STACK").is_err() {
-        unsafe {
-            std::env::set_var("RUST_MIN_STACK", "33554432"); // 32 MB
+    // Jalankan seluruh aplikasi di dalam Dedicated Primary Thread berkapasitas 64 MB Stack
+    // untuk mengeliminasi sepenuhnya limitasi stack bawaan Linux AppImage / FUSE runtime.
+    let main_thread = std::thread::Builder::new()
+        .name("ragasukma-main".to_string())
+        .stack_size(64 * 1024 * 1024) // 64 MB Heap-allocated stack
+        .spawn(|| -> Result<()> {
+            run_ragasukma_app()
+        })
+        .expect("Gagal membuat main application thread");
+
+    match main_thread.join() {
+        Ok(res) => res,
+        Err(e) => {
+            eprintln!("❌ Ragasukma thread panicked: {:?}", e);
+            std::process::exit(1);
         }
     }
+}
 
+fn run_ragasukma_app() -> Result<()> {
     // 🔒 Single Instance Check: Cegah aplikasi dibuka ganda
     let server_port = 42128;
     let single_instance_check = std::net::TcpListener::bind(("127.0.0.1", server_port));
@@ -44,7 +57,8 @@ fn main() -> Result<()> {
 
     // Perbesar stack size session thread agar aman di AppImage/portable Linux
     let session_thread = std::thread::Builder::new()
-        .stack_size(8 * 1024 * 1024) // 8 MB stack
+        .name("ragasukma-session".to_string())
+        .stack_size(16 * 1024 * 1024) // 16 MB stack
         .spawn(move || {
             if let Ok(mut session) = AppSession::new(config_clone) {
                 let _ = session.run_interactive_menu();
@@ -52,7 +66,7 @@ fn main() -> Result<()> {
         })
         .expect("Gagal membuat session thread");
 
-    // Jalankan 3D VRM Native Overlay di main thread (winit EventLoop memerlukan main thread)
+    // Jalankan 3D VRM Native Overlay
     native::run_native_overlay();
 
     let _ = session_thread.join();
