@@ -50,7 +50,9 @@ pub fn install_ytdlp() -> Result<String, String> {
         let mut cmd = Command::new("pip");
         cmd.args(["install", "-U", "yt-dlp"])
             .env_remove("PYTHONHOME")
-            .env_remove("PYTHONPATH");
+            .env_remove("PYTHONPATH")
+            .env_remove("LD_LIBRARY_PATH")
+            .env_remove("LD_PRELOAD");
         let out = cmd
             .output()
             .map_err(|e| format!("Gagal jalankan pip: {}", e))?;
@@ -61,7 +63,9 @@ pub fn install_ytdlp() -> Result<String, String> {
             let mut cmd2 = Command::new("pip3");
             cmd2.args(["install", "-U", "yt-dlp"])
                 .env_remove("PYTHONHOME")
-                .env_remove("PYTHONPATH");
+                .env_remove("PYTHONPATH")
+                .env_remove("LD_LIBRARY_PATH")
+                .env_remove("LD_PRELOAD");
             let out2 = cmd2
                 .output()
                 .map_err(|e| format!("Gagal jalankan pip3: {}", e))?;
@@ -215,9 +219,12 @@ fn ytdlp_command() -> Command {
         }
     };
 
-    // Bersihkan environment variables Python yang dibajak oleh wrapper Linux AppImage
+    // Bersihkan environment variables yang dibajak oleh wrapper Linux AppImage
+    // agar yt-dlp / Python menggunakan dynamic library asli milik OS host
     cmd.env_remove("PYTHONHOME");
     cmd.env_remove("PYTHONPATH");
+    cmd.env_remove("LD_LIBRARY_PATH");
+    cmd.env_remove("LD_PRELOAD");
     cmd
 }
 
