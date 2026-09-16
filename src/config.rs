@@ -195,13 +195,7 @@ pub fn get_config_file_path() -> PathBuf {
         return p_assets;
     }
 
-    let p = get_app_config_dir().join("config-ai.json");
-    if !p.exists() {
-        // Tulis default config agar direktori tidak kosong
-        let default_cfg = UserConfig::default();
-        let _ = save_user_config(&default_cfg);
-    }
-    p
+    get_app_config_dir().join("config-ai.json")
 }
 
 pub fn load_user_config() -> UserConfig {
@@ -214,12 +208,17 @@ pub fn load_user_config() -> UserConfig {
         }
     }
 
-    // Default configuration jika belum ada config-ai.json
-    UserConfig::default()
+    // Default configuration jika belum ada config-ai.json (simpan sekali tanpa memanggil loop)
+    let default_cfg = UserConfig::default();
+    let _ = save_user_config(&default_cfg);
+    default_cfg
 }
 
 pub fn save_user_config(cfg: &UserConfig) -> Result<(), String> {
     let path = get_config_file_path();
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
     let json = serde_json::to_string_pretty(cfg).map_err(|e| e.to_string())?;
 
     // Atomic write menggunakan file temporary + rename agar aman dari race condition
