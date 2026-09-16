@@ -25,7 +25,7 @@ mod stack_fix {
 
     const RLIMIT_STACK: i32 = 3;
 
-    extern "C" {
+    unsafe extern "C" {
         fn getrlimit(resource: i32, rlim: *mut Rlimit) -> i32;
         fn setrlimit(resource: i32, rlim: *const Rlimit) -> i32;
     }
