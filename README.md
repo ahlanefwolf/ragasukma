@@ -68,9 +68,9 @@ Untuk menjalankan Ragasukma dengan lancar menggunakan akselerasi grafis WGPU 3D 
 
 ### 1. Download & Pasang
 Unduh file installer resmi sesuai sistem operasi kamu di halaman [**GitHub Releases**](https://github.com/ahlanefwolf/ragasukma/releases):
-- **Linux**: File paket `.deb` (Debian/Ubuntu) atau `.rpm` (Fedora/RHEL)
-- **Windows**: File installer `.exe`
-- **macOS**: File `.dmg`
+- **Linux**: File portable **`.AppImage`** (Universal untuk Ubuntu, Fedora, Arch Linux, Debian, openSUSE, dll)
+- **Windows**: File installer **`.exe`**
+- **macOS**: File **`.dmg`**
 
 ### 2. Jalankan Ragasukma
 1. Buka aplikasi **Ragasukma**.
