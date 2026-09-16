@@ -139,14 +139,14 @@ fn extract_image_rgba(
 }
 
 impl VrmModelData {
-    pub fn load_from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+    pub fn load_from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Box<Self>> {
         let path_buf = path.as_ref().to_path_buf();
 
         // Eksekusi parsing VRM & Texture Decoding di thread khusus ber-stack 32MB untuk mencegah stack overflow
         let handle = std::thread::Builder::new()
             .name("vrm-loader-worker".to_string())
             .stack_size(32 * 1024 * 1024)
-            .spawn(move || Self::load_from_file_internal(path_buf))?;
+            .spawn(move || Self::load_from_file_internal(path_buf).map(Box::new))?;
 
         match handle.join() {
             Ok(res) => res,

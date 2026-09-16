@@ -34,7 +34,7 @@ pub struct Renderer {
     cached_global_transforms: Vec<glam::Mat4>,
     cached_bone_uniform: Box<BoneMatricesUniform>,
 
-    model_data: Option<VrmModelData>,
+    model_data: Option<Box<VrmModelData>>,
     gpu_primitives: Vec<GpuPrimitive>,
     gpu_materials: Vec<GpuMaterial>,
 
@@ -284,7 +284,7 @@ impl Renderer {
         }
     }
 
-    pub fn load_vrm_model(&mut self, model: VrmModelData) {
+    pub fn load_vrm_model(&mut self, model: Box<VrmModelData>) {
         let loaded = pipeline_3d::load_vrm_model_to_gpu(
             &self.device,
             &self.queue,
@@ -313,7 +313,7 @@ impl Renderer {
             &self.queue,
             &self.camera_buffer,
             &self.bone_buffer,
-            self.model_data.as_ref(),
+            self.model_data.as_deref(),
             self.model_min_y,
             self.model_max_y,
             self.config.width as f32,

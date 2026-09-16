@@ -383,14 +383,14 @@ pub struct LoadedVrmGpu {
     pub min_y: f32,
     pub max_y: f32,
     pub max_extent_x: f32,
-    pub model: VrmModelData,
+    pub model: Box<VrmModelData>,
 }
 
 pub fn load_vrm_model_to_gpu(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     pipeline: &wgpu::RenderPipeline,
-    mut model: VrmModelData,
+    mut model: Box<VrmModelData>,
 ) -> LoadedVrmGpu {
     let material_bind_group_layout = pipeline.get_bind_group_layout(2);
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
