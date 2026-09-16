@@ -14,7 +14,9 @@ import {
   Headphones,
   Download,
   ExternalLink,
-  X
+  X,
+  Zap,
+  ZapOff
 } from 'lucide-solid';
 import { api, AppStatePayload } from '../api';
 
@@ -29,13 +31,13 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
   const [isPaused, setIsPaused] = createSignal(false);
   const [voiceMuted, setVoiceMuted] = createSignal(false);
   const [micMuted, setMicMuted] = createSignal(false);
+  const [voiceInterruption, setVoiceInterruption] = createSignal(true);
   const [isUpdating, setIsUpdating] = createSignal(false);
   const [assistantName, setAssistantName] = createSignal('Laras');
   const [ttsEngineName, setTtsEngineName] = createSignal('Google TTS');
   const [micLevel, setMicLevel] = createSignal(0);
   const [micBars, setMicBars] = createSignal<number[]>(new Array(24).fill(0));
-  const [micActive, setMicActive] = createSignal(false);
-  const [isMonitoring, setIsMonitoring] = createSignal(false);
+  const [micActive, setMicActive] = createSignal(true);
   const [micSensitivity, setMicSensitivity] = createSignal('3');
   const [noiseReductionLevel, setNoiseReductionLevel] = createSignal(0);
   const [updateModalOpen, setUpdateModalOpen] = createSignal(false);
@@ -47,8 +49,6 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     releaseNotes: string;
     releaseUrl: string;
   } | null>(null);
-  let monitorGainRef: GainNode | null = null;
-  let audioCtxRef: AudioContext | null = null;
 
   const vadThresholdPercent = () => {
     switch (micSensitivity().trim()) {
@@ -83,111 +83,82 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       setTtsEngineName(`${cfg.tts_engine.toUpperCase()} (${cfg.tts_lang})`);
       setMicSensitivity(cfg.mic_sensitivity || '3');
       setNoiseReductionLevel(cfg.noise_reduction_level || 0);
+      setVoiceInterruption(cfg.voice_interruption ?? true);
     }
 
-    const unsubscribe = api.subscribeState((state) => {
-      if (state) {
-        props.setCurrentState(state.state);
-        setIsRunning(state.is_running);
-        setIsPaused(state.is_paused);
-        setVoiceMuted(state.voice_muted);
-        setMicMuted(state.mic_muted);
+    // Ambil initial state kontrol 1x via GET /api/state
+    const initState = await api.getState();
+    if (initState) {
+      setIsRunning(initState.is_running);
+      setIsPaused(initState.is_paused);
+      setVoiceMuted(initState.voice_muted);
+      setMicMuted(initState.mic_muted);
+      if (initState.state) {
+        props.setCurrentState(initState.state);
+      }
+    }
+
+    const barsBuffer = new Array<number>(24).fill(0);
+    let targetMicLevel = 0;
+    let currentLerpLevel = 0;
+    let rafId: number | null = null;
+
+    // 1. Global AI State Stream
+    const unsubscribeState = api.subscribeState((payload) => {
+      if (payload?.state) {
+        props.setCurrentState(payload.state);
       }
     });
 
-    // Real-time Mic Level Analyser via Web Audio API + Realtime DSP High-Pass Filter Sync
-    let audioCtx: AudioContext | null = null;
-    let analyser: AnalyserNode | null = null;
-    let filter: BiquadFilterNode | null = null;
-    let source: MediaStreamAudioSourceNode | null = null;
-    let stream: MediaStream | null = null;
-    let animId: number | null = null;
+    // 2. Realtime Mic Spectrum Level Stream (~16 FPS update dari backend)
+    const unsubscribeMic = api.subscribeMicLevel((lvl) => {
+      targetMicLevel = micMuted() ? 0 : lvl;
+    });
 
-    const initMic = async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 64;
-        analyser.smoothingTimeConstant = 0.5;
-        source = audioCtx.createMediaStreamSource(stream);
-
-        // Terapkan DSP High-Pass Filter real-time jika noise_reduction_level aktif (120Hz - 150Hz)
-        if (noiseReductionLevel() > 0) {
-          filter = audioCtx.createBiquadFilter();
-          filter.type = 'highpass';
-          filter.frequency.value = noiseReductionLevel() === 1 ? 120 : 150;
-          source.connect(filter);
-          filter.connect(analyser);
-        } else {
-          source.connect(analyser);
+    // 3. 60 FPS RequestAnimationFrame Loop (Lerp / Interpolasi Mulus)
+    const renderLoop = () => {
+      if (micMuted()) {
+        targetMicLevel = 0;
+        currentLerpLevel = 0;
+        setMicLevel(0);
+        barsBuffer.fill(0);
+        setMicBars([...barsBuffer]);
+      } else {
+        // Attack / Decay Lerp: naik cepat (attack ~0.35), turun halus (decay ~0.18)
+        const lerpFactor = targetMicLevel > currentLerpLevel ? 0.35 : 0.18;
+        currentLerpLevel += (targetMicLevel - currentLerpLevel) * lerpFactor;
+        if (Math.abs(targetMicLevel - currentLerpLevel) < 0.2) {
+          currentLerpLevel = targetMicLevel;
         }
 
-        // Setup Loopback Gain Node untuk fitur Review / Monitor Real-time Suara DSP
-        const monitorGain = audioCtx.createGain();
-        monitorGain.gain.value = 0.0; // Default Muted
-        if (filter) {
-          filter.connect(monitorGain);
-        } else {
-          source.connect(monitorGain);
+        const displayLevel = Math.round(currentLerpLevel);
+        setMicLevel(displayLevel);
+
+        // Dynamic 60 FPS organic spectrum bars
+        const now = Date.now();
+        for (let i = 0; i < 24; i++) {
+          const bell = Math.sin((i / 23) * Math.PI);
+          const noise = (Math.sin(i * 3.7 + now / 120) + 1) * 0.5;
+          const barH = Math.min(100, Math.round(currentLerpLevel * (0.4 + 0.6 * bell * (0.7 + 0.3 * noise))));
+          barsBuffer[i] = barH;
         }
-        monitorGain.connect(audioCtx.destination);
-        monitorGainRef = monitorGain;
-        audioCtxRef = audioCtx;
-
-        setMicActive(true);
-
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        const barsBuffer = new Array<number>(24).fill(0);
-        let lastUpdateTime = 0;
-
-        const updateLevel = (timestamp: number) => {
-          if (!analyser) return;
-
-          // Throttle visualizer UI update ke ~30 FPS dan skip saat browser tab di background
-          if (!document.hidden && timestamp - lastUpdateTime >= 33) {
-            lastUpdateTime = timestamp;
-
-            if (micMuted()) {
-              setMicLevel(0);
-              barsBuffer.fill(0);
-              setMicBars([...barsBuffer]);
-            } else {
-              analyser.getByteFrequencyData(dataArray);
-              let sum = 0;
-              const step = Math.floor(bufferLength / 24) || 1;
-              for (let i = 0; i < 24; i++) {
-                const val = dataArray[i * step] || 0;
-                const norm = Math.min(100, Math.round((val / 255) * 100));
-                barsBuffer[i] = norm;
-                sum += val;
-              }
-              const avg = sum / (bufferLength || 1);
-              const percent = Math.min(100, Math.round((avg / 120) * 100));
-              setMicLevel(percent);
-              setMicBars([...barsBuffer]);
-            }
-          }
-          animId = requestAnimationFrame(updateLevel);
-        };
-        animId = requestAnimationFrame(updateLevel);
-      } catch (e) {
-        console.warn('Microphone access for visualizer:', e);
-        setMicActive(false);
+        setMicBars([...barsBuffer]);
       }
+
+      rafId = requestAnimationFrame(renderLoop);
     };
 
-    initMic();
+    rafId = requestAnimationFrame(renderLoop);
+    setMicActive(true);
 
     onCleanup(() => {
-      unsubscribe();
-      if (animId) cancelAnimationFrame(animId);
-      if (source) source.disconnect();
-      if (audioCtx) audioCtx.close();
-      if (stream) {
-        stream.getTracks().forEach((t) => t.stop());
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
       }
+      try {
+        unsubscribeState();
+        unsubscribeMic();
+      } catch {}
     });
   });
 
@@ -216,33 +187,39 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
 
   const toggleAssistant = async () => {
     const nextRunning = !isRunning();
-    await syncState(props.currentState, nextRunning, false, voiceMuted(), micMuted());
-    props.showToast(nextRunning ? 'Voice Assistant diaktifkan' : 'Voice Assistant dihentikan (Standby)');
-  };
-
-  const toggleMonitor = () => {
-    const next = !isMonitoring();
-    setIsMonitoring(next);
-    if (monitorGainRef && audioCtxRef) {
-      monitorGainRef.gain.setValueAtTime(next ? 1.0 : 0.0, audioCtxRef.currentTime);
+    setIsRunning(nextRunning);
+    if (nextRunning) {
+      await api.sendCommand('start_chat');
+      props.showToast('Voice Assistant diaktifkan');
+    } else {
+      await api.sendCommand('stop_chat');
+      props.showToast('Voice Assistant dihentikan (Standby)');
     }
-    props.showToast(
-      next
-        ? '🎧 Audio Monitor Aktif (Gunakan headphone untuk hindari feedback/gema)'
-        : 'Audio Monitor Dimatikan'
-    );
   };
 
   const toggleVoice = async () => {
     const next = !voiceMuted();
-    await syncState(props.currentState, isRunning(), isPaused(), next, micMuted());
+    setVoiceMuted(next);
+    await api.sendCommand(next ? 'mute_voice' : 'unmute_voice');
     props.showToast(next ? 'Suara TTS Dinonaktifkan' : 'Suara TTS Diaktifkan');
   };
 
   const toggleMic = async () => {
     const next = !micMuted();
-    await syncState(props.currentState, isRunning(), isPaused(), voiceMuted(), next);
+    setMicMuted(next);
+    await api.sendCommand(next ? 'mute_mic' : 'unmute_mic');
     props.showToast(next ? 'Mikrofon STT Dinonaktifkan' : 'Mikrofon STT Diaktifkan');
+  };
+
+  const toggleVoiceInterruption = async () => {
+    const next = !voiceInterruption();
+    setVoiceInterruption(next);
+    const cfg = await api.getConfig();
+    if (cfg) {
+      cfg.voice_interruption = next;
+      await api.saveConfig(cfg);
+      props.showToast(next ? '⚡ Interupsi Suara (Barge-in) Aktif' : '🔇 Interupsi Suara Nonaktif');
+    }
   };
 
   const CURRENT_APP_VERSION = 'v0.1.2';
@@ -298,115 +275,145 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     props.showToast('Memory session & context AI berhasil di-reset');
   };
 
-  const handleRestartEngine = async () => {
-    await syncState('idle', false, false);
-    props.showToast('Sinkronisasi & reload state engine 3D selesai');
-  };
-
   return (
-    <div class="space-y-6">
-      {/* Top Banner Status Header */}
-      <div class="rounded-2xl bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg p-4 sm:p-6 border border-theme-border flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-theme-rose/20 text-theme-rose border border-theme-rose/30">
-              Menu Kontrol Utama
-            </span>
-            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold font-mono bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30 uppercase">
-              State: {props.currentState}
-            </span>
-          </div>
-          <h2 class="text-2xl sm:text-3xl font-carter tracking-wide text-theme-text mt-2">
-            RAGASUKMA - {assistantName().toUpperCase()}
-          </h2>
-          <p class="text-xs sm:text-sm text-theme-text/70 mt-1 max-w-lg">
-            Kendalikan status percakapan, mikrofon, pemutaran suara TTS, dan fungsi sinkronisasi engine 3D native.
-          </p>
-        </div>
-
-        {/* State Indicator Pill */}
-        <div class="p-3.5 sm:p-4 rounded-xl bg-theme-bg border border-theme-border flex items-center gap-3.5 sm:gap-4 shrink-0">
-          <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-theme-card flex items-center justify-center text-theme-cyan">
-            <Bot size={22} />
-          </div>
+    <div class="space-y-4">
+      {/* 1. Hero Status & Master Control Card */}
+      <div class="rounded-2xl bg-gradient-to-br from-theme-card via-theme-surface to-theme-bg p-5 sm:p-6 border border-theme-border shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <span class="text-[11px] text-theme-text/50 block">Voice Engine</span>
-            <span class="text-sm font-bold text-theme-text">{ttsEngineName()}</span>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono bg-theme-rose/20 text-theme-rose border border-theme-rose/30 uppercase tracking-wide">
+                {assistantName()}
+              </span>
+              <span class={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase ${
+                isRunning() ? 'bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30' : 'bg-theme-text/10 text-theme-text/50'
+              }`}>
+                ● {props.currentState}
+              </span>
+            </div>
+            <h2 class="text-xl sm:text-2xl font-carter tracking-wide text-theme-text mt-1">
+              VOICE ASSISTANT OVERLAY
+            </h2>
+          </div>
+
+          {/* Quick Actions (Reset & Update) */}
+          <div class="flex items-center gap-2">
+            <button
+              onClick={handleResetSession}
+              title="Reset AI Session Memory"
+              class="px-3 py-2 rounded-xl text-xs font-semibold bg-theme-bg hover:bg-theme-card text-theme-text/80 hover:text-theme-text border border-theme-border flex items-center gap-1.5 transition-all"
+            >
+              <RotateCcw size={14} />
+              <span class="hidden sm:inline">Reset AI</span>
+            </button>
+
+            <button
+              onClick={handleCheckUpdate}
+              disabled={isUpdating()}
+              title="Cek Pembaruan Ragasukma"
+              class="px-3 py-2 rounded-xl text-xs font-semibold bg-theme-bg hover:bg-theme-card text-theme-text/80 hover:text-theme-cyan border border-theme-border flex items-center gap-1.5 transition-all"
+            >
+              <RefreshCw size={14} class={isUpdating() ? 'animate-spin text-theme-cyan' : ''} />
+              <span class="hidden sm:inline">{isUpdating() ? 'Cek...' : 'Update'}</span>
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* 1. Kontrol Voice Assistant */}
-      <div class="p-4 sm:p-6 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
-          <Sparkles size={18} />
-          1. KONTROL VOICE ASSISTANT
-        </h3>
+        {/* Master Action Button */}
+        <button
+          onClick={toggleAssistant}
+          class={`w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl font-bold text-sm sm:text-base transition-all shadow-md ${
+            isRunning()
+              ? 'bg-theme-card hover:bg-theme-rose/20 text-theme-rose border border-theme-rose/50 shadow-rose-900/20'
+              : 'bg-theme-cyan hover:bg-[#68cbdd] text-theme-card anime-shadow-green'
+          }`}
+        >
+          {isRunning() ? (
+            <>
+              <Square size={18} class="fill-current" />
+              <span>Hentikan Voice Assistant</span>
+            </>
+          ) : (
+            <>
+              <Play size={18} class="fill-current" />
+              <span>Mulai / Aktifkan Voice Assistant</span>
+            </>
+          )}
+        </button>
 
-        <div>
+        {/* Quick Toggles: TTS, STT & Voice Interruption */}
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
           <button
-            onClick={toggleAssistant}
-            class={`w-full flex items-center justify-center gap-3 p-4 rounded-xl font-bold text-sm sm:text-base transition-all shadow-md ${
-              isRunning()
-                ? 'bg-theme-card hover:bg-theme-rose/20 text-theme-rose border border-theme-rose/50'
-                : 'bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card anime-shadow-green'
+            onClick={toggleVoice}
+            class={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs sm:text-sm font-semibold transition-all ${
+              voiceMuted()
+                ? 'bg-theme-bg border-theme-rose/60 text-theme-rose'
+                : 'bg-theme-card border-theme-border hover:border-theme-cyan/50 text-theme-text'
             }`}
           >
-            {isRunning() ? (
-              <>
-                <Square size={18} class="fill-current" />
-                <span>Hentikan Voice Assistant</span>
-              </>
-            ) : (
-              <>
-                <Play size={18} class="fill-current" />
-                <span>Mulai / Aktifkan Voice Assistant</span>
-              </>
-            )}
+            {voiceMuted() ? <VolumeX size={16} class="shrink-0" /> : <Volume2 size={16} class="text-theme-cyan shrink-0" />}
+            <span class="truncate">{voiceMuted() ? 'TTS: Muted' : 'TTS: Aktif'}</span>
+          </button>
+
+          <button
+            onClick={toggleMic}
+            class={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs sm:text-sm font-semibold transition-all ${
+              micMuted()
+                ? 'bg-theme-bg border-theme-rose/60 text-theme-rose'
+                : 'bg-theme-card border-theme-border hover:border-theme-cyan/50 text-theme-text'
+            }`}
+          >
+            {micMuted() ? <MicOff size={16} class="shrink-0" /> : <Mic size={16} class="text-theme-cyan shrink-0" />}
+            <span class="truncate">{micMuted() ? 'Mic: Muted' : 'Mic: Aktif'}</span>
+          </button>
+
+          <button
+            onClick={toggleVoiceInterruption}
+            title={voiceInterruption() ? 'Fitur Interupsi Aktif: Kamu bisa langsung memotong saat AI berbicara' : 'Fitur Interupsi Nonaktif: AI akan menyelesaikan seluruh responnya'}
+            class={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs sm:text-sm font-semibold transition-all ${
+              voiceInterruption()
+                ? 'bg-theme-card border-theme-cyan/50 text-theme-cyan shadow-[0_0_10px_rgba(123,223,242,0.15)]'
+                : 'bg-theme-bg border-theme-border text-theme-text/50 hover:text-theme-text'
+            }`}
+          >
+            {voiceInterruption() ? <Zap size={16} class="shrink-0 fill-current" /> : <ZapOff size={16} class="shrink-0" />}
+            <span class="truncate">{voiceInterruption() ? 'Interupsi: ON' : 'Interupsi: OFF'}</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Realtime Mic Input Level (VU Meter) */}
-      <div class="p-4 sm:p-6 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
-              <Mic size={18} />
-              2. REALTIME INPUT MIKROFON (VU METER)
-            </h3>
-            <div class="flex flex-wrap items-center gap-2 text-xs text-theme-text/60 mt-0.5 font-mono">
-              <span>{sensitivityLabel()}</span>
-              <span>•</span>
-              <span>
-                DSP Filter: {noiseReductionLevel() === 0 ? 'Nonaktif' : noiseReductionLevel() === 1 ? 'Ringan (120Hz)' : 'Agresif (150Hz)'}
-              </span>
-            </div>
+      {/* 2. Realtime Input Mikrofon (VU Meter) */}
+      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-3.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <Mic size={18} class="text-theme-cyan" />
+            <span class="text-sm sm:text-base font-bold text-theme-text">Realtime Spectrum & VAD Input</span>
+            <span class="text-[11px] text-theme-text/50 font-mono hidden sm:inline">({sensitivityLabel()})</span>
           </div>
 
           <div class="flex items-center gap-2">
-            <span class={`text-[11px] sm:text-xs px-2.5 py-0.5 rounded-full font-bold uppercase font-mono ${
+            <span class={`text-[11px] px-2.5 py-0.5 rounded-full font-bold uppercase font-mono ${
               micMuted()
                 ? 'bg-theme-rose/20 text-theme-rose'
                 : micLevel() > vadThresholdPercent()
                 ? 'bg-theme-cyan/20 text-theme-cyan'
-                : 'bg-theme-text/10 text-theme-text/60'
+                : 'bg-theme-text/10 text-theme-text/50'
             }`}>
-              {micMuted() ? 'MUTED' : micLevel() > vadThresholdPercent() ? 'VOICE DETECTED' : 'QUIET'}
+              {micMuted() ? 'MUTED' : micLevel() > vadThresholdPercent() ? 'VOICE DETECTED' : 'STANDBY'}
             </span>
-            <span class="text-xs sm:text-sm font-mono font-bold text-theme-text">
+            <span class="text-sm font-mono font-bold text-theme-text min-w-[36px] text-right">
               {micMuted() ? '0%' : `${micLevel()}%`}
             </span>
           </div>
         </div>
 
-        {/* Dynamic Spectrum Equalizer Bars */}
-        <div class="flex items-end justify-between gap-1 h-12 px-3 py-2 bg-theme-bg rounded-xl border border-theme-border">
-          {micBars().map((height, idx) => (
+        {/* Dynamic Equalizer Waveform Bars - Enhanced Height */}
+        <div class="flex items-end justify-between gap-1.5 h-20 sm:h-24 px-3 py-2.5 bg-theme-bg rounded-xl border border-theme-border/80 shadow-inner">
+          {micBars().map((height) => (
             <div
-              class="flex-1 rounded-t-sm transition-all duration-75"
+              class="flex-1 rounded-t transition-all duration-75"
               style={{
-                height: micMuted() ? '3px' : `${Math.max(4, height)}%`,
+                height: micMuted() ? '4px' : `${Math.max(5, height)}%`,
                 'background-color':
                   micMuted()
                     ? 'var(--border)'
@@ -415,146 +422,42 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                     : height > 35
                     ? 'var(--cyan)'
                     : '#4ECDC4',
-                opacity: micMuted() ? '0.3' : '0.9',
+                'box-shadow': !micMuted() && height > 35 ? '0 0 8px rgba(123, 223, 242, 0.35)' : 'none',
+                opacity: micMuted() ? '0.3' : '0.95',
               }}
             />
           ))}
         </div>
 
-        {/* Progress Bar with Peak & Dynamic VAD Activation Threshold Marker */}
-        <div class="space-y-1.5">
-          <div class="relative h-4 w-full bg-theme-bg rounded-full overflow-hidden border border-theme-border p-0.5">
-            {/* Dynamic VAD Threshold Line Marker based on config */}
+        {/* Progress Bar with Peak & Dynamic VAD Marker */}
+        <div class="space-y-2 pt-1">
+          <div class="relative h-5 w-full bg-theme-bg rounded-xl overflow-hidden border border-theme-border p-0.5 shadow-inner">
+            {/* Dynamic VAD Threshold Marker */}
             <div
-              class="absolute top-0 bottom-0 w-0.5 bg-theme-text/60 shadow-[0_0_4px_var(--text)] z-10"
+              class="absolute top-0 bottom-0 w-1 bg-theme-text shadow-[0_0_8px_var(--text)] z-10"
               style={{ left: `${vadThresholdPercent()}%` }}
               title={`Batas Trigger VAD (${vadThresholdPercent()}%)`}
             />
             {/* Active Level Fill Bar */}
             <div
-              class="h-full rounded-full transition-all duration-75 shadow-sm"
+              class="h-full rounded-lg transition-all duration-75 flex items-center justify-end pr-2 text-[11px] font-mono font-bold text-theme-card"
               style={{
                 width: micMuted() ? '0%' : `${micLevel()}%`,
                 'background-color':
                   micLevel() > 80 ? 'var(--rose)' : micLevel() > vadThresholdPercent() ? 'var(--cyan)' : '#4ECDC4',
-                'box-shadow': micLevel() > vadThresholdPercent() ? '0 0 10px rgba(123, 223, 242, 0.5)' : 'none',
               }}
-            />
-          </div>
-          <div class="flex justify-between text-[10px] font-mono text-theme-text/40 px-1">
-            <span>0%</span>
-            <span class="text-theme-cyan/80">Batas Trigger VAD: {vadThresholdPercent()}%</span>
-            <span>100%</span>
-          </div>
-        </div>
-
-        {/* Real-time Audio Passthrough Loopback Toggle */}
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3 border-t border-theme-border/60">
-          <div class="flex items-center gap-2 text-xs text-theme-text/60">
-            <Headphones size={15} class={isMonitoring() ? 'text-theme-cyan animate-pulse shrink-0' : 'text-theme-text/40 shrink-0'} />
-            <span class="text-[11px] sm:text-xs">Review Passthrough (Dengarkan hasil filter DSP ke headphone)</span>
-          </div>
-
-          <button
-            onClick={toggleMonitor}
-            class={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 shadow-sm ${
-              isMonitoring()
-                ? 'bg-theme-cyan border-theme-cyan text-theme-card anime-shadow-green'
-                : 'bg-theme-bg border-theme-border text-theme-text/70 hover:text-theme-text hover:border-theme-cyan/50'
-            }`}
-          >
-            {isMonitoring() ? <Volume2 size={14} /> : <VolumeX size={14} />}
-            <span>{isMonitoring() ? 'DSP Monitor: ON' : 'DSP Monitor: OFF'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 3. Toggle Audio & Input */}
-      <div class="p-4 sm:p-6 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-carter text-theme-rose flex items-center gap-2">
-          <Volume2 size={18} />
-          3. TOGGLE SUARA & MIKROFON
-        </h3>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <button
-            onClick={toggleVoice}
-            class={`flex items-center justify-between p-3.5 sm:p-4 rounded-xl border font-bold text-sm transition-all ${
-              voiceMuted()
-                ? 'bg-theme-card border-theme-rose text-theme-rose'
-                : 'bg-theme-card border-theme-cyan text-theme-cyan'
-            }`}
-          >
-            <div class="flex items-center gap-3">
-              {voiceMuted() ? <VolumeX size={20} class="shrink-0" /> : <Volume2 size={20} class="shrink-0" />}
-              <div class="text-left">
-                <span class="block text-xs sm:text-sm text-theme-text">Suara Karakter (TTS)</span>
-                <span class="text-[11px] sm:text-xs text-theme-text/60 font-normal">{voiceMuted() ? 'Muted' : 'Aktif Bersuara'}</span>
-              </div>
+            >
+              {micLevel() > 15 && !micMuted() && `${micLevel()}%`}
             </div>
-            <span class={`text-[10px] sm:text-[11px] px-2.5 py-1 rounded-full uppercase font-mono ${
-              voiceMuted() ? 'bg-theme-rose/20 text-theme-rose' : 'bg-theme-cyan/20 text-theme-cyan'
-            }`}>
-              {voiceMuted() ? 'Muted' : 'Unmuted'}
+          </div>
+
+          <div class="flex items-center justify-between text-xs sm:text-sm font-mono text-theme-text/70 px-1">
+            <span class="font-bold">0%</span>
+            <span class="px-2.5 py-0.5 rounded-md bg-theme-card border border-theme-border font-bold text-theme-cyan">
+              Batas Trigger VAD: {vadThresholdPercent()}%
             </span>
-          </button>
-
-          <button
-            onClick={toggleMic}
-            class={`flex items-center justify-between p-3.5 sm:p-4 rounded-xl border font-bold text-sm transition-all ${
-              micMuted()
-                ? 'bg-theme-card border-theme-rose text-theme-rose'
-                : 'bg-theme-card border-theme-cyan text-theme-cyan'
-            }`}
-          >
-            <div class="flex items-center gap-3">
-              {micMuted() ? <MicOff size={20} class="shrink-0" /> : <Mic size={20} class="shrink-0" />}
-              <div class="text-left">
-                <span class="block text-xs sm:text-sm text-theme-text">Input Mikrofon (STT)</span>
-                <span class="text-[11px] sm:text-xs text-theme-text/60 font-normal">{micMuted() ? 'Muted' : 'Mendengarkan'}</span>
-              </div>
-            </div>
-            <span class={`text-[10px] sm:text-[11px] px-2.5 py-1 rounded-full uppercase font-mono ${
-              micMuted() ? 'bg-theme-rose/20 text-theme-rose' : 'bg-theme-cyan/20 text-theme-cyan'
-            }`}>
-              {micMuted() ? 'Muted' : 'Active'}
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {/* 4. Tindakan Cepat (Quick Actions) */}
-      <div class="p-4 sm:p-6 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
-          <Layers size={18} />
-          4. TINDAKAN CEPAT & SISTEM
-        </h3>
-
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
-          <button
-            onClick={handleCheckUpdate}
-            disabled={isUpdating()}
-            class="flex items-center justify-center gap-2 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm font-semibold bg-theme-card hover:bg-theme-border text-theme-text border border-theme-border transition-all"
-          >
-            <RefreshCw size={16} class={isUpdating() ? 'animate-spin text-theme-cyan' : ''} />
-            <span>{isUpdating() ? 'Memeriksa...' : 'Cek Pembaruan'}</span>
-          </button>
-
-          <button
-            onClick={handleResetSession}
-            class="flex items-center justify-center gap-2 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm font-semibold bg-theme-card hover:bg-theme-border text-theme-text border border-theme-border transition-all"
-          >
-            <RotateCcw size={16} />
-            <span>Reset AI Session</span>
-          </button>
-
-          <button
-            onClick={handleRestartEngine}
-            class="flex items-center justify-center gap-2 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm font-semibold bg-theme-card hover:bg-theme-rose/20 text-theme-rose border border-theme-border transition-all"
-          >
-            <RefreshCw size={16} />
-            <span>Sync 3D Engine</span>
-          </button>
+            <span class="font-bold">100%</span>
+          </div>
         </div>
       </div>
 

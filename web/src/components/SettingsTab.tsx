@@ -1,23 +1,26 @@
-import { Component, createSignal, onMount } from 'solid-js';
+import { Component, createSignal, onMount, onCleanup } from 'solid-js';
 import { 
+  Save, 
   Brain, 
   Mic, 
-  Volume2, 
-  Monitor, 
-  Save, 
-  Upload,
-  Sparkles,
-  Image as ImageIcon,
-  CheckCircle2,
-  RefreshCw
+  Sparkles, 
+  Monitor 
 } from 'lucide-solid';
 import { api, UserConfig, AssetInfo } from '../api';
+import { PersonaAiSection } from './settings/PersonaAiSection';
+import { AudioTtsSection } from './settings/AudioTtsSection';
+import { AvatarModelSection } from './settings/AvatarModelSection';
+import { SystemOverlaySection } from './settings/SystemOverlaySection';
 
 interface SettingsTabProps {
   showToast: (msg: string) => void;
 }
 
+type SettingsSubTab = 'persona_ai' | 'audio_tts' | 'avatar_model' | 'system_overlay';
+
 export const SettingsTab: Component<SettingsTabProps> = (props) => {
+  const [activeSubTab, setActiveSubTab] = createSignal<SettingsSubTab>('persona_ai');
+
   // Assistant Persona & Call
   const [assistantName, setAssistantName] = createSignal('Laras');
   const [userCallsign, setUserCallsign] = createSignal('Mas');
@@ -31,6 +34,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
 
   // Audio & STT
   const [sttEngine, setSttEngine] = createSignal('google');
+  const [voiceInterruption, setVoiceInterruption] = createSignal(true);
   const [voiceMode, setVoiceMode] = createSignal('auto');
   const [micSensitivity, setMicSensitivity] = createSignal('2');
   const [vadSilenceLimit, setVadSilenceLimit] = createSignal('1');
@@ -52,15 +56,27 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
   const [isUploadingAvatar, setIsUploadingAvatar] = createSignal(false);
   const [selectedAvatarSlot, setSelectedAvatarSlot] = createSignal('idle');
 
+  let isComponentMounted = true;
+
+  onMount(() => {
+    isComponentMounted = true;
+    loadConfigData();
+  });
+
+  onCleanup(() => {
+    isComponentMounted = false;
+  });
+
   const loadAssetInfoData = async () => {
     const info = await api.getAssetsInfo();
-    if (info) {
+    if (isComponentMounted && info) {
       setAssetInfo(info);
     }
   };
 
   const loadConfigData = async () => {
     const cfg = await api.getConfig();
+    if (!isComponentMounted) return;
     if (cfg) {
       setAssistantName(cfg.assistant_name || 'Laras');
       setUserCallsign(cfg.user_callsign || 'Mas');
@@ -72,6 +88,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       setGroqApiKey(cfg.groq_api_key || '');
 
       setSttEngine(cfg.stt_engine || 'google');
+      setVoiceInterruption(cfg.voice_interruption !== undefined ? cfg.voice_interruption : true);
       setVoiceMode(cfg.voice_mode || 'auto');
       setMicSensitivity(cfg.mic_sensitivity || '2');
       setVadSilenceLimit(cfg.vad_silence_limit || '1');
@@ -86,7 +103,9 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       setAvatarType(cfg.avatar_type || 'vrm');
       setAlwaysOnTop(cfg.always_on_top !== undefined ? cfg.always_on_top : true);
     }
-    await loadAssetInfoData();
+    if (isComponentMounted) {
+      await loadAssetInfoData();
+    }
   };
 
   const handleVrmFileChange = async (e: Event) => {
@@ -143,6 +162,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       user_callsign: userCallsign().trim(),
       personality_role: personalityRole(),
       stt_engine: sttEngine(),
+      voice_interruption: voiceInterruption(),
       groq_api_key: groqApiKey().trim(),
       llm_base_url: llmBaseUrl().trim(),
       llm_model: llmModel().trim(),
@@ -178,10 +198,10 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
             System & Engine Preferences
           </span>
           <h2 class="text-2xl sm:text-3xl font-carter tracking-wide text-theme-text mt-2">
-            PENGATURAN LENGKAP SISTEM
+            PENGATURAN SISTEM
           </h2>
           <p class="text-xs sm:text-sm text-theme-text/70 mt-1 max-w-xl">
-            Atur persona nama, LLM Brain endpoint, sensitivitas mikrofon STT, mesin TTS, dan logging config-ai.json.
+            Kelola persona AI, sensitivitas audio, model VRM 3D/2D, serta preferensi jendela overlay.
           </p>
         </div>
 
@@ -195,443 +215,127 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         </button>
       </div>
 
-      {/* 1. Persona & Panggilan */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
-          1. PERSONA & IDENTITAS ASISTEN
-        </h3>
+      {/* Sub-Tab Navigation Bar - Segmented Precision Control */}
+      <div class="p-1.5 rounded-2xl bg-theme-surface border border-theme-border/80 grid grid-cols-2 sm:grid-cols-4 gap-1.5 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('persona_ai')}
+          class={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
+            activeSubTab() === 'persona_ai'
+              ? 'bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green border border-theme-cyan/40 scale-[1.01]'
+              : 'text-theme-text/70 hover:text-theme-text hover:bg-theme-card/80 border border-transparent'
+          }`}
+        >
+          <Brain size={16} class={activeSubTab() === 'persona_ai' ? 'text-theme-card' : 'text-theme-cyan'} />
+          <span class="truncate">Persona & AI Brain</span>
+        </button>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Nama Asisten</label>
-            <input
-              type="text"
-              value={assistantName()}
-              onInput={(e) => setAssistantName(e.currentTarget.value)}
-              placeholder="Laras"
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
-            />
-          </div>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('audio_tts')}
+          class={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
+            activeSubTab() === 'audio_tts'
+              ? 'bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green border border-theme-cyan/40 scale-[1.01]'
+              : 'text-theme-text/70 hover:text-theme-text hover:bg-theme-card/80 border border-transparent'
+          }`}
+        >
+          <Mic size={16} class={activeSubTab() === 'audio_tts' ? 'text-theme-card' : 'text-theme-rose'} />
+          <span class="truncate">Audio & TTS Voice</span>
+        </button>
 
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Panggilan Pengguna</label>
-            <input
-              type="text"
-              value={userCallsign()}
-              onInput={(e) => setUserCallsign(e.currentTarget.value)}
-              placeholder="Mas"
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
-            />
-          </div>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('avatar_model')}
+          class={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
+            activeSubTab() === 'avatar_model'
+              ? 'bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green border border-theme-cyan/40 scale-[1.01]'
+              : 'text-theme-text/70 hover:text-theme-text hover:bg-theme-card/80 border border-transparent'
+          }`}
+        >
+          <Sparkles size={16} class={activeSubTab() === 'avatar_model' ? 'text-theme-card' : 'text-theme-cyan'} />
+          <span class="truncate">Model & Avatar</span>
+        </button>
 
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Peran Kepribadian</label>
-            <select
-              value={personalityRole()}
-              onChange={(e) => setPersonalityRole(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
-            >
-              <option value="partner">Partner (Hangat & Santai)</option>
-              <option value="assistant">Assistant (Formal & Rapi)</option>
-              <option value="tsundere">Tsundere (Khas Anime)</option>
-              <option value="maid">Maid (Pelayan Santun)</option>
-            </select>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('system_overlay')}
+          class={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
+            activeSubTab() === 'system_overlay'
+              ? 'bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green border border-theme-cyan/40 scale-[1.01]'
+              : 'text-theme-text/70 hover:text-theme-text hover:bg-theme-card/80 border border-transparent'
+          }`}
+        >
+          <Monitor size={16} class={activeSubTab() === 'system_overlay' ? 'text-theme-card' : 'text-theme-rose'} />
+          <span class="truncate">Jendela & Sistem</span>
+        </button>
       </div>
 
-      {/* 2. Pengaturan AI Brain (LLM Provider) */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-carter text-theme-rose flex items-center gap-2">
-          <Brain size={18} />
-          2. AI BRAIN (LLM PROVIDER)
-        </h3>
+      {/* Sub-Tab Content Sections */}
+      {activeSubTab() === 'persona_ai' && (
+        <PersonaAiSection
+          assistantName={assistantName()}
+          setAssistantName={setAssistantName}
+          userCallsign={userCallsign()}
+          setUserCallsign={setUserCallsign}
+          personalityRole={personalityRole()}
+          setPersonalityRole={setPersonalityRole}
+          llmBaseUrl={llmBaseUrl()}
+          setLlmBaseUrl={setLlmBaseUrl}
+          llmModel={llmModel()}
+          setLlmModel={setLlmModel}
+          llmApiKey={llmApiKey()}
+          setLlmApiKey={setLlmApiKey}
+          groqApiKey={groqApiKey()}
+          setGroqApiKey={setGroqApiKey}
+        />
+      )}
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">LLM Base URL (OpenAI Compatible)</label>
-            <input
-              type="text"
-              value={llmBaseUrl()}
-              onInput={(e) => setLlmBaseUrl(e.currentTarget.value)}
-              placeholder="http://localhost:20128/v1"
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan"
-            />
-          </div>
+      {activeSubTab() === 'audio_tts' && (
+        <AudioTtsSection
+          sttEngine={sttEngine()}
+          setSttEngine={setSttEngine}
+          voiceInterruption={voiceInterruption()}
+          setVoiceInterruption={setVoiceInterruption}
+          micSensitivity={micSensitivity()}
+          setMicSensitivity={setMicSensitivity}
+          vadSilenceLimit={vadSilenceLimit()}
+          setVadSilenceLimit={setVadSilenceLimit}
+          noiseReduction={noiseReduction()}
+          setNoiseReduction={setNoiseReduction}
+          ttsEngine={ttsEngine()}
+          setTtsEngine={setTtsEngine}
+          ttsLang={ttsLang()}
+          setTtsLang={setTtsLang}
+          ttsSpeed={ttsSpeed()}
+          setTtsSpeed={setTtsSpeed}
+          ttsElevenLabsKey={ttsElevenLabsKey()}
+          setTtsElevenLabsKey={setTtsElevenLabsKey}
+          elevenLabsVoiceId={elevenLabsVoiceId()}
+          setElevenLabsVoiceId={setElevenLabsVoiceId}
+        />
+      )}
 
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Model Name</label>
-            <input
-              type="text"
-              value={llmModel()}
-              onInput={(e) => setLlmModel(e.currentTarget.value)}
-              placeholder="ag/gemini-3.8-flash-low"
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
-            />
-          </div>
-        </div>
+      {activeSubTab() === 'avatar_model' && (
+        <AvatarModelSection
+          avatarType={avatarType()}
+          setAvatarType={setAvatarType}
+          assetInfo={assetInfo()}
+          loadAssetInfoData={loadAssetInfoData}
+          isUploadingVrm={isUploadingVrm()}
+          handleVrmFileChange={handleVrmFileChange}
+          isUploadingAvatar={isUploadingAvatar()}
+          selectedAvatarSlot={selectedAvatarSlot()}
+          setSelectedAvatarSlot={setSelectedAvatarSlot}
+          handleAvatarImageChange={handleAvatarImageChange}
+        />
+      )}
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">LLM API Key (Opsional / Gateway)</label>
-            <input
-              type="password"
-              value={llmApiKey()}
-              onInput={(e) => setLlmApiKey(e.currentTarget.value)}
-              placeholder="sk-..."
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan"
-            />
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Groq API Key (Fast Whisper STT / LLM)</label>
-            <input
-              type="password"
-              value={groqApiKey()}
-              onInput={(e) => setGroqApiKey(e.currentTarget.value)}
-              placeholder="gsk_..."
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Audio & Speech-to-Text (STT) */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
-          <Mic size={18} />
-          3. AUDIO & SPEECH-TO-TEXT (STT)
-        </h3>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">STT Engine</label>
-            <select
-              value={sttEngine()}
-              onChange={(e) => setSttEngine(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
-            >
-              <option value="google">Google Cloud STT (Cepat & Akurat ID)</option>
-              <option value="groq">Groq Whisper Large v3</option>
-            </select>
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Sensitivitas VAD Mikrofon</label>
-            <select
-              value={micSensitivity()}
-              onChange={(e) => setMicSensitivity(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
-            >
-              <option value="0">0 - Ekstra Kebal (Ruangan Sangat Ramai)</option>
-              <option value="1">1 - Sangat Rendah</option>
-              <option value="2">2 - Rendah</option>
-              <option value="3">3 - Normal (Standar)</option>
-              <option value="4">4 - Tinggi (Responsif)</option>
-              <option value="5">5 - Sangat Tinggi</option>
-              <option value="6">6 - Ultra Sensitif (Bisikan)</option>
-            </select>
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Batas Jeda Hening VAD</label>
-            <select
-              value={vadSilenceLimit()}
-              onChange={(e) => setVadSilenceLimit(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
-            >
-              <option value="0">Sangat Cepat (~0.5 Detik)</option>
-              <option value="1">Cepat (~0.7 Detik)</option>
-              <option value="2">Normal (~1.0 Detik)</option>
-              <option value="3">Santai (~1.3 Detik)</option>
-              <option value="4">Panjang (~1.7 Detik)</option>
-            </select>
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Noise Reduction (DSP Filter)</label>
-            <select
-              value={noiseReduction()}
-              onChange={(e) => setNoiseReduction(parseInt(e.currentTarget.value, 10))}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
-            >
-              <option value={0}>0 - Nonaktif (Direct Mic)</option>
-              <option value={1}>1 - Ringan (High-Pass + Noise Gate)</option>
-              <option value={2}>2 - Agresif (Deep Noise Gate)</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Text-to-Speech (TTS) Voice */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-carter text-theme-rose flex items-center gap-2">
-          <Volume2 size={18} />
-          4. SUARA KARAKTER (TEXT-TO-SPEECH)
-        </h3>
-
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">TTS Engine</label>
-            <select
-              value={ttsEngine()}
-              onChange={(e) => setTtsEngine(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
-            >
-              <option value="google">Google TTS (Ringan & Cepat)</option>
-              <option value="elevenlabs">ElevenLabs Neural Voice</option>
-            </select>
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Bahasa Voice</label>
-            <select
-              value={ttsLang()}
-              onChange={(e) => setTtsLang(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
-            >
-              <option value="id">Indonesian (id)</option>
-              <option value="ja">Japanese (ja)</option>
-              <option value="en">English (en)</option>
-            </select>
-          </div>
-
-          <div class="space-y-1.5">
-            <div class="flex justify-between text-xs font-semibold text-theme-text/80">
-              <span>Kecepatan Bicara</span>
-              <span class="text-theme-cyan font-mono">{ttsSpeed().toFixed(2)}x</span>
-            </div>
-            <input
-              type="range"
-              min="0.8"
-              max="2.0"
-              step="0.05"
-              value={ttsSpeed()}
-              onInput={(e) => setTtsSpeed(parseFloat(e.currentTarget.value))}
-              class="w-full h-2 bg-theme-card rounded-lg appearance-none cursor-pointer accent-theme-cyan mt-2"
-            />
-          </div>
-        </div>
-
-        {ttsEngine() === 'elevenlabs' && (
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-theme-border">
-            <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-theme-text/80">ElevenLabs API Key</label>
-              <input
-                type="password"
-                value={ttsElevenLabsKey()}
-                onInput={(e) => setTtsElevenLabsKey(e.currentTarget.value)}
-                placeholder="sk_..."
-                class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan"
-              />
-            </div>
-
-            <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-theme-text/80">ElevenLabs Voice ID</label>
-              <input
-                type="text"
-                value={elevenLabsVoiceId()}
-                onInput={(e) => setElevenLabsVoiceId(e.currentTarget.value)}
-                placeholder="cgSgspJ2msm6clMCkdW9"
-                class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan"
-              />
-            </div>
-          </div>
-        )}
-      </div>
-      {/* 5. Avatar & Model Management */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-5">
-        <div class="flex items-center justify-between">
-          <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
-            <Sparkles size={18} />
-            5. AVATAR & MODEL ASSETS (VRM / 2D)
-          </h3>
-
-          <button
-            type="button"
-            onClick={loadAssetInfoData}
-            class="text-xs text-theme-text/60 hover:text-theme-cyan flex items-center gap-1.5 transition-colors"
-          >
-            <RefreshCw size={13} />
-            <span>Refresh Info</span>
-          </button>
-        </div>
-
-        {/* Avatar Type Selector */}
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Tipe Avatar Utama</label>
-            <select
-              value={avatarType()}
-              onChange={(e) => setAvatarType(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
-            >
-              <option value="vrm">VRM 3D Model (Native WGPU GPU Shader)</option>
-              <option value="2d">2D Image / Vector Avatar</option>
-            </select>
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Status Model Aktif</label>
-            <div class="p-2.5 rounded-xl bg-theme-card border border-theme-border flex items-center justify-between text-xs">
-              <div class="flex items-center gap-2 truncate">
-                <CheckCircle2 size={15} class="text-theme-cyan shrink-0" />
-                <span class="text-theme-text font-mono truncate">
-                  {assetInfo()?.vrm_exists ? `char.vrm (${assetInfo()?.vrm_size_mb.toFixed(2)} MB)` : 'char.vrm tidak ditemukan'}
-                </span>
-              </div>
-              <span class="text-[10px] px-2 py-0.5 rounded bg-theme-cyan/20 text-theme-cyan font-bold uppercase">
-                {assetInfo()?.vrm_exists ? 'Aktif' : 'Kosong'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* VRM 3D Model Upload Card */}
-        <div class="p-4 rounded-xl bg-theme-card border border-theme-border space-y-3">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-bold text-theme-text flex items-center gap-2">
-              <Upload size={16} class="text-theme-cyan" />
-              Upload Model VRM 3D (.vrm / .glb)
-            </span>
-            <span class="text-xs font-mono text-theme-cyan bg-theme-cyan/10 border border-theme-cyan/20 px-2 py-0.5 rounded">
-              Wajib .vrm / .glb
-            </span>
-          </div>
-
-          <p class="text-xs text-theme-text/70 leading-relaxed">
-            Format yang didukung: <strong class="text-theme-cyan">.vrm</strong> (standar VRM 0.x/1.0 dari VRoid Studio / Blender) atau <strong class="text-theme-cyan">.glb</strong>. File otomatis disimpan ke <code class="text-theme-cyan font-mono">assets/char.vrm</code> dan langsung dimuat ulang (hot-reload).
-          </p>
-
-          <div class="flex items-center gap-3 pt-1">
-            <label class="relative cursor-pointer">
-              <input
-                type="file"
-                accept=".vrm,.glb"
-                disabled={isUploadingVrm()}
-                onChange={handleVrmFileChange}
-                class="sr-only"
-              />
-              <span class={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all ${
-                isUploadingVrm()
-                  ? 'bg-theme-border text-theme-text/50 cursor-not-allowed'
-                  : 'bg-theme-cyan hover:bg-[#68cbdd] text-theme-card shadow anime-shadow-green cursor-pointer'
-              }`}>
-                <Upload size={14} />
-                <span>{isUploadingVrm() ? 'Mengunggah & Memuat...' : 'Pilih File VRM (.vrm / .glb)'}</span>
-              </span>
-            </label>
-
-            {assetInfo()?.vrm_exists && (
-              <span class="text-xs text-theme-text/60 font-mono">
-                Ukuran: {assetInfo()?.vrm_size_mb.toFixed(2)} MB
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* 2D Image Avatar Upload Card */}
-        <div class="p-4 rounded-xl bg-theme-card border border-theme-border space-y-3">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-bold text-theme-text flex items-center gap-2">
-              <ImageIcon size={16} class="text-theme-rose" />
-              Upload Gambar Avatar 2D (State-Based)
-            </span>
-            <span class="text-xs font-mono text-theme-rose bg-theme-rose/10 border border-theme-rose/20 px-2 py-0.5 rounded">
-              Format: PNG (Transparan) / JPG
-            </span>
-          </div>
-
-          <div class="p-2.5 rounded-lg bg-theme-bg border border-theme-border text-xs text-theme-text/80 leading-relaxed space-y-1">
-            <div class="flex items-center gap-1.5 font-bold text-theme-rose">
-              <span>Ketentuan Format & Gambar:</span>
-            </div>
-            <ul class="list-disc list-inside space-y-0.5 text-[11px] text-theme-text/70">
-              <li><strong class="text-theme-text">PNG Transparan (Disarankan)</strong> agar karakter tampil tanpa kotak background.</li>
-              <li>Mendukung file <strong class="text-theme-text">.png</strong>, <strong class="text-theme-text">.jpg</strong>, <strong class="text-theme-text">.jpeg</strong> (Resolusi disarankan min 512x512 px).</li>
-              <li>Setiap slot ekspresi (<code class="font-mono text-theme-cyan">idle</code>, <code class="font-mono text-theme-cyan">listening</code>, <code class="font-mono text-theme-cyan">talking</code>, <code class="font-mono text-theme-cyan">thinking</code>) dapat memiliki gambar tersendiri.</li>
-            </ul>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-theme-text/80">Pilih Slot Ekspresi</label>
-              <select
-                value={selectedAvatarSlot()}
-                onChange={(e) => setSelectedAvatarSlot(e.currentTarget.value)}
-                class="w-full bg-theme-surface border border-theme-border rounded-xl px-3 py-2 text-xs text-theme-text outline-none focus:border-theme-rose"
-              >
-                <option value="idle">Idle (Diam / Normal)</option>
-                <option value="listening">Listening (Mendengarkan)</option>
-                <option value="talking">Talking / Speaking (Bicara)</option>
-                <option value="thinking">Thinking (Berpikir)</option>
-              </select>
-            </div>
-
-            <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-theme-text/80">Pilih File (.png / .jpg / .jpeg)</label>
-              <label class="relative block cursor-pointer">
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg"
-                  disabled={isUploadingAvatar()}
-                  onChange={handleAvatarImageChange}
-                  class="sr-only"
-                />
-                <span class={`inline-flex w-full items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition-all ${
-                  isUploadingAvatar()
-                    ? 'bg-theme-border text-theme-text/50 cursor-not-allowed'
-                    : 'bg-theme-rose hover:bg-[#e4a4c4] text-theme-card shadow cursor-pointer'
-                }`}>
-                  <Upload size={14} />
-                  <span>{isUploadingAvatar() ? 'Mengunggah...' : `Unggah PNG/JPG untuk '${selectedAvatarSlot()}'`}</span>
-                </span>
-              </label>
-            </div>
-          </div>
-
-          {assetInfo()?.images && assetInfo()!.images.length > 0 && (
-            <div class="pt-2 border-t border-theme-border/60">
-              <span class="text-[11px] text-theme-text/60 block mb-1.5">File gambar tersimpan di assets/:</span>
-              <div class="flex flex-wrap gap-2">
-                {assetInfo()!.images.map((imgName) => (
-                  <span class="text-[10px] font-mono px-2 py-1 rounded bg-theme-surface border border-theme-border text-theme-cyan">
-                    {imgName}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 6. Desktop Overlay & Window Preferences */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
-          <Monitor size={18} />
-          6. DESKTOP OVERLAY & WINDOW
-        </h3>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="flex items-center justify-between p-4 rounded-xl bg-theme-card border border-theme-border">
-            <div>
-              <span class="block text-sm font-bold text-theme-text">Always On Top (Selalu di Depan)</span>
-              <span class="text-xs text-theme-text/60">Overlay 3D avatar tetap berada di atas jendela aplikasi lain</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setAlwaysOnTop(!alwaysOnTop())}
-              class={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase font-mono transition-all ${
-                alwaysOnTop()
-                  ? 'bg-theme-cyan text-theme-card shadow anime-shadow-green'
-                  : 'bg-theme-surface text-theme-text/60 border border-theme-border'
-              }`}
-            >
-              {alwaysOnTop() ? 'ON' : 'OFF'}
-            </button>
-          </div>
-        </div>
-      </div>
+      {activeSubTab() === 'system_overlay' && (
+        <SystemOverlaySection
+          alwaysOnTop={alwaysOnTop()}
+          setAlwaysOnTop={setAlwaysOnTop}
+        />
+      )}
     </form>
   );
 };

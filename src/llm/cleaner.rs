@@ -1,5 +1,5 @@
-use std::sync::LazyLock;
 use regex::Regex;
+use std::sync::LazyLock;
 
 static RE_SKILL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\[SKILL:[^\]]+\]").expect("valid regex"));

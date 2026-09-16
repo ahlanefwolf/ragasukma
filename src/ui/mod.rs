@@ -8,8 +8,6 @@ use winit::event_loop::EventLoopBuilder;
 
 #[cfg(target_os = "linux")]
 use winit::platform::x11::EventLoopBuilderExtX11;
-#[cfg(target_os = "windows")]
-use winit::platform::windows::EventLoopBuilderExtWindows;
 
 pub fn run_native_overlay() {
     println!("✨ Memulai Ragasukma 3D Native Overlay (Ultra Lightweight WGPU)...");
@@ -18,23 +16,16 @@ pub fn run_native_overlay() {
         #[cfg(target_os = "linux")]
         {
             // Coba bangun event loop standar (Wayland jika tersedia), jika Wayland NoCompositor, fallback otomatis ke X11
-            EventLoopBuilderExtX11::with_any_thread(&mut EventLoopBuilder::new(), true)
+            EventLoopBuilder::new()
                 .build()
                 .or_else(|_| {
                     println!("⚠️ [Wayland] Tidak terdeteksi atau koneksi ditolak, fallback ke X11 backend...");
                     let mut b = EventLoopBuilder::new();
-                    EventLoopBuilderExtX11::with_any_thread(&mut b, true);
                     b.with_x11().build()
                 })
                 .expect("Gagal membuat winit event loop (Wayland & X11 fallback)")
         }
-        #[cfg(target_os = "windows")]
-        {
-            EventLoopBuilderExtWindows::with_any_thread(&mut EventLoopBuilder::new(), true)
-                .build()
-                .expect("Gagal membuat winit event loop (Windows)")
-        }
-        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+        #[cfg(not(target_os = "linux"))]
         {
             EventLoopBuilder::new()
                 .build()
@@ -50,15 +41,13 @@ pub fn run_native_overlay() {
         }
     };
 
-    event_loop.run(move |event, elwt| {
-        match event {
-            Event::WindowEvent { event, .. } => {
-                app.handle_window_event(event, elwt);
-            }
-            Event::AboutToWait => {
-                app.window.request_redraw();
-            }
-            _ => {}
+    let _ = event_loop.run(move |event, elwt| match event {
+        Event::WindowEvent { event, .. } => {
+            app.handle_window_event(event, elwt);
         }
-    }).expect("Event loop error");
+        Event::AboutToWait => {
+            app.window.request_redraw();
+        }
+        _ => {}
+    });
 }

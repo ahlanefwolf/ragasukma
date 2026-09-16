@@ -14,8 +14,11 @@ interface LogsTabProps {
   showToast: (msg: string) => void;
 }
 
+// Module-level persistent cache log
+const [cachedLogs, setCachedLogs] = createSignal<LogEntry[]>([]);
+
 export const LogsTab: Component<LogsTabProps> = (props) => {
-  const [logs, setLogs] = createSignal<LogEntry[]>([]);
+  const [logs, setLogs] = createSignal<LogEntry[]>(cachedLogs());
   const [searchQuery, setSearchQuery] = createSignal('');
   const [levelFilter, setLevelFilter] = createSignal<'all' | 'info' | 'error'>('all');
   const [autoScroll, setAutoScroll] = createSignal(true);
@@ -35,6 +38,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
         // Ambil maksimal 250 log terakhir agar browser super responsif dan tidak membebani DOM
         const trimmed = data.length > 250 ? data.slice(data.length - 250) : data;
         setLogs(trimmed);
+        setCachedLogs(trimmed);
       }
     } catch {
       // ignore network errors during background polling

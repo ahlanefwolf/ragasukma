@@ -1,13 +1,11 @@
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssistantState {
     Idle,
     Listening,
-    #[allow(dead_code)]
-    Processing,
     Thinking,
     Speaking,
 }
@@ -24,7 +22,12 @@ impl TrayState {
         let current_emo = CURRENT_STATE
             .lock()
             .ok()
-            .and_then(|l| l.as_ref().and_then(|v| v.get("emotion").and_then(|e| e.as_str().map(|s| s.to_string()))))
+            .and_then(|l| {
+                l.as_ref().and_then(|v| {
+                    v.get("emotion")
+                        .and_then(|e| e.as_str().map(|s| s.to_string()))
+                })
+            })
             .unwrap_or_else(|| "neutral".to_string());
         Self::update_with_emotion(state, message, &current_emo);
     }
@@ -33,7 +36,6 @@ impl TrayState {
         let class_name = match state {
             AssistantState::Idle => "idle",
             AssistantState::Listening => "listening",
-            AssistantState::Processing => "processing",
             AssistantState::Thinking => "thinking",
             AssistantState::Speaking => "speaking",
         };
@@ -54,29 +56,36 @@ impl TrayState {
         }
 
         let visual_state = match state {
-            AssistantState::Idle => crate::native::pose_system::AssistantVisualState::Idle,
-            AssistantState::Listening => crate::native::pose_system::AssistantVisualState::Listening,
-            AssistantState::Processing | AssistantState::Thinking => crate::native::pose_system::AssistantVisualState::Thinking,
-            AssistantState::Speaking => crate::native::pose_system::AssistantVisualState::Speaking,
+            AssistantState::Idle => crate::ui::pose_system::AssistantVisualState::Idle,
+            AssistantState::Listening => crate::ui::pose_system::AssistantVisualState::Listening,
+            AssistantState::Thinking => crate::ui::pose_system::AssistantVisualState::Thinking,
+            AssistantState::Speaking => crate::ui::pose_system::AssistantVisualState::Speaking,
         };
-        crate::server::update_visual_state_with_emotion(visual_state, emotion);
+        crate::app_state::update_visual_state_with_emotion(visual_state, emotion);
     }
 
-    pub fn get_current_runtime_state() -> (crate::native::pose_system::AssistantVisualState, String) {
+    pub fn get_current_runtime_state() -> (crate::ui::pose_system::AssistantVisualState, String) {
         if let Ok(lock) = CURRENT_STATE.lock() {
             if let Some(val) = lock.as_ref() {
                 let class_str = val.get("class").and_then(|v| v.as_str()).unwrap_or("idle");
-                let emotion_str = val.get("emotion").and_then(|v| v.as_str()).unwrap_or("neutral").to_string();
+                let emotion_str = val
+                    .get("emotion")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("neutral")
+                    .to_string();
                 let visual_state = match class_str {
-                    "listening" => crate::native::pose_system::AssistantVisualState::Listening,
-                    "speaking" => crate::native::pose_system::AssistantVisualState::Speaking,
-                    "thinking" | "processing" => crate::native::pose_system::AssistantVisualState::Thinking,
-                    _ => crate::native::pose_system::AssistantVisualState::Idle,
+                    "listening" => crate::ui::pose_system::AssistantVisualState::Listening,
+                    "speaking" => crate::ui::pose_system::AssistantVisualState::Speaking,
+                    "thinking" => crate::ui::pose_system::AssistantVisualState::Thinking,
+                    _ => crate::ui::pose_system::AssistantVisualState::Idle,
                 };
                 return (visual_state, emotion_str);
             }
         }
-        (crate::native::pose_system::AssistantVisualState::Idle, "neutral".to_string())
+        (
+            crate::ui::pose_system::AssistantVisualState::Idle,
+            "neutral".to_string(),
+        )
     }
 
     pub fn emit_event(_event_name: &str, _payload: serde_json::Value) {}

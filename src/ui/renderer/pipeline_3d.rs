@@ -2,8 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
-use super::types::{BoneMatricesUniform, CameraUniform, GpuMaterial, GpuPrimitive, MaterialUniform};
-use crate::native::vrm_loader::{Vertex, VrmModelData};
+use super::types::{
+    BoneMatricesUniform, CameraUniform, GpuMaterial, GpuPrimitive, MaterialUniform,
+};
+use crate::ui::vrm_loader::{Vertex, VrmModelData};
 use glam::Mat4;
 
 pub struct Pipeline3dComponents {
@@ -18,101 +20,104 @@ pub fn create_3d_pipeline(
     device: &wgpu::Device,
     config: &wgpu::SurfaceConfiguration,
 ) -> Pipeline3dComponents {
-    let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }],
-        label: Some("camera_bind_group_layout"),
-    });
-
-    let bone_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }],
-        label: Some("bone_bind_group_layout"),
-    });
-
-    let material_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        entries: &[
-            // 0: MaterialUniform
-            wgpu::BindGroupLayoutEntry {
+    let camera_bind_group_layout =
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
                     min_binding_size: None,
                 },
                 count: None,
-            },
-            // 1: Sampler
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
-            // 2: Base Color Texture
-            wgpu::BindGroupLayoutEntry {
-                binding: 2,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+            }],
+            label: Some("camera_bind_group_layout"),
+        });
+
+    let bone_bind_group_layout =
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
                 count: None,
-            },
-            // 3: Shade Texture
-            wgpu::BindGroupLayoutEntry {
-                binding: 3,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+            }],
+            label: Some("bone_bind_group_layout"),
+        });
+
+    let material_bind_group_layout =
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                // 0: MaterialUniform
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
                 },
-                count: None,
-            },
-            // 4: Emissive Texture
-            wgpu::BindGroupLayoutEntry {
-                binding: 4,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                // 1: Sampler
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
                 },
-                count: None,
-            },
-            // 5: Matcap Texture
-            wgpu::BindGroupLayoutEntry {
-                binding: 5,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                // 2: Base Color Texture
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
                 },
-                count: None,
-            },
-        ],
-        label: Some("material_bind_group_layout"),
-    });
+                // 3: Shade Texture
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                // 4: Emissive Texture
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                // 5: Matcap Texture
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+            ],
+            label: Some("material_bind_group_layout"),
+        });
 
     let shader = device.create_shader_module(wgpu::include_wgsl!("../shader.wgsl"));
 
@@ -261,7 +266,10 @@ pub fn fast_downscale_half(src: &[u8], w: usize, h: usize) -> Vec<u8> {
 
             let out_idx = (y * new_w + x) * 4;
             for c in 0..4 {
-                let sum = src[i00 + c] as u32 + src[i10 + c] as u32 + src[i01 + c] as u32 + src[i11 + c] as u32;
+                let sum = src[i00 + c] as u32
+                    + src[i10 + c] as u32
+                    + src[i01 + c] as u32
+                    + src[i11 + c] as u32;
                 dst[out_idx + c] = (sum / 4) as u8;
             }
         }
@@ -350,7 +358,11 @@ pub fn create_texture_from_rgba(
     } else {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some(label),
-            size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -371,7 +383,11 @@ pub fn create_texture_from_rgba(
                 bytes_per_row: Some(4),
                 rows_per_image: Some(1),
             },
-            wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+            wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
         );
         texture.create_view(&wgpu::TextureViewDescriptor::default())
     }
@@ -425,7 +441,10 @@ pub fn load_vrm_model_to_gpu(
         model_min_y = min_y;
         model_max_y = max_y;
         model_max_extent_x = min_x.abs().max(max_x.abs());
-        println!("📐 [Model Bounds] Y: [{:.3} .. {:.3}], Extent X: {:.3}", min_y, max_y, model_max_extent_x);
+        println!(
+            "📐 [Model Bounds] Y: [{:.3} .. {:.3}], Extent X: {:.3}",
+            min_y, max_y, model_max_extent_x
+        );
     }
 
     let dummy_white_view = create_texture_from_rgba(
@@ -436,13 +455,8 @@ pub fn load_vrm_model_to_gpu(
         "Shared_Dummy_White",
     );
 
-    let dummy_black_view = create_texture_from_rgba(
-        device,
-        queue,
-        None,
-        [0, 0, 0, 255],
-        "Shared_Dummy_Black",
-    );
+    let dummy_black_view =
+        create_texture_from_rgba(device, queue, None, [0, 0, 0, 255], "Shared_Dummy_Black");
 
     let mut gpu_materials = Vec::new();
     let mut gpu_texture_cache: HashMap<usize, Arc<wgpu::TextureView>> = HashMap::new();
@@ -491,7 +505,8 @@ pub fn load_vrm_model_to_gpu(
             &format!("Base_{}", mat.name),
             &mut gpu_texture_cache,
         );
-        let base_view_ref: &wgpu::TextureView = custom_base_view.as_deref().unwrap_or(&dummy_white_view);
+        let base_view_ref: &wgpu::TextureView =
+            custom_base_view.as_deref().unwrap_or(&dummy_white_view);
 
         let custom_shade_view = get_or_create_gpu_view(
             device,
@@ -501,7 +516,8 @@ pub fn load_vrm_model_to_gpu(
             &format!("Shade_{}", mat.name),
             &mut gpu_texture_cache,
         );
-        let shade_view_ref: &wgpu::TextureView = custom_shade_view.as_deref().unwrap_or(&dummy_white_view);
+        let shade_view_ref: &wgpu::TextureView =
+            custom_shade_view.as_deref().unwrap_or(&dummy_white_view);
 
         let custom_emissive_view = get_or_create_gpu_view(
             device,
@@ -511,7 +527,8 @@ pub fn load_vrm_model_to_gpu(
             &format!("Emissive_{}", mat.name),
             &mut gpu_texture_cache,
         );
-        let emissive_view_ref: &wgpu::TextureView = custom_emissive_view.as_deref().unwrap_or(&dummy_black_view);
+        let emissive_view_ref: &wgpu::TextureView =
+            custom_emissive_view.as_deref().unwrap_or(&dummy_black_view);
 
         let custom_matcap_view = get_or_create_gpu_view(
             device,
@@ -521,7 +538,8 @@ pub fn load_vrm_model_to_gpu(
             &format!("Matcap_{}", mat.name),
             &mut gpu_texture_cache,
         );
-        let matcap_view_ref: &wgpu::TextureView = custom_matcap_view.as_deref().unwrap_or(&dummy_black_view);
+        let matcap_view_ref: &wgpu::TextureView =
+            custom_matcap_view.as_deref().unwrap_or(&dummy_black_view);
 
         let is_emissive_active = has_emissive_tex
             && (mat.emissive_factor[0] > 0.001

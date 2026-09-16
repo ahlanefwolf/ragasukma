@@ -1,4 +1,4 @@
-use super::skills::{execute_command_by_os, get_installed_applications, SkillItem};
+use super::skills::{SkillItem, execute_command_by_os, get_installed_applications};
 
 /// Daftar aksi sistem bawaan yang otomatis aktif sesuai OS (Linux / Windows)
 pub fn get_builtin_system_skills() -> Vec<SkillItem> {
@@ -13,17 +13,23 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
             SkillItem {
                 name: "Naikkan Volume".to_string(),
                 description: "Menaikkan volume suara komputer".to_string(),
-                command: "powershell -c \"(New-Object -ComObject Wscript.Shell).SendKeys([char]175)\"".to_string(),
+                command:
+                    "powershell -c \"(New-Object -ComObject Wscript.Shell).SendKeys([char]175)\""
+                        .to_string(),
             },
             SkillItem {
                 name: "Turunkan Volume".to_string(),
                 description: "Menurunkan volume suara komputer".to_string(),
-                command: "powershell -c \"(New-Object -ComObject Wscript.Shell).SendKeys([char]174)\"".to_string(),
+                command:
+                    "powershell -c \"(New-Object -ComObject Wscript.Shell).SendKeys([char]174)\""
+                        .to_string(),
             },
             SkillItem {
                 name: "Mute Audio".to_string(),
                 description: "Mematikan atau menyalakan suara komputer (mute/unmute)".to_string(),
-                command: "powershell -c \"(New-Object -ComObject Wscript.Shell).SendKeys([char]173)\"".to_string(),
+                command:
+                    "powershell -c \"(New-Object -ComObject Wscript.Shell).SendKeys([char]173)\""
+                        .to_string(),
             },
             SkillItem {
                 name: "Kunci Layar".to_string(),
@@ -100,32 +106,39 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
             SkillItem {
                 name: "Naikkan Volume".to_string(),
                 description: "Menaikkan volume suara laptop/komputer (+10%)".to_string(),
-                command: "pactl set-sink-volume @DEFAULT_SINK@ +10% || amixer set Master 10%+".to_string(),
+                command: "pactl set-sink-volume @DEFAULT_SINK@ +10% || amixer set Master 10%+"
+                    .to_string(),
             },
             SkillItem {
                 name: "Turunkan Volume".to_string(),
                 description: "Menurunkan volume suara laptop/komputer (-10%)".to_string(),
-                command: "pactl set-sink-volume @DEFAULT_SINK@ -10% || amixer set Master 10%-".to_string(),
+                command: "pactl set-sink-volume @DEFAULT_SINK@ -10% || amixer set Master 10%-"
+                    .to_string(),
             },
             SkillItem {
                 name: "Mute Audio".to_string(),
                 description: "Mematikan atau menyalakan suara audio komputer".to_string(),
-                command: "pactl set-sink-mute @DEFAULT_SINK@ toggle || amixer set Master toggle".to_string(),
+                command: "pactl set-sink-mute @DEFAULT_SINK@ toggle || amixer set Master toggle"
+                    .to_string(),
             },
             SkillItem {
                 name: "Ambil Screenshot".to_string(),
                 description: "Mengambil tangkapan layar monitor komputer".to_string(),
-                command: "gnome-screenshot || spectacle || flameshot gui || xfce4-screenshooter".to_string(),
+                command: "gnome-screenshot || spectacle || flameshot gui || xfce4-screenshooter"
+                    .to_string(),
             },
             SkillItem {
                 name: "Kunci Layar".to_string(),
                 description: "Mengunci sesi layar komputer".to_string(),
-                command: "loginctl lock-session || xdg-screensaver lock || gnome-screensaver-command -l".to_string(),
+                command:
+                    "loginctl lock-session || xdg-screensaver lock || gnome-screensaver-command -l"
+                        .to_string(),
             },
             SkillItem {
                 name: "Buka Terminal".to_string(),
                 description: "Membuka aplikasi terminal/konsol sistem".to_string(),
-                command: "x-terminal-emulator || gnome-terminal || konsole || alacritty || xterm".to_string(),
+                command: "x-terminal-emulator || gnome-terminal || konsole || alacritty || xterm"
+                    .to_string(),
             },
             SkillItem {
                 name: "Buka Kalkulator".to_string(),
@@ -152,7 +165,10 @@ pub fn try_execute_builtin_or_app(target: &str) -> Option<(String, String)> {
                 url.to_string()
             };
             return match open_url_by_os(&final_url) {
-                Ok(_) => Some((format!("Buka Website: {final_url}"), "Berhasil membuka link web".to_string())),
+                Ok(_) => Some((
+                    format!("Buka Website: {final_url}"),
+                    "Berhasil membuka link web".to_string(),
+                )),
                 Err(e) => Some((format!("Buka Website: {final_url}"), format!("Error: {e}"))),
             };
         }
@@ -165,8 +181,14 @@ pub fn try_execute_builtin_or_app(target: &str) -> Option<(String, String)> {
             let encoded_query = query.trim().replace(' ', "+");
             let final_url = format!("https://www.google.com/search?q={encoded_query}");
             return match open_url_by_os(&final_url) {
-                Ok(_) => Some((format!("Cari Google: {}", query.trim()), "Berhasil membuka pencarian Google".to_string())),
-                Err(e) => Some((format!("Cari Google: {}", query.trim()), format!("Error: {e}"))),
+                Ok(_) => Some((
+                    format!("Cari Google: {}", query.trim()),
+                    "Berhasil membuka pencarian Google".to_string(),
+                )),
+                Err(e) => Some((
+                    format!("Cari Google: {}", query.trim()),
+                    format!("Error: {e}"),
+                )),
             };
         }
     }
@@ -179,8 +201,13 @@ pub fn try_execute_builtin_or_app(target: &str) -> Option<(String, String)> {
         && let Some((_, query)) = target_trim.split_once('|')
     {
         let query = query.trim();
-        if query.is_empty() || ["musik", "lagu", "music", "song", "audio"].contains(&query.to_lowercase().as_str()) {
-            return Some(("Putar Musik".to_string(), "Judul lagu belum ditentukan, silakan sebutkan judul lagunya.".to_string()));
+        if query.is_empty()
+            || ["musik", "lagu", "music", "song", "audio"].contains(&query.to_lowercase().as_str())
+        {
+            return Some((
+                "Putar Musik".to_string(),
+                "Judul lagu belum ditentukan, silakan sebutkan judul lagunya.".to_string(),
+            ));
         }
 
         let music_dir = crate::config::get_music_dir();
@@ -195,63 +222,89 @@ pub fn try_execute_builtin_or_app(target: &str) -> Option<(String, String)> {
             let t_filename = t.filename.to_lowercase();
             t_title.contains(&q_lower)
                 || t_filename.contains(&q_lower)
-                || (!query_words.is_empty() && query_words.iter().all(|w| {
-                    let w_lower = w.to_lowercase();
-                    t_title.contains(&w_lower) || t_filename.contains(&w_lower)
-                }))
+                || (!query_words.is_empty()
+                    && query_words.iter().all(|w| {
+                        let w_lower = w.to_lowercase();
+                        t_title.contains(&w_lower) || t_filename.contains(&w_lower)
+                    }))
         });
 
         if let Some(track) = found {
-            let path = music_dir.join(&track.filename);
-            let track_clone = track.clone();
-            let _ = crate::server::state::music_play_file(&path, track_clone);
-            return Some((format!("Putar: {}", track.title), "Memutar musik dari library lokal".to_string()));
+            crate::app_state::push_client_action("music:play", Some(&track.title));
+            return Some((
+                format!("Putar: {}", track.title),
+                "Memutar musik dari library lokal".to_string(),
+            ));
         }
 
-        // Belum ada — download dulu lalu putar
-        match crate::engine::ytdlp::download_audio(query, &music_dir) {
-            Ok(track) => {
-                let path = music_dir.join(&track.filename);
-                let actual_path = if path.exists() {
-                    path
-                } else {
-                    // Scan folder jika nama file berbeda
-                    let found = std::fs::read_dir(&music_dir).ok().and_then(|entries| {
-                        entries.flatten().find_map(|e| {
-                            let p = e.path();
-                            if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
-                                if !track.id.is_empty() && name.contains(&track.id) && !name.ends_with(".json") {
-                                    return Some(p);
-                                }
-                            }
-                            None
-                        })
-                    });
-                    found.unwrap_or(path)
-                };
+        // Belum ada di library lokal — delegasikan ke Background Task Worker Thread
+        // AI langsung merespons percakapan tanpa freeze/menunggu, lagu akan otomatis diputar begitu selesai diunduh
+        crate::engine::tasks::queue_download_and_play(query);
 
-                let track_clone = track.clone();
-                let _ = crate::server::state::music_play_file(&actual_path, track_clone);
-                return Some((format!("Download & Putar: {}", track.title), "Berhasil mendownload dan memutar musik".to_string()));
-            }
-            Err(e) => {
-                return Some(("Putar Musik Lokal".to_string(), format!("Gagal: {e}")));
-            }
-        }
+        return Some((
+            format!("Unduh & Putar: {}", query),
+            "Sedang memproses dan mengunduh lagu di background worker".to_string(),
+        ));
     }
 
     // Kontrol player musik
-    if target_clean == "pause musik" || target_clean == "jeda musik" || target_clean == "jeda musik" {
-        crate::server::state::music_pause();
+    if target_clean == "pause musik"
+        || target_clean == "jeda musik"
+        || target_clean == "pause lagu"
+        || target_clean == "jeda lagu"
+        || target_clean == "pause"
+        || target_clean == "jeda"
+    {
+        crate::app_state::push_client_action("music:pause", None);
         return Some(("Jeda Musik".to_string(), "Musik dijeda".to_string()));
     }
-    if target_clean == "resume musik" || target_clean == "lanjut musik" {
-        crate::server::state::music_resume();
+    if target_clean == "resume musik"
+        || target_clean == "lanjut musik"
+        || target_clean == "lanjutkan musik"
+        || target_clean == "resume lagu"
+        || target_clean == "lanjut lagu"
+        || target_clean == "resume"
+        || target_clean == "lanjut"
+    {
+        crate::app_state::push_client_action("music:resume", None);
         return Some(("Lanjut Musik".to_string(), "Musik dilanjutkan".to_string()));
     }
-    if target_clean == "stop musik" || target_clean == "berhenti musik" || target_clean == "hentikan musik" {
-        crate::server::state::music_stop();
+    if target_clean == "stop musik"
+        || target_clean == "berhenti musik"
+        || target_clean == "hentikan musik"
+        || target_clean == "stop lagu"
+        || target_clean == "hentikan lagu"
+        || target_clean == "matikan musik"
+        || target_clean == "stop"
+    {
+        crate::app_state::push_client_action("music:stop", None);
         return Some(("Stop Musik".to_string(), "Musik dihentikan".to_string()));
+    }
+    if target_clean == "next musik"
+        || target_clean == "next lagu"
+        || target_clean == "lagu berikutnya"
+        || target_clean == "musik berikutnya"
+        || target_clean == "next"
+        || target_clean == "ganti lagu"
+        || target_clean == "putar lagu lain"
+    {
+        crate::app_state::push_client_action("music:next", None);
+        return Some((
+            "Next Musik".to_string(),
+            "Memutar lagu berikutnya".to_string(),
+        ));
+    }
+    if target_clean == "prev musik"
+        || target_clean == "previous musik"
+        || target_clean == "lagu sebelumnya"
+        || target_clean == "musik sebelumnya"
+        || target_clean == "prev"
+    {
+        crate::app_state::push_client_action("music:prev", None);
+        return Some((
+            "Prev Musik".to_string(),
+            "Memutar lagu sebelumnya".to_string(),
+        ));
     }
 
     // 5. Cek dari daftar built-in system skills
@@ -286,7 +339,7 @@ pub fn try_execute_builtin_or_app(target: &str) -> Option<(String, String)> {
                     return Some((
                         format!("Buka {}", app.name),
                         "Berhasil membuka aplikasi".to_string(),
-                    ))
+                    ));
                 }
                 Err(e) => return Some((format!("Buka {}", app.name), format!("Error: {e}"))),
             }
@@ -306,15 +359,11 @@ pub fn open_url_by_os(url: &str) -> std::io::Result<()> {
     }
     #[cfg(target_os = "macos")]
     {
-        std::process::Command::new("open")
-            .arg(url)
-            .spawn()?;
+        std::process::Command::new("open").arg(url).spawn()?;
     }
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
-        std::process::Command::new("xdg-open")
-            .arg(url)
-            .spawn()?;
+        std::process::Command::new("xdg-open").arg(url).spawn()?;
     }
     Ok(())
 }

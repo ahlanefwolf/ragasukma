@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::thread;
 
 use crate::config::UserConfig;
-use crate::native::pose_system::PosesConfig;
+use crate::ui::pose_system::PosesConfig;
 
 #[derive(RustEmbed)]
 #[folder = "assets/"]
@@ -55,7 +55,11 @@ pub fn find_file_in_candidates(filename: &str) -> PathBuf {
     candidates.push(PathBuf::from(format!("../assets/{}", filename)));
     candidates.push(PathBuf::from(format!("../{}", filename)));
 
-    candidates.push(crate::config::get_app_config_dir().join("assets").join(filename));
+    candidates.push(
+        crate::config::get_app_config_dir()
+            .join("assets")
+            .join(filename),
+    );
     candidates.push(crate::config::get_app_config_dir().join(filename));
 
     for c in &candidates {
@@ -121,7 +125,10 @@ pub fn ensure_default_user_assets() {
                     let _ = fs::create_dir_all(parent);
                 }
                 let _ = fs::write(&target_path, embedded_file.data.as_ref());
-                println!("✨ [Asset Extractor] Mengekstrak aset default: {:?}", file_str);
+                println!(
+                    "✨ [Asset Extractor] Mengekstrak aset default: {:?}",
+                    file_str
+                );
             }
         }
     }
@@ -152,7 +159,9 @@ pub fn ensure_linux_desktop_entry() {
         let _ = fs::create_dir_all(&apps_dir);
         let desktop_file = apps_dir.join("ragasukma.desktop");
 
-        let icon_path = crate::config::get_app_config_dir().join("assets").join("icon.png");
+        let icon_path = crate::config::get_app_config_dir()
+            .join("assets")
+            .join("icon.png");
 
         let content = format!(
             "[Desktop Entry]\n\
@@ -181,7 +190,9 @@ StartupWMClass=ragasukma\n",
                 perms.set_mode(0o755);
                 let _ = fs::set_permissions(&desktop_file, perms);
             }
-            println!("🚀 [Desktop Integration] Menu shortcut aplikasi terpasang di ~/.local/share/applications/ragasukma.desktop");
+            println!(
+                "🚀 [Desktop Integration] Menu shortcut aplikasi terpasang di ~/.local/share/applications/ragasukma.desktop"
+            );
         }
     }
 }
@@ -200,16 +211,12 @@ pub fn open_browser(url: &str) {
 
         #[cfg(target_os = "macos")]
         {
-            let _ = std::process::Command::new("open")
-                .arg(&url)
-                .spawn();
+            let _ = std::process::Command::new("open").arg(&url).spawn();
         }
 
         #[cfg(target_os = "linux")]
         {
-            let _ = std::process::Command::new("xdg-open")
-                .arg(&url)
-                .spawn();
+            let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
         }
     });
 }

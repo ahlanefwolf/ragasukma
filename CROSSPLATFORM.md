@@ -24,14 +24,12 @@ Panduan standar ini wajib dibaca dan diikuti oleh developer maupun AI Assistant 
 1. **Alokasi Heap vs Stack untuk Objek Besar**:
    - ❌ **DILARANG** meletakkan struct data besar (seperti 3D Mesh vertices, Audio PCM buffers, atau VRM model data) di local stack.
    - ✅ **GUNAKAN** `Box<T>`, `Vec<T>`, atau `Arc<T>` agar dialokasikan di Heap. Hal ini mencegah *Stack Overflow* (terutama di Linux AppImage/FUSE dengan batasan stack ketat).
-2. **Dedicated Primary Thread vs macOS Main Thread**:
-   - **Linux & Windows**: Jalankan loop aplikasi di dalam Dedicated Primary Thread dengan kapasitas stack minimal 64 MB (`ragasukma-main`) agar kebal terhadap batasan stack bawaan runtime OS / AppImage.
-   - **macOS**: ❌ **DILARANG KERAS** memindahkan inisialisasi Cocoa/NSApplication (`EventLoop`) ke sub-thread baru. macOS **WAJIB** mengeksekusi `run_ragasukma_app()` langsung di OS Main Thread (Thread 0).
-3. **Windowing & Event Loop Compatibility (`winit`)**:
-   - Winit Event Loop / Windowing wajib dikonfigurasi per platform:
-     - **Linux**: Menggunakan `EventLoopBuilderExtX11::with_any_thread(&mut b, true)` dengan fallback Wayland -> X11.
-     - **Windows**: Menggunakan `EventLoopBuilderExtWindows::with_any_thread(&mut b, true)` agar EventLoop aman berjalan di dalam `ragasukma-main` thread tanpa memicu panic.
-     - **macOS**: Dijalankan langsung di Main Thread (Thread 0) tanpa builder thread extension.
+2. **Standardisasi OS Main Thread (Thread 0) & Dedicated Worker**:
+   - **Main Thread (Thread 0)**: Menjalankan `winit::EventLoop` dan WGPU rendering secara universal di Linux, Windows, dan macOS tanpa pengecualian.
+   - **Dedicated Worker Thread**: Tugas berat (AI Pipeline, Audio VAD, STT/TTS, HTTP Server) dijalankan di background worker thread dengan stack dedicated (16 MB) agar Linux AppImage kebal terhadap batasan stack bawaan runtime OS.
+3. **Windowing & Event Loop Clean Exit**:
+   - Winit Event Loop dibangun secara bersih tanpa hack `with_any_thread`.
+   - Event loop keluar menggunakan `elwt.exit()` untuk memicu pembersihan state dan graceful shutdown, bukan memanggil `std::process::exit(0)`.
 
 ---
 

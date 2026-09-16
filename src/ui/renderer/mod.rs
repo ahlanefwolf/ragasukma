@@ -9,11 +9,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use winit::window::Window;
 
-use crate::native::pose_system::{AssistantVisualState, PoseManager};
-use crate::native::vrm_loader::VrmModelData;
+use crate::ui::pose_system::{AssistantVisualState, PoseManager};
+use crate::ui::vrm_loader::VrmModelData;
 
 pub use camera::CameraState;
-pub use types::{Avatar2dUniform, BoneMatricesUniform, CameraUniform, GpuMaterial, GpuPrimitive, MaterialUniform, OverlayUniform};
+pub use types::{
+    Avatar2dUniform, BoneMatricesUniform, CameraUniform, GpuMaterial, GpuPrimitive,
+    MaterialUniform, OverlayUniform,
+};
 
 pub struct Renderer {
     pub surface: wgpu::Surface<'static>,
@@ -63,7 +66,10 @@ pub struct Renderer {
     avatar_2d_uniform_bind_group: wgpu::BindGroup,
     avatar_2d_bind_group_layout: wgpu::BindGroupLayout,
     avatar_2d_sampler: wgpu::Sampler,
-    avatar_2d_textures: HashMap<AssistantVisualState, (wgpu::TextureView, wgpu::BindGroup, [f32; 2])>,
+    avatar_2d_textures:
+        HashMap<AssistantVisualState, (wgpu::TextureView, wgpu::BindGroup, [f32; 2])>,
+    pub loading_texture: Option<(wgpu::TextureView, wgpu::BindGroup, [f32; 2])>,
+    pub is_loading: bool,
 
     // CSD Header & Controls
     pub is_header_visible: bool,
@@ -92,7 +98,10 @@ impl Renderer {
             .await
             .ok_or_else(|| anyhow::anyhow!("Gagal menemukan adapter GPU yang cocok"))?;
 
-        println!("🎮 [WGPU Adapter] Menggunakan GPU: {}", adapter.get_info().name);
+        println!(
+            "🎮 [WGPU Adapter] Menggunakan GPU: {}",
+            adapter.get_info().name
+        );
 
         let (device, queue) = adapter
             .request_device(
@@ -127,7 +136,10 @@ impl Renderer {
             })
             .unwrap_or(surface_caps.alpha_modes[0]);
 
-        println!("🔍 [WGPU Surface] Formats: {:?}, Alpha Modes: {:?}", surface_caps.formats, surface_caps.alpha_modes);
+        println!(
+            "🔍 [WGPU Surface] Formats: {:?}, Alpha Modes: {:?}",
+            surface_caps.formats, surface_caps.alpha_modes
+        );
         println!("✨ [WGPU Surface] Alpha Mode Aktif: {:?}", alpha_mode);
 
         let config = wgpu::SurfaceConfiguration {
@@ -194,6 +206,8 @@ impl Renderer {
             avatar_2d_bind_group_layout: pipeline_2d.bind_group_layout,
             avatar_2d_sampler: pipeline_2d.sampler,
             avatar_2d_textures: pipeline_2d.textures,
+            loading_texture: pipeline_2d.loading_texture,
+            is_loading: false,
             is_header_visible: false,
             cursor_pixel_pos: [-100.0, -100.0],
             overlay_pipeline: overlay.pipeline,
@@ -211,7 +225,14 @@ impl Renderer {
         );
     }
 
-    pub fn update_anchor_on_resize(&mut self, old_w: f32, old_h: f32, new_w: f32, new_h: f32, dir: Option<winit::window::ResizeDirection>) {
+    pub fn update_anchor_on_resize(
+        &mut self,
+        old_w: f32,
+        old_h: f32,
+        new_w: f32,
+        new_h: f32,
+        dir: Option<winit::window::ResizeDirection>,
+    ) {
         if let Some(d) = dir {
             use winit::window::ResizeDirection::*;
             match d {
@@ -234,7 +255,10 @@ impl Renderer {
         self.anchor_center_y = self.anchor_center_y.clamp(new_h * 0.1, new_h * 0.9);
     }
 
-    fn create_msaa_view(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> wgpu::TextureView {
+    fn create_msaa_view(
+        device: &wgpu::Device,
+        config: &wgpu::SurfaceConfiguration,
+    ) -> wgpu::TextureView {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("MSAA Multisample Texture"),
             size: wgpu::Extent3d {
@@ -252,7 +276,10 @@ impl Renderer {
         texture.create_view(&wgpu::TextureViewDescriptor::default())
     }
 
-    fn create_depth_view(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> wgpu::TextureView {
+    fn create_depth_view(
+        device: &wgpu::Device,
+        config: &wgpu::SurfaceConfiguration,
+    ) -> wgpu::TextureView {
         let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Depth Texture"),
             size: wgpu::Extent3d {
@@ -272,7 +299,10 @@ impl Renderer {
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
-            if self.size == new_size && self.config.width == new_size.width && self.config.height == new_size.height {
+            if self.size == new_size
+                && self.config.width == new_size.width
+                && self.config.height == new_size.height
+            {
                 return;
             }
             self.size = new_size;
@@ -300,7 +330,12 @@ impl Renderer {
         self.model_data = Some(loaded.model);
     }
 
-    pub fn update_camera_and_bones(&mut self, pose_manager: &mut PoseManager, delta_seconds: f32, is_tuning: bool) {
+    pub fn update_camera_and_bones(
+        &mut self,
+        pose_manager: &mut PoseManager,
+        delta_seconds: f32,
+        is_tuning: bool,
+    ) {
         let cam = CameraState {
             camera_yaw: self.camera_yaw,
             camera_pitch: self.camera_pitch,
@@ -347,7 +382,9 @@ impl Renderer {
             }
             Err(e) => return Err(e),
         };
-        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
 
         let overlay_uniform = OverlayUniform {
             window_size: [self.config.width as f32, self.config.height as f32],
@@ -357,11 +394,17 @@ impl Renderer {
             _pad1: 0.0,
             _pad2: 0.0,
         };
-        self.queue.write_buffer(&self.overlay_buffer, 0, bytemuck::cast_slice(&[overlay_uniform]));
+        self.queue.write_buffer(
+            &self.overlay_buffer,
+            0,
+            bytemuck::cast_slice(&[overlay_uniform]),
+        );
 
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Render Encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -387,9 +430,36 @@ impl Renderer {
                 timestamp_writes: None,
             });
 
-            if self.avatar_type.eq_ignore_ascii_case("2d") {
+            if self.is_loading {
+                if let Some((_, bind_group, img_size)) = &self.loading_texture {
+                    let bounce = (self.elapsed_time * 6.0).sin().abs() * 28.0;
+                    let u = Avatar2dUniform {
+                        window_size: [self.config.width as f32, self.config.height as f32],
+                        image_size: *img_size,
+                        camera_pan: [0.0, -bounce],
+                        camera_zoom: 0.65,
+                        breath_offset: 0.0,
+                        _pad0: 0.0,
+                        _pad1: 0.0,
+                    };
+                    self.queue.write_buffer(
+                        &self.avatar_2d_uniform_buffer,
+                        0,
+                        bytemuck::cast_slice(&[u]),
+                    );
+
+                    render_pass.set_pipeline(&self.avatar_2d_pipeline);
+                    render_pass.set_bind_group(0, &self.avatar_2d_uniform_bind_group, &[]);
+                    render_pass.set_bind_group(1, bind_group, &[]);
+                    render_pass.draw(0..3, 0..1);
+                }
+            } else if self.avatar_type.eq_ignore_ascii_case("2d") {
                 let state = self.current_visual_state;
-                if let Some((_, bind_group, img_size)) = self.avatar_2d_textures.get(&state).or_else(|| self.avatar_2d_textures.get(&AssistantVisualState::Idle)) {
+                if let Some((_, bind_group, img_size)) = self
+                    .avatar_2d_textures
+                    .get(&state)
+                    .or_else(|| self.avatar_2d_textures.get(&AssistantVisualState::Idle))
+                {
                     let breath = if state == AssistantVisualState::Idle {
                         (self.elapsed_time * 2.4).sin() * 4.0
                     } else if state == AssistantVisualState::Speaking {
@@ -407,7 +477,11 @@ impl Renderer {
                         _pad0: 0.0,
                         _pad1: 0.0,
                     };
-                    self.queue.write_buffer(&self.avatar_2d_uniform_buffer, 0, bytemuck::cast_slice(&[u]));
+                    self.queue.write_buffer(
+                        &self.avatar_2d_uniform_buffer,
+                        0,
+                        bytemuck::cast_slice(&[u]),
+                    );
 
                     render_pass.set_pipeline(&self.avatar_2d_pipeline);
                     render_pass.set_bind_group(0, &self.avatar_2d_uniform_bind_group, &[]);
@@ -423,7 +497,10 @@ impl Renderer {
                     if let Some(mat) = self.gpu_materials.get(prim.material_index) {
                         render_pass.set_bind_group(2, &mat.bind_group, &[]);
                         render_pass.set_vertex_buffer(0, prim.vertex_buffer.slice(..));
-                        render_pass.set_index_buffer(prim.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                        render_pass.set_index_buffer(
+                            prim.index_buffer.slice(..),
+                            wgpu::IndexFormat::Uint32,
+                        );
                         render_pass.draw_indexed(0..prim.index_count, 0, 0..1);
                     }
                 }
@@ -463,7 +540,13 @@ impl Renderer {
             camera_pan_x: self.camera_pan_x,
             camera_pan_y: self.camera_pan_y,
         };
-        cam.pan(delta_x, delta_y, self.config.height as f32, self.model_min_y, self.model_max_y);
+        cam.pan(
+            delta_x,
+            delta_y,
+            self.config.height as f32,
+            self.model_min_y,
+            self.model_max_y,
+        );
         self.camera_pan_x = cam.camera_pan_x;
         self.camera_pan_y = cam.camera_pan_y;
     }

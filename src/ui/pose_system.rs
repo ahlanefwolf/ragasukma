@@ -52,7 +52,7 @@ impl Default for PoseManager {
             current_quats: HashMap::new(),
         };
 
-        let path = crate::server::find_file_in_candidates("poses.json");
+        let path = crate::assets::find_file_in_candidates("poses.json");
         if path.exists() {
             manager.load_from_file(&path);
         }
@@ -67,7 +67,11 @@ impl PoseManager {
             let mut contents = String::new();
             if file.read_to_string(&mut contents).is_ok() {
                 if let Ok(parsed) = serde_json::from_str::<PosesConfig>(&contents) {
-                    println!("🎭 [PoseManager] Berhasil memuat {} state dari {:?}", parsed.states.len(), path);
+                    println!(
+                        "🎭 [PoseManager] Berhasil memuat {} state dari {:?}",
+                        parsed.states.len(),
+                        path
+                    );
                     self.config = parsed;
                 }
             }
@@ -96,8 +100,12 @@ impl PoseManager {
             let pose_b = &state_data.pose_b;
 
             let mut all_bones = std::collections::HashSet::new();
-            for k in pose_a.keys() { all_bones.insert(k.clone()); }
-            for k in pose_b.keys() { all_bones.insert(k.clone()); }
+            for k in pose_a.keys() {
+                all_bones.insert(k.clone());
+            }
+            for k in pose_b.keys() {
+                all_bones.insert(k.clone());
+            }
 
             // Engine Natural Breathing: Ritme nafas hidup di dada, punggung, pundak, dan mikro-gerak kepala
             let breath_rate = 1.35; // ~13 tarikan nafas per menit (ritme nafas santai)
@@ -122,8 +130,10 @@ impl PoseManager {
                     0.0
                 };
 
-                let qa = Quat::from_euler(EulerRot::XYZ, rot_a[0] + breath_offset, rot_a[1], rot_a[2]);
-                let qb = Quat::from_euler(EulerRot::XYZ, rot_b[0] + breath_offset, rot_b[1], rot_b[2]);
+                let qa =
+                    Quat::from_euler(EulerRot::XYZ, rot_a[0] + breath_offset, rot_a[1], rot_a[2]);
+                let qb =
+                    Quat::from_euler(EulerRot::XYZ, rot_b[0] + breath_offset, rot_b[1], rot_b[2]);
                 let target_q = qa.slerp(qb, t);
 
                 self.target_quats.insert(bone_name.clone(), target_q);

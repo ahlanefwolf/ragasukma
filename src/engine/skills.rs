@@ -70,18 +70,17 @@ pub fn get_installed_applications() -> Vec<InstalledApp> {
         let mut start_menu_dirs: Vec<PathBuf> = Vec::new();
 
         // Start Menu semua user
-        if let Ok(program_data) = std::env::var("ProgramData").or_else(|_| std::env::var("ALLUSERSPROFILE")) {
+        if let Ok(program_data) =
+            std::env::var("ProgramData").or_else(|_| std::env::var("ALLUSERSPROFILE"))
+        {
             start_menu_dirs.push(
-                PathBuf::from(&program_data)
-                    .join("Microsoft\\Windows\\Start Menu\\Programs"),
+                PathBuf::from(&program_data).join("Microsoft\\Windows\\Start Menu\\Programs"),
             );
         }
         // Start Menu user saat ini
         if let Ok(appdata) = std::env::var("APPDATA") {
-            start_menu_dirs.push(
-                PathBuf::from(&appdata)
-                    .join("Microsoft\\Windows\\Start Menu\\Programs"),
-            );
+            start_menu_dirs
+                .push(PathBuf::from(&appdata).join("Microsoft\\Windows\\Start Menu\\Programs"));
         } else if let Ok(userprofile) = std::env::var("USERPROFILE") {
             start_menu_dirs.push(
                 PathBuf::from(&userprofile)
@@ -159,7 +158,12 @@ fn scan_app_bundle_dir(
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()).map(|e| e.eq_ignore_ascii_case("app")).unwrap_or(false) {
+        if path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case("app"))
+            .unwrap_or(false)
+        {
             if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                 let name = stem.to_string();
                 let key = name.to_lowercase();
@@ -271,7 +275,23 @@ fn parse_desktop_file(path: &std::path::Path) -> Option<InstalledApp> {
                 }
                 "Exec" if exec.is_none() => {
                     let mut cleaned = val.to_string();
-                    let field_codes = ["%f", "%F", "%u", "%U", "%d", "%D", "%n", "%N", "%i", "%c", "%k", "%v", "%m", "@@u %U @@", "@@"];
+                    let field_codes = [
+                        "%f",
+                        "%F",
+                        "%u",
+                        "%U",
+                        "%d",
+                        "%D",
+                        "%n",
+                        "%N",
+                        "%i",
+                        "%c",
+                        "%k",
+                        "%v",
+                        "%m",
+                        "@@u %U @@",
+                        "@@",
+                    ];
                     for fc in field_codes {
                         cleaned = cleaned.replace(fc, "");
                     }
@@ -310,27 +330,16 @@ fn parse_desktop_file(path: &std::path::Path) -> Option<InstalledApp> {
 }
 
 pub fn get_skills_path() -> PathBuf {
-    let in_assets = PathBuf::from("assets/skill-command.md");
-    if in_assets.exists() {
-        return in_assets;
+    // Gunakan kandidat standar (Lokal project assets/ -> beside exe -> Resources macOS -> AppData/Roaming)
+    let candidate = crate::assets::find_file_in_candidates("skill-command.md");
+    if candidate.exists() {
+        return candidate;
     }
-    let parent_assets = PathBuf::from("../assets/skill-command.md");
-    if parent_assets.exists() {
-        return parent_assets;
-    }
-    let local = PathBuf::from("skill-command.md");
-    if local.exists() {
-        return local;
-    }
-    let parent = PathBuf::from("../skill-command.md");
-    if parent.exists() {
-        return parent;
-    }
-    let cfg_path = crate::config::get_app_config_dir().join("assets").join("skill-command.md");
-    if cfg_path.exists() {
-        return cfg_path;
-    }
-    PathBuf::from("assets/skill-command.md")
+
+    // Default target jika belum ada
+    crate::config::get_app_config_dir()
+        .join("assets")
+        .join("skill-command.md")
 }
 
 pub fn parse_skills_markdown() -> Vec<SkillItem> {
@@ -400,18 +409,32 @@ File ini dapat diedit langsung atau dikelola melalui UI Skill Commands.\n\n\
     std::fs::write(path, out)
 }
 
+/// Helper utilitas untuk mengonfigurasi subprocess agar terisolasi dari AppImage runtime
+#[allow(unused_variables)]
+pub fn configure_subprocess(cmd: &mut std::process::Command) {
+    #[cfg(target_os = "linux")]
+    {
+        cmd.env_remove("PYTHONHOME");
+        cmd.env_remove("PYTHONPATH");
+        cmd.env_remove("LD_LIBRARY_PATH");
+        cmd.env_remove("LD_PRELOAD");
+    }
+}
+
 pub fn execute_command_by_os(cmd: &str) -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd")
-            .args(["/C", cmd])
-            .spawn()?;
+        let mut command = std::process::Command::new("cmd");
+        command.args(["/C", cmd]);
+        configure_subprocess(&mut command);
+        command.spawn()?;
     }
     #[cfg(not(target_os = "windows"))]
     {
-        std::process::Command::new("sh")
-            .args(["-c", cmd])
-            .spawn()?;
+        let mut command = std::process::Command::new("sh");
+        command.args(["-c", cmd]);
+        configure_subprocess(&mut command);
+        command.spawn()?;
     }
     Ok(())
 }

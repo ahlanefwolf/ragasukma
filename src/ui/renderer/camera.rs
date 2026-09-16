@@ -1,7 +1,7 @@
-use glam::{Mat4, Vec3};
 use super::types::{BoneMatricesUniform, CameraUniform};
-use crate::native::pose_system::PoseManager;
-use crate::native::vrm_loader::VrmModelData;
+use crate::ui::pose_system::PoseManager;
+use crate::ui::vrm_loader::VrmModelData;
+use glam::{Mat4, Vec3};
 
 pub struct CameraState {
     pub camera_yaw: f32,
@@ -29,7 +29,14 @@ impl CameraState {
         self.camera_pitch = (self.camera_pitch + delta_pitch).clamp(-1.2, 1.2);
     }
 
-    pub fn pan(&mut self, delta_x: f32, delta_y: f32, screen_h: f32, model_min_y: f32, model_max_y: f32) {
+    pub fn pan(
+        &mut self,
+        delta_x: f32,
+        delta_y: f32,
+        screen_h: f32,
+        model_min_y: f32,
+        model_max_y: f32,
+    ) {
         let fov_rad = 28.0_f32.to_radians();
         let half_fov_tan = (fov_rad / 2.0).tan();
         let height = screen_h.max(1.0);
@@ -125,13 +132,23 @@ pub fn update_camera_and_bones(
         }
 
         for &root_idx in &model.root_nodes {
-            compute_global_transforms(root_idx, Mat4::IDENTITY, pose_manager, model, global_transforms);
+            compute_global_transforms(
+                root_idx,
+                Mat4::IDENTITY,
+                pose_manager,
+                model,
+                global_transforms,
+            );
         }
 
         if let Some(skin) = model.skins.first() {
             for (joint_i, &node_idx) in skin.joints.iter().enumerate() {
                 if joint_i < 256 {
-                    let inv_bind = skin.inverse_bind_matrices.get(joint_i).copied().unwrap_or(Mat4::IDENTITY);
+                    let inv_bind = skin
+                        .inverse_bind_matrices
+                        .get(joint_i)
+                        .copied()
+                        .unwrap_or(Mat4::IDENTITY);
                     let global_joint = global_transforms[node_idx];
                     let final_mat = global_joint * inv_bind;
                     bone_uniform.matrices[joint_i] = final_mat.to_cols_array_2d();

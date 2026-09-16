@@ -1,5 +1,25 @@
 use std::collections::HashSet;
 
+pub fn load_local_music_summary() -> String {
+    let music_dir = crate::config::get_music_dir();
+    let tracks = crate::engine::ytdlp::list_downloaded(&music_dir);
+    if tracks.is_empty() {
+        return String::new();
+    }
+
+    let mut list_str = String::new();
+    for (i, t) in tracks.iter().take(20).enumerate() {
+        list_str.push_str(&format!("{}. {} ({})\n", i + 1, t.title, t.uploader));
+    }
+
+    let total = tracks.len();
+    format!(
+        "\nKOLEKSI MUSIK LOKAL TERSEDIA (Total {} lagu):\n{}\
+        (Catatan: Jika pengguna menanyakan koleksi lagu apa saja yang ada, sebutkan beberapa judul dari daftar di atas. Jika pengguna meminta lagu lain di luar daftar ini, kamu TETAP BISA memutarkannya dengan tag `[SKILL:Putar Musik|judul lagu]` karena sistem otomatis mengunduh & memutarkannya via YouTube/yt-dlp).\n",
+        total, list_str
+    )
+}
+
 pub fn load_skills_summary() -> String {
     let mut seen_names = HashSet::new();
     let mut lines = Vec::new();
@@ -10,7 +30,10 @@ pub fn load_skills_summary() -> String {
         let key = s.name.trim().to_lowercase();
         if !seen_names.contains(&key) {
             seen_names.insert(key);
-            lines.push(format!("- Perintah: `{}` -> Deskripsi: {}", s.name, s.description));
+            lines.push(format!(
+                "- Perintah: `{}` -> Deskripsi: {}",
+                s.name, s.description
+            ));
         }
     }
 
@@ -20,7 +43,10 @@ pub fn load_skills_summary() -> String {
         let key = s.name.trim().to_lowercase();
         if !seen_names.contains(&key) {
             seen_names.insert(key);
-            lines.push(format!("- Perintah: `{}` -> Deskripsi: {}", s.name, s.description));
+            lines.push(format!(
+                "- Perintah: `{}` -> Deskripsi: {}",
+                s.name, s.description
+            ));
         }
     }
 
@@ -43,16 +69,20 @@ ATURAN EKSEKUSI SKILL:\n\
 - Jika pengguna meminta jeda musik, gunakan tag `[SKILL:Jeda Musik]`.
 - Jika pengguna meminta lanjut/resume musik, gunakan tag `[SKILL:Lanjut Musik]`.
 - Jika pengguna meminta stop/hentikan musik, gunakan tag `[SKILL:Stop Musik]`.
+- Jika pengguna meminta ganti lagu, putar lagu lain, atau lagu berikutnya, gunakan tag `[SKILL:Next Musik]`.
+- Jika pengguna meminta putar lagu sebelumnya, gunakan tag `[SKILL:Prev Musik]`.
   Contoh:
   - User: 'Puterin lagu dong'
     Respon: '*tersenyum* Boleh banget! Mau diputerin lagu apa atau dari artis siapa nih?'
   - User: 'Putar lagu Denny Caknan Sugeng Dalu'
     Respon: '*semangat* Siap, memutarkan lagu Sugeng Dalu dari Denny Caknan! [SKILL:Putar Musik|Denny Caknan Sugeng Dalu]'
   - User: 'Putar lagu lofi hip hop'
-    Respon: '*semangat* Asyik, memutarkan musik lofi hip hop untukmu! [SKILL:Putar Musik|lofi hip hop]'\n\
-  - User: 'Jeda musiknya dong'\n\
-    Respon: '*senang* Siap, musiknya aku jeda ya! [SKILL:Jeda Musik]'\n\
-  - User: 'Lanjut putarnya'\n\
+    Respon: '*semangat* Asyik, memutarkan musik lofi hip hop untukmu! [SKILL:Putar Musik|lofi hip hop]'
+  - User: 'Ganti lagu dong' / 'Next lagu'
+    Respon: '*senang* Siap, memutar lagu berikutnya dari koleksi musikmu! [SKILL:Next Musik]'
+  - User: 'Jeda musiknya dong'
+    Respon: '*senang* Siap, musiknya aku jeda ya! [SKILL:Jeda Musik]'
+  - User: 'Lanjut putarnya'
     Respon: '*semangat* Baik, musik dilanjutkan. [SKILL:Lanjut Musik]'\n\
   - User: 'Cari resep rendang di Google'\n\
     Respon: '*semangat* Baik, ini hasil pencarian resep rendang di Google. [SKILL:Cari Google|resep rendang padang]'\n\
@@ -75,7 +105,7 @@ pub fn build_system_prompt() -> String {
     let role = u.personality_role.to_lowercase();
 
     let skills_prompt = load_skills_summary();
-
+    let music_prompt = load_local_music_summary();
 
     // Persona & Dinamika Hubungan berdasarkan personality_role
     let persona_desc = match role.as_str() {
@@ -96,9 +126,15 @@ pub fn build_system_prompt() -> String {
         ),
     };
 
+    let task_context = if let Some(info) = crate::engine::tasks::get_active_task_info() {
+        format!("\n[INFO STATUS SISTEM: {}]\n", info.description)
+    } else {
+        String::new()
+    };
+
     format!(
-        "Namamu adalah {assistant_name}. {persona_desc}\n\
-\n\
+        "Namamu adalah {assistant_name}. {persona_desc}{task_context}\n\
+{music_prompt}\n\
 PENTING - KONEKSI LANGSUNG DENGAN TEXT-TO-SPEECH (TTS):\n\
 Responmu akan langsung dibacakan ke telinga pengguna via Text-To-Speech. Oleh karena itu, kamu WAJIB memiliki skill berbicara lisan:\n\
 1. Format Ucapan Lisan Natural:\n\

@@ -1,16 +1,17 @@
 use anyhow::Result;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
+use super::executor::execute_skill_by_identifier;
+use super::session::{AppSession, check_and_consume_cmd};
 use crate::audio::dsp::TARGET_SAMPLE_RATE;
 use crate::tray::{AssistantState, TrayState};
-use super::executor::execute_skill_by_identifier;
-use super::session::{check_and_consume_cmd, AppSession};
 
 impl AppSession {
     pub fn start_chat_loop(&mut self) -> Result<()> {
-        crate::server::update_session_running(true);
+        crate::app_state::update_session_running(true);
+        TrayState::update(AssistantState::Idle, "Standby Siap");
         crate::term_log!("====================================================");
         crate::term_log!("✨ SESI PERCAKAPAN RAGASUKMA DIMULAI");
         crate::term_log!("   - Asisten : {}", self.config.assistant_name);
@@ -38,7 +39,7 @@ impl AppSession {
                 if cmd == "stop_chat" || cmd == "quit" {
                     stop_worker.store(true, Ordering::SeqCst);
                     let _ = worker_handle.join();
-                    crate::server::update_session_running(false);
+                    crate::app_state::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Standby");
                     crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                     return Ok(());
@@ -46,7 +47,9 @@ impl AppSession {
                     is_paused = true;
                 } else if cmd == "reset_session" || cmd == "reset_chat" {
                     self.llm.reset_history();
-                    crate::term_log!("🔄 [Reset Session] Riwayat memori obrolan AI berhasil di-reset!");
+                    crate::term_log!(
+                        "🔄 [Reset Session] Riwayat memori obrolan AI berhasil di-reset!"
+                    );
                 }
             }
 
@@ -57,7 +60,10 @@ impl AppSession {
             if is_paused {
                 pause_worker.store(true, Ordering::SeqCst);
                 TrayState::update(AssistantState::Idle, "Dijeda");
-                crate::term_log!("\n[DIJEDA] {} berhenti mendengarkan sementara.", self.config.assistant_name);
+                crate::term_log!(
+                    "\n[DIJEDA] {} berhenti mendengarkan sementara.",
+                    self.config.assistant_name
+                );
                 loop {
                     if let Some(cmd) = check_and_consume_cmd() {
                         if cmd == "toggle_pause" || cmd == "start_chat" {
@@ -67,21 +73,27 @@ impl AppSession {
                         } else if cmd == "stop_chat" || cmd == "quit" {
                             stop_worker.store(true, Ordering::SeqCst);
                             let _ = worker_handle.join();
-                            crate::server::update_session_running(false);
+                            crate::app_state::update_session_running(false);
                             TrayState::update(AssistantState::Idle, "Standby");
                             crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                             return Ok(());
                         } else if cmd == "reset_session" || cmd == "reset_chat" {
                             self.llm.reset_history();
-                            crate::term_log!("🔄 [Reset Session] Riwayat memori obrolan AI berhasil di-reset!");
+                            crate::term_log!(
+                                "🔄 [Reset Session] Riwayat memori obrolan AI berhasil di-reset!"
+                            );
                         }
                     }
                     std::thread::sleep(std::time::Duration::from_millis(50));
                 }
-                crate::term_log!("▶️  [DILANJUTKAN] {} siap mendengarkan lagi!\n", self.config.assistant_name);
+                crate::term_log!(
+                    "▶️  [DILANJUTKAN] {} siap mendengarkan lagi!\n",
+                    self.config.assistant_name
+                );
             }
 
-            TrayState::update(AssistantState::Listening, "Siap Mendengarkan");
+            // Tetap di state Idle saat menunggu input suara
+            TrayState::update(AssistantState::Idle, "Standby Siap");
 
             let mut should_exit = false;
             let mut should_pause = false;
@@ -98,11 +110,14 @@ impl AppSession {
                         break;
                     } else if cmd == "reset_session" || cmd == "reset_chat" {
                         self.llm.reset_history();
-                        crate::term_log!("🔄 [Reset Session] Riwayat memori obrolan AI berhasil di-reset!");
+                        crate::term_log!(
+                            "🔄 [Reset Session] Riwayat memori obrolan AI berhasil di-reset!"
+                        );
                     }
                 }
 
-                if let Ok(ready_audio) = turn_rx.recv_timeout(std::time::Duration::from_millis(30)) {
+                if let Ok(ready_audio) = turn_rx.recv_timeout(std::time::Duration::from_millis(30))
+                {
                     audio_data = ready_audio;
                     break;
                 }
@@ -111,7 +126,7 @@ impl AppSession {
             if should_exit {
                 stop_worker.store(true, Ordering::SeqCst);
                 let _ = worker_handle.join();
-                crate::server::update_session_running(false);
+                crate::app_state::update_session_running(false);
                 TrayState::update(AssistantState::Idle, "Standby");
                 crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                 break;
@@ -134,7 +149,7 @@ impl AppSession {
             // Jika energi audio sangat rendah (< 0.006), ini hanya desis / noise background
             // Langsung lewati agar TIDAK buang-buang kuota atau kena rate limit Google/Groq STT
             if audio_rms < 0.006 {
-                TrayState::update(AssistantState::Listening, "Siap Mendengarkan");
+                TrayState::update(AssistantState::Idle, "Standby Siap");
                 continue;
             }
 
@@ -147,7 +162,7 @@ impl AppSession {
                 Ok(t) => t,
                 Err(e) => {
                     crate::term_err!("⚠️ [STT Error]: {e}");
-                    TrayState::update(AssistantState::Listening, "Siap Mendengarkan");
+                    TrayState::update(AssistantState::Idle, "Standby Siap");
                     continue;
                 }
             };
@@ -158,7 +173,7 @@ impl AppSession {
             // Cek apakah ada request stop_chat / pause saat STT sedang berjalan
             if let Some(cmd) = check_and_consume_cmd() {
                 if cmd == "stop_chat" || cmd == "quit" {
-                    crate::server::update_session_running(false);
+                    crate::app_state::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Menu Utama");
                     crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
                     return Ok(());
@@ -170,13 +185,16 @@ impl AppSession {
 
             if clean_raw.is_empty() {
                 crate::term_log!("[INFO] (Suara tidak terdengar jelas / terlalu pelan)\n");
-                TrayState::update(AssistantState::Listening, "Siap Mendengarkan");
+                TrayState::update(AssistantState::Idle, "Standby Siap");
                 continue;
             }
 
             // Filter halusinasi hening bawaan dataset Whisper
             let lower = clean_raw.to_lowercase();
-            let stripped_punctuation: String = lower.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace()).collect();
+            let stripped_punctuation: String = lower
+                .chars()
+                .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+                .collect();
             let clean_trimmed = stripped_punctuation.trim();
 
             let is_hallucination = clean_trimmed == "terima kasih"
@@ -195,7 +213,7 @@ impl AppSession {
                 || (lower.contains("terima kasih") && lower.matches("terima kasih").count() > 1);
 
             if is_hallucination {
-                TrayState::update(AssistantState::Listening, "Siap Mendengarkan");
+                TrayState::update(AssistantState::Idle, "Standby Siap");
                 continue;
             }
 
@@ -205,15 +223,20 @@ impl AppSession {
             crate::term_log!("\n[User] Kamu [{:.2?}]:", stt_elapsed);
             crate::term_log!("   \"{}\"", user_transcript);
 
-            TrayState::emit_event("assistant:transcript", serde_json::json!({
-                "role": "user",
-                "text": &user_transcript
-            }));
+            TrayState::emit_event(
+                "assistant:transcript",
+                serde_json::json!({
+                    "role": "user",
+                    "text": &user_transcript
+                }),
+            );
 
             // 2 & 3. Streaming LLM + Sentence-Level Streaming TTS
-            // Pause background audio worker saat asisten sedang berbicara agar suaranya sendiri tidak masuk ke mic (Echo Loop)
-            pause_worker.store(true, Ordering::SeqCst);
-            self.recorder.clear_buffer();
+            crate::app_state::clear_interruption();
+            if !self.config.voice_interruption {
+                pause_worker.store(true, Ordering::SeqCst);
+                self.recorder.clear_buffer();
+            }
 
             TrayState::update(AssistantState::Thinking, "LLM Berpikir...");
             let llm_start = Instant::now();
@@ -231,8 +254,16 @@ impl AppSession {
                     return Ok(());
                 }
 
-                // Update emosi avatar real-time ke renderer 3D
-                TrayState::update_with_emotion(AssistantState::Speaking, &format!("{asst_name} Berbicara"), emotion);
+                if crate::app_state::is_interruption_requested() {
+                    return Err(anyhow::anyhow!("Interrupted by user"));
+                }
+
+                // Update emosi avatar real-time ke renderer 3D dalam pose Thinking selagi audio disiapkan
+                TrayState::update_with_emotion(
+                    AssistantState::Thinking,
+                    &format!("{asst_name} Berpikir"),
+                    emotion,
+                );
 
                 if first_token_time.is_none() {
                     let first_elapsed = llm_start.elapsed();
@@ -243,17 +274,20 @@ impl AppSession {
                     }
                 }
 
-                TrayState::emit_event("assistant:stream-chunk", serde_json::json!({
-                    "sentence": &clean_sentence,
-                    "chunk": &clean_sentence,
-                    "speaker": asst_name
-                }));
+                TrayState::emit_event(
+                    "assistant:stream-chunk",
+                    serde_json::json!({
+                        "sentence": &clean_sentence,
+                        "chunk": &clean_sentence,
+                        "speaker": asst_name
+                    }),
+                );
 
                 print!("{} ", clean_sentence);
                 use std::io::Write;
                 let _ = std::io::stdout().flush();
 
-                tts_clone.speak(&clean_sentence)?;
+                tts_clone.speak_with_emotion(&clean_sentence, emotion, asst_name)?;
                 Ok(())
             });
 
@@ -273,14 +307,28 @@ impl AppSession {
                 }
             };
 
-            TrayState::emit_event("assistant:response-done", serde_json::json!({
-                "text": &full_response_text
-            }));
+            TrayState::emit_event(
+                "assistant:response-done",
+                serde_json::json!({
+                    "text": &full_response_text
+                }),
+            );
+
+            let was_interrupted = crate::app_state::is_interruption_requested();
+            crate::app_state::clear_interruption();
+            pause_worker.store(false, Ordering::SeqCst);
+
+            if was_interrupted {
+                crate::term_log!("⚡ [Interupsi Diterima] Memproses giliran bicara baru...");
+                continue;
+            }
 
             // Eksekusi skill jika LLM menyertakan tag [SKILL:ID]
             if let Ok(full_reply) = &result {
                 static RE_SKILL: std::sync::LazyLock<regex::Regex> =
-                    std::sync::LazyLock::new(|| regex::Regex::new(r"\[SKILL:([^\]]+)\]").expect("valid skill regex"));
+                    std::sync::LazyLock::new(|| {
+                        regex::Regex::new(r"\[SKILL:([^\]]+)\]").expect("valid skill regex")
+                    });
                 let mut found_skill = false;
                 for cap in RE_SKILL.captures_iter(full_reply) {
                     if let Some(matched_id) = cap.get(1) {
@@ -288,36 +336,65 @@ impl AppSession {
                         let id = matched_id.as_str().trim();
                         crate::term_log!("\n[MEMPROSES SKILL]: Memanggil ID '{}'...", id);
                         if let Some((skill_name, output)) = execute_skill_by_identifier(id) {
-                            crate::term_log!("[SKILL BERHASIL: {} ({})] -> {}", skill_name, id, output.trim());
-                            TrayState::emit_event("assistant:skill", serde_json::json!({
-                                "id": id,
-                                "name": skill_name,
-                                "status": "success",
-                                "output": output.trim()
-                            }));
+                            crate::term_log!(
+                                "[SKILL BERHASIL: {} ({})] -> {}",
+                                skill_name,
+                                id,
+                                output.trim()
+                            );
+                            TrayState::emit_event(
+                                "assistant:skill",
+                                serde_json::json!({
+                                    "id": id,
+                                    "name": skill_name,
+                                    "status": "success",
+                                    "output": output.trim()
+                                }),
+                            );
                         } else {
-                            crate::term_err!("[SKILL GAGAL]: Identifier '{}' tidak cocok di skill-command.md", id);
-                            TrayState::emit_event("assistant:skill", serde_json::json!({
-                                "id": id,
-                                "name": id,
-                                "status": "failed",
-                                "output": "Skill tidak ditemukan"
-                            }));
+                            crate::term_err!(
+                                "[SKILL GAGAL]: Identifier '{}' tidak cocok di skill-command.md",
+                                id
+                            );
+                            TrayState::emit_event(
+                                "assistant:skill",
+                                serde_json::json!({
+                                    "id": id,
+                                    "name": id,
+                                    "status": "failed",
+                                    "output": "Skill tidak ditemukan"
+                                }),
+                            );
                         }
                     }
                 }
                 if !found_skill {
                     let lower_in = effective_input.to_lowercase();
-                    if lower_in.contains("buka terminal") || lower_in.contains("open terminal") || lower_in.contains("bukain terminal") || lower_in.contains("buka console") {
-                        crate::term_log!("\n[SMART FALLBACK]: Terdeteksi permintaan buka terminal.");
-                        if let Some((skill_name, output)) = execute_skill_by_identifier("buka terminal") {
-                            crate::term_log!("[SKILL BERHASIL: {}] -> {}", skill_name, output.trim());
-                            TrayState::emit_event("assistant:skill", serde_json::json!({
-                                "id": "buka terminal",
-                                "name": skill_name,
-                                "status": "success",
-                                "output": output.trim()
-                            }));
+                    if lower_in.contains("buka terminal")
+                        || lower_in.contains("open terminal")
+                        || lower_in.contains("bukain terminal")
+                        || lower_in.contains("buka console")
+                    {
+                        crate::term_log!(
+                            "\n[SMART FALLBACK]: Terdeteksi permintaan buka terminal."
+                        );
+                        if let Some((skill_name, output)) =
+                            execute_skill_by_identifier("buka terminal")
+                        {
+                            crate::term_log!(
+                                "[SKILL BERHASIL: {}] -> {}",
+                                skill_name,
+                                output.trim()
+                            );
+                            TrayState::emit_event(
+                                "assistant:skill",
+                                serde_json::json!({
+                                    "id": "buka terminal",
+                                    "name": skill_name,
+                                    "status": "success",
+                                    "output": output.trim()
+                                }),
+                            );
                         }
                     }
                 }

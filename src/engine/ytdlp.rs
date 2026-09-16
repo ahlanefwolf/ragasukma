@@ -24,7 +24,14 @@ pub fn install_ytdlp() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
         let out = Command::new("winget")
-            .args(["install", "--id", "yt-dlp.yt-dlp", "-e", "--accept-source-agreements", "--accept-package-agreements"])
+            .args([
+                "install",
+                "--id",
+                "yt-dlp.yt-dlp",
+                "-e",
+                "--accept-source-agreements",
+                "--accept-package-agreements",
+            ])
             .output()
             .map_err(|e| format!("Gagal jalankan winget: {}", e))?;
         if out.status.success() {
@@ -234,9 +241,15 @@ pub fn check_ytdlp() -> YtDlpInfo {
     match result {
         Ok(out) if out.status.success() => {
             let version = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            YtDlpInfo { version, available: true }
+            YtDlpInfo {
+                version,
+                available: true,
+            }
         }
-        _ => YtDlpInfo { version: String::new(), available: false },
+        _ => YtDlpInfo {
+            version: String::new(),
+            available: false,
+        },
     }
 }
 
@@ -257,7 +270,10 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
         format!("ytsearch1:{}", query)
     };
 
-    println!("[yt-dlp] Memulai download audio: {} ke {:?}", target, abs_out_dir);
+    println!(
+        "[yt-dlp] Memulai download audio: {} ke {:?}",
+        target, abs_out_dir
+    );
 
     // Catat file audio yang sudah ada sebelum download
     let existing_files: std::collections::HashSet<String> = std::fs::read_dir(&abs_out_dir)
@@ -277,9 +293,12 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
         .current_dir(&abs_out_dir)
         .args([
             "--no-playlist",
-            "-f", "ba[ext=m4a]/ba",
-            "-o", "%(title)s [%(id)s].%(ext)s",
-            "--print", "after_move:%(id)s\t%(title)s\t%(uploader)s\t%(filename)s",
+            "-f",
+            "ba[ext=m4a]/ba",
+            "-o",
+            "%(title)s [%(id)s].%(ext)s",
+            "--print",
+            "after_move:%(id)s\t%(title)s\t%(uploader)s\t%(filename)s",
             "--no-warnings",
             &target,
         ])
@@ -302,7 +321,9 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
                 if start_time.elapsed() >= timeout {
                     let _ = child.kill();
                     clean_json_sidecars(&abs_out_dir);
-                    anyhow::bail!("Waktu download lagu habis (timeout 25 detik). Koneksi internet lambat.");
+                    anyhow::bail!(
+                        "Waktu download lagu habis (timeout 25 detik). Koneksi internet lambat."
+                    );
                 }
                 std::thread::sleep(poll_interval);
             }
@@ -341,11 +362,18 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
                     None
                 };
 
-                println!("[yt-dlp] File berhasil disimpan & dimuat: {} ({})", title, filename);
+                println!(
+                    "[yt-dlp] File berhasil disimpan & dimuat: {} ({})",
+                    title, filename
+                );
                 return Ok(YtTrackInfo {
                     id,
                     title,
-                    uploader: if uploader.is_empty() { "YouTube Audio".to_string() } else { uploader },
+                    uploader: if uploader.is_empty() {
+                        "YouTube Audio".to_string()
+                    } else {
+                        uploader
+                    },
                     duration: 0,
                     thumbnail,
                     filename,
@@ -359,7 +387,12 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
             if !existing_files.contains(&name) {
-                let ext = entry.path().extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+                let ext = entry
+                    .path()
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("")
+                    .to_lowercase();
                 if ["m4a", "opus", "mp3", "ogg", "wav", "webm", "flac"].contains(&ext.as_str()) {
                     let (title, id) = parse_filename_title_id(&name);
                     let thumbnail = if !id.is_empty() {
@@ -388,8 +421,13 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
             let path = entry.path();
             if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                 let ext_lower = ext.to_lowercase();
-                if ["m4a", "opus", "mp3", "ogg", "wav", "webm", "flac"].contains(&ext_lower.as_str()) {
-                    let mtime = entry.metadata().and_then(|m| m.modified()).unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                if ["m4a", "opus", "mp3", "ogg", "wav", "webm", "flac"]
+                    .contains(&ext_lower.as_str())
+                {
+                    let mtime = entry
+                        .metadata()
+                        .and_then(|m| m.modified())
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
                     audio_files.push((path, mtime));
                 }
             }
@@ -399,14 +437,21 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
         audio_files.sort_by_key(|a| std::cmp::Reverse(a.1));
 
         if let Some((latest_path, _)) = audio_files.first() {
-            let filename = latest_path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+            let filename = latest_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string();
             let (title, id) = parse_filename_title_id(&filename);
             let thumbnail = if !id.is_empty() {
                 Some(format!("https://i.ytimg.com/vi/{}/hqdefault.jpg", id))
             } else {
                 None
             };
-            println!("[yt-dlp] Fallback ke file audio terbaru: {} ({})", title, filename);
+            println!(
+                "[yt-dlp] Fallback ke file audio terbaru: {} ({})",
+                title, filename
+            );
             return Ok(YtTrackInfo {
                 id,
                 title,
@@ -418,7 +463,10 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
         }
     }
 
-    anyhow::bail!("Download selesai tapi file audio tidak ditemukan di {:?}", abs_out_dir)
+    anyhow::bail!(
+        "Download selesai tapi file audio tidak ditemukan di {:?}",
+        abs_out_dir
+    )
 }
 
 /// Bersihkan file *.json di folder music agar rapi hanya berisi audio murni
@@ -447,7 +495,11 @@ pub fn list_downloaded(music_dir: &Path) -> Vec<YtTrackInfo> {
 
     for entry in entries.flatten() {
         let path = entry.path();
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
         if !["mp3", "opus", "ogg", "wav", "m4a", "flac", "webm"].contains(&ext.as_str()) {
             continue;
         }

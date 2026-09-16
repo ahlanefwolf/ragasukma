@@ -28,7 +28,9 @@ impl SttEngine {
                 std::env::var("GROQ_API_KEY").unwrap_or_default()
             };
             if api_key.trim().is_empty() {
-                anyhow::bail!("GROQ_API_KEY tidak ditemukan di config-ai.json atau GUI Settings! Silakan isi GROQ_API_KEY untuk menggunakan mode Groq STT.");
+                anyhow::bail!(
+                    "GROQ_API_KEY tidak ditemukan di config-ai.json atau GUI Settings! Silakan isi GROQ_API_KEY untuk menggunakan mode Groq STT."
+                );
             }
             let client = reqwest::blocking::Client::builder()
                 .timeout(std::time::Duration::from_secs(15))
@@ -40,7 +42,9 @@ impl SttEngine {
         let client = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(15))
             .build()?;
-        crate::term_log!("🌐 Engine STT: GOOGLE Speech API (Free, No API Key, Bahasa Indonesia) siap.");
+        crate::term_log!(
+            "🌐 Engine STT: GOOGLE Speech API (Free, No API Key, Bahasa Indonesia) siap."
+        );
         Ok(Self::Google { client })
     }
 
@@ -95,7 +99,10 @@ impl SttEngine {
                 let form = multipart::Form::new()
                     .text("model", "whisper-large-v3")
                     .text("language", "id")
-                    .text("prompt", "Obrolan santai, percakapan bahasa Indonesia, Linux, Fedora, dan coding.")
+                    .text(
+                        "prompt",
+                        "Obrolan santai, percakapan bahasa Indonesia, Linux, Fedora, dan coding.",
+                    )
                     .text("temperature", "0.0")
                     .part("file", part);
 
@@ -111,7 +118,8 @@ impl SttEngine {
                     anyhow::bail!("Groq API Error: {err_text}");
                 }
 
-                let parsed: GroqTranscriptionResponse = res.json().context("Gagal parse response Groq STT")?;
+                let parsed: GroqTranscriptionResponse =
+                    res.json().context("Gagal parse response Groq STT")?;
                 Ok(parsed.text.trim().to_string())
             }
         }
@@ -133,12 +141,12 @@ pub fn encode_pcm_to_wav(samples: &[f32], sample_rate: u32) -> Result<Vec<u8>> {
     // fmt chunk
     buffer.write_all(b"fmt ")?;
     buffer.write_all(&16u32.to_le_bytes())?; // Chunk size
-    buffer.write_all(&1u16.to_le_bytes())?;  // Audio format 1 = PCM
-    buffer.write_all(&1u16.to_le_bytes())?;  // 1 channel (mono)
+    buffer.write_all(&1u16.to_le_bytes())?; // Audio format 1 = PCM
+    buffer.write_all(&1u16.to_le_bytes())?; // 1 channel (mono)
     buffer.write_all(&sample_rate.to_le_bytes())?;
     let byte_rate = sample_rate * 2;
     buffer.write_all(&byte_rate.to_le_bytes())?;
-    buffer.write_all(&2u16.to_le_bytes())?;  // Block align
+    buffer.write_all(&2u16.to_le_bytes())?; // Block align
     buffer.write_all(&16u16.to_le_bytes())?; // Bits per sample
 
     // data chunk

@@ -10,7 +10,9 @@ use winit::{
 use super::pose_system::{AssistantVisualState, PoseManager};
 use super::renderer::Renderer;
 use super::vrm_loader::VrmModelData;
-use crate::server::{self, ServerSharedState};
+use crate::app_state::ServerSharedState;
+use crate::assets;
+use crate::server;
 
 pub fn open_browser(url: &str) {
     #[cfg(target_os = "windows")]
@@ -35,6 +37,7 @@ pub struct App {
     pub pose_manager: PoseManager,
     pub last_frame_time: Instant,
     pub shared_server_state: Arc<Mutex<ServerSharedState>>,
+    pub vrm_loader_rx: Option<std::sync::mpsc::Receiver<Box<VrmModelData>>>,
     pub is_right_mouse_down: bool,
     pub is_left_mouse_down: bool,
     pub is_ctrl_down: bool,
@@ -49,7 +52,7 @@ pub struct App {
 
 impl App {
     pub async fn new(window_target: &EventLoopWindowTarget<()>) -> anyhow::Result<Self> {
-        let initial_cfg = server::load_config();
+        let initial_cfg = assets::load_config();
 
         let initial_level = if initial_cfg.always_on_top {
             WindowLevel::AlwaysOnTop
@@ -57,7 +60,9 @@ impl App {
             WindowLevel::Normal
         };
 
-        let monitor = window_target.primary_monitor().or_else(|| window_target.available_monitors().next());
+        let monitor = window_target
+            .primary_monitor()
+            .or_else(|| window_target.available_monitors().next());
         let (screen_w, screen_h) = if let Some(m) = monitor {
             let s = m.size();
             (s.width as f64, s.height as f64)
@@ -89,6 +94,7 @@ impl App {
             .with_position(winit::dpi::LogicalPosition::new(pos_x, pos_y))
             .with_decorations(false)
             .with_transparent(true)
+            .with_visible(true)
             .with_window_level(initial_level)
             .with_resizable(true);
 
@@ -101,33 +107,32 @@ impl App {
         let window = Arc::new(window);
         let mut renderer = Box::new(Renderer::new(window.clone()).await?);
         renderer.avatar_type = initial_cfg.avatar_type.clone();
-        // Simpan dimensi awal window untuk mengunci posisi karakter di layar
         renderer.anchor_center_x = (win_w * 0.5) as f32;
         renderer.anchor_center_y = (win_h * 0.5) as f32;
 
-        // Cari path model VRoid/VRM di berbagai kemungkinan direktori
-        let candidates = [
-            server::find_file_in_candidates("char.vrm"),
-            server::find_file_in_candidates("char.glb"),
-            PathBuf::from("assets/char.vrm"),
-            PathBuf::from("assets/char.glb"),
-        ];
-
-        let mut loaded = false;
-        for path in &candidates {
-            if path.exists() {
-                println!("📂 [Asset Loader] Memuat model avatar dari: {:?}", path);
-                if let Ok(model) = VrmModelData::load_from_file(path) {
-                    renderer.load_vrm_model(model);
-                    loaded = true;
-                    break;
+        // Lazy load asinkron via background thread: Logo bouncing langsung beranimasi 60 FPS tanpa hang/freeze
+        renderer.is_loading = true;
+        let (vrm_tx, vrm_rx) = std::sync::mpsc::channel::<Box<VrmModelData>>();
+        std::thread::spawn(move || {
+            let candidates = [
+                assets::find_file_in_candidates("char.vrm"),
+                assets::find_file_in_candidates("char.glb"),
+                PathBuf::from("assets/char.vrm"),
+                PathBuf::from("assets/char.glb"),
+            ];
+            for p in &candidates {
+                if p.exists() {
+                    println!(
+                        "📂 [Async Asset Loader] Memuat model avatar di background: {:?}",
+                        p
+                    );
+                    if let Ok(model) = VrmModelData::load_from_file(p) {
+                        let _ = vrm_tx.send(model);
+                        break;
+                    }
                 }
             }
-        }
-
-        if !loaded {
-            eprintln!("⚠️ Gagal memuat avatar dari daftar path kandidat {:?}", candidates);
-        }
+        });
 
         let pose_manager = PoseManager::default();
 
@@ -136,8 +141,10 @@ impl App {
             current_emotion: "neutral".to_string(),
             is_running: false,
             is_paused: false,
+            is_shutdown: false,
             voice_muted: false,
             mic_muted: false,
+            mic_level: 0,
             poses_updated: false,
             config_updated: false,
             vrm_updated: false,
@@ -147,7 +154,7 @@ impl App {
             state_version: 1,
         }));
 
-        server::register_shared_state(Arc::clone(&shared_server_state));
+        crate::app_state::register_shared_state(Arc::clone(&shared_server_state));
         server::start_http_server(Arc::clone(&shared_server_state));
 
         Ok(Self {
@@ -156,6 +163,7 @@ impl App {
             pose_manager,
             last_frame_time: Instant::now(),
             shared_server_state,
+            vrm_loader_rx: Some(vrm_rx),
             is_right_mouse_down: false,
             is_left_mouse_down: false,
             is_ctrl_down: false,
@@ -190,7 +198,12 @@ impl App {
                 self.is_right_mouse_down = false;
             }
             WindowEvent::CloseRequested => {
-                println!("🛑 Menutup aplikasi Ragasukma...");
+                println!("🛑 Menutup aplikasi Ragasukma (Window Close)...");
+                crate::app_state::trigger_app_shutdown();
+                crate::tray::TrayState::push_command("quit".to_string());
+                // Jeda 200ms agar browser menerima SSE event shutdown dan membersihkan seluruh resource/player
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                elwt.exit();
                 std::process::exit(0);
             }
             WindowEvent::Resized(physical_size) => {
@@ -207,28 +220,10 @@ impl App {
                 self.is_ctrl_down = modifiers.state().control_key();
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Control) = &event.logical_key {
+                if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Control) =
+                    &event.logical_key
+                {
                     self.is_ctrl_down = event.state == ElementState::Pressed;
-                }
-
-                if event.state == ElementState::Pressed {
-                    if let winit::keyboard::Key::Character(c) = &event.logical_key {
-                        if c.eq_ignore_ascii_case("m") {
-                            // Minimize window
-                            self.window.set_minimized(true);
-                        } else if c.eq_ignore_ascii_case("f") {
-                            // Toggle Maximize / Fullscreen
-                            let is_max = self.window.is_maximized();
-                            self.window.set_maximized(!is_max);
-                        } else if c.eq_ignore_ascii_case("q") {
-                            // Exit / Close
-                            println!("🛑 Menutup aplikasi Ragasukma (Key Q)...");
-                            std::process::exit(0);
-                        }
-                    } else if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape) = &event.logical_key {
-                        println!("🛑 Menutup aplikasi Ragasukma (Key ESC)...");
-                        std::process::exit(0);
-                    }
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
@@ -279,6 +274,11 @@ impl App {
                             // Tombol Close (✕)
                             if cur_x >= (w - 28.0) && cur_x <= (w - 4.0) {
                                 println!("🛑 Menutup aplikasi Ragasukma (Header Close)...");
+                                crate::app_state::trigger_app_shutdown();
+                                crate::tray::TrayState::push_command("quit".to_string());
+                                // Jeda 200ms agar browser menerima SSE event shutdown dan membersihkan seluruh resource/player
+                                std::thread::sleep(std::time::Duration::from_millis(200));
+                                elwt.exit();
                                 std::process::exit(0);
                             }
                             // Tombol Maximize / Fullscreen (⛶)
@@ -333,15 +333,20 @@ impl App {
                 let on_bottom = position.y >= (h - border_margin);
 
                 if (on_top && on_left) || (on_bottom && on_right) {
-                    self.window.set_cursor_icon(winit::window::CursorIcon::NwseResize);
+                    self.window
+                        .set_cursor_icon(winit::window::CursorIcon::NwseResize);
                 } else if (on_top && on_right) || (on_bottom && on_left) {
-                    self.window.set_cursor_icon(winit::window::CursorIcon::NeswResize);
+                    self.window
+                        .set_cursor_icon(winit::window::CursorIcon::NeswResize);
                 } else if on_left || on_right {
-                    self.window.set_cursor_icon(winit::window::CursorIcon::EwResize);
+                    self.window
+                        .set_cursor_icon(winit::window::CursorIcon::EwResize);
                 } else if on_bottom || (on_top && position.x < (w - 90.0)) {
-                    self.window.set_cursor_icon(winit::window::CursorIcon::NsResize);
+                    self.window
+                        .set_cursor_icon(winit::window::CursorIcon::NsResize);
                 } else {
-                    self.window.set_cursor_icon(winit::window::CursorIcon::Default);
+                    self.window
+                        .set_cursor_icon(winit::window::CursorIcon::Default);
                 }
 
                 if let Some((prev_x, prev_y)) = self.last_cursor_pos {
@@ -387,6 +392,17 @@ impl App {
                 let mut is_previewing = false;
                 let mut live_tuner_emotion = String::new();
 
+                // Cek background loader channel untuk loading awal asinkron
+                if let Some(rx) = &self.vrm_loader_rx {
+                    if let Ok(model) = rx.try_recv() {
+                        self.renderer.load_vrm_model(model);
+                        self.renderer.is_loading = false;
+                        self.vrm_loader_rx = None;
+                        // Buka browser dashboard hanya setelah avatar/model 3D selesai dimuat ke GPU!
+                        assets::open_browser("http://127.0.0.1:42128");
+                    }
+                }
+
                 // Sync state & live poses reload dari Web HTTP Dashboard
                 if let Ok(mut lock) = self.shared_server_state.lock() {
                     self.pose_manager.current_state = lock.current_state;
@@ -403,34 +419,42 @@ impl App {
                             self.pose_manager.config = preview.clone();
                         } else if lock.poses_updated {
                             // Reload 100% dari file poses.json resmi di disk (Source of Truth)
-                            let path = server::find_file_in_candidates("poses.json");
+                            let path = assets::find_file_in_candidates("poses.json");
                             self.pose_manager.load_from_file(&path);
                             lock.poses_updated = false;
                         }
 
                         if lock.vrm_updated {
-                            let vrm_candidates = [
-                                server::find_file_in_candidates("char.vrm"),
-                                PathBuf::from("assets/char.vrm"),
-                                PathBuf::from("../assets/char.vrm"),
-                                PathBuf::from("assets/char.glb"),
-                                PathBuf::from("../assets/char.glb"),
-                            ];
-                            for p in &vrm_candidates {
-                                if p.exists() {
-                                    println!("📂 [Asset Loader] Memuat ulang avatar dari: {:?}", p);
-                                    if let Ok(model) = VrmModelData::load_from_file(p) {
-                                        self.renderer.load_vrm_model(model);
-                                        break;
+                            self.renderer.is_loading = true;
+                            let (vrm_tx, vrm_rx) = std::sync::mpsc::channel::<Box<VrmModelData>>();
+                            std::thread::spawn(move || {
+                                let vrm_candidates = [
+                                    assets::find_file_in_candidates("char.vrm"),
+                                    PathBuf::from("assets/char.vrm"),
+                                    PathBuf::from("../assets/char.vrm"),
+                                    PathBuf::from("assets/char.glb"),
+                                    PathBuf::from("../assets/char.glb"),
+                                ];
+                                for p in &vrm_candidates {
+                                    if p.exists() {
+                                        println!(
+                                            "📂 [Async Asset Loader] Memuat ulang model avatar di background: {:?}",
+                                            p
+                                        );
+                                        if let Ok(model) = VrmModelData::load_from_file(p) {
+                                            let _ = vrm_tx.send(model);
+                                            break;
+                                        }
                                     }
                                 }
-                            }
+                            });
+                            self.vrm_loader_rx = Some(vrm_rx);
                             self.renderer.reload_2d_avatar_textures();
                             lock.vrm_updated = false;
                         }
 
                         if lock.config_updated {
-                            let cfg = server::load_config();
+                            let cfg = assets::load_config();
                             self.renderer.avatar_type = cfg.avatar_type.clone();
                             let lvl = if cfg.always_on_top {
                                 WindowLevel::AlwaysOnTop
@@ -453,13 +477,16 @@ impl App {
                 // 3. Saat Speaking, Idle, atau Listening, pertahankan emosi terakhir (misal tetap tersipu/senang/cemberut saat idle)!
                 if is_tuning || is_previewing {
                     self.renderer.current_emotion = live_tuner_emotion;
-                } else if self.pose_manager.current_state == crate::native::pose_system::AssistantVisualState::Thinking {
+                } else if self.pose_manager.current_state
+                    == crate::ui::pose_system::AssistantVisualState::Thinking
+                {
                     self.renderer.current_emotion = "thinking".to_string();
                 } else {
                     self.renderer.current_emotion = live_tuner_emotion;
                 }
 
-                self.renderer.update_camera_and_bones(&mut self.pose_manager, delta_sim, is_tuning);
+                self.renderer
+                    .update_camera_and_bones(&mut self.pose_manager, delta_sim, is_tuning);
 
                 match self.renderer.render() {
                     Ok(_) => {}

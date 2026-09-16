@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
-use rodio::{buffer::SamplesBuffer, Decoder, OutputStream, Sink, Source};
+use rodio::{Decoder, OutputStream, Sink, Source, buffer::SamplesBuffer};
 use std::io::Cursor;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 /// DSP Audio Post-Processing untuk Karakter Anime Imut:
@@ -68,6 +68,8 @@ fn apply_anime_dsp_filter(samples: &[f32], sample_rate: u32) -> Vec<f32> {
     out
 }
 
+use crate::tray::{AssistantState, TrayState};
+
 pub struct TextToSpeech {
     playback_speed: f32,
     http_client: reqwest::blocking::Client,
@@ -119,13 +121,18 @@ impl TextToSpeech {
         }
     }
 
+    #[allow(dead_code)]
     pub fn speak(&self, text: &str) -> Result<()> {
+        self.speak_with_emotion(text, "neutral", "Asisten")
+    }
+
+    pub fn speak_with_emotion(&self, text: &str, emotion: &str, asst_name: &str) -> Result<()> {
         let clean_text = clean_text_for_speech(text);
         if clean_text.trim().is_empty() {
             return Ok(());
         }
 
-        if crate::server::is_voice_muted() {
+        if crate::app_state::is_voice_muted() {
             return Ok(());
         }
 
@@ -137,8 +144,8 @@ impl TextToSpeech {
                 if !self.elevenlabs_disabled.load(Ordering::Relaxed) {
                     match self.synthesize_elevenlabs(&clean_text, api_key) {
                         Ok(audio_bytes) => {
-                            // Terapkan DSP Anime Filter
-                            if let Err(e) = self.play_audio_buffer(audio_bytes, true) {
+                            // Terapkan DSP Anime Filter & sync lipsync
+                            if let Err(e) = self.play_audio_buffer(audio_bytes, true, emotion, asst_name) {
                                 crate::term_err!("⚠️ [ElevenLabs Playback Error]: {}", e);
                             } else {
                                 played_successfully = true;
@@ -146,11 +153,20 @@ impl TextToSpeech {
                         }
                         Err(e) => {
                             let err_str = e.to_string();
-                            if err_str.contains("quota_exceeded") || err_str.contains("credits remaining") || err_str.contains("Status 401") || err_str.contains("Status 429") {
-                                crate::term_err!("⚠️ [ElevenLabs Kuota Habis/Kritis] Menonaktifkan ElevenLabs untuk sesi ini, langsung beralih ke Google TTS.");
+                            if err_str.contains("quota_exceeded")
+                                || err_str.contains("credits remaining")
+                                || err_str.contains("Status 401")
+                                || err_str.contains("Status 429")
+                            {
+                                crate::term_err!(
+                                    "⚠️ [ElevenLabs Kuota Habis/Kritis] Menonaktifkan ElevenLabs untuk sesi ini, langsung beralih ke Google TTS."
+                                );
                                 self.elevenlabs_disabled.store(true, Ordering::Relaxed);
                             } else {
-                                crate::term_err!("⚠️ [ElevenLabs Fallback -> Google TTS]: {}", err_str);
+                                crate::term_err!(
+                                    "⚠️ [ElevenLabs Fallback -> Google TTS]: {}",
+                                    err_str
+                                );
                             }
                         }
                     }
@@ -160,7 +176,7 @@ impl TextToSpeech {
 
         // 2. Seamless Fallback ke Google Translate TTS + Custom DSP Anime
         if !played_successfully {
-            self.play_google_stream(&clean_text)?;
+            self.play_google_stream(&clean_text, emotion, asst_name)?;
         }
 
         Ok(())
@@ -199,11 +215,19 @@ impl TextToSpeech {
             anyhow::bail!("Status {status}: {err_body}");
         }
 
-        let bytes = resp.bytes().context("Gagal membaca audio bytes ElevenLabs")?;
+        let bytes = resp
+            .bytes()
+            .context("Gagal membaca audio bytes ElevenLabs")?;
         Ok(bytes.to_vec())
     }
 
-    fn play_audio_buffer(&self, raw_bytes: Vec<u8>, apply_dsp: bool) -> Result<()> {
+    fn play_audio_buffer(
+        &self,
+        raw_bytes: Vec<u8>,
+        apply_dsp: bool,
+        emotion: &str,
+        asst_name: &str,
+    ) -> Result<()> {
         let (_stream, stream_handle) =
             OutputStream::try_default().context("Gagal menginisialisasi output audio (speaker)")?;
         let sink = Sink::try_new(&stream_handle).context("Gagal membuat audio sink")?;
@@ -217,6 +241,14 @@ impl TextToSpeech {
         let channels = decoder.channels();
         let samples: Vec<f32> = decoder.convert_samples::<f32>().collect();
 
+        // Mulai animasi mulut berbicara HANYA saat audio benar-benar siap dan masuk ke sink speaker
+        TrayState::update_with_emotion(
+            AssistantState::Speaking,
+            &format!("{asst_name} Berbicara"),
+            emotion,
+        );
+        crate::app_state::set_ai_speaking(true);
+
         if apply_dsp {
             let processed = apply_anime_dsp_filter(&samples, sample_rate);
             sink.append(SamplesBuffer::new(channels, sample_rate, processed));
@@ -224,11 +256,22 @@ impl TextToSpeech {
             sink.append(SamplesBuffer::new(channels, sample_rate, samples));
         }
 
-        sink.sleep_until_end();
+        while !sink.empty() {
+            if crate::app_state::is_interruption_requested() {
+                sink.stop();
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(15));
+        }
+
+        crate::app_state::set_ai_speaking(false);
+
+        // Begitu suara selesai berbunyi, tutup mulut dan kembalikan ke state Thinking jika LLM masih merespons
+        TrayState::update_with_emotion(AssistantState::Thinking, "LLM Berpikir...", emotion);
         Ok(())
     }
 
-    fn play_google_stream(&self, text: &str) -> Result<()> {
+    fn play_google_stream(&self, text: &str, emotion: &str, asst_name: &str) -> Result<()> {
         let (_stream, stream_handle) =
             OutputStream::try_default().context("Gagal menginisialisasi output audio (speaker)")?;
         let sink = Sink::try_new(&stream_handle).context("Gagal membuat audio sink")?;
@@ -292,8 +335,22 @@ impl TextToSpeech {
                                 let samples: Vec<f32> = decoder.convert_samples::<f32>().collect();
 
                                 // DSP Anime Voice Filter
-                                let processed_samples = apply_anime_dsp_filter(&samples, sample_rate);
-                                sink.append(SamplesBuffer::new(channels, sample_rate, processed_samples));
+                                let processed_samples =
+                                    apply_anime_dsp_filter(&samples, sample_rate);
+
+                                // Sinkronisasi bibir: Aktifkan Speaking TEPAT saat potongan chunk audio masuk speaker
+                                TrayState::update_with_emotion(
+                                    AssistantState::Speaking,
+                                    &format!("{asst_name} Berbicara"),
+                                    emotion,
+                                );
+                                crate::app_state::set_ai_speaking(true);
+
+                                sink.append(SamplesBuffer::new(
+                                    channels,
+                                    sample_rate,
+                                    processed_samples,
+                                ));
                                 fetch_success = true;
                             }
                         }
@@ -304,12 +361,32 @@ impl TextToSpeech {
                 }
             }
 
+            if crate::app_state::is_interruption_requested() {
+                sink.stop();
+                break;
+            }
+
             while sink.len() > 1 {
-                std::thread::sleep(Duration::from_millis(50));
+                if crate::app_state::is_interruption_requested() {
+                    sink.stop();
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(15));
             }
         }
 
-        sink.sleep_until_end();
+        while !sink.empty() {
+            if crate::app_state::is_interruption_requested() {
+                sink.stop();
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(15));
+        }
+
+        crate::app_state::set_ai_speaking(false);
+
+        // Selesai bicara seluruh potongan kalimat, segera hentikan flap mulut
+        TrayState::update_with_emotion(AssistantState::Thinking, "LLM Berpikir...", emotion);
         Ok(())
     }
 }
@@ -370,8 +447,19 @@ fn clean_text_for_speech(text: &str) -> String {
 
     // 3. Tangkal bug kata emosi mentah di paling awal kalimat (misal: "malu Halo...", "senang Halo...", "malu, Halo...")
     let emotion_prefixes = [
-        "malu", "blush", "senang", "gembira", "bingung", "kaget",
-        "sedih", "semangat", "tertawa", "tersenyum", "tersipu", "panik", "marah"
+        "malu",
+        "blush",
+        "senang",
+        "gembira",
+        "bingung",
+        "kaget",
+        "sedih",
+        "semangat",
+        "tertawa",
+        "tersenyum",
+        "tersipu",
+        "panik",
+        "marah",
     ];
 
     loop {
@@ -382,7 +470,11 @@ fn clean_text_for_speech(text: &str) -> String {
                 let rest = &result[prefix.len()..];
                 // Cek apakah diikuti spasi, titik dua, koma, atau tanda strip
                 if let Some(first_char) = rest.chars().next() {
-                    if first_char.is_whitespace() || first_char == ':' || first_char == ',' || first_char == '-' {
+                    if first_char.is_whitespace()
+                        || first_char == ':'
+                        || first_char == ','
+                        || first_char == '-'
+                    {
                         result = rest[first_char.len_utf8()..].trim_start().to_string();
                         matched = true;
                         break;

@@ -20,7 +20,12 @@ pub fn apply_noise_reduction(samples: &mut [f32], sample_rate: u32, nr_level: u8
         2 => 150.0f32,
         _ => 180.0f32,
     };
-    apply_high_pass_filter(samples, sample_rate, cutoff_hz, if nr_level == 1 { 1 } else { 2 });
+    apply_high_pass_filter(
+        samples,
+        sample_rate,
+        cutoff_hz,
+        if nr_level == 1 { 1 } else { 2 },
+    );
 
     // 3. Dynamic Smooth Noise Gate
     apply_smooth_noise_gate(samples, sample_rate, nr_level);
@@ -35,7 +40,12 @@ pub fn remove_dc_offset(samples: &mut [f32]) {
 }
 
 /// High-Pass Filter IIR yang aman & natural
-pub fn apply_high_pass_filter(samples: &mut [f32], sample_rate: u32, cutoff_hz: f32, passes: usize) {
+pub fn apply_high_pass_filter(
+    samples: &mut [f32],
+    sample_rate: u32,
+    cutoff_hz: f32,
+    passes: usize,
+) {
     let rc = 1.0 / (2.0 * std::f32::consts::PI * cutoff_hz);
     let dt = 1.0 / sample_rate as f32;
     let alpha = rc / (rc + dt);
@@ -85,7 +95,7 @@ pub fn apply_smooth_noise_gate(samples: &mut [f32], sample_rate: u32, nr_level: 
     };
 
     let mut gain = 1.0f32;
-    let attack = 0.85f32;  // Cepat membuka saat vokal masuk
+    let attack = 0.85f32; // Cepat membuka saat vokal masuk
     let release = 0.15f32; // Halus saat menutup
 
     for (chunk_idx, chunk) in samples.chunks_mut(frame_size).enumerate() {

@@ -1,7 +1,7 @@
-use anyhow::{Context, Result};
 use super::cleaner::clean_ai_text;
 use super::prompt::build_system_prompt;
 use super::types::{ChatMessage, ChatRequest, OllamaChatRequest, OllamaChatResponse};
+use anyhow::{Context, Result};
 
 pub struct LlmClient {
     pub base_url: String,
@@ -145,7 +145,9 @@ impl LlmClient {
                                     current_sentence = current_sentence[pos + 1..].to_string();
 
                                     // Deteksi emosi dari teks mentah SEBELUM tag bintang dibersihkan
-                                    if let Some(emo) = crate::native::renderer::expressions::detect_emotion(&sentence) {
+                                    if let Some(emo) =
+                                        crate::ui::renderer::expressions::detect_emotion(&sentence)
+                                    {
                                         active_emotion = emo;
                                     }
 
@@ -163,7 +165,9 @@ impl LlmClient {
             // Sisa potongan kalimat terakhir
             let clean_rest = clean_ai_text(&current_sentence);
             if !clean_rest.is_empty() {
-                if let Some(emo) = crate::native::renderer::expressions::detect_emotion(&current_sentence) {
+                if let Some(emo) =
+                    crate::ui::renderer::expressions::detect_emotion(&current_sentence)
+                {
                     active_emotion = emo;
                 }
                 on_sentence(&clean_rest, active_emotion)?;
@@ -210,7 +214,9 @@ impl LlmClient {
         }
 
         let chat_res: OllamaChatResponse = res.json().context("Gagal parse response Ollama")?;
-        let emo = crate::native::renderer::expressions::detect_emotion_with_fallback(&chat_res.message.content);
+        let emo = crate::ui::renderer::expressions::detect_emotion_with_fallback(
+            &chat_res.message.content,
+        );
         let final_reply = clean_ai_text(&chat_res.message.content);
 
         if !final_reply.is_empty() {

@@ -1,4 +1,4 @@
-import { Component, createSignal, onMount, For, Show } from 'solid-js';
+import { Component, createSignal, onMount, onCleanup, For, Show } from 'solid-js';
 import { 
   Play, 
   Trash2, 
@@ -12,6 +12,7 @@ import {
   Search,
   Globe,
   Sliders,
+  Loader,
 } from 'lucide-solid';
 import { api, SkillItem, InstalledApp } from '../api';
 
@@ -19,13 +20,18 @@ interface SkillsTabProps {
   showToast: (msg: string) => void;
 }
 
+// Module-level persistent cache agar perpindahan antar tab instan 0ms tanpa re-loading
+const [cachedSkills, setCachedSkills] = createSignal<SkillItem[]>([]);
+const [cachedSystemApps, setCachedSystemApps] = createSignal<InstalledApp[]>([]);
+let isFirstSkillsMount = true;
+
 export const SkillsTab: Component<SkillsTabProps> = (props) => {
-  const [skills, setSkills] = createSignal<SkillItem[]>([]);
-  const [loading, setLoading] = createSignal(true);
+  const [skills, setSkills] = createSignal<SkillItem[]>(cachedSkills());
+  const [loading, setLoading] = createSignal(cachedSkills().length === 0 && isFirstSkillsMount);
 
   // System Apps State (Untuk preview informasi saja)
   const [showAppsInfo, setShowAppsInfo] = createSignal(false);
-  const [systemApps, setSystemApps] = createSignal<InstalledApp[]>([]);
+  const [systemApps, setSystemApps] = createSignal<InstalledApp[]>(cachedSystemApps());
   const [loadingApps, setLoadingApps] = createSignal(false);
   const [appSearch, setAppSearch] = createSignal('');
 
@@ -40,23 +46,50 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
   const [editDesc, setEditDesc] = createSignal('');
   const [editCmd, setEditCmd] = createSignal('');
 
-  const loadSkills = async () => {
-    setLoading(true);
-    const data = await api.getSkills();
-    setSkills(data);
-    setLoading(false);
+  const loadSkills = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const data = await api.getSkills();
+      const list = Array.isArray(data) ? data : [];
+      setSkills(list);
+      setCachedSkills(list);
+    } catch {
+      if (cachedSkills().length === 0) setSkills([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadSystemApps = async () => {
     if (systemApps().length > 0) return;
     setLoadingApps(true);
-    const apps = await api.getSystemApps();
-    setSystemApps(apps);
-    setLoadingApps(false);
+    try {
+      const apps = await api.getSystemApps();
+      const list = Array.isArray(apps) ? apps : [];
+      setSystemApps(list);
+      setCachedSystemApps(list);
+    } catch {
+      setSystemApps([]);
+    } finally {
+      setLoadingApps(false);
+    }
   };
 
+  let isComponentMounted = true;
+
   onMount(() => {
-    loadSkills();
+    isComponentMounted = true;
+    if (isFirstSkillsMount) {
+      isFirstSkillsMount = false;
+      loadSkills(false);
+    } else {
+      // Re-load silently in background
+      loadSkills(true);
+    }
+  });
+
+  onCleanup(() => {
+    isComponentMounted = false;
   });
 
   const handleRunSkill = async (skill: SkillItem) => {
@@ -261,7 +294,10 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
         </h3>
 
         {loading() ? (
-          <div class="p-8 text-center text-xs text-theme-text/50">Memuat skill-command.md...</div>
+          <div class="p-8 flex items-center justify-center gap-2 text-xs text-theme-text/50">
+            <Loader size={16} class="animate-spin text-theme-cyan" />
+            <span>Memuat skill-command.md...</span>
+          </div>
         ) : skills().length === 0 ? (
           <div class="p-8 text-center text-xs text-theme-text/50 bg-theme-surface rounded-2xl border border-theme-border">
             Belum ada script kustom tambahan. Perintah sistem bawaan dan website tetap bisa langsung kamu gunakan via suara.

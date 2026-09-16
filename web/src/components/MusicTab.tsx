@@ -1,4 +1,4 @@
-import { Component, createSignal, onMount, For, Show } from 'solid-js';
+import { Component, createSignal, onMount, onCleanup, For, Show } from 'solid-js';
 import {
   Music,
   Download,
@@ -12,56 +12,105 @@ import {
   Loader,
   ListMusic,
   Trash2,
+  Folder,
+  SkipBack,
+  SkipForward,
+  Search,
+  Volume2,
+  VolumeX,
+  PictureInPicture2,
 } from 'lucide-solid';
+import { pipManager } from '../services/pipService';
 import { api, YtDlpInfo, YtTrackInfo } from '../api';
 import {
   globalStatus,
   currentTime,
   duration,
+  volume,
   formatDuration,
   playTrack,
   pauseMusic,
   resumeMusic,
   stopMusic,
+  nextTrack,
+  prevTrack,
   seekMusic,
+  changeVolume,
 } from '../playerStore';
 
 interface MusicTabProps {
   showToast: (msg: string) => void;
 }
 
-export const MusicTab: Component<MusicTabProps> = (props) => {
-  const [ytDlpInfo, setYtDlpInfo] = createSignal<YtDlpInfo | null>(null);
-  const [checkingYtDlp, setCheckingYtDlp] = createSignal(true);
+// Module-level persistent cache agar tidak re-fetch / re-load saat user berpindah tab
+const [cachedYtDlpInfo, setCachedYtDlpInfo] = createSignal<YtDlpInfo | null>(null);
+const [cachedLibrary, setCachedLibrary] = createSignal<YtTrackInfo[]>([]);
+const [cachedMusicDir, setCachedMusicDir] = createSignal<string>('');
+let isFirstMusicTabMount = true;
 
+export const MusicTab: Component<MusicTabProps> = (props) => {
+  const [checkingYtDlp, setCheckingYtDlp] = createSignal(cachedYtDlpInfo() === null);
   const [searchQuery, setSearchQuery] = createSignal('');
   const [downloading, setDownloading] = createSignal(false);
   const [downloadResult, setDownloadResult] = createSignal<{ success: boolean; error?: string } | null>(null);
 
-  const [library, setLibrary] = createSignal<YtTrackInfo[]>([]);
-  const [loadingLibrary, setLoadingLibrary] = createSignal(false);
+  const [loadingLibrary, setLoadingLibrary] = createSignal(cachedLibrary().length === 0);
+  const [filterQuery, setFilterQuery] = createSignal('');
 
   const [copiedCmd, setCopiedCmd] = createSignal<string | null>(null);
   const [installing, setInstalling] = createSignal(false);
   const [installMsg, setInstallMsg] = createSignal<string | null>(null);
 
-  const checkYtDlp = async () => {
-    setCheckingYtDlp(true);
-    const info = await api.checkYtDlp();
-    setYtDlpInfo(info);
-    setCheckingYtDlp(false);
+  const [copiedDir, setCopiedDir] = createSignal(false);
+
+  const ytDlpInfo = () => cachedYtDlpInfo();
+  const library = () => cachedLibrary();
+  const musicDir = () => cachedMusicDir();
+
+  const checkYtDlp = async (silent = false) => {
+    if (!silent) setCheckingYtDlp(true);
+    try {
+      const info = await api.checkYtDlp();
+      setCachedYtDlpInfo(info);
+    } finally {
+      setCheckingYtDlp(false);
+    }
   };
 
-  const loadLibrary = async () => {
-    setLoadingLibrary(true);
-    const tracks = await api.listMusic();
-    setLibrary(tracks);
-    setLoadingLibrary(false);
+  const loadLibrary = async (silent = false) => {
+    if (!silent) setLoadingLibrary(true);
+    try {
+      const res = await api.listMusic();
+      if (Array.isArray(res)) {
+        setCachedLibrary(res);
+      } else {
+        setCachedLibrary(res?.tracks || []);
+        if (res?.music_dir) {
+          setCachedMusicDir(res.music_dir);
+        }
+      }
+    } finally {
+      setLoadingLibrary(false);
+    }
   };
 
-  onMount(async () => {
-    await checkYtDlp();
-    await loadLibrary();
+  let isComponentMounted = true;
+
+  onMount(() => {
+    isComponentMounted = true;
+    if (isFirstMusicTabMount) {
+      isFirstMusicTabMount = false;
+      checkYtDlp(false);
+      loadLibrary(false);
+    } else {
+      // Jika sudah pernah dimuat, lakukan silent background sync tanpa spinner yang mengganggu
+      checkYtDlp(true);
+      loadLibrary(true);
+    }
+  });
+
+  onCleanup(() => {
+    isComponentMounted = false;
   });
 
   const handleDownload = async () => {
@@ -83,8 +132,8 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
     }
   };
 
-  const handlePlay = async (track: YtTrackInfo) => {
-    await playTrack(track);
+  const handlePlay = (track: YtTrackInfo) => {
+    playTrack(track);
     props.showToast('Memutar lagu...');
   };
 
@@ -298,172 +347,332 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
         </div>
       </Show>
 
-      {/* Now Playing with Interactive Seekbar */}
+      {/* Now Playing Hero Card */}
       <Show when={(globalStatus().is_playing || globalStatus().is_paused) && globalStatus().current_track}>
-        <div class="rounded-xl border border-theme-cyan/30 bg-gradient-to-r from-theme-cyan/5 to-theme-surface overflow-hidden">
-          <div class="px-4 py-3 border-b border-theme-cyan/20 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-theme-cyan animate-pulse" />
-              <span class="text-xs font-bold text-theme-cyan uppercase tracking-wider">
-                {globalStatus().is_paused ? 'Dijeda' : 'Now Playing'}
-              </span>
-            </div>
-            <div class="flex items-center gap-2 text-xs font-mono text-theme-text/60">
-              <span>{formatDuration(Math.floor(currentTime()))}</span>
-              <span>/</span>
-              <span>{formatDuration(Math.floor(duration() || globalStatus().current_track!.duration))}</span>
-            </div>
-          </div>
-          <div class="p-4 space-y-3">
-            <div class="flex items-center gap-4">
-              <Show when={globalStatus().current_track!.thumbnail}>
+        <div class="relative overflow-hidden rounded-2xl border border-theme-cyan/40 bg-gradient-to-br from-theme-card via-theme-surface to-theme-bg shadow-xl p-4 sm:p-6">
+          
+          {/* Ambient Glow */}
+          <div class="absolute -top-12 -right-12 w-48 h-48 bg-theme-cyan/15 rounded-full blur-3xl pointer-events-none" />
+
+          <div class="relative flex flex-col md:flex-row items-center gap-6">
+            {/* Album Vinyl / Art Display */}
+            <div class="relative shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-theme-bg border-2 border-theme-cyan/40 shadow-xl group">
+              <Show
+                when={globalStatus().current_track!.thumbnail}
+                fallback={
+                  <div class="w-full h-full flex items-center justify-center">
+                    <Music size={36} class="text-theme-cyan/50" />
+                  </div>
+                }
+              >
                 <img
                   src={globalStatus().current_track!.thumbnail}
                   alt="thumbnail"
-                  class="w-14 h-14 rounded-xl object-cover shrink-0 border border-theme-border"
+                  class={`w-full h-full object-cover transition-transform duration-700 ${globalStatus().is_playing ? 'scale-105' : ''}`}
                 />
               </Show>
-              <Show when={!globalStatus().current_track!.thumbnail}>
-                <div class="w-14 h-14 rounded-xl bg-theme-card border border-theme-border flex items-center justify-center shrink-0">
-                  <Music size={22} class="text-theme-cyan/50" />
+
+              {/* Live Audio Equalizer Waveform Overlay */}
+              <Show when={globalStatus().is_playing}>
+                <div class="absolute inset-0 bg-black/40 backdrop-blur-[1.5px] flex items-end justify-center gap-1 p-2">
+                  <span class="w-1.5 bg-theme-cyan rounded-t animate-[pulse_0.6s_ease-in-out_infinite] h-5" />
+                  <span class="w-1.5 bg-theme-rose rounded-t animate-[pulse_0.9s_ease-in-out_infinite] h-8" />
+                  <span class="w-1.5 bg-theme-cyan rounded-t animate-[pulse_0.75s_ease-in-out_infinite] h-4" />
+                  <span class="w-1.5 bg-theme-rose rounded-t animate-[pulse_0.5s_ease-in-out_infinite] h-7" />
                 </div>
               </Show>
+            </div>
 
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-bold text-theme-text truncate">{globalStatus().current_track!.title}</p>
-                <p class="text-xs text-theme-text/60 truncate">{globalStatus().current_track!.uploader}</p>
+            {/* Track Info & Interactive Player Controls */}
+            <div class="flex-1 min-w-0 w-full space-y-3.5 text-center md:text-left">
+              <div class="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-theme-cyan/15 border border-theme-cyan/30 text-theme-cyan text-[11px] font-bold uppercase tracking-wider mb-1">
+                    <span class={`w-2 h-2 rounded-full ${globalStatus().is_playing ? 'bg-theme-cyan animate-pulse' : 'bg-theme-rose'}`} />
+                    <span>{globalStatus().is_paused ? 'Playback Dijeda' : 'Sedang Diputar'}</span>
+                  </div>
+                  <h3 class="text-lg sm:text-xl font-bold text-theme-text truncate">
+                    {globalStatus().current_track!.title}
+                  </h3>
+                  <p class="text-xs sm:text-sm text-theme-text/60 truncate mt-0.5">
+                    {globalStatus().current_track!.uploader || 'Local Library'}
+                  </p>
+                </div>
+
+                {/* Volume slider */}
+                <div class="hidden sm:flex items-center justify-center md:justify-end gap-2 px-3 py-1.5 rounded-xl bg-theme-bg/80 border border-theme-border self-center md:self-start">
+                  <button
+                    onClick={() => changeVolume(volume() > 0 ? 0 : 1)}
+                    class="text-theme-text/60 hover:text-theme-cyan transition-colors"
+                  >
+                    <Show when={volume() > 0} fallback={<VolumeX size={15} />}>
+                      <Volume2 size={15} />
+                    </Show>
+                  </button>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={volume()}
+                    onInput={(e) => changeVolume(parseFloat(e.currentTarget.value))}
+                    class="w-20 h-1 bg-theme-border rounded-lg appearance-none cursor-pointer accent-theme-cyan"
+                  />
+                  <span class="text-[10px] font-mono text-theme-text/50 w-7 text-right">
+                    {Math.round(volume() * 100)}%
+                  </span>
+                </div>
               </div>
 
-              <div class="flex items-center gap-2 shrink-0">
+              {/* Progress Seekbar */}
+              <div class="space-y-1">
+                <div class="relative flex items-center group">
+                  <input
+                    type="range"
+                    min="0"
+                    max={duration() || globalStatus().current_track!.duration || 100}
+                    value={currentTime()}
+                    onInput={handleSeek}
+                    class="w-full h-2 bg-theme-bg border border-theme-border rounded-lg appearance-none cursor-pointer accent-theme-cyan"
+                  />
+                </div>
+                <div class="flex justify-between text-[11px] font-mono text-theme-text/50">
+                  <span>{formatDuration(Math.floor(currentTime()))}</span>
+                  <span>{formatDuration(Math.floor(duration() || globalStatus().current_track!.duration || 0))}</span>
+                </div>
+              </div>
+
+              {/* Playback Action Buttons */}
+              <div class="flex items-center justify-center md:justify-start gap-2 sm:gap-3 pt-1">
+                <button
+                  onClick={prevTrack}
+                  class="p-2.5 sm:p-3 rounded-xl bg-theme-bg hover:bg-theme-card text-theme-text hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/40 transition-all active:scale-95 shadow-sm"
+                  title="Lagu Sebelumnya"
+                >
+                  <SkipBack size={18} />
+                </button>
+
                 <Show when={globalStatus().is_playing}>
                   <button
                     onClick={pauseMusic}
-                    class="p-2.5 rounded-xl bg-theme-rose/20 hover:bg-theme-rose/30 text-theme-rose border border-theme-rose/30 transition-all"
+                    class="px-5 py-2.5 sm:py-3 rounded-xl bg-theme-rose/20 hover:bg-theme-rose/30 text-theme-rose border border-theme-rose/40 font-bold text-sm transition-all flex items-center gap-2 active:scale-95 shadow-md shadow-theme-rose/10"
                     title="Jeda"
                   >
                     <Pause size={18} />
+                    <span>Jeda</span>
                   </button>
                 </Show>
+
                 <Show when={globalStatus().is_paused}>
                   <button
                     onClick={resumeMusic}
-                    class="p-2.5 rounded-xl bg-theme-cyan/20 hover:bg-theme-cyan/30 text-theme-cyan border border-theme-cyan/30 transition-all"
+                    class="px-5 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-theme-cyan to-[#9BE7F6] hover:brightness-110 text-theme-bg font-bold text-sm transition-all flex items-center gap-2 active:scale-95 shadow-lg shadow-theme-cyan/25"
                     title="Lanjutkan"
                   >
-                    <Play size={18} />
+                    <Play size={18} class="fill-current" />
+                    <span>Lanjutkan</span>
                   </button>
                 </Show>
+
+                <button
+                  onClick={nextTrack}
+                  class="p-2.5 sm:p-3 rounded-xl bg-theme-bg hover:bg-theme-card text-theme-text hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/40 transition-all active:scale-95 shadow-sm"
+                  title="Lagu Berikutnya"
+                >
+                  <SkipForward size={18} />
+                </button>
+
+                <button
+                  onClick={() => pipManager.togglePip()}
+                  class="px-3.5 py-2.5 sm:py-3 rounded-xl bg-theme-bg hover:bg-theme-card text-theme-text/90 hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/50 transition-all active:scale-95 shadow-sm flex items-center gap-2 font-semibold text-xs sm:text-sm"
+                  title="Buka Mini Player Picture-in-Picture (Layar Melayang)"
+                >
+                  <PictureInPicture2 size={20} class="text-theme-cyan" />
+                  <span>Mode PiP</span>
+                </button>
+
                 <button
                   onClick={stopMusic}
-                  class="p-2.5 rounded-xl bg-theme-card hover:bg-theme-border text-theme-text/70 hover:text-theme-rose border border-theme-border transition-all"
-                  title="Stop"
+                  class="p-2.5 sm:p-3 rounded-xl bg-theme-bg hover:bg-theme-rose/20 text-theme-text/60 hover:text-theme-rose border border-theme-border hover:border-theme-rose/40 transition-all active:scale-95 shadow-sm"
+                  title="Hentikan Musik"
                 >
-                  <Square size={18} />
+                  <Square size={16} />
                 </button>
               </div>
-            </div>
-
-            {/* Interactive Timeline Progress Bar */}
-            <div class="flex items-center gap-3 pt-1">
-              <input
-                type="range"
-                min="0"
-                max={duration() || globalStatus().current_track!.duration || 100}
-                value={currentTime()}
-                onInput={handleSeek}
-                class="w-full h-1.5 bg-theme-card rounded-lg appearance-none cursor-pointer accent-theme-cyan"
-              />
             </div>
           </div>
         </div>
       </Show>
 
-      {/* Library */}
-      <div class="rounded-xl border border-theme-border bg-theme-surface overflow-hidden">
-        <div class="px-4 py-3 border-b border-theme-border flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <ListMusic size={14} class="text-theme-cyan" />
-            <span class="text-xs font-bold text-theme-text/60 uppercase tracking-wider">Library</span>
-            <Show when={library().length > 0}>
-              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-theme-cyan/20 text-theme-cyan">
-                {library().length}
-              </span>
-            </Show>
+      {/* Library Section */}
+      <div class="rounded-2xl border border-theme-border bg-theme-surface overflow-hidden shadow-lg">
+        {/* Library Header & Local Search */}
+        <div class="px-4 py-3.5 border-b border-theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-theme-card/40">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-theme-cyan/15 flex items-center justify-center">
+              <ListMusic size={16} class="text-theme-cyan" />
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-theme-text uppercase tracking-wider">Library Playlist</span>
+                <Show when={library().length > 0}>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
+                    {library().length} Lagu
+                  </span>
+                </Show>
+              </div>
+              <Show when={musicDir()}>
+                <div
+                  class="flex items-center gap-1.5 mt-0.5 text-[11px] text-theme-text/45 hover:text-theme-cyan cursor-pointer transition-colors max-w-[260px] sm:max-w-md truncate"
+                  title="Klik untuk menyalin folder path musik"
+                  onClick={() => {
+                    navigator.clipboard.writeText(musicDir());
+                    setCopiedDir(true);
+                    setTimeout(() => setCopiedDir(false), 2000);
+                    props.showToast('Path folder musik disalin ke clipboard!');
+                  }}
+                >
+                  <Folder size={11} class="shrink-0 text-theme-cyan/70" />
+                  <span class="truncate font-mono">{musicDir()}</span>
+                  <Show when={copiedDir()} fallback={<Copy size={10} class="shrink-0 opacity-60" />}>
+                    <Check size={10} class="shrink-0 text-emerald-400" />
+                  </Show>
+                </div>
+              </Show>
+            </div>
           </div>
-          <button
-            onClick={loadLibrary}
-            disabled={loadingLibrary()}
-            class="text-[11px] px-2.5 py-1 rounded bg-theme-card hover:bg-theme-border text-theme-text/70 hover:text-theme-cyan border border-theme-border transition-all flex items-center gap-1.5 disabled:opacity-40"
-          >
-            <RefreshCw size={12} class={loadingLibrary() ? 'animate-spin' : ''} />
-            <span>Refresh</span>
-          </button>
+
+          <div class="flex items-center gap-2">
+            <div class="relative flex-1 sm:w-48">
+              <Search size={13} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-theme-text/40" />
+              <input
+                type="text"
+                placeholder="Cari lagu di library..."
+                value={filterQuery()}
+                onInput={(e) => setFilterQuery(e.currentTarget.value)}
+                class="w-full pl-8 pr-3 py-1.5 rounded-xl bg-theme-bg border border-theme-border text-xs text-theme-text placeholder-theme-text/30 focus:outline-none focus:border-theme-cyan/50 transition-colors"
+              />
+            </div>
+
+            <button
+              onClick={loadLibrary}
+              disabled={loadingLibrary()}
+              class="px-3 py-1.5 rounded-xl bg-theme-card hover:bg-theme-border text-theme-text/70 hover:text-theme-cyan border border-theme-border transition-all flex items-center gap-1.5 disabled:opacity-40 text-xs font-semibold"
+            >
+              <RefreshCw size={12} class={loadingLibrary() ? 'animate-spin' : ''} />
+              <span class="hidden xs:inline">Refresh</span>
+            </button>
+          </div>
         </div>
 
-        <div class="divide-y divide-theme-border/60">
+        {/* Tracks List */}
+        <div class="divide-y divide-theme-border/50">
           <Show when={loadingLibrary()}>
-            <div class="p-6 flex items-center justify-center gap-2 text-xs text-theme-text/40">
-              <Loader size={14} class="animate-spin" />
-              <span>Memuat library...</span>
+            <div class="p-8 flex items-center justify-center gap-2 text-xs text-theme-text/50">
+              <Loader size={16} class="animate-spin text-theme-cyan" />
+              <span>Memuat daftar lagu...</span>
             </div>
           </Show>
 
           <Show when={!loadingLibrary() && library().length === 0}>
-            <div class="p-8 text-center text-xs text-theme-text/40 space-y-2">
-              <Music size={32} class="mx-auto text-theme-text/20" />
-              <p>Library kosong. Download lagu pertamamu!</p>
+            <div class="p-10 text-center text-xs text-theme-text/40 space-y-3">
+              <div class="w-14 h-14 rounded-2xl bg-theme-card border border-theme-border flex items-center justify-center mx-auto">
+                <Music size={26} class="text-theme-text/30" />
+              </div>
+              <p class="font-medium text-sm text-theme-text/60">Library lagu masih kosong</p>
+              <p class="text-[11px] text-theme-text/40">Gunakan kolom Search & Download di atas untuk menyimpan lagu dari YouTube.</p>
             </div>
           </Show>
 
-          <For each={library()}>
-            {(track) => {
+          <For
+            each={library().filter(
+              (t) =>
+                !filterQuery().trim() ||
+                t.title.toLowerCase().includes(filterQuery().toLowerCase()) ||
+                (t.uploader && t.uploader.toLowerCase().includes(filterQuery().toLowerCase()))
+            )}
+          >
+            {(track, idx) => {
               const isCurrentPlaying = () =>
                 globalStatus().current_track?.filename === track.filename &&
                 (globalStatus().is_playing || globalStatus().is_paused);
 
               return (
-                <div class={`flex items-center gap-3 px-4 py-3 transition-colors ${
-                  isCurrentPlaying() ? 'bg-theme-cyan/5' : 'hover:bg-theme-card/50'
-                }`}>
-                  <Show when={track.thumbnail}>
-                    <img
-                      src={track.thumbnail}
-                      alt=""
-                      class="w-10 h-10 rounded-lg object-cover shrink-0 border border-theme-border"
-                    />
-                  </Show>
-                  <Show when={!track.thumbnail}>
-                    <div class="w-10 h-10 rounded-lg bg-theme-card border border-theme-border flex items-center justify-center shrink-0">
-                      <Music size={16} class="text-theme-cyan/40" />
-                    </div>
-                  </Show>
-
-                  <div class="flex-1 min-w-0">
-                    <p class={`text-sm font-semibold truncate ${isCurrentPlaying() ? 'text-theme-cyan' : 'text-theme-text'}`}>
-                      {track.title}
-                    </p>
-                    <p class="text-xs text-theme-text/50 truncate">{track.uploader}</p>
+                <div
+                  class={`flex items-center gap-3 px-4 py-3 transition-all duration-150 group ${
+                    isCurrentPlaying()
+                      ? 'bg-theme-cyan/10 border-l-4 border-l-theme-cyan'
+                      : 'hover:bg-theme-card/60'
+                  }`}
+                >
+                  {/* Track Number / Soundwave */}
+                  <div class="w-6 text-center shrink-0">
+                    <Show
+                      when={isCurrentPlaying() && globalStatus().is_playing}
+                      fallback={
+                        <span class="text-xs font-mono text-theme-text/40 group-hover:text-theme-cyan transition-colors">
+                          {idx() + 1}
+                        </span>
+                      }
+                    >
+                      <div class="flex items-end justify-center gap-0.5 h-3.5">
+                        <span class="w-1 bg-theme-cyan rounded-t animate-[pulse_0.6s_ease-in-out_infinite] h-2" />
+                        <span class="w-1 bg-theme-rose rounded-t animate-[pulse_0.9s_ease-in-out_infinite] h-3.5" />
+                        <span class="w-1 bg-theme-cyan rounded-t animate-[pulse_0.75s_ease-in-out_infinite] h-2.5" />
+                      </div>
+                    </Show>
                   </div>
 
+                  {/* Thumbnail */}
+                  <div class="relative shrink-0 w-11 h-11 rounded-xl overflow-hidden bg-theme-card border border-theme-border">
+                    <Show
+                      when={track.thumbnail}
+                      fallback={
+                        <div class="w-full h-full flex items-center justify-center">
+                          <Music size={18} class="text-theme-cyan/40" />
+                        </div>
+                      }
+                    >
+                      <img src={track.thumbnail} alt="" class="w-full h-full object-cover" />
+                    </Show>
+                  </div>
+
+                  {/* Track Title & Artist */}
+                  <div class="flex-1 min-w-0">
+                    <p
+                      class={`text-sm font-bold truncate transition-colors ${
+                        isCurrentPlaying() ? 'text-theme-cyan' : 'text-theme-text group-hover:text-theme-cyan'
+                      }`}
+                    >
+                      {track.title}
+                    </p>
+                    <p class="text-xs text-theme-text/50 truncate mt-0.5">
+                      {track.uploader || 'Local Library'}
+                    </p>
+                  </div>
+
+                  {/* Track Duration & Actions */}
                   <div class="flex items-center gap-2 shrink-0">
-                    <span class="text-xs font-mono text-theme-text/40 hidden sm:inline">
+                    <span class="text-xs font-mono text-theme-text/40 hidden sm:inline px-2">
                       {formatDuration(track.duration)}
                     </span>
+
                     <button
                       onClick={() => handlePlay(track)}
-                      class={`p-2 rounded-xl transition-all border ${
+                      class={`p-2.5 rounded-xl transition-all border active:scale-95 ${
                         isCurrentPlaying()
-                          ? 'bg-theme-cyan/20 text-theme-cyan border-theme-cyan/30'
-                          : 'bg-theme-card hover:bg-theme-cyan/20 text-theme-text/60 hover:text-theme-cyan border-theme-border hover:border-theme-cyan/30'
+                          ? 'bg-theme-cyan text-theme-bg border-theme-cyan font-bold shadow-md shadow-theme-cyan/20'
+                          : 'bg-theme-card hover:bg-theme-cyan/20 text-theme-text/70 hover:text-theme-cyan border-theme-border hover:border-theme-cyan/30'
                       }`}
-                      title="Putar"
+                      title="Putar Lagu Ini"
                     >
-                      <Play size={15} />
+                      <Play size={15} class={isCurrentPlaying() ? 'fill-current' : ''} />
                     </button>
+
                     <button
                       onClick={() => handleDelete(track.filename, track.title)}
-                      class="p-2 rounded-xl bg-theme-card hover:bg-red-500/20 text-theme-text/40 hover:text-red-400 border border-theme-border hover:border-red-500/30 transition-all"
-                      title="Hapus Lagu"
+                      class="p-2.5 rounded-xl bg-theme-card hover:bg-theme-rose/20 text-theme-text/40 hover:text-theme-rose border border-theme-border hover:border-theme-rose/30 transition-all active:scale-95"
+                      title="Hapus dari Library"
                     >
                       <Trash2 size={15} />
                     </button>

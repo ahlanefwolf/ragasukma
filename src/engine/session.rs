@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::audio::recorder::AudioRecorder;
 use crate::audio::stt::SttEngine;
@@ -28,13 +29,14 @@ impl AppSession {
         let stt = SttEngine::new(&config.stt_engine)?;
 
         let llm = LlmClient::new();
-        crate::term_log!("🎀 Karakter {} (Imut & Pemalu) siap menemani {}.", config.assistant_name, config.user_callsign);
+        crate::term_log!(
+            "🎀 Karakter {} (Imut & Pemalu) siap menemani {}.",
+            config.assistant_name,
+            config.user_callsign
+        );
 
         let tts = Arc::new(TextToSpeech::new());
-        crate::term_log!(
-            "🔊 Engine TTS: {} siap.",
-            config.tts_engine.to_uppercase()
-        );
+        crate::term_log!("🔊 Engine TTS: {} siap.", config.tts_engine.to_uppercase());
 
         Ok(Self {
             config,
@@ -58,9 +60,11 @@ impl AppSession {
             || latest_config.tts_eleven_labs_key != self.config.tts_eleven_labs_key
             || latest_config.elevenlabs_voice_id != self.config.elevenlabs_voice_id;
 
-        let vad_changed = (latest_config.vad_activation_threshold - self.config.vad_activation_threshold).abs() > 0.0001
-            || latest_config.vad_silence_limit_chunks != self.config.vad_silence_limit_chunks
-            || latest_config.noise_reduction_level != self.config.noise_reduction_level;
+        let vad_changed =
+            (latest_config.vad_activation_threshold - self.config.vad_activation_threshold).abs()
+                > 0.0001
+                || latest_config.vad_silence_limit_chunks != self.config.vad_silence_limit_chunks
+                || latest_config.noise_reduction_level != self.config.noise_reduction_level;
 
         let llm_changed = latest_config.llm_base_url != self.config.llm_base_url
             || latest_config.llm_model != self.config.llm_model
@@ -71,24 +75,37 @@ impl AppSession {
 
         if vad_changed {
             self.recorder.update_config(latest_config.clone());
-            crate::term_log!("🔄 [Reactive Update] VAD Threshold & Audio Filter diupdate realtime!");
+            crate::term_log!(
+                "🔄 [Reactive Update] VAD Threshold & Audio Filter diupdate realtime!"
+            );
         }
 
         if stt_changed {
             if let Ok(new_stt) = SttEngine::new(&latest_config.stt_engine) {
                 self.stt = new_stt;
-                crate::term_log!("🔄 [Reactive Update] STT Engine dialihkan ke: {}", latest_config.stt_engine.to_uppercase());
+                crate::term_log!(
+                    "🔄 [Reactive Update] STT Engine dialihkan ke: {}",
+                    latest_config.stt_engine.to_uppercase()
+                );
             }
         }
 
         if tts_changed {
             self.tts = Arc::new(TextToSpeech::new());
-            crate::term_log!("🔄 [Reactive Update] TTS Engine / Bahasa dialihkan ke: {} (Lang: {})", latest_config.tts_engine.to_uppercase(), latest_config.tts_lang);
+            crate::term_log!(
+                "🔄 [Reactive Update] TTS Engine / Bahasa dialihkan ke: {} (Lang: {})",
+                latest_config.tts_engine.to_uppercase(),
+                latest_config.tts_lang
+            );
         }
 
         if llm_changed {
             self.llm = LlmClient::new();
-            crate::term_log!("🔄 [Reactive Update] LLM Persona / Model dialihkan ke: {} ({})", latest_config.llm_model, latest_config.assistant_name);
+            crate::term_log!(
+                "🔄 [Reactive Update] LLM Persona / Model dialihkan ke: {} ({})",
+                latest_config.llm_model,
+                latest_config.assistant_name
+            );
         }
 
         self.config = latest_config;
@@ -97,15 +114,55 @@ impl AppSession {
     pub fn run_interactive_menu(&mut self) -> Result<()> {
         TrayState::update(crate::tray::AssistantState::Idle, "Standby");
 
+        // Jalankan background worker audio agar mic level meter di Web Dashboard
+        // selalu mendeteksi audio secara realtime bahkan saat Standby
+        let (standby_tx, _standby_rx) = std::sync::mpsc::channel::<Vec<f32>>();
+        let stop_standby = Arc::new(AtomicBool::new(false));
+        let pause_standby = Arc::new(AtomicBool::new(false));
+        let stop_standby_clone = Arc::clone(&stop_standby);
+        let pause_standby_clone = Arc::clone(&pause_standby);
+        let recorder_ref = Arc::clone(&self.recorder);
+
+        let mut standby_handle = Some(std::thread::spawn(move || {
+            recorder_ref.start_continuous_worker(
+                stop_standby_clone,
+                pause_standby_clone,
+                standby_tx,
+            );
+        }));
+
         loop {
             // Standby mode: menunggu komando dari Web Dashboard atau tombol Mulai
             if let Some(cmd) = check_and_consume_cmd() {
                 match cmd.as_str() {
                     "start_chat" | "start" => {
+                        // Jangan hentikan standby worker, cukup reset antrean komando dan jalankan chat loop
+                        stop_standby.store(true, Ordering::SeqCst);
+                        if let Some(handle) = standby_handle.take() {
+                            let _ = handle.join();
+                        }
                         TrayState::clear_commands();
-                        self.start_chat_loop()?;
+                        let _ = self.start_chat_loop();
+
+                        // Setelah keluar dari chat loop, hidupkan kembali standby worker
+                        stop_standby.store(false, Ordering::SeqCst);
+                        let stop_standby_clone2 = Arc::clone(&stop_standby);
+                        let pause_standby_clone2 = Arc::clone(&pause_standby);
+                        let recorder_ref2 = Arc::clone(&self.recorder);
+                        let (new_tx, _new_rx) = std::sync::mpsc::channel::<Vec<f32>>();
+                        standby_handle = Some(std::thread::spawn(move || {
+                            recorder_ref2.start_continuous_worker(
+                                stop_standby_clone2,
+                                pause_standby_clone2,
+                                new_tx,
+                            );
+                        }));
                     }
                     "quit" => {
+                        stop_standby.store(true, Ordering::SeqCst);
+                        if let Some(handle) = standby_handle.take() {
+                            let _ = handle.join();
+                        }
                         TrayState::clear();
                         crate::term_log!("\n👋 Program selesai. Sampai jumpa!");
                         return Ok(());

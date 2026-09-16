@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use crate::native::pose_system::{AssistantVisualState, PosesConfig};
-use crate::engine::ytdlp::YtTrackInfo;
+use crate::ui::pose_system::{AssistantVisualState, PosesConfig};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppStatePayload {
@@ -13,11 +12,16 @@ pub struct AppStatePayload {
     pub is_paused: bool,
     pub voice_muted: bool,
     pub mic_muted: bool,
+    pub mic_level: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub active_session_token: Option<String>,
 }
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 pub struct ActiveWebSession {
     pub token: String,
+    pub active_tab: String,
     pub last_seen: Instant,
 }
 
@@ -28,8 +32,10 @@ pub struct ServerSharedState {
     pub current_emotion: String,
     pub is_running: bool,
     pub is_paused: bool,
+    pub is_shutdown: bool,
     pub voice_muted: bool,
     pub mic_muted: bool,
+    pub mic_level: u8,
     pub poses_updated: bool,
     pub config_updated: bool,
     pub vrm_updated: bool,
@@ -41,6 +47,28 @@ pub struct ServerSharedState {
 }
 
 pub static GLOBAL_SHARED_STATE: Mutex<Option<Arc<Mutex<ServerSharedState>>>> = Mutex::new(None);
+static AI_SPEAKING_FLAG: AtomicBool = AtomicBool::new(false);
+static INTERRUPT_FLAG: AtomicBool = AtomicBool::new(false);
+
+pub fn set_ai_speaking(speaking: bool) {
+    AI_SPEAKING_FLAG.store(speaking, Ordering::SeqCst);
+}
+
+pub fn is_ai_speaking() -> bool {
+    AI_SPEAKING_FLAG.load(Ordering::SeqCst)
+}
+
+pub fn trigger_interruption() {
+    INTERRUPT_FLAG.store(true, Ordering::SeqCst);
+}
+
+pub fn is_interruption_requested() -> bool {
+    INTERRUPT_FLAG.load(Ordering::SeqCst)
+}
+
+pub fn clear_interruption() {
+    INTERRUPT_FLAG.store(false, Ordering::SeqCst);
+}
 
 pub fn register_shared_state(shared: Arc<Mutex<ServerSharedState>>) {
     if let Ok(mut lock) = GLOBAL_SHARED_STATE.lock() {
@@ -116,6 +144,16 @@ pub fn is_voice_muted() -> bool {
     false
 }
 
+pub fn update_mic_level(level: u8) {
+    if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
+        if let Some(shared) = lock.as_ref() {
+            if let Ok(mut s) = shared.lock() {
+                s.mic_level = level;
+            }
+        }
+    }
+}
+
 pub fn is_mic_muted() -> bool {
     if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
         if let Some(shared) = lock.as_ref() {
@@ -138,72 +176,67 @@ pub fn is_paused() -> bool {
     false
 }
 
+pub fn trigger_app_shutdown() {
+    if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
+        if let Some(shared) = lock.as_ref() {
+            if let Ok(mut s) = shared.lock() {
+                s.is_shutdown = true;
+                s.is_running = false;
+                s.state_version = s.state_version.wrapping_add(1);
+            }
+        }
+    }
+}
+
+pub fn is_shutdown() -> bool {
+    if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
+        if let Some(shared) = lock.as_ref() {
+            if let Ok(s) = shared.lock() {
+                return s.is_shutdown;
+            }
+        }
+    }
+    false
+}
+
 // ---------------------------------------------------------------------------
-// Music Player State
+// Client Action Trigger Queue (Music actions, UI commands, dll)
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct MusicPlayerState {
-    pub current_track: Option<YtTrackInfo>,
-    pub is_playing: bool,
-    pub is_paused: bool,
-    pub volume: f32,
+pub struct ClientAction {
+    pub action: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload: Option<String>,
 }
 
-impl Default for MusicPlayerState {
-    fn default() -> Self {
-        Self {
-            current_track: None,
-            is_playing: false,
-            is_paused: false,
-            volume: 1.0,
+pub static PENDING_CLIENT_ACTIONS: Mutex<std::collections::VecDeque<ClientAction>> =
+    Mutex::new(std::collections::VecDeque::new());
+
+pub fn notify_state_changed() {
+    if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
+        if let Some(shared) = lock.as_ref() {
+            if let Ok(mut s) = shared.lock() {
+                s.state_version = s.state_version.wrapping_add(1);
+            }
         }
     }
 }
 
-pub static MUSIC_STATE: Mutex<Option<MusicPlayerState>> = Mutex::new(None);
-
-pub fn get_music_state() -> MusicPlayerState {
-    if let Ok(lock) = MUSIC_STATE.lock() {
-        lock.clone().unwrap_or_default()
-    } else {
-        MusicPlayerState::default()
-    }
-}
-
-/// Play file — simpan state pemutaran untuk web streaming player
-pub fn music_play_file(_path: &std::path::Path, track: YtTrackInfo) -> anyhow::Result<()> {
-    if let Ok(mut lock) = MUSIC_STATE.lock() {
-        *lock = Some(MusicPlayerState {
-            current_track: Some(track),
-            is_playing: true,
-            is_paused: false,
-            volume: 1.0,
+pub fn push_client_action(action: &str, payload: Option<&str>) {
+    if let Ok(mut q) = PENDING_CLIENT_ACTIONS.lock() {
+        q.push_back(ClientAction {
+            action: action.to_string(),
+            payload: payload.map(|s| s.to_string()),
         });
     }
-    Ok(())
+    notify_state_changed();
 }
 
-pub fn music_pause() {
-    if let Ok(mut lock) = MUSIC_STATE.lock() {
-        if let Some(s) = lock.as_mut() {
-            s.is_playing = false;
-            s.is_paused = true;
-        }
-    }
-}
-
-pub fn music_resume() {
-    if let Ok(mut lock) = MUSIC_STATE.lock() {
-        if let Some(s) = lock.as_mut() {
-            s.is_playing = true;
-            s.is_paused = false;
-        }
-    }
-}
-
-pub fn music_stop() {
-    if let Ok(mut lock) = MUSIC_STATE.lock() {
-        *lock = Some(MusicPlayerState::default());
+pub fn pop_client_actions() -> Vec<ClientAction> {
+    if let Ok(mut q) = PENDING_CLIENT_ACTIONS.lock() {
+        q.drain(..).collect()
+    } else {
+        Vec::new()
     }
 }

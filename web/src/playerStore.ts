@@ -1,18 +1,29 @@
 import { createSignal } from 'solid-js';
-import { api, YtTrackInfo, MusicStatus } from './api';
+import { api, YtTrackInfo } from './api';
 
-export const [globalStatus, setGlobalStatus] = createSignal<MusicStatus>({
-  is_playing: false,
-  is_paused: false,
-  volume: 100,
-});
+export interface CurrentTrackState {
+  track: YtTrackInfo | null;
+  isPlaying: boolean;
+  isPaused: boolean;
+}
 
+export const [currentTrack, setCurrentTrack] = createSignal<YtTrackInfo | null>(null);
+export const [isPlaying, setIsPlaying] = createSignal(false);
+export const [isPaused, setIsPaused] = createSignal(false);
 export const [currentTime, setCurrentTime] = createSignal(0);
 export const [duration, setDuration] = createSignal(0);
 export const [volume, setVolume] = createSignal(1);
 
+// Bridge status untuk komponen BottomPlayer & UI
+export const globalStatus = () => ({
+  current_track: currentTrack() || undefined,
+  is_playing: isPlaying(),
+  is_paused: isPaused(),
+  volume: volume() * 100,
+});
+
 let audioEl: HTMLAudioElement | null = null;
-let pollTimer: number | null = null;
+let isInitialized = false;
 
 export const formatDuration = (secs: number) => {
   if (!secs || isNaN(secs)) return '0:00';
@@ -40,94 +51,165 @@ export const initGlobalAudio = (el: HTMLAudioElement) => {
     }
   });
 
+  audioEl.addEventListener('play', () => {
+    setIsPlaying(true);
+    setIsPaused(false);
+  });
+
+  audioEl.addEventListener('pause', () => {
+    setIsPlaying(false);
+    setIsPaused(true);
+  });
+
   audioEl.addEventListener('ended', () => {
-    stopMusic();
+    setIsPlaying(false);
+    setIsPaused(false);
+    nextTrack();
   });
 
   audioEl.addEventListener('error', (e) => {
-    console.error('[GlobalAudio] Error stream:', e);
+    console.error('[AudioPlayer] Error:', e);
+    setIsPlaying(false);
+    setIsPaused(false);
   });
+};
 
-  // Start polling status from backend
-  if (!pollTimer) {
-    pollTimer = window.setInterval(async () => {
-      const s = await api.getMusicStatus();
-      setGlobalStatus(s);
+// Dengarkan perintah aksi musik secara global di modul
+api.subscribeActions(async (act) => {
+  console.log('[playerStore] Menerima action SSE:', act);
+  if (act.action === 'music:play') {
+    const query = act.payload?.toLowerCase().trim();
+    const res = await api.listMusic();
+    const list = Array.isArray(res) ? res : (res?.tracks || []);
+    if (list.length === 0) return;
 
-      // Sinkronisasi jika musik diputar via AI / Skill
-      if (s.is_playing && s.current_track?.filename) {
-        const streamUrl = api.getMusicStreamUrl(s.current_track.filename);
-        if (audioEl) {
-          const currentSrc = decodeURIComponent(audioEl.src);
-          if (!currentSrc.includes(s.current_track.filename)) {
-            audioEl.src = streamUrl;
-            audioEl.play().catch((e) => console.log('[GlobalAudio] Autoplay catch:', e));
-          } else if (audioEl.paused) {
-            audioEl.play().catch(() => {});
-          }
-        }
-      } else if (s.is_paused && audioEl && !audioEl.paused) {
-        audioEl.pause();
-      } else if (!s.is_playing && !s.is_paused && audioEl && !audioEl.paused) {
-        audioEl.pause();
-        audioEl.currentTime = 0;
+    if (query) {
+      const raw = act.payload?.trim() || '';
+      const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+      const qClean = clean(query);
+      const qWords = qClean.split(' ').filter(Boolean);
+
+      // 1. Cek Exact Filename / Title / ID
+      let matched = list.find(
+        (t) =>
+          t.filename === raw ||
+          t.title === raw ||
+          t.id === raw ||
+          t.title.toLowerCase() === query ||
+          t.filename.toLowerCase() === query
+      );
+
+      // 2. Cek Substring Match
+      if (!matched) {
+        matched = list.find((t) => {
+          const tClean = clean(`${t.title} ${t.filename}`);
+          return tClean.includes(qClean) || qClean.includes(clean(t.title));
+        });
       }
-    }, 1500);
+
+      // 3. Cek Multi-word Token Match
+      if (!matched && qWords.length > 0) {
+        matched = list.find((t) => {
+          const tClean = clean(`${t.title} ${t.filename}`);
+          return qWords.every((w) => tClean.includes(w));
+        });
+      }
+
+      // 4. Putar hanya jika lagu ditemukan di lokal
+      if (matched) {
+        playTrack(matched);
+      }
+    } else {
+      // Tanpa parameter query -> lanjutkan atau putar lagu pertama
+      playTrack(list[0]);
+    }
+  } else if (act.action === 'music:pause') {
+    pauseMusic();
+  } else if (act.action === 'music:resume') {
+    resumeMusic();
+  } else if (act.action === 'music:next') {
+    nextTrack();
+  } else if (act.action === 'music:prev') {
+    prevTrack();
+  } else if (act.action === 'music:stop') {
+    stopMusic();
+  }
+});
+
+export const playTrack = (track: YtTrackInfo) => {
+  if (!track || !track.filename) return;
+  setCurrentTrack(track);
+
+  if (audioEl) {
+    audioEl.src = `/music/${encodeURIComponent(track.filename)}`;
+    audioEl.play().catch((e) => console.log('[AudioPlayer] Autoplay catch:', e));
   }
 };
 
-export const playTrack = async (track: YtTrackInfo) => {
-  setGlobalStatus({
-    current_track: track,
-    is_playing: true,
-    is_paused: false,
-    volume: 100,
-  });
-
+export const pauseMusic = () => {
   if (audioEl) {
-    audioEl.src = api.getMusicStreamUrl(track.filename);
-    audioEl.play().catch((e) => console.log('[GlobalAudio] Play catch:', e));
+    audioEl.pause();
   }
-
-  await api.playMusic(track.filename);
 };
 
-export const pauseMusic = async () => {
-  if (audioEl) audioEl.pause();
-  setGlobalStatus((prev) => ({ ...prev, is_playing: false, is_paused: true }));
-  await api.pauseMusic();
-};
-
-export const resumeMusic = async () => {
+export const resumeMusic = () => {
   if (audioEl) {
-    if (!audioEl.src && globalStatus().current_track?.filename) {
-      audioEl.src = api.getMusicStreamUrl(globalStatus().current_track!.filename);
+    if (!audioEl.src && currentTrack()?.filename) {
+      audioEl.src = `/music/${encodeURIComponent(currentTrack()!.filename)}`;
     }
     audioEl.play().catch(() => {});
   }
-  setGlobalStatus((prev) => ({ ...prev, is_playing: true, is_paused: false }));
-  await api.resumeMusic();
 };
 
-export const stopMusic = async () => {
+export const nextTrack = async () => {
+  const res = await api.listMusic();
+  const list = Array.isArray(res) ? res : (res?.tracks || []);
+  if (list.length === 0) return;
+
+  const cur = currentTrack();
+  if (!cur) {
+    playTrack(list[0]);
+    return;
+  }
+
+  const idx = list.findIndex((t) => t.id === cur.id || t.filename === cur.filename);
+  const nextIdx = idx !== -1 ? (idx + 1) % list.length : 0;
+  playTrack(list[nextIdx]);
+};
+
+export const prevTrack = async () => {
+  const res = await api.listMusic();
+  const list = Array.isArray(res) ? res : (res?.tracks || []);
+  if (list.length === 0) return;
+
+  const cur = currentTrack();
+  if (!cur) {
+    playTrack(list[0]);
+    return;
+  }
+
+  const idx = list.findIndex((t) => t.id === cur.id || t.filename === cur.filename);
+  const prevIdx = idx !== -1 ? (idx - 1 + list.length) % list.length : 0;
+  playTrack(list[prevIdx]);
+};
+
+export const stopMusic = () => {
   if (audioEl) {
     audioEl.pause();
     audioEl.currentTime = 0;
   }
-  setGlobalStatus({ is_playing: false, is_paused: false, volume: 100 });
-  await api.stopMusic();
+  setIsPlaying(false);
+  setIsPaused(false);
 };
 
 export const killGlobalAudio = () => {
-  if (pollTimer) {
-    window.clearInterval(pollTimer);
-    pollTimer = null;
-  }
   if (audioEl) {
     audioEl.pause();
     audioEl.src = '';
   }
-  setGlobalStatus({ is_playing: false, is_paused: false, volume: 100 });
+  setCurrentTrack(null);
+  setIsPlaying(false);
+  setIsPaused(false);
 };
 
 export const seekMusic = (time: number) => {

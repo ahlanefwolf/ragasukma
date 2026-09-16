@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use super::types::Avatar2dUniform;
-use crate::native::pose_system::AssistantVisualState;
+use crate::ui::pose_system::AssistantVisualState;
 
 pub struct Pipeline2dComponents {
     pub pipeline: wgpu::RenderPipeline,
@@ -11,6 +11,7 @@ pub struct Pipeline2dComponents {
     pub bind_group_layout: wgpu::BindGroupLayout,
     pub sampler: wgpu::Sampler,
     pub textures: HashMap<AssistantVisualState, (wgpu::TextureView, wgpu::BindGroup, [f32; 2])>,
+    pub loading_texture: Option<(wgpu::TextureView, wgpu::BindGroup, [f32; 2])>,
 }
 
 pub fn create_2d_pipeline(
@@ -133,6 +134,7 @@ pub fn create_2d_pipeline(
     });
 
     let textures = load_2d_avatar_textures(device, queue, &bind_group_layout, &sampler);
+    let loading_texture = load_loading_icon_texture(device, queue, &bind_group_layout, &sampler);
 
     Pipeline2dComponents {
         pipeline,
@@ -141,7 +143,94 @@ pub fn create_2d_pipeline(
         bind_group_layout,
         sampler,
         textures,
+        loading_texture,
     }
+}
+
+pub fn load_loading_icon_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    layout: &wgpu::BindGroupLayout,
+    sampler: &wgpu::Sampler,
+) -> Option<(wgpu::TextureView, wgpu::BindGroup, [f32; 2])> {
+    // 1. Coba baca dari file candidates di disk
+    let candidates = [
+        crate::assets::find_file_in_candidates("icon.png"),
+        std::path::PathBuf::from("icons/icon.png"),
+        std::path::PathBuf::from("icons/128x128.png"),
+        std::path::PathBuf::from("assets/icon.png"),
+    ];
+    let mut image_data = None;
+    for p in &candidates {
+        if p.exists() {
+            if let Ok(bytes) = std::fs::read(p) {
+                if let Ok(img) = image::load_from_memory(&bytes) {
+                    image_data = Some(img.to_rgba8());
+                    break;
+                }
+            }
+        }
+    }
+
+    // 2. Fallback: Embed icon langsung dari rust-embed atau byte build
+    if image_data.is_none() {
+        if let Some(file) = crate::assets::EmbeddedAssets::get("icon.png") {
+            if let Ok(img) = image::load_from_memory(file.data.as_ref()) {
+                image_data = Some(img.to_rgba8());
+            }
+        }
+    }
+
+    if let Some(img) = image_data {
+        let dims = img.dimensions();
+        let tex_size = wgpu::Extent3d {
+            width: dims.0,
+            height: dims.1,
+            depth_or_array_layers: 1,
+        };
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Loading_Icon_Texture"),
+            size: tex_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            img.as_raw(),
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * dims.0),
+                rows_per_image: Some(dims.1),
+            },
+            tex_size,
+        );
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(sampler),
+                },
+            ],
+            label: Some("loading_icon_bind_group"),
+        });
+        return Some((view, bind_group, [dims.0 as f32, dims.1 as f32]));
+    }
+    None
 }
 
 pub fn load_image_to_texture(
@@ -199,18 +288,49 @@ pub fn load_2d_avatar_textures(
     let mut map = HashMap::new();
 
     let states = [
-        (AssistantVisualState::Idle, vec!["char-avatar-idle.png", "char-avatar-idle.jpg", "char-avatar-idle.svg"]),
-        (AssistantVisualState::Listening, vec!["char-avatar-listening.png", "char-avatar-listening.jpg", "char-avatar-listening.svg"]),
-        (AssistantVisualState::Speaking, vec!["char-avatar-talking.png", "char-avatar-talking.jpg", "char-avatar-talking.svg", "char-avatar-speaking.png"]),
-        (AssistantVisualState::Thinking, vec!["char-avatar-thinking.png", "char-avatar-thinking.jpg", "char-avatar-thinking.svg"]),
+        (
+            AssistantVisualState::Idle,
+            vec![
+                "char-avatar-idle.png",
+                "char-avatar-idle.jpg",
+                "char-avatar-idle.svg",
+            ],
+        ),
+        (
+            AssistantVisualState::Listening,
+            vec![
+                "char-avatar-listening.png",
+                "char-avatar-listening.jpg",
+                "char-avatar-listening.svg",
+            ],
+        ),
+        (
+            AssistantVisualState::Speaking,
+            vec![
+                "char-avatar-talking.png",
+                "char-avatar-talking.jpg",
+                "char-avatar-talking.svg",
+                "char-avatar-speaking.png",
+            ],
+        ),
+        (
+            AssistantVisualState::Thinking,
+            vec![
+                "char-avatar-thinking.png",
+                "char-avatar-thinking.jpg",
+                "char-avatar-thinking.svg",
+            ],
+        ),
     ];
 
     for (state, candidates) in states {
         let mut loaded = None;
         for c in &candidates {
-            let path = crate::server::find_file_in_candidates(c);
+            let path = crate::assets::find_file_in_candidates(c);
             if path.exists() {
-                if let Some((view, size)) = load_image_to_texture(device, queue, &path, &format!("Avatar2D_{:?}", state)) {
+                if let Some((view, size)) =
+                    load_image_to_texture(device, queue, &path, &format!("Avatar2D_{:?}", state))
+                {
                     loaded = Some((view, size));
                     break;
                 }
@@ -218,9 +338,14 @@ pub fn load_2d_avatar_textures(
         }
 
         if loaded.is_none() && state != AssistantVisualState::Idle {
-            let path = crate::server::find_file_in_candidates("char-avatar-idle.png");
+            let path = crate::assets::find_file_in_candidates("char-avatar-idle.png");
             if path.exists() {
-                loaded = load_image_to_texture(device, queue, &path, &format!("Avatar2D_Fallback_{:?}", state));
+                loaded = load_image_to_texture(
+                    device,
+                    queue,
+                    &path,
+                    &format!("Avatar2D_Fallback_{:?}", state),
+                );
             }
         }
 

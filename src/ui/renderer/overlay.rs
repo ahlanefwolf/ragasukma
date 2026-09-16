@@ -11,19 +11,20 @@ pub fn create_overlay_pipeline(
     config: &wgpu::SurfaceConfiguration,
 ) -> OverlayComponents {
     let overlay_shader = device.create_shader_module(wgpu::include_wgsl!("../overlay.wgsl"));
-    let overlay_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }],
-        label: Some("overlay_bind_group_layout"),
-    });
+    let overlay_bind_group_layout =
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("overlay_bind_group_layout"),
+        });
 
     let buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("Overlay Uniform Buffer"),

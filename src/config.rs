@@ -3,8 +3,8 @@ use std::collections::VecDeque;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::SystemTime;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,6 +101,12 @@ pub struct UserConfig {
     pub avatar_type: String,
     #[serde(default = "default_always_on_top")]
     pub always_on_top: bool,
+    #[serde(default = "default_voice_interruption")]
+    pub voice_interruption: bool,
+}
+
+fn default_voice_interruption() -> bool {
+    true
 }
 
 fn default_always_on_top() -> bool {
@@ -133,6 +139,7 @@ impl Default for UserConfig {
             elevenlabs_voice_id: "".to_string(),
             avatar_type: "vrm".to_string(),
             always_on_top: true,
+            voice_interruption: true,
         }
     }
 }
@@ -177,26 +184,14 @@ pub fn get_app_config_dir() -> PathBuf {
 }
 
 pub fn get_config_file_path() -> PathBuf {
-    // 1. Cek di user config dir: ~/.config/ragasukma/assets/config-ai.json
-    let p_assets = get_app_config_dir().join("assets").join("config-ai.json");
-    if p_assets.exists() {
-        return p_assets;
+    // 1. Cek via kandidat standar (Lokal project assets/ -> beside exe -> Resources macOS -> AppData/Roaming)
+    let candidate = crate::assets::find_file_in_candidates("config-ai.json");
+    if candidate.exists() {
+        return candidate;
     }
 
-    // 2. Cek di assets/config-ai.json lokal
-    let in_assets = PathBuf::from("assets/config-ai.json");
-    if in_assets.exists() {
-        return in_assets;
-    }
-
-    // 3. Cek di root project lokal ./config-ai.json
-    let local = PathBuf::from("config-ai.json");
-    if local.exists() {
-        return local;
-    }
-
-    // Default target selalu di dalam folder assets pengguna
-    p_assets
+    // 2. Default target jika belum ada: selalu di dalam folder assets pengguna
+    get_app_config_dir().join("assets").join("config-ai.json")
 }
 
 pub fn load_user_config() -> UserConfig {
@@ -252,22 +247,24 @@ pub struct AppConfig {
     pub personality_role: String,
     pub avatar_type: String,
     pub always_on_top: bool,
+    pub voice_interruption: bool,
 }
 
 impl AppConfig {
     pub fn load() -> Self {
         let u = load_user_config();
 
-        let (vad_activation_threshold, required_consecutive) = match u.mic_sensitivity.trim().to_lowercase().as_str() {
-            "0" => (0.045f32, 2), // 0 - Ekstra Kebal (Ruangan Sangat Ramai)
-            "1" => (0.030f32, 2), // 1 - Sangat Rendah
-            "2" => (0.018f32, 2), // 2 - Rendah
-            "3" => (0.012f32, 2), // 3 - Normal (Standar)
-            "4" => (0.007f32, 1), // 4 - Tinggi (Responsif)
-            "5" => (0.004f32, 1), // 5 - Sangat Tinggi
-            "6" => (0.002f32, 1), // 6 - Ultra Sensitif (Bisikan)
-            other => (other.parse::<f32>().unwrap_or(0.012f32), 2),
-        };
+        let (vad_activation_threshold, required_consecutive) =
+            match u.mic_sensitivity.trim().to_lowercase().as_str() {
+                "0" => (0.045f32, 2), // 0 - Ekstra Kebal (Ruangan Sangat Ramai)
+                "1" => (0.030f32, 2), // 1 - Sangat Rendah
+                "2" => (0.018f32, 2), // 2 - Rendah
+                "3" => (0.012f32, 2), // 3 - Normal (Standar)
+                "4" => (0.007f32, 1), // 4 - Tinggi (Responsif)
+                "5" => (0.004f32, 1), // 5 - Sangat Tinggi
+                "6" => (0.002f32, 1), // 6 - Ultra Sensitif (Bisikan)
+                other => (other.parse::<f32>().unwrap_or(0.012f32), 2),
+            };
 
         let vad_silence_limit_chunks = match u.vad_silence_limit.trim().to_lowercase().as_str() {
             "0" => 12,
@@ -299,6 +296,7 @@ impl AppConfig {
             personality_role: u.personality_role,
             avatar_type: u.avatar_type,
             always_on_top: u.always_on_top,
+            voice_interruption: u.voice_interruption,
         }
     }
 
