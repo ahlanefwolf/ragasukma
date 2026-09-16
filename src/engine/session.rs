@@ -60,11 +60,14 @@ impl AppSession {
             || latest_config.tts_eleven_labs_key != self.config.tts_eleven_labs_key
             || latest_config.elevenlabs_voice_id != self.config.elevenlabs_voice_id;
 
+        let interrup_changed = latest_config.voice_interruption != self.config.voice_interruption;
+
         let vad_changed =
             (latest_config.vad_activation_threshold - self.config.vad_activation_threshold).abs()
                 > 0.0001
                 || latest_config.vad_silence_limit_chunks != self.config.vad_silence_limit_chunks
-                || latest_config.noise_reduction_level != self.config.noise_reduction_level;
+                || latest_config.noise_reduction_level != self.config.noise_reduction_level
+                || interrup_changed;
 
         let llm_changed = latest_config.llm_base_url != self.config.llm_base_url
             || latest_config.llm_model != self.config.llm_model

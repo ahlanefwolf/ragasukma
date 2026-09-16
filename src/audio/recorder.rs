@@ -467,21 +467,25 @@ impl AudioRecorder {
                 noise_floor = noise_floor * 0.95 + voice_rms * 0.05;
 
                 if ai_speaking {
-                    // Deteksi Barge-in / Interupsi saat AI berbicara:
-                    // Ambang batas dinaikkan (+60%) agar suara speaker / pantulan ruangan tidak memicu interupsi palsu
-                    let interrupt_threshold = (noise_floor * 2.2).max(base_threshold * 1.6);
-                    if voice_rms > interrupt_threshold {
-                        consecutive_voice += 1;
-                        if consecutive_voice > required_voice {
-                            voice_started = true;
-                            peak_voice_rms = voice_rms;
-                            active_voice_chunks = required_voice + 1;
-                            recorded_audio.extend_from_slice(&pre_roll_buffer);
-                            pre_roll_buffer.clear();
-                            consecutive_silence = 0;
-                            crate::app_state::trigger_interruption();
-                            TrayState::update(AssistantState::Listening, "Mendengarkan (Interupsi)...");
-                            crate::term_log!("\r⚡ [Barge-in / Interupsi] Respon AI dipotong, mendengarkan...");
+                    // Deteksi Barge-in / Interupsi saat AI berbicara (HANYA jika diaktifkan):
+                    if is_interruption_enabled {
+                        // Ambang batas dinaikkan (+60%) agar suara speaker / pantulan ruangan tidak memicu interupsi palsu
+                        let interrupt_threshold = (noise_floor * 2.2).max(base_threshold * 1.6);
+                        if voice_rms > interrupt_threshold {
+                            consecutive_voice += 1;
+                            if consecutive_voice > required_voice {
+                                voice_started = true;
+                                peak_voice_rms = voice_rms;
+                                active_voice_chunks = required_voice + 1;
+                                recorded_audio.extend_from_slice(&pre_roll_buffer);
+                                pre_roll_buffer.clear();
+                                consecutive_silence = 0;
+                                crate::app_state::trigger_interruption();
+                                TrayState::update(AssistantState::Listening, "Mendengarkan (Interupsi)...");
+                                crate::term_log!("\r⚡ [Barge-in / Interupsi] Respon AI dipotong, mendengarkan...");
+                            }
+                        } else {
+                            consecutive_voice = 0;
                         }
                     } else {
                         consecutive_voice = 0;

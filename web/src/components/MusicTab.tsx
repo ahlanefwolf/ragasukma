@@ -19,6 +19,8 @@ import {
   Volume2,
   VolumeX,
   PictureInPicture2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-solid';
 import { pipManager } from '../services/pipService';
 import { api, YtDlpInfo, YtTrackInfo } from '../api';
@@ -56,6 +58,8 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
 
   const [loadingLibrary, setLoadingLibrary] = createSignal(cachedLibrary().length === 0);
   const [filterQuery, setFilterQuery] = createSignal('');
+  const [currentPage, setCurrentPage] = createSignal(1);
+  const [pageSize, setPageSize] = createSignal(10);
 
   const [copiedCmd, setCopiedCmd] = createSignal<string | null>(null);
   const [installing, setInstalling] = createSignal(false);
@@ -66,6 +70,23 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
   const ytDlpInfo = () => cachedYtDlpInfo();
   const library = () => cachedLibrary();
   const musicDir = () => cachedMusicDir();
+
+  const filteredTracks = () =>
+    library().filter(
+      (t) =>
+        !filterQuery().trim() ||
+        t.title.toLowerCase().includes(filterQuery().toLowerCase()) ||
+        (t.uploader && t.uploader.toLowerCase().includes(filterQuery().toLowerCase()))
+    );
+
+  const totalPages = () => Math.max(1, Math.ceil(filteredTracks().length / pageSize()));
+
+  const paginatedTracks = () => {
+    const page = Math.min(currentPage(), totalPages());
+    const size = pageSize();
+    const start = (page - 1) * size;
+    return filteredTracks().slice(start, start + size);
+  };
 
   const checkYtDlp = async (silent = false) => {
     if (!silent) setCheckingYtDlp(true);
@@ -167,7 +188,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
     setInstalling(false);
     if (res.success) {
       setInstallMsg(res.message);
-      if (res.info) setYtDlpInfo(res.info);
+      if (res.info) setCachedYtDlpInfo(res.info);
       props.showToast('yt-dlp berhasil diinstall!');
       await loadLibrary();
     } else {
@@ -549,7 +570,10 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
                 type="text"
                 placeholder="Cari lagu di library..."
                 value={filterQuery()}
-                onInput={(e) => setFilterQuery(e.currentTarget.value)}
+                onInput={(e) => {
+                  setFilterQuery(e.currentTarget.value);
+                  setCurrentPage(1);
+                }}
                 class="w-full pl-8 pr-3 py-1.5 rounded-xl bg-theme-bg border border-theme-border text-xs text-theme-text placeholder-theme-text/30 focus:outline-none focus:border-theme-cyan/50 transition-colors"
               />
             </div>
@@ -584,15 +608,9 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
             </div>
           </Show>
 
-          <For
-            each={library().filter(
-              (t) =>
-                !filterQuery().trim() ||
-                t.title.toLowerCase().includes(filterQuery().toLowerCase()) ||
-                (t.uploader && t.uploader.toLowerCase().includes(filterQuery().toLowerCase()))
-            )}
-          >
+          <For each={paginatedTracks()}>
             {(track, idx) => {
+              const globalIndex = () => (currentPage() - 1) * pageSize() + idx() + 1;
               const isCurrentPlaying = () =>
                 globalStatus().current_track?.filename === track.filename &&
                 (globalStatus().is_playing || globalStatus().is_paused);
@@ -611,7 +629,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
                       when={isCurrentPlaying() && globalStatus().is_playing}
                       fallback={
                         <span class="text-xs font-mono text-theme-text/40 group-hover:text-theme-cyan transition-colors">
-                          {idx() + 1}
+                          {globalIndex()}
                         </span>
                       }
                     >
@@ -682,6 +700,75 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
             }}
           </For>
         </div>
+
+        {/* Pagination Bar */}
+        <Show when={filteredTracks().length > 0}>
+          <div class="px-4 py-3 bg-theme-card/30 border-t border-theme-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            {/* Info Range */}
+            <div class="text-theme-text/50 text-[11px] sm:text-xs">
+              Menampilkan{' '}
+              <span class="font-semibold text-theme-text font-mono">
+                {(currentPage() - 1) * pageSize() + 1}
+              </span>
+              {' - '}
+              <span class="font-semibold text-theme-text font-mono">
+                {Math.min(currentPage() * pageSize(), filteredTracks().length)}
+              </span>
+              {' dari '}
+              <span class="font-semibold text-theme-cyan font-mono">
+                {filteredTracks().length}
+              </span>{' '}
+              lagu
+            </div>
+
+            {/* Pagination Controls */}
+            <div class="flex items-center gap-2">
+              {/* Page Size Selector */}
+              <div class="flex items-center gap-1 text-[11px] text-theme-text/50 mr-2">
+                <span>Per hal:</span>
+                <select
+                  value={pageSize()}
+                  onChange={(e) => {
+                    setPageSize(parseInt(e.currentTarget.value, 10));
+                    setCurrentPage(1);
+                  }}
+                  class="bg-theme-bg border border-theme-border rounded-lg px-2 py-1 text-theme-text text-xs focus:outline-none focus:border-theme-cyan/50 cursor-pointer"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+
+              {/* Prev Button */}
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage() <= 1}
+                class="p-1.5 rounded-lg bg-theme-card hover:bg-theme-border border border-theme-border text-theme-text/70 hover:text-theme-cyan disabled:opacity-30 disabled:pointer-events-none transition-all"
+                title="Halaman Sebelumnya"
+              >
+                <ChevronLeft size={14} />
+              </button>
+
+              {/* Page Indicator */}
+              <div class="px-2.5 py-1 rounded-lg bg-theme-bg border border-theme-border font-mono text-[11px] text-theme-text/80">
+                <span>{currentPage()}</span>
+                <span class="text-theme-text/30 mx-1">/</span>
+                <span>{totalPages()}</span>
+              </div>
+
+              {/* Next Button */}
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages(), p + 1))}
+                disabled={currentPage() >= totalPages()}
+                class="p-1.5 rounded-lg bg-theme-card hover:bg-theme-border border border-theme-border text-theme-text/70 hover:text-theme-cyan disabled:opacity-30 disabled:pointer-events-none transition-all"
+                title="Halaman Berikutnya"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        </Show>
       </div>
     </div>
   );
