@@ -47,16 +47,22 @@ pub fn install_ytdlp() -> Result<String, String> {
     }
     #[cfg(target_os = "linux")]
     {
-        let out = Command::new("pip")
-            .args(["install", "-U", "yt-dlp"])
+        let mut cmd = Command::new("pip");
+        cmd.args(["install", "-U", "yt-dlp"])
+            .env_remove("PYTHONHOME")
+            .env_remove("PYTHONPATH");
+        let out = cmd
             .output()
             .map_err(|e| format!("Gagal jalankan pip: {}", e))?;
         if out.status.success() {
             Ok("yt-dlp berhasil diinstall via pip".to_string())
         } else {
             // fallback pip3
-            let out2 = Command::new("pip3")
-                .args(["install", "-U", "yt-dlp"])
+            let mut cmd2 = Command::new("pip3");
+            cmd2.args(["install", "-U", "yt-dlp"])
+                .env_remove("PYTHONHOME")
+                .env_remove("PYTHONPATH");
+            let out2 = cmd2
                 .output()
                 .map_err(|e| format!("Gagal jalankan pip3: {}", e))?;
             if out2.status.success() {
@@ -194,20 +200,25 @@ fn find_ytdlp_executable() -> Option<std::path::PathBuf> {
 
 /// Resolve command yt-dlp
 fn ytdlp_command() -> Command {
-    if let Some(exe_path) = find_ytdlp_executable() {
+    let mut cmd = if let Some(exe_path) = find_ytdlp_executable() {
         Command::new(exe_path)
     } else {
         #[cfg(target_os = "windows")]
         {
-            let mut cmd = Command::new("cmd");
-            cmd.args(["/C", "yt-dlp"]);
-            cmd
+            let mut c = Command::new("cmd");
+            c.args(["/C", "yt-dlp"]);
+            c
         }
         #[cfg(not(target_os = "windows"))]
         {
             Command::new("yt-dlp")
         }
-    }
+    };
+
+    // Bersihkan environment variables Python yang dibajak oleh wrapper Linux AppImage
+    cmd.env_remove("PYTHONHOME");
+    cmd.env_remove("PYTHONPATH");
+    cmd
 }
 
 /// Cek apakah yt-dlp terinstall dan return versinya
