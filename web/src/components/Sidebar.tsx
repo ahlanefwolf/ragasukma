@@ -2,6 +2,7 @@ import { Component, Show } from 'solid-js';
 import { 
   Menu as MenuIcon, 
   Zap, 
+  Music,
   Sliders, 
   Settings as SettingsIcon,
   Terminal,
@@ -23,6 +24,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
   const menuItems = [
     { id: 'menu', label: 'Main Menu', icon: MenuIcon, badge: props.currentState.toUpperCase() },
     { id: 'skills', label: 'Skill Commands', icon: Zap },
+    { id: 'music', label: 'Music Player', icon: Music },
     { id: 'tuner', label: 'Pose Tuner', icon: Sliders },
     { id: 'logs', label: 'Console Logs', icon: Terminal },
     { id: 'settings', label: 'Pengaturan', icon: SettingsIcon },
@@ -45,10 +47,10 @@ export const Sidebar: Component<SidebarProps> = (props) => {
               <BrandLogo size={40} />
             </div>
             <div>
-              <h1 class="text-2xl font-bangers tracking-wider text-[#EFF7F6] leading-none">
+              <h1 class="text-2xl font-carter tracking-wider text-theme-text leading-none">
                 RAGASUKMA
               </h1>
-              <p class="text-[11px] text-[#7BDFF2] font-semibold tracking-wide flex items-center gap-1">
+              <p class="text-[11px] text-theme-cyan font-semibold tracking-wide flex items-center gap-1">
                 <Sparkles size={11} /> NATIVE AI DESKTOP
               </p>
             </div>
@@ -58,7 +60,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
           <Show when={props.isMobileOpen}>
             <button
               onClick={props.onCloseMobile}
-              class="p-2 rounded-xl text-[#EFF7F6]/60 hover:text-[#EFF7F6] hover:bg-[#232D36] md:hidden transition-colors"
+              class="p-2 rounded-xl text-theme-text/60 hover:text-theme-text hover:bg-theme-card md:hidden transition-colors"
               aria-label="Tutup Menu"
             >
               <X size={20} />
@@ -67,20 +69,20 @@ export const Sidebar: Component<SidebarProps> = (props) => {
         </div>
 
         {/* Live Overlay Status Pill */}
-        <div class="mb-5 p-3 rounded-xl bg-[#232D36] border border-[#2F3B46] flex items-center justify-between">
+        <div class="mb-5 p-3 rounded-xl bg-theme-card border border-theme-border flex items-center justify-between">
           <div class="flex items-center gap-2">
             <span 
               class={`w-2.5 h-2.5 rounded-full ${
                 props.overlayConnected 
-                  ? 'bg-[#7BDFF2] shadow-[0_0_8px_#7BDFF2] animate-pulse' 
-                  : 'bg-[#F2B5D4]'
+                  ? 'bg-theme-cyan shadow-[0_0_8px_var(--cyan)] animate-pulse' 
+                  : 'bg-theme-rose'
               }`} 
             />
-            <span class="text-xs font-semibold text-[#EFF7F6]">
+            <span class="text-xs font-semibold text-theme-text">
               {props.overlayConnected ? '3D Native Aktif' : 'Offline'}
             </span>
           </div>
-          <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-[#161D24] text-[#7BDFF2] border border-[#2F3B46]">
+          <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-theme-bg text-theme-cyan border border-theme-border">
             WGPU 9:16
           </span>
         </div>
@@ -96,8 +98,8 @@ export const Sidebar: Component<SidebarProps> = (props) => {
                 onClick={() => handleSelectTab(item.id)}
                 class={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                   isActive()
-                    ? 'bg-[#7BDFF2] text-[#232D36] shadow-md anime-shadow-green font-bold'
-                    : 'text-[#EFF7F6]/75 hover:bg-[#232D36] hover:text-[#EFF7F6]'
+                    ? 'bg-theme-cyan text-theme-card shadow-md anime-shadow-green font-bold'
+                    : 'text-theme-text/75 hover:bg-theme-card hover:text-theme-text'
                 }`}
               >
                 <div class="flex items-center gap-3">
@@ -106,7 +108,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
                 </div>
                 {item.badge && (
                   <span class={`text-[10px] px-2 py-0.5 rounded-full font-bold font-mono uppercase ${
-                    isActive() ? 'bg-[#232D36]/20 text-[#232D36]' : 'bg-[#F2B5D4]/20 text-[#F2B5D4] border border-[#F2B5D4]/30'
+                    isActive() ? 'bg-theme-card/20 text-theme-card' : 'bg-theme-rose/20 text-theme-rose border border-theme-rose/30'
                   }`}>
                     {item.badge}
                   </span>
@@ -118,14 +120,14 @@ export const Sidebar: Component<SidebarProps> = (props) => {
       </div>
 
       {/* Footer System Info */}
-      <div class="pt-4 border-t border-[#2F3B46]/60 text-xs text-[#EFF7F6]/50 px-1 space-y-1.5">
+      <div class="pt-4 border-t border-theme-border/60 text-xs text-theme-text/50 px-1 space-y-1.5">
         <div class="flex items-center justify-between">
           <span>Engine Status</span>
-          <span class="text-[#7BDFF2] font-semibold text-[11px]">WGPU 1:1 Three-VRM</span>
+          <span class="text-theme-cyan font-semibold text-[11px]">WGPU 1:1 Three-VRM</span>
         </div>
         <div class="flex items-center justify-between text-[11px]">
           <span>Dashboard Port</span>
-          <span class="font-mono text-[#EFF7F6]/80 font-bold">42128</span>
+          <span class="font-mono text-theme-text/80 font-bold">42128</span>
         </div>
       </div>
     </div>
@@ -134,7 +136,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
   return (
     <>
       {/* Desktop Persistent Sidebar */}
-      <aside class="hidden md:flex w-64 bg-[#1D252E] border-r border-[#2F3B46] p-5 shrink-0 flex-col justify-between">
+      <aside class="hidden md:flex w-64 bg-theme-surface border-r border-theme-border p-5 shrink-0 flex-col justify-between">
         <SidebarContent />
       </aside>
 
@@ -144,7 +146,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
           class="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 md:hidden animate-fade-in"
           onClick={props.onCloseMobile}
         />
-        <aside class="fixed inset-y-0 left-0 w-72 bg-[#1D252E] border-r border-[#2F3B46] p-5 z-50 md:hidden flex flex-col justify-between shadow-2xl animate-slide-right">
+        <aside class="fixed inset-y-0 left-0 w-72 bg-theme-surface border-r border-theme-border p-5 z-50 md:hidden flex flex-col justify-between shadow-2xl animate-slide-right">
           <SidebarContent />
         </aside>
       </Show>

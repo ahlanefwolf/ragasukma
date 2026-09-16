@@ -31,11 +31,17 @@ web/node_modules/
 *.ckpt
 
 # ------------------------------------------------------------------------------
-# Audio recordings & Temporary runtime files
+# Audio recordings, downloaded music & Temporary runtime files
 # ------------------------------------------------------------------------------
+assets/music/
+/assets/music/
 *.wav
 *.mp3
 *.ogg
+*.opus
+*.m4a
+*.webm
+*.flac
 *.pcm
 *.log
 nohup.out

@@ -6,11 +6,6 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
     {
         vec![
             SkillItem {
-                name: "Buka Browser".to_string(),
-                description: "Membuka browser web default untuk internet".to_string(),
-                command: "start https://www.google.com".to_string(),
-            },
-            SkillItem {
                 name: "Buka File Manager".to_string(),
                 description: "Membuka File Explorer Windows".to_string(),
                 command: "explorer".to_string(),
@@ -48,14 +43,55 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
         ]
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
         vec![
             SkillItem {
-                name: "Buka Browser".to_string(),
-                description: "Membuka browser internet utama".to_string(),
-                command: "xdg-open https://www.google.com || google-chrome || firefox".to_string(),
+                name: "Buka File Manager".to_string(),
+                description: "Membuka Finder macOS".to_string(),
+                command: "open ~".to_string(),
             },
+            SkillItem {
+                name: "Naikkan Volume".to_string(),
+                description: "Menaikkan volume audio macOS (+10%)".to_string(),
+                command: "osascript -e \"set volume output volume ((output volume of (get volume settings)) + 10)\"".to_string(),
+            },
+            SkillItem {
+                name: "Turunkan Volume".to_string(),
+                description: "Menurunkan volume audio macOS (-10%)".to_string(),
+                command: "osascript -e \"set volume output volume ((output volume of (get volume settings)) - 10)\"".to_string(),
+            },
+            SkillItem {
+                name: "Mute Audio".to_string(),
+                description: "Mematikan atau menyalakan suara macOS (mute toggle)".to_string(),
+                command: "osascript -e \"set volume output muted not (output muted of (get volume settings))\"".to_string(),
+            },
+            SkillItem {
+                name: "Ambil Screenshot".to_string(),
+                description: "Mengambil tangkapan layar monitor macOS".to_string(),
+                command: "screencapture -i -c".to_string(),
+            },
+            SkillItem {
+                name: "Kunci Layar".to_string(),
+                description: "Mengunci sesi layar macOS".to_string(),
+                command: "pmset displaysleepnow".to_string(),
+            },
+            SkillItem {
+                name: "Buka Terminal".to_string(),
+                description: "Membuka aplikasi Terminal macOS".to_string(),
+                command: "open -a Terminal".to_string(),
+            },
+            SkillItem {
+                name: "Buka Kalkulator".to_string(),
+                description: "Membuka aplikasi Calculator macOS".to_string(),
+                command: "open -a Calculator".to_string(),
+            },
+        ]
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        vec![
             SkillItem {
                 name: "Buka File Manager".to_string(),
                 description: "Membuka pengelola berkas / file manager utama".to_string(),
@@ -106,9 +142,8 @@ pub fn try_execute_builtin_or_app(target: &str) -> Option<(String, String)> {
 
     // 1. Deteksi Perintah Buka Website atau URL Dinamis
     // Format: "Buka Website|https://..." atau "Open Website|https://..." atau langsung format URL
-    if target_trim.to_lowercase().starts_with("buka website|")
-        || target_trim.to_lowercase().starts_with("open website|")
-    {
+    let lower_trim = target_trim.to_lowercase();
+    if lower_trim.starts_with("buka website|") || lower_trim.starts_with("open website|") {
         if let Some((_, raw_url)) = target_trim.split_once('|') {
             let url = raw_url.trim();
             let final_url = if !url.starts_with("http://") && !url.starts_with("https://") {
@@ -125,9 +160,7 @@ pub fn try_execute_builtin_or_app(target: &str) -> Option<(String, String)> {
 
     // 2. Deteksi Perintah Pencarian Google Dinamis
     // Format: "Cari Google|kata kunci" atau "Search Google|query"
-    if target_trim.to_lowercase().starts_with("cari google|")
-        || target_trim.to_lowercase().starts_with("search google|")
-    {
+    if lower_trim.starts_with("cari google|") || lower_trim.starts_with("search google|") {
         if let Some((_, query)) = target_trim.split_once('|') {
             let encoded_query = query.trim().replace(' ', "+");
             let final_url = format!("https://www.google.com/search?q={encoded_query}");
@@ -140,38 +173,85 @@ pub fn try_execute_builtin_or_app(target: &str) -> Option<(String, String)> {
 
     let target_clean = target_trim.to_lowercase().replace(['_', '-'], " ");
 
-    // 3. Deteksi Kontrol Video YouTube & YouTube Music Dinamis (Play / Pause / Next / Prev)
-    if target_trim.to_lowercase().starts_with("putar youtube|") || target_trim.to_lowercase().starts_with("cari youtube|") {
-        if let Some((_, query)) = target_trim.split_once('|') {
-            let _ = crate::engine_browser::YouTubeEngine::search_or_play(query.trim());
-            return Some((format!("Cari YouTube: {}", query.trim()), "Mencari video di YouTube".to_string()));
+    // Putar musik (download via yt-dlp lalu putar)
+    // Format: "putar musik|<query>" atau "play music|<query>"
+    if (lower_trim.starts_with("putar musik|") || lower_trim.starts_with("play music|"))
+        && let Some((_, query)) = target_trim.split_once('|')
+    {
+        let query = query.trim();
+        if query.is_empty() || ["musik", "lagu", "music", "song", "audio"].contains(&query.to_lowercase().as_str()) {
+            return Some(("Putar Musik".to_string(), "Judul lagu belum ditentukan, silakan sebutkan judul lagunya.".to_string()));
+        }
+
+        let music_dir = crate::config::get_music_dir();
+
+        // Cek dulu apakah sudah ada di library (cari by title/filename fuzzy)
+        let existing = crate::engine::ytdlp::list_downloaded(&music_dir);
+        let q_lower = query.to_lowercase();
+        let query_words: Vec<&str> = query.split_whitespace().collect();
+
+        let found = existing.iter().find(|t| {
+            let t_title = t.title.to_lowercase();
+            let t_filename = t.filename.to_lowercase();
+            t_title.contains(&q_lower)
+                || t_filename.contains(&q_lower)
+                || (!query_words.is_empty() && query_words.iter().all(|w| {
+                    let w_lower = w.to_lowercase();
+                    t_title.contains(&w_lower) || t_filename.contains(&w_lower)
+                }))
+        });
+
+        if let Some(track) = found {
+            let path = music_dir.join(&track.filename);
+            let track_clone = track.clone();
+            let _ = crate::server::state::music_play_file(&path, track_clone);
+            return Some((format!("Putar: {}", track.title), "Memutar musik dari library lokal".to_string()));
+        }
+
+        // Belum ada — download dulu lalu putar
+        match crate::engine::ytdlp::download_audio(query, &music_dir) {
+            Ok(track) => {
+                let path = music_dir.join(&track.filename);
+                let actual_path = if path.exists() {
+                    path
+                } else {
+                    // Scan folder jika nama file berbeda
+                    let found = std::fs::read_dir(&music_dir).ok().and_then(|entries| {
+                        entries.flatten().find_map(|e| {
+                            let p = e.path();
+                            if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
+                                if !track.id.is_empty() && name.contains(&track.id) && !name.ends_with(".json") {
+                                    return Some(p);
+                                }
+                            }
+                            None
+                        })
+                    });
+                    found.unwrap_or(path)
+                };
+
+                let track_clone = track.clone();
+                let _ = crate::server::state::music_play_file(&actual_path, track_clone);
+                return Some((format!("Download & Putar: {}", track.title), "Berhasil mendownload dan memutar musik".to_string()));
+            }
+            Err(e) => {
+                return Some(("Putar Musik Lokal".to_string(), format!("Gagal: {e}")));
+            }
         }
     }
-    if target_clean == "pause youtube" || target_clean == "jeda youtube" || target_clean == "stop youtube" || target_clean == "jeda lagu" {
-        crate::engine_browser::YouTubeEngine::pause();
-        return Some(("Jeda Media".to_string(), "Berhasil menjeda media".to_string()));
+
+    // Kontrol player musik
+    if target_clean == "pause musik" || target_clean == "jeda musik" || target_clean == "jeda musik" {
+        crate::server::state::music_pause();
+        return Some(("Jeda Musik".to_string(), "Musik dijeda".to_string()));
     }
-    if target_clean == "play youtube" || target_clean == "lanjutkan youtube" || target_clean == "putar youtube" || target_clean == "putar lagu" {
-        crate::engine_browser::YouTubeEngine::play();
-        return Some(("Putar Media".to_string(), "Berhasil memutar media".to_string()));
+    if target_clean == "resume musik" || target_clean == "lanjut musik" {
+        crate::server::state::music_resume();
+        return Some(("Lanjut Musik".to_string(), "Musik dilanjutkan".to_string()));
     }
-    if target_clean == "next track" || target_clean == "lagu berikutnya" || target_clean == "next lagu" {
-        crate::engine_browser::YouTubeMusicEngine::next();
-        return Some(("Lagu Berikutnya".to_string(), "Berhasil memutar lagu berikutnya".to_string()));
-    }
-    if target_clean == "prev track" || target_clean == "lagu sebelumnya" || target_clean == "prev lagu" {
-        crate::engine_browser::YouTubeMusicEngine::prev();
-        return Some(("Lagu Sebelumnya".to_string(), "Berhasil memutar lagu sebelumnya".to_string()));
-    }
-    if target_clean == "buka youtube music" || target_clean == "buka yt music" {
-        let _ = crate::engine_browser::YouTubeMusicEngine::open_main();
-        return Some(("Buka YouTube Music".to_string(), "Berhasil membuka YouTube Music".to_string()));
-    }
-    if target_trim.to_lowercase().starts_with("putar musik|") || target_trim.to_lowercase().starts_with("play music|") {
-        if let Some((_, query)) = target_trim.split_once('|') {
-            let _ = crate::engine_browser::YouTubeMusicEngine::search_or_play(query.trim());
-            return Some((format!("Putar Musik: {}", query.trim()), "Mencari musik di YouTube Music".to_string()));
-        }
+    if target_clean == "stop musik" || target_clean == "berhenti musik" || target_clean == "hentikan musik" {
+        crate::server::state::music_stop();
+        return Some(("Stop Musik".to_string(), "Musik dihentikan".to_string()));
     }
 
     // 5. Cek dari daftar built-in system skills
@@ -224,7 +304,13 @@ pub fn open_url_by_os(url: &str) -> std::io::Result<()> {
             .args(["/C", "start", "", url])
             .spawn()?;
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(url)
+            .spawn()?;
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         std::process::Command::new("xdg-open")
             .arg(url)

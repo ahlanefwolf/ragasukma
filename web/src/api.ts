@@ -1,6 +1,19 @@
+import { createSignal } from 'solid-js';
+
 const API_BASE = 'http://127.0.0.1:42128';
 
+// Dikelola di App.tsx, tapi export tetap ada agar tidak break import lama
+export const [isSessionKilled, setIsSessionKilled] = createSignal(false);
+
+export function killCurrentSession() {
+  setIsSessionKilled(true);
+}
+
+
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 8000): Promise<Response> {
+  if (isSessionKilled()) {
+    throw new Error('Session is killed in this tab');
+  }
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -79,6 +92,27 @@ export interface AssetInfo {
   vrm_size_mb: number;
   vrm_path: string;
   images: string[];
+}
+
+export interface YtDlpInfo {
+  available: boolean;
+  version: string;
+}
+
+export interface YtTrackInfo {
+  id: string;
+  title: string;
+  uploader: string;
+  duration: number; // detik
+  thumbnail?: string;
+  filename: string;
+}
+
+export interface MusicStatus {
+  current_track?: YtTrackInfo;
+  is_playing: boolean;
+  is_paused: boolean;
+  volume: number;
 }
 
 export const api = {
@@ -359,6 +393,118 @@ export const api = {
       return res.ok;
     } catch {
       return false;
+    }
+  },
+
+  // Music Player
+  async installYtDlp(): Promise<{ success: boolean; message: string; info?: YtDlpInfo }> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/music/install-ytdlp`, { method: 'POST' }, 120000);
+      if (!res.ok) return { success: false, message: 'Gagal install' };
+      return await res.json();
+    } catch (e: any) {
+      return { success: false, message: e?.message || 'Koneksi error' };
+    }
+  },
+
+  async checkYtDlp(): Promise<YtDlpInfo> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/music/check`);
+      if (!res.ok) return { available: false, version: '' };
+      return await res.json();
+    } catch {
+      return { available: false, version: '' };
+    }
+  },
+
+  async listMusic(): Promise<YtTrackInfo[]> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/music/list`);
+      if (!res.ok) return [];
+      return await res.json();
+    } catch {
+      return [];
+    }
+  },
+
+  async downloadMusic(query: string): Promise<{ success: boolean; track?: YtTrackInfo; error?: string }> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/music/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      }, 60000);
+      if (!res.ok) return { success: false, error: 'Gagal mendownload' };
+      return await res.json();
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'Koneksi error' };
+    }
+  },
+
+  async playMusic(filename: string): Promise<boolean> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/music/play`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async pauseMusic(): Promise<boolean> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/music/pause`, { method: 'POST' });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async resumeMusic(): Promise<boolean> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/music/resume`, { method: 'POST' });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async stopMusic(): Promise<boolean> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/music/stop`, { method: 'POST' });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  getMusicStreamUrl(filename: string): string {
+    return `${API_BASE}/api/music/stream?filename=${encodeURIComponent(filename)}`;
+  },
+
+  async deleteMusic(filename: string): Promise<boolean> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/music/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async getMusicStatus(): Promise<MusicStatus> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/music/status`, {}, 4000);
+      if (!res.ok) return { is_playing: false, is_paused: false, volume: 100 };
+      return await res.json();
+    } catch {
+      return { is_playing: false, is_paused: false, volume: 100 };
     }
   },
 

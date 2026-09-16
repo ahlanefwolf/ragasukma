@@ -172,15 +172,15 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
   return (
     <form onSubmit={handleSave} class="space-y-6">
       {/* Header Banner */}
-      <div class="rounded-2xl bg-gradient-to-r from-[#232D36] via-[#1D252E] to-[#161D24] p-4 sm:p-6 border border-[#2F3B46] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="rounded-2xl bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg p-4 sm:p-6 border border-theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span class="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#7BDFF2]/20 text-[#7BDFF2] border border-[#7BDFF2]/30">
+          <span class="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
             System & Engine Preferences
           </span>
-          <h2 class="text-2xl sm:text-3xl font-bangers tracking-wide text-[#EFF7F6] mt-2">
+          <h2 class="text-2xl sm:text-3xl font-carter tracking-wide text-theme-text mt-2">
             PENGATURAN LENGKAP SISTEM
           </h2>
-          <p class="text-xs sm:text-sm text-[#EFF7F6]/70 mt-1 max-w-xl">
+          <p class="text-xs sm:text-sm text-theme-text/70 mt-1 max-w-xl">
             Atur persona nama, LLM Brain endpoint, sensitivitas mikrofon STT, mesin TTS, dan logging config-ai.json.
           </p>
         </div>
@@ -188,7 +188,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         <button
           type="submit"
           disabled={isSaving()}
-          class="w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-sm bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] shadow-md anime-shadow-green flex items-center justify-center gap-2 transition-all shrink-0 font-semibold"
+          class="w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-sm bg-theme-cyan hover:bg-[#68cbdd] text-theme-card shadow-md anime-shadow-green flex items-center justify-center gap-2 transition-all shrink-0 font-semibold"
         >
           <Save size={16} />
           <span>{isSaving() ? 'Menyimpan...' : 'Simpan Semua'}</span>
@@ -196,40 +196,40 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       </div>
 
       {/* 1. Persona & Panggilan */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
+        <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
           1. PERSONA & IDENTITAS ASISTEN
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">Nama Asisten</label>
+            <label class="text-xs font-semibold text-theme-text/80">Nama Asisten</label>
             <input
               type="text"
               value={assistantName()}
               onInput={(e) => setAssistantName(e.currentTarget.value)}
               placeholder="Laras"
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
             />
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">Panggilan Pengguna</label>
+            <label class="text-xs font-semibold text-theme-text/80">Panggilan Pengguna</label>
             <input
               type="text"
               value={userCallsign()}
               onInput={(e) => setUserCallsign(e.currentTarget.value)}
               placeholder="Mas"
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
             />
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">Peran Kepribadian</label>
+            <label class="text-xs font-semibold text-theme-text/80">Peran Kepribadian</label>
             <select
               value={personalityRole()}
               onChange={(e) => setPersonalityRole(e.currentTarget.value)}
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
             >
               <option value="partner">Partner (Hangat & Santai)</option>
               <option value="assistant">Assistant (Formal & Rapi)</option>
@@ -241,75 +241,75 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       </div>
 
       {/* 2. Pengaturan AI Brain (LLM Provider) */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-base sm:text-lg font-bangers text-[#F2B5D4] flex items-center gap-2">
+      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
+        <h3 class="text-base sm:text-lg font-carter text-theme-rose flex items-center gap-2">
           <Brain size={18} />
           2. AI BRAIN (LLM PROVIDER)
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">LLM Base URL (OpenAI Compatible)</label>
+            <label class="text-xs font-semibold text-theme-text/80">LLM Base URL (OpenAI Compatible)</label>
             <input
               type="text"
               value={llmBaseUrl()}
               onInput={(e) => setLlmBaseUrl(e.currentTarget.value)}
               placeholder="http://localhost:20128/v1"
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm font-mono text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan"
             />
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">Model Name</label>
+            <label class="text-xs font-semibold text-theme-text/80">Model Name</label>
             <input
               type="text"
               value={llmModel()}
               onInput={(e) => setLlmModel(e.currentTarget.value)}
               placeholder="ag/gemini-3.8-flash-low"
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
             />
           </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">LLM API Key (Opsional / Gateway)</label>
+            <label class="text-xs font-semibold text-theme-text/80">LLM API Key (Opsional / Gateway)</label>
             <input
               type="password"
               value={llmApiKey()}
               onInput={(e) => setLlmApiKey(e.currentTarget.value)}
               placeholder="sk-..."
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm font-mono text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan"
             />
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">Groq API Key (Fast Whisper STT / LLM)</label>
+            <label class="text-xs font-semibold text-theme-text/80">Groq API Key (Fast Whisper STT / LLM)</label>
             <input
               type="password"
               value={groqApiKey()}
               onInput={(e) => setGroqApiKey(e.currentTarget.value)}
               placeholder="gsk_..."
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm font-mono text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan"
             />
           </div>
         </div>
       </div>
 
       {/* 3. Audio & Speech-to-Text (STT) */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
+        <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
           <Mic size={18} />
           3. AUDIO & SPEECH-TO-TEXT (STT)
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">STT Engine</label>
+            <label class="text-xs font-semibold text-theme-text/80">STT Engine</label>
             <select
               value={sttEngine()}
               onChange={(e) => setSttEngine(e.currentTarget.value)}
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
             >
               <option value="google">Google Cloud STT (Cepat & Akurat ID)</option>
               <option value="groq">Groq Whisper Large v3</option>
@@ -317,11 +317,11 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">Sensitivitas VAD Mikrofon</label>
+            <label class="text-xs font-semibold text-theme-text/80">Sensitivitas VAD Mikrofon</label>
             <select
               value={micSensitivity()}
               onChange={(e) => setMicSensitivity(e.currentTarget.value)}
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
             >
               <option value="0">0 - Ekstra Kebal (Ruangan Sangat Ramai)</option>
               <option value="1">1 - Sangat Rendah</option>
@@ -334,11 +334,11 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">Batas Jeda Hening VAD</label>
+            <label class="text-xs font-semibold text-theme-text/80">Batas Jeda Hening VAD</label>
             <select
               value={vadSilenceLimit()}
               onChange={(e) => setVadSilenceLimit(e.currentTarget.value)}
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
             >
               <option value="0">Sangat Cepat (~0.5 Detik)</option>
               <option value="1">Cepat (~0.7 Detik)</option>
@@ -349,11 +349,11 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">Noise Reduction (DSP Filter)</label>
+            <label class="text-xs font-semibold text-theme-text/80">Noise Reduction (DSP Filter)</label>
             <select
               value={noiseReduction()}
               onChange={(e) => setNoiseReduction(parseInt(e.currentTarget.value, 10))}
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
             >
               <option value={0}>0 - Nonaktif (Direct Mic)</option>
               <option value={1}>1 - Ringan (High-Pass + Noise Gate)</option>
@@ -364,19 +364,19 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       </div>
 
       {/* 4. Text-to-Speech (TTS) Voice */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-base sm:text-lg font-bangers text-[#F2B5D4] flex items-center gap-2">
+      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
+        <h3 class="text-base sm:text-lg font-carter text-theme-rose flex items-center gap-2">
           <Volume2 size={18} />
           4. SUARA KARAKTER (TEXT-TO-SPEECH)
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">TTS Engine</label>
+            <label class="text-xs font-semibold text-theme-text/80">TTS Engine</label>
             <select
               value={ttsEngine()}
               onChange={(e) => setTtsEngine(e.currentTarget.value)}
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
             >
               <option value="google">Google TTS (Ringan & Cepat)</option>
               <option value="elevenlabs">ElevenLabs Neural Voice</option>
@@ -384,11 +384,11 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">Bahasa Voice</label>
+            <label class="text-xs font-semibold text-theme-text/80">Bahasa Voice</label>
             <select
               value={ttsLang()}
               onChange={(e) => setTtsLang(e.currentTarget.value)}
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
             >
               <option value="id">Indonesian (id)</option>
               <option value="ja">Japanese (ja)</option>
@@ -397,9 +397,9 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           </div>
 
           <div class="space-y-1.5">
-            <div class="flex justify-between text-xs font-semibold text-[#EFF7F6]/80">
+            <div class="flex justify-between text-xs font-semibold text-theme-text/80">
               <span>Kecepatan Bicara</span>
-              <span class="text-[#7BDFF2] font-mono">{ttsSpeed().toFixed(2)}x</span>
+              <span class="text-theme-cyan font-mono">{ttsSpeed().toFixed(2)}x</span>
             </div>
             <input
               type="range"
@@ -408,41 +408,41 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
               step="0.05"
               value={ttsSpeed()}
               onInput={(e) => setTtsSpeed(parseFloat(e.currentTarget.value))}
-              class="w-full h-2 bg-[#232D36] rounded-lg appearance-none cursor-pointer accent-[#7BDFF2] mt-2"
+              class="w-full h-2 bg-theme-card rounded-lg appearance-none cursor-pointer accent-theme-cyan mt-2"
             />
           </div>
         </div>
 
         {ttsEngine() === 'elevenlabs' && (
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#2F3B46]">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-theme-border">
             <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-[#EFF7F6]/80">ElevenLabs API Key</label>
+              <label class="text-xs font-semibold text-theme-text/80">ElevenLabs API Key</label>
               <input
                 type="password"
                 value={ttsElevenLabsKey()}
                 onInput={(e) => setTtsElevenLabsKey(e.currentTarget.value)}
                 placeholder="sk_..."
-                class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm font-mono text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+                class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan"
               />
             </div>
 
             <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-[#EFF7F6]/80">ElevenLabs Voice ID</label>
+              <label class="text-xs font-semibold text-theme-text/80">ElevenLabs Voice ID</label>
               <input
                 type="text"
                 value={elevenLabsVoiceId()}
                 onInput={(e) => setElevenLabsVoiceId(e.currentTarget.value)}
                 placeholder="cgSgspJ2msm6clMCkdW9"
-                class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm font-mono text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+                class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan"
               />
             </div>
           </div>
         )}
       </div>
       {/* 5. Avatar & Model Management */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-5">
+      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-5">
         <div class="flex items-center justify-between">
-          <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+          <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
             <Sparkles size={18} />
             5. AVATAR & MODEL ASSETS (VRM / 2D)
           </h3>
@@ -450,7 +450,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           <button
             type="button"
             onClick={loadAssetInfoData}
-            class="text-xs text-[#EFF7F6]/60 hover:text-[#7BDFF2] flex items-center gap-1.5 transition-colors"
+            class="text-xs text-theme-text/60 hover:text-theme-cyan flex items-center gap-1.5 transition-colors"
           >
             <RefreshCw size={13} />
             <span>Refresh Info</span>
@@ -460,11 +460,11 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         {/* Avatar Type Selector */}
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">Tipe Avatar Utama</label>
+            <label class="text-xs font-semibold text-theme-text/80">Tipe Avatar Utama</label>
             <select
               value={avatarType()}
               onChange={(e) => setAvatarType(e.currentTarget.value)}
-              class="w-full bg-[#232D36] border border-[#2F3B46] rounded-xl px-3.5 py-2.5 text-sm text-[#EFF7F6] outline-none focus:border-[#7BDFF2]"
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan"
             >
               <option value="vrm">VRM 3D Model (Native WGPU GPU Shader)</option>
               <option value="2d">2D Image / Vector Avatar</option>
@@ -472,15 +472,15 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-[#EFF7F6]/80">Status Model Aktif</label>
-            <div class="p-2.5 rounded-xl bg-[#232D36] border border-[#2F3B46] flex items-center justify-between text-xs">
+            <label class="text-xs font-semibold text-theme-text/80">Status Model Aktif</label>
+            <div class="p-2.5 rounded-xl bg-theme-card border border-theme-border flex items-center justify-between text-xs">
               <div class="flex items-center gap-2 truncate">
-                <CheckCircle2 size={15} class="text-[#7BDFF2] shrink-0" />
-                <span class="text-[#EFF7F6] font-mono truncate">
+                <CheckCircle2 size={15} class="text-theme-cyan shrink-0" />
+                <span class="text-theme-text font-mono truncate">
                   {assetInfo()?.vrm_exists ? `char.vrm (${assetInfo()?.vrm_size_mb.toFixed(2)} MB)` : 'char.vrm tidak ditemukan'}
                 </span>
               </div>
-              <span class="text-[10px] px-2 py-0.5 rounded bg-[#7BDFF2]/20 text-[#7BDFF2] font-bold uppercase">
+              <span class="text-[10px] px-2 py-0.5 rounded bg-theme-cyan/20 text-theme-cyan font-bold uppercase">
                 {assetInfo()?.vrm_exists ? 'Aktif' : 'Kosong'}
               </span>
             </div>
@@ -488,19 +488,19 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         </div>
 
         {/* VRM 3D Model Upload Card */}
-        <div class="p-4 rounded-xl bg-[#232D36] border border-[#2F3B46] space-y-3">
+        <div class="p-4 rounded-xl bg-theme-card border border-theme-border space-y-3">
           <div class="flex items-center justify-between">
-            <span class="text-sm font-bold text-[#EFF7F6] flex items-center gap-2">
-              <Upload size={16} class="text-[#7BDFF2]" />
+            <span class="text-sm font-bold text-theme-text flex items-center gap-2">
+              <Upload size={16} class="text-theme-cyan" />
               Upload Model VRM 3D (.vrm / .glb)
             </span>
-            <span class="text-xs font-mono text-[#7BDFF2] bg-[#7BDFF2]/10 border border-[#7BDFF2]/20 px-2 py-0.5 rounded">
+            <span class="text-xs font-mono text-theme-cyan bg-theme-cyan/10 border border-theme-cyan/20 px-2 py-0.5 rounded">
               Wajib .vrm / .glb
             </span>
           </div>
 
-          <p class="text-xs text-[#EFF7F6]/70 leading-relaxed">
-            Format yang didukung: <strong class="text-[#7BDFF2]">.vrm</strong> (standar VRM 0.x/1.0 dari VRoid Studio / Blender) atau <strong class="text-[#7BDFF2]">.glb</strong>. File otomatis disimpan ke <code class="text-[#7BDFF2] font-mono">assets/char.vrm</code> dan langsung dimuat ulang (hot-reload).
+          <p class="text-xs text-theme-text/70 leading-relaxed">
+            Format yang didukung: <strong class="text-theme-cyan">.vrm</strong> (standar VRM 0.x/1.0 dari VRoid Studio / Blender) atau <strong class="text-theme-cyan">.glb</strong>. File otomatis disimpan ke <code class="text-theme-cyan font-mono">assets/char.vrm</code> dan langsung dimuat ulang (hot-reload).
           </p>
 
           <div class="flex items-center gap-3 pt-1">
@@ -514,8 +514,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
               />
               <span class={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all ${
                 isUploadingVrm()
-                  ? 'bg-[#2F3B46] text-[#EFF7F6]/50 cursor-not-allowed'
-                  : 'bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] shadow anime-shadow-green cursor-pointer'
+                  ? 'bg-theme-border text-theme-text/50 cursor-not-allowed'
+                  : 'bg-theme-cyan hover:bg-[#68cbdd] text-theme-card shadow anime-shadow-green cursor-pointer'
               }`}>
                 <Upload size={14} />
                 <span>{isUploadingVrm() ? 'Mengunggah & Memuat...' : 'Pilih File VRM (.vrm / .glb)'}</span>
@@ -523,7 +523,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
             </label>
 
             {assetInfo()?.vrm_exists && (
-              <span class="text-xs text-[#EFF7F6]/60 font-mono">
+              <span class="text-xs text-theme-text/60 font-mono">
                 Ukuran: {assetInfo()?.vrm_size_mb.toFixed(2)} MB
               </span>
             )}
@@ -531,35 +531,35 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         </div>
 
         {/* 2D Image Avatar Upload Card */}
-        <div class="p-4 rounded-xl bg-[#232D36] border border-[#2F3B46] space-y-3">
+        <div class="p-4 rounded-xl bg-theme-card border border-theme-border space-y-3">
           <div class="flex items-center justify-between">
-            <span class="text-sm font-bold text-[#EFF7F6] flex items-center gap-2">
-              <ImageIcon size={16} class="text-[#F2B5D4]" />
+            <span class="text-sm font-bold text-theme-text flex items-center gap-2">
+              <ImageIcon size={16} class="text-theme-rose" />
               Upload Gambar Avatar 2D (State-Based)
             </span>
-            <span class="text-xs font-mono text-[#F2B5D4] bg-[#F2B5D4]/10 border border-[#F2B5D4]/20 px-2 py-0.5 rounded">
+            <span class="text-xs font-mono text-theme-rose bg-theme-rose/10 border border-theme-rose/20 px-2 py-0.5 rounded">
               Format: PNG (Transparan) / JPG
             </span>
           </div>
 
-          <div class="p-2.5 rounded-lg bg-[#161D24] border border-[#2F3B46] text-xs text-[#EFF7F6]/80 leading-relaxed space-y-1">
-            <div class="flex items-center gap-1.5 font-bold text-[#F2B5D4]">
+          <div class="p-2.5 rounded-lg bg-theme-bg border border-theme-border text-xs text-theme-text/80 leading-relaxed space-y-1">
+            <div class="flex items-center gap-1.5 font-bold text-theme-rose">
               <span>Ketentuan Format & Gambar:</span>
             </div>
-            <ul class="list-disc list-inside space-y-0.5 text-[11px] text-[#EFF7F6]/70">
-              <li><strong class="text-[#EFF7F6]">PNG Transparan (Disarankan)</strong> agar karakter tampil tanpa kotak background.</li>
-              <li>Mendukung file <strong class="text-[#EFF7F6]">.png</strong>, <strong class="text-[#EFF7F6]">.jpg</strong>, <strong class="text-[#EFF7F6]">.jpeg</strong> (Resolusi disarankan min 512x512 px).</li>
-              <li>Setiap slot ekspresi (<code class="font-mono text-[#7BDFF2]">idle</code>, <code class="font-mono text-[#7BDFF2]">listening</code>, <code class="font-mono text-[#7BDFF2]">talking</code>, <code class="font-mono text-[#7BDFF2]">thinking</code>) dapat memiliki gambar tersendiri.</li>
+            <ul class="list-disc list-inside space-y-0.5 text-[11px] text-theme-text/70">
+              <li><strong class="text-theme-text">PNG Transparan (Disarankan)</strong> agar karakter tampil tanpa kotak background.</li>
+              <li>Mendukung file <strong class="text-theme-text">.png</strong>, <strong class="text-theme-text">.jpg</strong>, <strong class="text-theme-text">.jpeg</strong> (Resolusi disarankan min 512x512 px).</li>
+              <li>Setiap slot ekspresi (<code class="font-mono text-theme-cyan">idle</code>, <code class="font-mono text-theme-cyan">listening</code>, <code class="font-mono text-theme-cyan">talking</code>, <code class="font-mono text-theme-cyan">thinking</code>) dapat memiliki gambar tersendiri.</li>
             </ul>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-[#EFF7F6]/80">Pilih Slot Ekspresi</label>
+              <label class="text-xs font-semibold text-theme-text/80">Pilih Slot Ekspresi</label>
               <select
                 value={selectedAvatarSlot()}
                 onChange={(e) => setSelectedAvatarSlot(e.currentTarget.value)}
-                class="w-full bg-[#1D252E] border border-[#2F3B46] rounded-xl px-3 py-2 text-xs text-[#EFF7F6] outline-none focus:border-[#F2B5D4]"
+                class="w-full bg-theme-surface border border-theme-border rounded-xl px-3 py-2 text-xs text-theme-text outline-none focus:border-theme-rose"
               >
                 <option value="idle">Idle (Diam / Normal)</option>
                 <option value="listening">Listening (Mendengarkan)</option>
@@ -569,7 +569,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
             </div>
 
             <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-[#EFF7F6]/80">Pilih File (.png / .jpg / .jpeg)</label>
+              <label class="text-xs font-semibold text-theme-text/80">Pilih File (.png / .jpg / .jpeg)</label>
               <label class="relative block cursor-pointer">
                 <input
                   type="file"
@@ -580,8 +580,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
                 />
                 <span class={`inline-flex w-full items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition-all ${
                   isUploadingAvatar()
-                    ? 'bg-[#2F3B46] text-[#EFF7F6]/50 cursor-not-allowed'
-                    : 'bg-[#F2B5D4] hover:bg-[#e4a4c4] text-[#232D36] shadow cursor-pointer'
+                    ? 'bg-theme-border text-theme-text/50 cursor-not-allowed'
+                    : 'bg-theme-rose hover:bg-[#e4a4c4] text-theme-card shadow cursor-pointer'
                 }`}>
                   <Upload size={14} />
                   <span>{isUploadingAvatar() ? 'Mengunggah...' : `Unggah PNG/JPG untuk '${selectedAvatarSlot()}'`}</span>
@@ -591,11 +591,11 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           </div>
 
           {assetInfo()?.images && assetInfo()!.images.length > 0 && (
-            <div class="pt-2 border-t border-[#2F3B46]/60">
-              <span class="text-[11px] text-[#EFF7F6]/60 block mb-1.5">File gambar tersimpan di assets/:</span>
+            <div class="pt-2 border-t border-theme-border/60">
+              <span class="text-[11px] text-theme-text/60 block mb-1.5">File gambar tersimpan di assets/:</span>
               <div class="flex flex-wrap gap-2">
                 {assetInfo()!.images.map((imgName) => (
-                  <span class="text-[10px] font-mono px-2 py-1 rounded bg-[#1D252E] border border-[#2F3B46] text-[#7BDFF2]">
+                  <span class="text-[10px] font-mono px-2 py-1 rounded bg-theme-surface border border-theme-border text-theme-cyan">
                     {imgName}
                   </span>
                 ))}
@@ -606,25 +606,25 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       </div>
 
       {/* 6. Desktop Overlay & Window Preferences */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
+        <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
           <Monitor size={18} />
           6. DESKTOP OVERLAY & WINDOW
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="flex items-center justify-between p-4 rounded-xl bg-[#232D36] border border-[#2F3B46]">
+          <div class="flex items-center justify-between p-4 rounded-xl bg-theme-card border border-theme-border">
             <div>
-              <span class="block text-sm font-bold text-[#EFF7F6]">Always On Top (Selalu di Depan)</span>
-              <span class="text-xs text-[#EFF7F6]/60">Overlay 3D avatar tetap berada di atas jendela aplikasi lain</span>
+              <span class="block text-sm font-bold text-theme-text">Always On Top (Selalu di Depan)</span>
+              <span class="text-xs text-theme-text/60">Overlay 3D avatar tetap berada di atas jendela aplikasi lain</span>
             </div>
             <button
               type="button"
               onClick={() => setAlwaysOnTop(!alwaysOnTop())}
               class={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase font-mono transition-all ${
                 alwaysOnTop()
-                  ? 'bg-[#7BDFF2] text-[#232D36] shadow anime-shadow-green'
-                  : 'bg-[#1D252E] text-[#EFF7F6]/60 border border-[#2F3B46]'
+                  ? 'bg-theme-cyan text-theme-card shadow anime-shadow-green'
+                  : 'bg-theme-surface text-theme-text/60 border border-theme-border'
               }`}
             >
               {alwaysOnTop() ? 'ON' : 'OFF'}

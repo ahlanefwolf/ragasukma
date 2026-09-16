@@ -89,12 +89,6 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
     let full_url = parts[1];
     let url = full_url.split('?').next().unwrap_or(full_url);
 
-    // WebSocket Upgrade Route untuk Browser Companion
-    if url == "/ws/browser" || header_str.to_lowercase().contains("upgrade: websocket") {
-        crate::engine_browser::handle_websocket_upgrade(stream, &header_str);
-        return;
-    }
-
     // CORS preflight OPTIONS
     if method == "OPTIONS" {
         let resp = "HTTP/1.1 204 No Content\r\n\
@@ -106,12 +100,9 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
         return;
     }
 
-    let body_str = match std::str::from_utf8(&body_bytes) {
-        Ok(s) => s,
-        Err(_) => "",
-    };
+    let body_str = std::str::from_utf8(&body_bytes).unwrap_or_default();
 
-    handle_api_route(method, url, full_url, body_str, &body_bytes, stream, shared);
+    handle_api_route(method, url, full_url, &header_str, body_str, &body_bytes, stream, shared);
 }
 
 pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
@@ -129,13 +120,11 @@ pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
             }
         };
 
-        for stream in listener.incoming() {
-            if let Ok(stream) = stream {
-                let shared_clone = Arc::clone(&shared);
-                thread::spawn(move || {
-                    handle_client(stream, shared_clone);
-                });
-            }
+        for stream in listener.incoming().flatten() {
+            let shared_clone = Arc::clone(&shared);
+            thread::spawn(move || {
+                handle_client(stream, shared_clone);
+            });
         }
     });
 }

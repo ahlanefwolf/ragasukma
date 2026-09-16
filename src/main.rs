@@ -1,10 +1,11 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![allow(clippy::collapsible_if)]
 
 mod audio;
 mod config;
 pub mod engine;
-pub mod engine_browser;
+
 mod llm;
 pub mod native;
 pub mod server;

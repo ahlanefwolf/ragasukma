@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use crate::native::pose_system::{AssistantVisualState, PosesConfig};
+use crate::engine::ytdlp::YtTrackInfo;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppStatePayload {
@@ -135,4 +136,74 @@ pub fn is_paused() -> bool {
         }
     }
     false
+}
+
+// ---------------------------------------------------------------------------
+// Music Player State
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MusicPlayerState {
+    pub current_track: Option<YtTrackInfo>,
+    pub is_playing: bool,
+    pub is_paused: bool,
+    pub volume: f32,
+}
+
+impl Default for MusicPlayerState {
+    fn default() -> Self {
+        Self {
+            current_track: None,
+            is_playing: false,
+            is_paused: false,
+            volume: 1.0,
+        }
+    }
+}
+
+pub static MUSIC_STATE: Mutex<Option<MusicPlayerState>> = Mutex::new(None);
+
+pub fn get_music_state() -> MusicPlayerState {
+    if let Ok(lock) = MUSIC_STATE.lock() {
+        lock.clone().unwrap_or_default()
+    } else {
+        MusicPlayerState::default()
+    }
+}
+
+/// Play file — simpan state pemutaran untuk web streaming player
+pub fn music_play_file(_path: &std::path::Path, track: YtTrackInfo) -> anyhow::Result<()> {
+    if let Ok(mut lock) = MUSIC_STATE.lock() {
+        *lock = Some(MusicPlayerState {
+            current_track: Some(track),
+            is_playing: true,
+            is_paused: false,
+            volume: 1.0,
+        });
+    }
+    Ok(())
+}
+
+pub fn music_pause() {
+    if let Ok(mut lock) = MUSIC_STATE.lock() {
+        if let Some(s) = lock.as_mut() {
+            s.is_playing = false;
+            s.is_paused = true;
+        }
+    }
+}
+
+pub fn music_resume() {
+    if let Ok(mut lock) = MUSIC_STATE.lock() {
+        if let Some(s) = lock.as_mut() {
+            s.is_playing = true;
+            s.is_paused = false;
+        }
+    }
+}
+
+pub fn music_stop() {
+    if let Ok(mut lock) = MUSIC_STATE.lock() {
+        *lock = Some(MusicPlayerState::default());
+    }
 }

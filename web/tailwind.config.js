@@ -8,32 +8,25 @@ export default {
     extend: {
       colors: {
         theme: {
-          bg: "#161D24",
-          surface: "#1D252E",
-          card: "#232D36",
-          border: "#2F3B46",
-          canvas: "#EFF7F6",
-          cyan: "#7BDFF2",
-          rose: "#F2B5D4",
-          dark: "#232D36",
-          text: "#EFF7F6",
-          muted: "#9AAAB7"
+          bg:      "var(--bg)",
+          surface: "var(--surface)",
+          card:    "var(--card)",
+          border:  "var(--border)",
+          text:    "var(--text)",
+          muted:   "var(--muted)",
+          cyan:    "var(--cyan)",
+          rose:    "var(--rose)",
         },
-        anime: {
-          crimson: "#F2B5D4",
-          light: "#EFF7F6",
-          sage: "#7BDFF2",
-          forest: "#7BDFF2",
-          dark: "#161D24",
-          card: "#232D36",
-          border: "#2F3B46"
-        }
       },
       fontFamily: {
-        bangers: ["Bangers", "cursive"],
-        open: ["Open Sans", "sans-serif"]
-      }
-    }
+        grotesk: ["Space Grotesk", "sans-serif"],
+        heading: ["Space Grotesk", "sans-serif"],
+        carter:  ["Space Grotesk", "sans-serif"], // backward compatibility
+        bebas:   ["Space Grotesk", "sans-serif"], // fallback alias
+        bangers: ["Space Grotesk", "sans-serif"], // fallback alias
+        open:    ["Open Sans", "sans-serif"],
+      },
+    },
   },
-  plugins: []
+  plugins: [],
 };

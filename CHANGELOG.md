@@ -6,6 +6,30 @@ Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/id/
 
 ---
 
+## [v0.1.4] - 2026-09-16
+
+### ✨ Fitur Baru & Peningkatan
+- **Native yt-dlp Music Engine & Offline Playback**:
+  - Download otomatis audio berkualitas tinggi (format m4a/aac) via engine `yt-dlp` terintegrasi.
+  - Caching & deteksi cerdas koleksi lagu lokal di folder `assets/music/` (tanpa download ulang jika lagu sudah tersedia).
+  - Penghapusan ketergantungan browser companion script/ekstensi untuk pemutaran audio.
+- **Embedded Web Music Player & Floating Bottom Bar**:
+  - Tab baru **Music Player** di web dashboard dengan visualisasi daftar lagu, thumbnail, durasi, dan kontrol hapus file.
+  - **Floating Bottom Mini-Player** yang persisten di seluruh tab dashboard (Play, Pause, Seek, Volume control, Loop mode).
+- **Strict Single-Tab Session Takeover**:
+  - Mekanisme pengambilalihan sesi secara instan saat tab baru dibuka.
+  - Tab lama otomatis disconnect dan dinonaktifkan tanpa modal alert yang mengganggu.
+- **Modern UI & Typographic Refinement**:
+  - Penggunaan tipografi **Space Grotesk** dan palet tema CSS modern.
+  - Pembersihan menyeluruh dependensi Cargo (`rodio` dioptimasi hanya untuk `symphonia-mp3`, penghapusan crate tak terpakai).
+
+### 🐛 Perbaikan Bug & Optimasi
+- **Zero Race Condition Audio Pipeline**: Koordinasi mikrofon VAD dan pemutaran audio/TTS dengan atomic flag murni dan pengurasan buffer instan.
+- **Safe Teardown**: Semua interval, subscription, dan abort controller di frontend SolidJS dibersihkan via `onCleanup`.
+- **Git Ignore Safeguard**: Direktori `assets/music/` dan file audio unduhan kini terisolasi sepenuhnya dari tracking Git repository.
+
+---
+
 ## [v0.1.3] - 2026-09-16
 
 ### ✨ Fitur Baru & Peningkatan

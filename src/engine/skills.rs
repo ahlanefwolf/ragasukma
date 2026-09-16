@@ -66,11 +66,11 @@ pub fn get_installed_applications() -> Vec<InstalledApp> {
         use std::collections::HashSet;
         let mut seen_names = HashSet::new();
 
-        // Scan shortcuts (.lnk) dari folder Start Menu
+        // Scan shortcuts (.lnk dan .url) dari folder Start Menu
         let mut start_menu_dirs: Vec<PathBuf> = Vec::new();
 
         // Start Menu semua user
-        if let Ok(program_data) = std::env::var("ProgramData") {
+        if let Ok(program_data) = std::env::var("ProgramData").or_else(|_| std::env::var("ALLUSERSPROFILE")) {
             start_menu_dirs.push(
                 PathBuf::from(&program_data)
                     .join("Microsoft\\Windows\\Start Menu\\Programs"),
@@ -82,10 +82,41 @@ pub fn get_installed_applications() -> Vec<InstalledApp> {
                 PathBuf::from(&appdata)
                     .join("Microsoft\\Windows\\Start Menu\\Programs"),
             );
+        } else if let Ok(userprofile) = std::env::var("USERPROFILE") {
+            start_menu_dirs.push(
+                PathBuf::from(&userprofile)
+                    .join("AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs"),
+            );
         }
 
         for dir in &start_menu_dirs {
             scan_lnk_dir(dir, &mut apps, &mut seen_names);
+        }
+
+        // Aplikasi bawaan Windows esensial (sebagai jaminan selalu ada & bisa dibuka)
+        let default_windows_apps = [
+            ("Notepad", "notepad.exe", "Aplikasi Catatan Notepad"),
+            ("Kalkulator", "calc.exe", "Kalkulator Windows"),
+            ("Paint", "mspaint.exe", "Aplikasi Gambar Paint"),
+            ("Task Manager", "taskmgr.exe", "Windows Task Manager"),
+            ("Pengaturan", "start ms-settings:", "Windows Settings"),
+            ("File Explorer", "explorer.exe", "Windows File Explorer"),
+            ("Command Prompt", "cmd.exe", "Windows Command Prompt"),
+            ("PowerShell", "powershell.exe", "Windows PowerShell"),
+            ("Microsoft Edge", "start msedge:", "Browser Microsoft Edge"),
+        ];
+
+        for (name, exec, desc) in default_windows_apps {
+            let key = name.to_lowercase();
+            if !seen_names.contains(&key) {
+                seen_names.insert(key);
+                apps.push(InstalledApp {
+                    name: name.to_string(),
+                    exec: exec.to_string(),
+                    icon: None,
+                    comment: Some(desc.to_string()),
+                });
+            }
         }
 
         apps.sort_by_key(|a| a.name.to_lowercase());
@@ -164,33 +195,36 @@ fn scan_lnk_dir(
         if path.is_dir() {
             // Rekursif masuk subfolder (misal "Accessories", "Games", dll.)
             scan_lnk_dir(&path, apps, seen_names);
-        } else if path.extension().and_then(|e| e.to_str()).map(|e| e.eq_ignore_ascii_case("lnk")).unwrap_or(false) {
-            // Ambil nama dari filename tanpa ekstensi
-            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                let name = stem.to_string();
-                // Skip uninstaller / entry yang biasanya tidak relevan
-                let lower = name.to_lowercase();
-                if lower.contains("uninstall")
-                    || lower.contains("readme")
-                    || lower.contains("release note")
-                    || lower.contains("help")
-                    || lower.contains("documentation")
-                {
-                    continue;
+        } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+            let ext_lower = ext.to_lowercase();
+            if ext_lower == "lnk" || ext_lower == "url" {
+                // Ambil nama dari filename tanpa ekstensi
+                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                    let name = stem.to_string();
+                    // Skip uninstaller / entry yang biasanya tidak relevan
+                    let lower = name.to_lowercase();
+                    if lower.contains("uninstall")
+                        || lower.contains("readme")
+                        || lower.contains("release note")
+                        || lower.contains("help")
+                        || lower.contains("documentation")
+                    {
+                        continue;
+                    }
+                    let key = lower.clone();
+                    if seen_names.contains(&key) {
+                        continue;
+                    }
+                    seen_names.insert(key);
+                    // Gunakan start command untuk membuka shortcut
+                    let exec = format!("start \"\" \"{}\"", path.display());
+                    apps.push(InstalledApp {
+                        name,
+                        exec,
+                        icon: None,
+                        comment: None,
+                    });
                 }
-                let key = lower.clone();
-                if seen_names.contains(&key) {
-                    continue;
-                }
-                seen_names.insert(key);
-                // Gunakan path .lnk sebagai exec — AI bisa pakai `start "" "<path>"`
-                let exec = format!("start \"\" \"{}\"", path.display());
-                apps.push(InstalledApp {
-                    name,
-                    exec,
-                    icon: None,
-                    comment: None,
-                });
             }
         }
     }
@@ -370,7 +404,7 @@ pub fn execute_command_by_os(cmd: &str) -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("cmd")
-            .args(["/C", "start", "", "cmd", "/C", cmd])
+            .args(["/C", cmd])
             .spawn()?;
     }
     #[cfg(not(target_os = "windows"))]

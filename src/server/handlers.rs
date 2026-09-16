@@ -14,15 +14,77 @@ use crate::engine::{
     execute_command_by_os, get_installed_applications, parse_skills_markdown,
     save_skills_markdown, SkillItem,
 };
+use crate::engine::ytdlp::{check_ytdlp, download_audio, list_downloaded};
 
 #[derive(RustEmbed)]
 #[folder = "web/dist"]
 pub struct EmbeddedWebDist;
 
+pub fn send_file_response_with_range(
+    stream: &mut TcpStream,
+    mime_type: &str,
+    data: &[u8],
+    header_str: &str,
+) {
+    let total_len = data.len();
+    if total_len == 0 {
+        let resp = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: 0\r\nAccess-Control-Allow-Origin: *\r\nAccept-Ranges: bytes\r\n\r\n",
+            mime_type
+        );
+        let _ = stream.write_all(resp.as_bytes());
+        return;
+    }
+
+    // Cek header Range: bytes=start-end (Wajib untuk HTML5 <audio> m4a/mp4 container seeking)
+    let range_header = header_str.lines().find_map(|line| {
+        let lower = line.to_lowercase();
+        if lower.starts_with("range:") {
+            Some(line.split(':').nth(1)?.trim())
+        } else {
+            None
+        }
+    });
+
+    if let Some(range_val) = range_header {
+        if let Some(bytes_range) = range_val.strip_prefix("bytes=") {
+            let parts: Vec<&str> = bytes_range.split('-').collect();
+            let start = parts.first().and_then(|s| s.parse::<usize>().ok()).unwrap_or(0);
+            let end = parts
+                .get(1)
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(total_len - 1)
+                .min(total_len - 1);
+
+            if start <= end && start < total_len {
+                let chunk = &data[start..=end];
+                let chunk_len = chunk.len();
+                let resp = format!(
+                    "HTTP/1.1 206 Partial Content\r\nContent-Type: {}\r\nContent-Range: bytes {}-{}/{}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nAccept-Ranges: bytes\r\nCache-Control: no-cache\r\n\r\n",
+                    mime_type, start, end, total_len, chunk_len
+                );
+                let _ = stream.write_all(resp.as_bytes());
+                let _ = stream.write_all(chunk);
+                return;
+            }
+        }
+    }
+
+    // Default 200 OK jika bukan range request
+    let resp = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nAccept-Ranges: bytes\r\nCache-Control: no-cache\r\n\r\n",
+        mime_type, total_len
+    );
+    let _ = stream.write_all(resp.as_bytes());
+    let _ = stream.write_all(data);
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn handle_api_route(
     method: &str,
     url: &str,
     full_url: &str,
+    header_str: &str,
     body_str: &str,
     body_bytes: &[u8],
     mut stream: TcpStream,
@@ -467,6 +529,184 @@ pub fn handle_api_route(
                 send_json_response(&mut stream, 400, "{\"error\":\"Invalid state payload\"}");
             }
         }
+        // ---------------------------------------------------------------
+        // Music Player API
+        // ---------------------------------------------------------------
+        ("GET", "/api/music/check") => {
+            let info = check_ytdlp();
+            let json = serde_json::to_string(&info).unwrap_or_default();
+            send_json_response(&mut stream, 200, &json);
+        }
+        ("POST", "/api/music/install-ytdlp") => {
+            match crate::engine::ytdlp::install_ytdlp() {
+                Ok(msg) => {
+                    let info = check_ytdlp();
+                    let json = serde_json::json!({
+                        "success": true,
+                        "message": msg,
+                        "info": info
+                    }).to_string();
+                    send_json_response(&mut stream, 200, &json);
+                }
+                Err(e) => {
+                    let json = serde_json::json!({
+                        "success": false,
+                        "message": e
+                    }).to_string();
+                    send_json_response(&mut stream, 500, &json);
+                }
+            }
+        }
+        ("GET", "/api/music/list") => {
+            let music_dir = crate::config::get_music_dir();
+            let tracks = list_downloaded(&music_dir);
+            let json = serde_json::to_string(&tracks).unwrap_or_default();
+            send_json_response(&mut stream, 200, &json);
+        }
+        ("GET", path) if path.starts_with("/api/music/stream") => {
+            // Parse filename dari query string pada full_url: /api/music/stream?filename=...
+            let query_str = full_url.split_once('?').map(|(_, q)| q).unwrap_or("");
+            let filename = form_urlencoded::parse(query_str.as_bytes())
+                .find(|(k, _)| k == "filename")
+                .map(|(_, v)| v.into_owned())
+                .unwrap_or_default();
+
+            if filename.is_empty() {
+                send_json_response(&mut stream, 400, "{\"error\":\"Missing filename param\"}");
+                return;
+            }
+
+            let music_dir = crate::config::get_music_dir();
+            let file_path = music_dir.join(&filename);
+
+            if let Ok(data) = fs::read(&file_path) {
+                let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+                let mime_type = match ext.as_str() {
+                    "mp3" => "audio/mpeg",
+                    "webm" => "audio/webm",
+                    "opus" => "audio/opus",
+                    "ogg" => "audio/ogg",
+                    "m4a" | "mp4" | "aac" => "audio/mp4",
+                    "wav" => "audio/wav",
+                    "flac" => "audio/flac",
+                    _ => "application/octet-stream",
+                };
+
+                send_file_response_with_range(&mut stream, mime_type, &data, header_str);
+            } else {
+                let body = "{\"error\":\"File not found\"}";
+                let resp = format!(
+                    "HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(resp.as_bytes());
+            }
+        }
+        ("POST", "/api/music/download") => {
+            #[derive(Deserialize)]
+            struct DownloadPayload {
+                query: String,
+            }
+            if let Ok(payload) = serde_json::from_str::<DownloadPayload>(body_str) {
+                let music_dir = crate::config::get_music_dir();
+                match download_audio(&payload.query, &music_dir) {
+                    Ok(track) => {
+                        #[derive(serde::Serialize)]
+                        struct DownloadResponse {
+                            success: bool,
+                            track: crate::engine::ytdlp::YtTrackInfo,
+                        }
+                        let resp = DownloadResponse { success: true, track };
+                        let json = serde_json::to_string(&resp).unwrap_or_default();
+                        send_json_response(&mut stream, 200, &json);
+                    }
+                    Err(e) => {
+                        let msg = format!("{{\"success\":false,\"error\":\"{}\"}}", e);
+                        send_json_response(&mut stream, 500, &msg);
+                    }
+                }
+            } else {
+                send_json_response(&mut stream, 400, "{\"error\":\"Invalid payload, expected {query}\"}" );
+            }
+        }
+        ("POST", "/api/music/play") => {
+            #[derive(Deserialize)]
+            struct PlayPayload {
+                filename: String,
+            }
+            if let Ok(payload) = serde_json::from_str::<PlayPayload>(body_str) {
+                let music_dir = crate::config::get_music_dir();
+                let file_path = music_dir.join(&payload.filename);
+                // Cari track metadata dari list
+                let tracks = list_downloaded(&music_dir);
+                let track = tracks.into_iter()
+                    .find(|t| t.filename == payload.filename)
+                    .unwrap_or_else(|| crate::engine::ytdlp::YtTrackInfo {
+                        id: String::new(),
+                        title: payload.filename.clone(),
+                        uploader: String::new(),
+                        duration: 0,
+                        thumbnail: None,
+                        filename: payload.filename.clone(),
+                    });
+                match music_play_file(&file_path, track) {
+                    Ok(_) => send_json_response(&mut stream, 200, "{\"success\":true}"),
+                    Err(e) => {
+                        let msg = format!("{{\"success\":false,\"error\":\"{}\"}}", e);
+                        send_json_response(&mut stream, 500, &msg);
+                    }
+                }
+            } else {
+                send_json_response(&mut stream, 400, "{\"error\":\"Invalid payload, expected {filename}\"}" );
+            }
+        }
+        ("POST", "/api/music/pause") => {
+            music_pause();
+            send_json_response(&mut stream, 200, "{\"success\":true}");
+        }
+        ("POST", "/api/music/resume") => {
+            music_resume();
+            send_json_response(&mut stream, 200, "{\"success\":true}");
+        }
+        ("POST", "/api/music/delete") => {
+            #[derive(Deserialize)]
+            struct DeletePayload {
+                filename: String,
+            }
+            if let Ok(payload) = serde_json::from_str::<DeletePayload>(body_str) {
+                let music_dir = crate::config::get_music_dir();
+                let file_path = music_dir.join(&payload.filename);
+                let _ = fs::remove_file(&file_path);
+
+                // Hapus sidecar .info.json jika ada
+                let info_json = file_path.with_extension("info.json");
+                let info_json_alt = music_dir.join(format!("{}.info.json", payload.filename));
+                let _ = fs::remove_file(info_json);
+                let _ = fs::remove_file(info_json_alt);
+
+                // Jika sedang diputar, hentikan
+                let state = get_music_state();
+                if let Some(curr) = state.current_track {
+                    if curr.filename == payload.filename {
+                        music_stop();
+                    }
+                }
+
+                send_json_response(&mut stream, 200, "{\"success\":true}");
+            } else {
+                send_json_response(&mut stream, 400, "{\"error\":\"Invalid payload, expected {filename}\"}");
+            }
+        }
+        ("POST", "/api/music/stop") => {
+            music_stop();
+            send_json_response(&mut stream, 200, "{\"success\":true}");
+        }
+        ("GET", "/api/music/status") => {
+            let state = get_music_state();
+            let json = serde_json::to_string(&state).unwrap_or_default();
+            send_json_response(&mut stream, 200, &json);
+        }
         ("GET", path) => {
             let clean_path = path.trim_start_matches('/');
             let target_path = if clean_path.is_empty() {
@@ -476,7 +716,7 @@ pub fn handle_api_route(
             };
 
             if let Some(file) = EmbeddedWebDist::get(target_path) {
-                let mime_type = match target_path.split('.').last().unwrap_or("") {
+                let mime_type = match target_path.split('.').next_back().unwrap_or("") {
                     "html" => "text/html; charset=utf-8",
                     "js" => "application/javascript; charset=utf-8",
                     "css" => "text/css; charset=utf-8",
@@ -487,11 +727,7 @@ pub fn handle_api_route(
                 };
 
                 let resp_header = format!(
-                    "HTTP/1.1 200 OK\r\n\
-                     Content-Type: {}\r\n\
-                     Content-Length: {}\r\n\
-                     Access-Control-Allow-Origin: *\r\n\
-                     Cache-Control: max-age=3600\r\n\r\n",
+                    "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-cache, no-store, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\n\r\n",
                     mime_type,
                     file.data.len()
                 );
@@ -499,10 +735,7 @@ pub fn handle_api_route(
                 let _ = stream.write_all(&file.data);
             } else if let Some(index) = EmbeddedWebDist::get("index.html") {
                 let resp_header = format!(
-                    "HTTP/1.1 200 OK\r\n\
-                     Content-Type: text/html; charset=utf-8\r\n\
-                     Content-Length: {}\r\n\
-                     Access-Control-Allow-Origin: *\r\n\r\n",
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-cache, no-store, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\n\r\n",
                     index.data.len()
                 );
                 let _ = stream.write_all(resp_header.as_bytes());
@@ -510,10 +743,7 @@ pub fn handle_api_route(
             } else {
                 let body = "404 Not Found";
                 let resp = format!(
-                    "HTTP/1.1 404 Not Found\r\n\
-                     Content-Type: text/plain\r\n\
-                     Content-Length: {}\r\n\
-                     Access-Control-Allow-Origin: *\r\n\r\n{}",
+                    "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\n\r\n{}",
                     body.len(),
                     body
                 );
@@ -523,9 +753,7 @@ pub fn handle_api_route(
         _ => {
             let body = "405 Method Not Allowed";
             let resp = format!(
-                "HTTP/1.1 405 Method Not Allowed\r\n\
-                 Content-Length: {}\r\n\
-                 Access-Control-Allow-Origin: *\r\n\r\n{}",
+                "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\n\r\n{}",
                 body.len(),
                 body
             );
@@ -535,11 +763,7 @@ pub fn handle_api_route(
 }
 
 pub fn handle_sse_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
-    let header = "HTTP/1.1 200 OK\r\n\
-                  Content-Type: text/event-stream\r\n\
-                  Cache-Control: no-cache\r\n\
-                  Connection: keep-alive\r\n\
-                  Access-Control-Allow-Origin: *\r\n\r\n";
+    let header = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\nAccess-Control-Allow-Origin: *\r\n\r\n";
     if stream.write_all(header.as_bytes()).is_err() {
         return;
     }

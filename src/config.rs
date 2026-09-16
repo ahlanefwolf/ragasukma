@@ -137,6 +137,24 @@ impl Default for UserConfig {
     }
 }
 
+pub fn get_music_dir() -> PathBuf {
+    // 1. Jika ada folder lokal assets/music (mode development / portable), gunakan itu
+    let local = PathBuf::from("assets").join("music");
+    if local.exists() {
+        return local;
+    }
+
+    let parent_local = PathBuf::from("../assets").join("music");
+    if parent_local.exists() {
+        return parent_local;
+    }
+
+    // 2. Jika tidak ada, gunakan folder user AppData / .config agar permanen dan tidak hilang saat update
+    let user_music = get_app_config_dir().join("assets").join("music");
+    let _ = fs::create_dir_all(&user_music);
+    user_music
+}
+
 pub fn get_app_config_dir() -> PathBuf {
     #[cfg(target_os = "windows")]
     {

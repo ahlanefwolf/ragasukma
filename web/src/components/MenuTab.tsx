@@ -306,39 +306,39 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
   return (
     <div class="space-y-6">
       {/* Top Banner Status Header */}
-      <div class="rounded-2xl bg-gradient-to-r from-[#232D36] via-[#1D252E] to-[#161D24] p-4 sm:p-6 border border-[#2F3B46] flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div class="rounded-2xl bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg p-4 sm:p-6 border border-theme-border flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div class="flex flex-wrap items-center gap-2">
-            <span class="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#F2B5D4]/20 text-[#F2B5D4] border border-[#F2B5D4]/30">
+            <span class="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-theme-rose/20 text-theme-rose border border-theme-rose/30">
               Menu Kontrol Utama
             </span>
-            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold font-mono bg-[#7BDFF2]/20 text-[#7BDFF2] border border-[#7BDFF2]/30 uppercase">
+            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold font-mono bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30 uppercase">
               State: {props.currentState}
             </span>
           </div>
-          <h2 class="text-2xl sm:text-3xl font-bangers tracking-wide text-[#EFF7F6] mt-2">
+          <h2 class="text-2xl sm:text-3xl font-carter tracking-wide text-theme-text mt-2">
             RAGASUKMA - {assistantName().toUpperCase()}
           </h2>
-          <p class="text-xs sm:text-sm text-[#EFF7F6]/70 mt-1 max-w-lg">
+          <p class="text-xs sm:text-sm text-theme-text/70 mt-1 max-w-lg">
             Kendalikan status percakapan, mikrofon, pemutaran suara TTS, dan fungsi sinkronisasi engine 3D native.
           </p>
         </div>
 
         {/* State Indicator Pill */}
-        <div class="p-3.5 sm:p-4 rounded-xl bg-[#161D24] border border-[#2F3B46] flex items-center gap-3.5 sm:gap-4 shrink-0">
-          <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-[#232D36] flex items-center justify-center text-[#7BDFF2]">
+        <div class="p-3.5 sm:p-4 rounded-xl bg-theme-bg border border-theme-border flex items-center gap-3.5 sm:gap-4 shrink-0">
+          <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-theme-card flex items-center justify-center text-theme-cyan">
             <Bot size={22} />
           </div>
           <div>
-            <span class="text-[11px] text-[#EFF7F6]/50 block">Voice Engine</span>
-            <span class="text-sm font-bold text-[#EFF7F6]">{ttsEngineName()}</span>
+            <span class="text-[11px] text-theme-text/50 block">Voice Engine</span>
+            <span class="text-sm font-bold text-theme-text">{ttsEngineName()}</span>
           </div>
         </div>
       </div>
 
       {/* 1. Kontrol Voice Assistant */}
-      <div class="p-4 sm:p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+      <div class="p-4 sm:p-6 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
+        <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
           <Sparkles size={18} />
           1. KONTROL VOICE ASSISTANT
         </h3>
@@ -348,8 +348,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             onClick={toggleAssistant}
             class={`w-full flex items-center justify-center gap-3 p-4 rounded-xl font-bold text-sm sm:text-base transition-all shadow-md ${
               isRunning()
-                ? 'bg-[#232D36] hover:bg-[#F2B5D4]/20 text-[#F2B5D4] border border-[#F2B5D4]/50'
-                : 'bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] anime-shadow-green'
+                ? 'bg-theme-card hover:bg-theme-rose/20 text-theme-rose border border-theme-rose/50'
+                : 'bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card anime-shadow-green'
             }`}
           >
             {isRunning() ? (
@@ -368,14 +368,14 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       </div>
 
       {/* 2. Realtime Mic Input Level (VU Meter) */}
-      <div class="p-4 sm:p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+      <div class="p-4 sm:p-6 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+            <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
               <Mic size={18} />
               2. REALTIME INPUT MIKROFON (VU METER)
             </h3>
-            <div class="flex flex-wrap items-center gap-2 text-xs text-[#EFF7F6]/60 mt-0.5 font-mono">
+            <div class="flex flex-wrap items-center gap-2 text-xs text-theme-text/60 mt-0.5 font-mono">
               <span>{sensitivityLabel()}</span>
               <span>•</span>
               <span>
@@ -387,21 +387,21 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
           <div class="flex items-center gap-2">
             <span class={`text-[11px] sm:text-xs px-2.5 py-0.5 rounded-full font-bold uppercase font-mono ${
               micMuted()
-                ? 'bg-[#F2B5D4]/20 text-[#F2B5D4]'
+                ? 'bg-theme-rose/20 text-theme-rose'
                 : micLevel() > vadThresholdPercent()
-                ? 'bg-[#7BDFF2]/20 text-[#7BDFF2]'
-                : 'bg-[#EFF7F6]/10 text-[#EFF7F6]/60'
+                ? 'bg-theme-cyan/20 text-theme-cyan'
+                : 'bg-theme-text/10 text-theme-text/60'
             }`}>
               {micMuted() ? 'MUTED' : micLevel() > vadThresholdPercent() ? 'VOICE DETECTED' : 'QUIET'}
             </span>
-            <span class="text-xs sm:text-sm font-mono font-bold text-[#EFF7F6]">
+            <span class="text-xs sm:text-sm font-mono font-bold text-theme-text">
               {micMuted() ? '0%' : `${micLevel()}%`}
             </span>
           </div>
         </div>
 
         {/* Dynamic Spectrum Equalizer Bars */}
-        <div class="flex items-end justify-between gap-1 h-12 px-3 py-2 bg-[#161D24] rounded-xl border border-[#2F3B46]">
+        <div class="flex items-end justify-between gap-1 h-12 px-3 py-2 bg-theme-bg rounded-xl border border-theme-border">
           {micBars().map((height, idx) => (
             <div
               class="flex-1 rounded-t-sm transition-all duration-75"
@@ -409,11 +409,11 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                 height: micMuted() ? '3px' : `${Math.max(4, height)}%`,
                 'background-color':
                   micMuted()
-                    ? '#2F3B46'
+                    ? 'var(--border)'
                     : height > 75
-                    ? '#F2B5D4'
+                    ? 'var(--rose)'
                     : height > 35
-                    ? '#7BDFF2'
+                    ? 'var(--cyan)'
                     : '#4ECDC4',
                 opacity: micMuted() ? '0.3' : '0.9',
               }}
@@ -423,10 +423,10 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
 
         {/* Progress Bar with Peak & Dynamic VAD Activation Threshold Marker */}
         <div class="space-y-1.5">
-          <div class="relative h-4 w-full bg-[#161D24] rounded-full overflow-hidden border border-[#2F3B46] p-0.5">
+          <div class="relative h-4 w-full bg-theme-bg rounded-full overflow-hidden border border-theme-border p-0.5">
             {/* Dynamic VAD Threshold Line Marker based on config */}
             <div
-              class="absolute top-0 bottom-0 w-0.5 bg-[#EFF7F6]/60 shadow-[0_0_4px_#EFF7F6] z-10"
+              class="absolute top-0 bottom-0 w-0.5 bg-theme-text/60 shadow-[0_0_4px_var(--text)] z-10"
               style={{ left: `${vadThresholdPercent()}%` }}
               title={`Batas Trigger VAD (${vadThresholdPercent()}%)`}
             />
@@ -436,22 +436,22 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
               style={{
                 width: micMuted() ? '0%' : `${micLevel()}%`,
                 'background-color':
-                  micLevel() > 80 ? '#FF5964' : micLevel() > vadThresholdPercent() ? '#7BDFF2' : '#4ECDC4',
+                  micLevel() > 80 ? 'var(--rose)' : micLevel() > vadThresholdPercent() ? 'var(--cyan)' : '#4ECDC4',
                 'box-shadow': micLevel() > vadThresholdPercent() ? '0 0 10px rgba(123, 223, 242, 0.5)' : 'none',
               }}
             />
           </div>
-          <div class="flex justify-between text-[10px] font-mono text-[#EFF7F6]/40 px-1">
+          <div class="flex justify-between text-[10px] font-mono text-theme-text/40 px-1">
             <span>0%</span>
-            <span class="text-[#7BDFF2]/80">Batas Trigger VAD: {vadThresholdPercent()}%</span>
+            <span class="text-theme-cyan/80">Batas Trigger VAD: {vadThresholdPercent()}%</span>
             <span>100%</span>
           </div>
         </div>
 
         {/* Real-time Audio Passthrough Loopback Toggle */}
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3 border-t border-[#2F3B46]/60">
-          <div class="flex items-center gap-2 text-xs text-[#EFF7F6]/60">
-            <Headphones size={15} class={isMonitoring() ? 'text-[#7BDFF2] animate-pulse shrink-0' : 'text-[#EFF7F6]/40 shrink-0'} />
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3 border-t border-theme-border/60">
+          <div class="flex items-center gap-2 text-xs text-theme-text/60">
+            <Headphones size={15} class={isMonitoring() ? 'text-theme-cyan animate-pulse shrink-0' : 'text-theme-text/40 shrink-0'} />
             <span class="text-[11px] sm:text-xs">Review Passthrough (Dengarkan hasil filter DSP ke headphone)</span>
           </div>
 
@@ -459,8 +459,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             onClick={toggleMonitor}
             class={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 shadow-sm ${
               isMonitoring()
-                ? 'bg-[#7BDFF2] border-[#7BDFF2] text-[#232D36] anime-shadow-green'
-                : 'bg-[#161D24] border-[#2F3B46] text-[#EFF7F6]/70 hover:text-[#EFF7F6] hover:border-[#7BDFF2]/50'
+                ? 'bg-theme-cyan border-theme-cyan text-theme-card anime-shadow-green'
+                : 'bg-theme-bg border-theme-border text-theme-text/70 hover:text-theme-text hover:border-theme-cyan/50'
             }`}
           >
             {isMonitoring() ? <Volume2 size={14} /> : <VolumeX size={14} />}
@@ -470,8 +470,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       </div>
 
       {/* 3. Toggle Audio & Input */}
-      <div class="p-4 sm:p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-base sm:text-lg font-bangers text-[#F2B5D4] flex items-center gap-2">
+      <div class="p-4 sm:p-6 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
+        <h3 class="text-base sm:text-lg font-carter text-theme-rose flex items-center gap-2">
           <Volume2 size={18} />
           3. TOGGLE SUARA & MIKROFON
         </h3>
@@ -481,19 +481,19 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             onClick={toggleVoice}
             class={`flex items-center justify-between p-3.5 sm:p-4 rounded-xl border font-bold text-sm transition-all ${
               voiceMuted()
-                ? 'bg-[#232D36] border-[#F2B5D4] text-[#F2B5D4]'
-                : 'bg-[#232D36] border-[#7BDFF2] text-[#7BDFF2]'
+                ? 'bg-theme-card border-theme-rose text-theme-rose'
+                : 'bg-theme-card border-theme-cyan text-theme-cyan'
             }`}
           >
             <div class="flex items-center gap-3">
               {voiceMuted() ? <VolumeX size={20} class="shrink-0" /> : <Volume2 size={20} class="shrink-0" />}
               <div class="text-left">
-                <span class="block text-xs sm:text-sm text-[#EFF7F6]">Suara Karakter (TTS)</span>
-                <span class="text-[11px] sm:text-xs text-[#EFF7F6]/60 font-normal">{voiceMuted() ? 'Muted' : 'Aktif Bersuara'}</span>
+                <span class="block text-xs sm:text-sm text-theme-text">Suara Karakter (TTS)</span>
+                <span class="text-[11px] sm:text-xs text-theme-text/60 font-normal">{voiceMuted() ? 'Muted' : 'Aktif Bersuara'}</span>
               </div>
             </div>
             <span class={`text-[10px] sm:text-[11px] px-2.5 py-1 rounded-full uppercase font-mono ${
-              voiceMuted() ? 'bg-[#F2B5D4]/20 text-[#F2B5D4]' : 'bg-[#7BDFF2]/20 text-[#7BDFF2]'
+              voiceMuted() ? 'bg-theme-rose/20 text-theme-rose' : 'bg-theme-cyan/20 text-theme-cyan'
             }`}>
               {voiceMuted() ? 'Muted' : 'Unmuted'}
             </span>
@@ -503,19 +503,19 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             onClick={toggleMic}
             class={`flex items-center justify-between p-3.5 sm:p-4 rounded-xl border font-bold text-sm transition-all ${
               micMuted()
-                ? 'bg-[#232D36] border-[#F2B5D4] text-[#F2B5D4]'
-                : 'bg-[#232D36] border-[#7BDFF2] text-[#7BDFF2]'
+                ? 'bg-theme-card border-theme-rose text-theme-rose'
+                : 'bg-theme-card border-theme-cyan text-theme-cyan'
             }`}
           >
             <div class="flex items-center gap-3">
               {micMuted() ? <MicOff size={20} class="shrink-0" /> : <Mic size={20} class="shrink-0" />}
               <div class="text-left">
-                <span class="block text-xs sm:text-sm text-[#EFF7F6]">Input Mikrofon (STT)</span>
-                <span class="text-[11px] sm:text-xs text-[#EFF7F6]/60 font-normal">{micMuted() ? 'Muted' : 'Mendengarkan'}</span>
+                <span class="block text-xs sm:text-sm text-theme-text">Input Mikrofon (STT)</span>
+                <span class="text-[11px] sm:text-xs text-theme-text/60 font-normal">{micMuted() ? 'Muted' : 'Mendengarkan'}</span>
               </div>
             </div>
             <span class={`text-[10px] sm:text-[11px] px-2.5 py-1 rounded-full uppercase font-mono ${
-              micMuted() ? 'bg-[#F2B5D4]/20 text-[#F2B5D4]' : 'bg-[#7BDFF2]/20 text-[#7BDFF2]'
+              micMuted() ? 'bg-theme-rose/20 text-theme-rose' : 'bg-theme-cyan/20 text-theme-cyan'
             }`}>
               {micMuted() ? 'Muted' : 'Active'}
             </span>
@@ -524,8 +524,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       </div>
 
       {/* 4. Tindakan Cepat (Quick Actions) */}
-      <div class="p-4 sm:p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
-        <h3 class="text-base sm:text-lg font-bangers text-[#7BDFF2] flex items-center gap-2">
+      <div class="p-4 sm:p-6 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
+        <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
           <Layers size={18} />
           4. TINDAKAN CEPAT & SISTEM
         </h3>
@@ -534,15 +534,15 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
           <button
             onClick={handleCheckUpdate}
             disabled={isUpdating()}
-            class="flex items-center justify-center gap-2 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm font-semibold bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46] transition-all"
+            class="flex items-center justify-center gap-2 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm font-semibold bg-theme-card hover:bg-theme-border text-theme-text border border-theme-border transition-all"
           >
-            <RefreshCw size={16} class={isUpdating() ? 'animate-spin text-[#7BDFF2]' : ''} />
+            <RefreshCw size={16} class={isUpdating() ? 'animate-spin text-theme-cyan' : ''} />
             <span>{isUpdating() ? 'Memeriksa...' : 'Cek Pembaruan'}</span>
           </button>
 
           <button
             onClick={handleResetSession}
-            class="flex items-center justify-center gap-2 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm font-semibold bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46] transition-all"
+            class="flex items-center justify-center gap-2 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm font-semibold bg-theme-card hover:bg-theme-border text-theme-text border border-theme-border transition-all"
           >
             <RotateCcw size={16} />
             <span>Reset AI Session</span>
@@ -550,7 +550,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
 
           <button
             onClick={handleRestartEngine}
-            class="flex items-center justify-center gap-2 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm font-semibold bg-[#232D36] hover:bg-[#F2B5D4]/20 text-[#F2B5D4] border border-[#2F3B46] transition-all"
+            class="flex items-center justify-center gap-2 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm font-semibold bg-theme-card hover:bg-theme-rose/20 text-theme-rose border border-theme-border transition-all"
           >
             <RefreshCw size={16} />
             <span>Sync 3D Engine</span>
@@ -561,52 +561,52 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       {/* Modal Dialog Cek Pembaruan & Release Notes */}
       {updateModalOpen() && updateInfo() && (
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
-          <div class="bg-[#1D252E] border border-[#2F3B46] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+          <div class="bg-theme-surface border border-theme-border rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             {/* Header Modal */}
-            <div class="flex items-center justify-between p-4 border-b border-[#2F3B46] bg-[#161D24]">
+            <div class="flex items-center justify-between p-4 border-b border-theme-border bg-theme-bg">
               <div class="flex items-center gap-2">
-                <span class={`p-2 rounded-xl ${updateInfo()!.hasUpdate ? 'bg-[#7BDFF2]/20 text-[#7BDFF2]' : 'bg-[#2F3B46] text-[#EFF7F6]/70'}`}>
+                <span class={`p-2 rounded-xl ${updateInfo()!.hasUpdate ? 'bg-theme-cyan/20 text-theme-cyan' : 'bg-theme-border text-theme-text/70'}`}>
                   {updateInfo()!.hasUpdate ? <Download size={20} /> : <RefreshCw size={20} />}
                 </span>
                 <div>
-                  <h3 class="font-bangers text-lg text-[#EFF7F6] tracking-wide">
+                  <h3 class="font-carter text-lg text-theme-text tracking-wide">
                     {updateInfo()!.hasUpdate ? '🎉 PEMBARUAN TERSEDIA!' : '✨ SISTEM UP-TO-DATE'}
                   </h3>
-                  <div class="flex items-center gap-2 text-xs text-[#EFF7F6]/60">
-                    <span>Versi saat ini: <strong class="text-[#EFF7F6]">{updateInfo()!.currentVersion}</strong></span>
+                  <div class="flex items-center gap-2 text-xs text-theme-text/60">
+                    <span>Versi saat ini: <strong class="text-theme-text">{updateInfo()!.currentVersion}</strong></span>
                     <span>•</span>
-                    <span>Terbaru: <strong class="text-[#7BDFF2]">{updateInfo()!.latestVersion}</strong></span>
+                    <span>Terbaru: <strong class="text-theme-cyan">{updateInfo()!.latestVersion}</strong></span>
                   </div>
                 </div>
               </div>
               <button
                 onClick={() => setUpdateModalOpen(false)}
-                class="p-1.5 rounded-lg text-[#EFF7F6]/60 hover:text-[#EFF7F6] hover:bg-[#2F3B46] transition-all"
+                class="p-1.5 rounded-lg text-theme-text/60 hover:text-theme-text hover:bg-theme-border transition-all"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Isi Release Notes / Changelog */}
-            <div class="p-5 overflow-y-auto space-y-4 flex-1 text-sm text-[#EFF7F6]/85">
-              <div class="p-3.5 rounded-xl bg-[#161D24] border border-[#2F3B46]">
-                <h4 class="text-xs font-mono uppercase tracking-wider text-[#7BDFF2] mb-1">Nama Rilis</h4>
-                <p class="font-bold text-base text-[#EFF7F6]">{updateInfo()!.releaseName}</p>
+            <div class="p-5 overflow-y-auto space-y-4 flex-1 text-sm text-theme-text/85">
+              <div class="p-3.5 rounded-xl bg-theme-bg border border-theme-border">
+                <h4 class="text-xs font-mono uppercase tracking-wider text-theme-cyan mb-1">Nama Rilis</h4>
+                <p class="font-bold text-base text-theme-text">{updateInfo()!.releaseName}</p>
               </div>
 
               <div>
-                <h4 class="text-xs font-mono uppercase tracking-wider text-[#EFF7F6]/60 mb-2">Catatan Pembaruan & Fitur Baru</h4>
-                <div class="p-3.5 rounded-xl bg-[#161D24] border border-[#2F3B46] text-xs font-mono text-[#EFF7F6]/80 whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto custom-scrollbar">
+                <h4 class="text-xs font-mono uppercase tracking-wider text-theme-text/60 mb-2">Catatan Pembaruan & Fitur Baru</h4>
+                <div class="p-3.5 rounded-xl bg-theme-bg border border-theme-border text-xs font-mono text-theme-text/80 whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto custom-scrollbar">
                   {updateInfo()!.releaseNotes}
                 </div>
               </div>
             </div>
 
             {/* Footer Aksi */}
-            <div class="p-4 border-t border-[#2F3B46] bg-[#161D24] flex items-center justify-end gap-3">
+            <div class="p-4 border-t border-theme-border bg-theme-bg flex items-center justify-end gap-3">
               <button
                 onClick={() => setUpdateModalOpen(false)}
-                class="px-4 py-2 rounded-xl text-xs font-semibold bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46] transition-all"
+                class="px-4 py-2 rounded-xl text-xs font-semibold bg-theme-card hover:bg-theme-border text-theme-text border border-theme-border transition-all"
               >
                 Tutup
               </button>
@@ -617,8 +617,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                 rel="noopener noreferrer"
                 class={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md ${
                   updateInfo()!.hasUpdate
-                    ? 'bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] anime-shadow-green'
-                    : 'bg-[#232D36] hover:bg-[#2F3B46] text-[#7BDFF2] border border-[#7BDFF2]/30'
+                    ? 'bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card anime-shadow-green'
+                    : 'bg-theme-card hover:bg-theme-border text-theme-cyan border border-theme-cyan/30'
                 }`}
               >
                 {updateInfo()!.hasUpdate ? <Download size={14} /> : <ExternalLink size={14} />}

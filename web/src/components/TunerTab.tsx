@@ -268,97 +268,97 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
   return (
     <div class="space-y-6">
       {/* Top Tuner Control Bar */}
-      <div class="p-4 sm:p-6 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-4">
+      <div class="p-4 sm:p-6 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
         {/* 1. Header Banner */}
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="flex items-center gap-3">
-            <div class="p-2.5 rounded-xl bg-[#7BDFF2]/20 text-[#7BDFF2] border border-[#7BDFF2]/30 shrink-0">
+            <div class="p-2.5 rounded-xl bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30 shrink-0">
               <Sliders size={22} />
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <h2 class="text-xl sm:text-2xl font-bangers tracking-wide text-[#EFF7F6] leading-none">
+                <h2 class="text-xl sm:text-2xl font-carter tracking-wide text-theme-text leading-none">
                   POSE & MOTION TUNER
                 </h2>
-                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#161D24] text-[#7BDFF2] border border-[#2F3B46]">
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-theme-bg text-theme-cyan border border-theme-border">
                   poses.json
                 </span>
               </div>
-              <p class="text-xs text-[#EFF7F6]/60 mt-0.5">
+              <p class="text-xs text-theme-text/60 mt-0.5">
                 Visual bone keyframe editor & dynamic emotion preview
               </p>
             </div>
           </div>
 
           <div class="flex items-center gap-2">
-            <span class="text-xs font-mono px-2.5 py-1 rounded-full bg-[#232D36] text-[#7BDFF2] border border-[#2F3B46] font-semibold">
-              State: <strong class="uppercase text-[#EFF7F6]">{selectedState()}</strong>
+            <span class="text-xs font-mono px-2.5 py-1 rounded-full bg-theme-card text-theme-cyan border border-theme-border font-semibold">
+              State: <strong class="uppercase text-theme-text">{selectedState()}</strong>
             </span>
           </div>
         </div>
 
         {/* 2. Navigasi Viewport & Gestur Kamera 3D Grid */}
-        <div class="rounded-xl bg-[#161D24] p-3 border border-[#2F3B46] space-y-2">
+        <div class="rounded-xl bg-theme-bg p-3 border border-theme-border space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-[#7BDFF2] flex items-center gap-1.5">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-theme-cyan flex items-center gap-1.5">
               <Sparkles size={13} />
               Panduan Navigasi Layar Avatar
             </span>
-            <span class="text-[10px] text-[#EFF7F6]/50">Interaksi Mouse & Keyboard</span>
+            <span class="text-[10px] text-theme-text/50">Interaksi Mouse & Keyboard</span>
           </div>
 
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
             {/* Card 1 */}
-            <div class="p-2 rounded-lg bg-[#1D252E] border border-[#2F3B46]/60 flex flex-col justify-between gap-1 hover:border-[#7BDFF2]/40 transition-colors">
-              <span class="text-[10px] text-[#EFF7F6]/60 flex items-center gap-1">
-                <Move size={11} class="text-[#7BDFF2]" />
+            <div class="p-2 rounded-lg bg-theme-surface border border-theme-border/60 flex flex-col justify-between gap-1 hover:border-theme-cyan/40 transition-colors">
+              <span class="text-[10px] text-theme-text/60 flex items-center gap-1">
+                <Move size={11} class="text-theme-cyan" />
                 Pindah Jendela
               </span>
-              <kbd class="px-2 py-1 rounded bg-[#232D36] text-[#7BDFF2] text-[11px] font-mono font-bold text-center border border-[#2F3B46]">
+              <kbd class="px-2 py-1 rounded bg-theme-card text-theme-cyan text-[11px] font-mono font-bold text-center border border-theme-border">
                 Drag Kiri
               </kbd>
             </div>
 
             {/* Card 2 */}
-            <div class="p-2 rounded-lg bg-[#1D252E] border border-[#2F3B46]/60 flex flex-col justify-between gap-1 hover:border-[#F2B5D4]/40 transition-colors">
-              <span class="text-[10px] text-[#EFF7F6]/60 flex items-center gap-1">
-                <RotateCw size={11} class="text-[#F2B5D4]" />
+            <div class="p-2 rounded-lg bg-theme-surface border border-theme-border/60 flex flex-col justify-between gap-1 hover:border-theme-rose/40 transition-colors">
+              <span class="text-[10px] text-theme-text/60 flex items-center gap-1">
+                <RotateCw size={11} class="text-theme-rose" />
                 Orbit Putar 3D
               </span>
-              <kbd class="px-2 py-1 rounded bg-[#232D36] text-[#F2B5D4] text-[11px] font-mono font-bold text-center border border-[#2F3B46]">
+              <kbd class="px-2 py-1 rounded bg-theme-card text-theme-rose text-[11px] font-mono font-bold text-center border border-theme-border">
                 Drag Kanan
               </kbd>
             </div>
 
             {/* Card 3 */}
-            <div class="p-2 rounded-lg bg-[#1D252E] border border-[#2F3B46]/60 flex flex-col justify-between gap-1 hover:border-[#F2B5D4]/40 transition-colors">
-              <span class="text-[10px] text-[#EFF7F6]/60 flex items-center gap-1">
-                <MousePointer size={11} class="text-[#F2B5D4]" />
+            <div class="p-2 rounded-lg bg-theme-surface border border-theme-border/60 flex flex-col justify-between gap-1 hover:border-theme-rose/40 transition-colors">
+              <span class="text-[10px] text-theme-text/60 flex items-center gap-1">
+                <MousePointer size={11} class="text-theme-rose" />
                 Pan / Geser Model
               </span>
-              <kbd class="px-2 py-1 rounded bg-[#232D36] text-[#F2B5D4] text-[11px] font-mono font-bold text-center border border-[#2F3B46]">
+              <kbd class="px-2 py-1 rounded bg-theme-card text-theme-rose text-[11px] font-mono font-bold text-center border border-theme-border">
                 Ctrl + Drag Kanan
               </kbd>
             </div>
 
             {/* Card 4 */}
-            <div class="p-2 rounded-lg bg-[#1D252E] border border-[#2F3B46]/60 flex flex-col justify-between gap-1 hover:border-[#EFF7F6]/40 transition-colors">
-              <span class="text-[10px] text-[#EFF7F6]/60 flex items-center gap-1">
-                <ZoomIn size={11} class="text-[#EFF7F6]/80" />
+            <div class="p-2 rounded-lg bg-theme-surface border border-theme-border/60 flex flex-col justify-between gap-1 hover:border-theme-text/40 transition-colors">
+              <span class="text-[10px] text-theme-text/60 flex items-center gap-1">
+                <ZoomIn size={11} class="text-theme-text/80" />
                 Zoom POV
               </span>
-              <kbd class="px-2 py-1 rounded bg-[#232D36] text-[#EFF7F6] text-[11px] font-mono font-bold text-center border border-[#2F3B46]">
+              <kbd class="px-2 py-1 rounded bg-theme-card text-theme-text text-[11px] font-mono font-bold text-center border border-theme-border">
                 Scroll Mouse
               </kbd>
             </div>
 
             {/* Card 5 */}
-            <div class="p-2 rounded-lg bg-[#1D252E] border border-[#2F3B46]/60 flex flex-col justify-between gap-1 col-span-2 sm:col-span-1 hover:border-[#EFF7F6]/40 transition-colors">
-              <span class="text-[10px] text-[#EFF7F6]/60 flex items-center gap-1">
-                <RotateCcw size={11} class="text-[#EFF7F6]/80" />
+            <div class="p-2 rounded-lg bg-theme-surface border border-theme-border/60 flex flex-col justify-between gap-1 col-span-2 sm:col-span-1 hover:border-theme-text/40 transition-colors">
+              <span class="text-[10px] text-theme-text/60 flex items-center gap-1">
+                <RotateCcw size={11} class="text-theme-text/80" />
                 Reset Kamera
               </span>
-              <kbd class="px-2 py-1 rounded bg-[#232D36] text-[#EFF7F6] text-[11px] font-mono font-bold text-center border border-[#2F3B46]">
+              <kbd class="px-2 py-1 rounded bg-theme-card text-theme-text text-[11px] font-mono font-bold text-center border border-theme-border">
                 Klik Tengah
               </kbd>
             </div>
@@ -366,35 +366,35 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
         </div>
 
         {/* 3. Structured Action Toolbar (Between: Kiri = Transfer & Reset, Kanan = Preview & Simpan) */}
-        <div class="p-2.5 rounded-xl bg-[#161D24] border border-[#2F3B46] flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+        <div class="p-2.5 rounded-xl bg-theme-bg border border-theme-border flex flex-col md:flex-row md:items-center justify-between gap-2.5">
           {/* Sisi Kiri: Keyframe Copy & Mirror + Reset Tools */}
           <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <div class="flex items-center bg-[#232D36] p-1 rounded-lg border border-[#2F3B46]">
+            <div class="flex items-center bg-theme-card p-1 rounded-lg border border-theme-border">
               <button 
                 onClick={() => handleCopy('a', 'b')}
-                class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-[#EFF7F6]/80 hover:text-[#EFF7F6] hover:bg-[#1D252E] transition-colors"
+                class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-theme-text/80 hover:text-theme-text hover:bg-theme-surface transition-colors"
                 title="Copy Pose A ke Pose B"
               >
                 A→B
               </button>
               <button 
                 onClick={() => handleCopy('b', 'a')}
-                class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-[#EFF7F6]/80 hover:text-[#EFF7F6] hover:bg-[#1D252E] transition-colors"
+                class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-theme-text/80 hover:text-theme-text hover:bg-theme-surface transition-colors"
                 title="Copy Pose B ke Pose A"
               >
                 B→A
               </button>
-              <div class="w-px h-3.5 bg-[#2F3B46] mx-1" />
+              <div class="w-px h-3.5 bg-theme-border mx-1" />
               <button 
                 onClick={() => handleMirror('a', 'b')}
-                class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-[#EFF7F6]/80 hover:text-[#EFF7F6] hover:bg-[#1D252E] transition-colors"
+                class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-theme-text/80 hover:text-theme-text hover:bg-theme-surface transition-colors"
                 title="Mirror simetri A ke B"
               >
                 Mir A→B
               </button>
               <button 
                 onClick={() => handleMirror('b', 'a')}
-                class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-[#EFF7F6]/80 hover:text-[#EFF7F6] hover:bg-[#1D252E] transition-colors"
+                class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-theme-text/80 hover:text-theme-text hover:bg-theme-surface transition-colors"
                 title="Mirror simetri B ke A"
               >
                 Mir B→A
@@ -403,7 +403,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
 
             <button 
               onClick={handleResetAllKeyframe}
-              class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#232D36] hover:bg-[#FF7B7B]/20 text-[#FF7B7B] border border-[#FF7B7B]/30 flex items-center gap-1.5 transition-all"
+              class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-theme-card hover:bg-theme-rose/20 text-theme-rose border border-theme-rose/30 flex items-center gap-1.5 transition-all"
               title="Reset seluruh bone keyframe aktif ke [0, 0, 0]"
             >
               <RotateCcw size={12} />
@@ -417,8 +417,8 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
               onClick={togglePreview}
               class={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm ${
                 isPreviewing()
-                  ? 'bg-[#F2B5D4] text-[#232D36] anime-shadow-red font-bold'
-                  : 'bg-[#232D36] hover:bg-[#2F3B46] text-[#EFF7F6] border border-[#2F3B46]'
+                  ? 'bg-theme-rose text-theme-card anime-shadow-red font-bold'
+                  : 'bg-theme-card hover:bg-theme-border text-theme-text border border-theme-border'
               }`}
             >
               {isPreviewing() ? <Square size={13} class="fill-current" /> : <Play size={13} class="fill-current" />}
@@ -428,7 +428,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
             <button 
               onClick={handleSave}
               disabled={isSaving()}
-              class="px-4 py-1.5 rounded-lg text-xs font-bold bg-[#7BDFF2] hover:bg-[#68cbdd] text-[#232D36] shadow-md anime-shadow-green flex items-center gap-1.5 transition-all"
+              class="px-4 py-1.5 rounded-lg text-xs font-bold bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card shadow-md anime-shadow-green flex items-center gap-1.5 transition-all"
             >
               <Save size={13} />
               <span>{isSaving() ? 'Menyimpan...' : 'Simpan Live'}</span>
@@ -440,11 +440,11 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
           {/* Target State */}
           <div class="space-y-1.5 flex flex-col justify-between">
-            <label class="text-xs font-semibold text-[#EFF7F6]/70 block h-4">Target State</label>
+            <label class="text-xs font-semibold text-theme-text/70 block h-4">Target State</label>
             <select
               value={selectedState()}
               onChange={(e) => handleStateChange(e.currentTarget.value)}
-              class="w-full h-[38px] bg-[#232D36] border border-[#2F3B46] rounded-xl px-3 text-xs text-[#EFF7F6] outline-none focus:border-[#7BDFF2] transition-colors"
+              class="w-full h-[38px] bg-theme-card border border-theme-border rounded-xl px-3 text-xs text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
               <option value="idle">Idle (Standby)</option>
               <option value="listening">Listening (Mendengarkan)</option>
@@ -455,7 +455,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
 
           {/* Ekspresi Emosi */}
           <div class="space-y-1.5 flex flex-col justify-between">
-            <label class="text-xs font-semibold text-[#EFF7F6]/70 block h-4">Ekspresi Emosi</label>
+            <label class="text-xs font-semibold text-theme-text/70 block h-4">Ekspresi Emosi</label>
             <select
               value={selectedEmotion()}
               onChange={(e) => {
@@ -467,7 +467,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                   api.setTunerLive(true, getCurrentKeyframeBones(), val, selectedState());
                 }
               }}
-              class="w-full h-[38px] bg-[#232D36] border border-[#2F3B46] rounded-xl px-3 text-xs text-[#EFF7F6] outline-none focus:border-[#7BDFF2] transition-colors"
+              class="w-full h-[38px] bg-theme-card border border-theme-border rounded-xl px-3 text-xs text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
               <option value="neutral">Neutral (Biasa)</option>
               <option value="happy">Happy (Senang)</option>
@@ -483,10 +483,10 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
           {/* Speed Siklus */}
           <div class="space-y-1.5 flex flex-col justify-between">
             <div class="flex items-center justify-between h-4">
-              <label class="text-xs font-semibold text-[#EFF7F6]/70">Speed Siklus</label>
-              <span class="text-xs font-mono font-bold text-[#7BDFF2]">{speed().toFixed(1)}s</span>
+              <label class="text-xs font-semibold text-theme-text/70">Speed Siklus</label>
+              <span class="text-xs font-mono font-bold text-theme-cyan">{speed().toFixed(1)}s</span>
             </div>
-            <div class="w-full h-[38px] bg-[#232D36] border border-[#2F3B46] rounded-xl px-3 flex items-center">
+            <div class="w-full h-[38px] bg-theme-card border border-theme-border rounded-xl px-3 flex items-center">
               <input 
                 type="range" 
                 min="0.5" 
@@ -505,21 +505,21 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                     api.setTunerPreview(all, selectedEmotion(), selectedState());
                   }
                 }}
-                class="w-full h-1.5 bg-[#161D24] rounded-lg appearance-none cursor-pointer accent-[#7BDFF2]"
+                class="w-full h-1.5 bg-theme-bg rounded-lg appearance-none cursor-pointer accent-theme-cyan"
               />
             </div>
           </div>
 
           {/* Keyframe Pose A / B Toggle */}
           <div class="space-y-1.5 flex flex-col justify-between">
-            <label class="text-xs font-semibold text-[#EFF7F6]/70 block h-4">Keyframe Target</label>
-            <div class="grid grid-cols-2 gap-1.5 bg-[#232D36] p-1 rounded-xl border border-[#2F3B46] h-[38px] items-center">
+            <label class="text-xs font-semibold text-theme-text/70 block h-4">Keyframe Target</label>
+            <div class="grid grid-cols-2 gap-1.5 bg-theme-card p-1 rounded-xl border border-theme-border h-[38px] items-center">
               <button
                 onClick={() => handleKeyframeTabChange('pose_a')}
                 class={`h-full flex items-center justify-center rounded-lg text-xs font-bold transition-all ${
                   activePoseTab() === 'pose_a'
-                    ? 'bg-[#F2B5D4] text-[#232D36] shadow'
-                    : 'text-[#EFF7F6]/60 hover:text-[#EFF7F6]'
+                    ? 'bg-theme-rose text-theme-card shadow'
+                    : 'text-theme-text/60 hover:text-theme-text'
                 }`}
               >
                 Pose A
@@ -528,8 +528,8 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                 onClick={() => handleKeyframeTabChange('pose_b')}
                 class={`h-full flex items-center justify-center rounded-lg text-xs font-bold transition-all ${
                   activePoseTab() === 'pose_b'
-                    ? 'bg-[#7BDFF2] text-[#232D36] shadow'
-                    : 'text-[#EFF7F6]/60 hover:text-[#EFF7F6]'
+                    ? 'bg-theme-cyan text-theme-card shadow'
+                    : 'text-theme-text/60 hover:text-theme-text'
                 }`}
               >
                 Pose B
@@ -549,8 +549,8 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
               onClick={() => setActiveBoneCategory(cat.id)}
               class={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 isCurrent()
-                  ? 'bg-[#7BDFF2] text-[#232D36] shadow anime-shadow-green font-bold'
-                  : 'bg-[#1D252E] text-[#EFF7F6]/70 border border-[#2F3B46] hover:bg-[#232D36] hover:text-[#EFF7F6]'
+                  ? 'bg-theme-cyan text-theme-card shadow anime-shadow-green font-bold'
+                  : 'bg-theme-surface text-theme-text/70 border border-theme-border hover:bg-theme-card hover:text-theme-text'
               }`}
             >
               {cat.label}
@@ -567,19 +567,19 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
             const vals = () => getBoneRotation(boneName);
 
             return (
-              <div class="p-4 sm:p-5 rounded-2xl bg-[#1D252E] border border-[#2F3B46] space-y-3 shadow-lg">
-                <div class="flex items-center justify-between border-b border-[#2F3B46]/50 pb-2.5">
+              <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-3 shadow-lg">
+                <div class="flex items-center justify-between border-b border-theme-border/50 pb-2.5">
                   <div>
-                    <h4 class="font-bold text-sm text-[#EFF7F6]">
+                    <h4 class="font-bold text-sm text-theme-text">
                       {BONE_LABELS[boneName] || boneName}
                     </h4>
-                    <span class="text-[10px] font-mono text-[#EFF7F6]/40">
+                    <span class="text-[10px] font-mono text-theme-text/40">
                       ID: {boneName}
                     </span>
                   </div>
                   <button
                     onClick={() => resetSingleBone(boneName)}
-                    class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#232D36] hover:bg-[#FF7B7B]/20 text-[#FF7B7B] border border-[#FF7B7B]/30 flex items-center gap-1 transition-all"
+                    class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-theme-card hover:bg-theme-rose/20 text-theme-rose border border-theme-rose/30 flex items-center gap-1 transition-all"
                     title="Reset bone ini ke [0, 0, 0]"
                   >
                     <RotateCcw size={11} />
@@ -590,7 +590,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                 {/* X Axis */}
                 <div class="space-y-1">
                   <div class="flex items-center justify-between text-xs">
-                    <span class="text-[#F2B5D4] font-bold">
+                    <span class="text-theme-rose font-bold">
                       Rotasi X (Pitch)
                     </span>
                     <div class="flex items-center gap-1.5">
@@ -601,11 +601,11 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                         step="0.01"
                         value={parseFloat(vals()[0].toFixed(2))}
                         onInput={(e) => updateBoneAxis(boneName, 0, parseFloat(e.currentTarget.value) || 0)}
-                        class="w-20 bg-[#232D36] border border-[#2F3B46] rounded-lg px-2.5 py-1 text-xs text-right font-mono font-semibold text-[#EFF7F6] outline-none focus:border-[#F2B5D4] transition-colors"
+                        class="w-20 bg-theme-card border border-theme-border rounded-lg px-2.5 py-1 text-xs text-right font-mono font-semibold text-theme-text outline-none focus:border-theme-rose transition-colors"
                       />
                       <button
                         onClick={() => resetSingleAxis(boneName, 0)}
-                        class="px-2 py-1 rounded-lg text-[10px] font-bold bg-[#232D36] hover:bg-[#F2B5D4]/30 text-[#F2B5D4] border border-[#2F3B46] transition-colors"
+                        class="px-2 py-1 rounded-lg text-[10px] font-bold bg-theme-card hover:bg-theme-rose/30 text-theme-rose border border-theme-border transition-colors"
                         title="Reset X ke 0.00"
                       >
                         0
@@ -619,14 +619,14 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                     step="0.01"
                     value={vals()[0]}
                     onInput={(e) => updateBoneAxis(boneName, 0, parseFloat(e.currentTarget.value) || 0)}
-                    class="w-full h-1.5 bg-[#232D36] rounded-lg appearance-none cursor-pointer accent-[#F2B5D4]"
+                    class="w-full h-1.5 bg-theme-card rounded-lg appearance-none cursor-pointer accent-theme-rose"
                   />
                 </div>
 
                 {/* Y Axis */}
                 <div class="space-y-1">
                   <div class="flex items-center justify-between text-xs">
-                    <span class="text-[#7BDFF2] font-bold">
+                    <span class="text-theme-cyan font-bold">
                       Rotasi Y (Yaw)
                     </span>
                     <div class="flex items-center gap-1.5">
@@ -637,11 +637,11 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                         step="0.01"
                         value={parseFloat(vals()[1].toFixed(2))}
                         onInput={(e) => updateBoneAxis(boneName, 1, parseFloat(e.currentTarget.value) || 0)}
-                        class="w-20 bg-[#232D36] border border-[#2F3B46] rounded-lg px-2.5 py-1 text-xs text-right font-mono font-semibold text-[#EFF7F6] outline-none focus:border-[#7BDFF2] transition-colors"
+                        class="w-20 bg-theme-card border border-theme-border rounded-lg px-2.5 py-1 text-xs text-right font-mono font-semibold text-theme-text outline-none focus:border-theme-cyan transition-colors"
                       />
                       <button
                         onClick={() => resetSingleAxis(boneName, 1)}
-                        class="px-2 py-1 rounded-lg text-[10px] font-bold bg-[#232D36] hover:bg-[#7BDFF2]/30 text-[#7BDFF2] border border-[#2F3B46] transition-colors"
+                        class="px-2 py-1 rounded-lg text-[10px] font-bold bg-theme-card hover:bg-theme-cyan/30 text-theme-cyan border border-theme-border transition-colors"
                         title="Reset Y ke 0.00"
                       >
                         0
@@ -655,14 +655,14 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                     step="0.01"
                     value={vals()[1]}
                     onInput={(e) => updateBoneAxis(boneName, 1, parseFloat(e.currentTarget.value) || 0)}
-                    class="w-full h-1.5 bg-[#232D36] rounded-lg appearance-none cursor-pointer accent-[#7BDFF2]"
+                    class="w-full h-1.5 bg-theme-card rounded-lg appearance-none cursor-pointer accent-theme-cyan"
                   />
                 </div>
 
                 {/* Z Axis */}
                 <div class="space-y-1">
                   <div class="flex items-center justify-between text-xs">
-                    <span class="text-[#EFF7F6] font-bold">
+                    <span class="text-theme-text font-bold">
                       Rotasi Z (Roll)
                     </span>
                     <div class="flex items-center gap-1.5">
@@ -673,11 +673,11 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                         step="0.01"
                         value={parseFloat(vals()[2].toFixed(2))}
                         onInput={(e) => updateBoneAxis(boneName, 2, parseFloat(e.currentTarget.value) || 0)}
-                        class="w-20 bg-[#232D36] border border-[#2F3B46] rounded-lg px-2.5 py-1 text-xs text-right font-mono font-semibold text-[#EFF7F6] outline-none focus:border-[#EFF7F6] transition-colors"
+                        class="w-20 bg-theme-card border border-theme-border rounded-lg px-2.5 py-1 text-xs text-right font-mono font-semibold text-theme-text outline-none focus:border-theme-text transition-colors"
                       />
                       <button
                         onClick={() => resetSingleAxis(boneName, 2)}
-                        class="px-2 py-1 rounded-lg text-[10px] font-bold bg-[#232D36] hover:bg-[#EFF7F6]/30 text-[#EFF7F6] border border-[#2F3B46] transition-colors"
+                        class="px-2 py-1 rounded-lg text-[10px] font-bold bg-theme-card hover:bg-theme-text/30 text-theme-text border border-theme-border transition-colors"
                         title="Reset Z ke 0.00"
                       >
                         0
@@ -691,7 +691,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
                     step="0.01"
                     value={vals()[2]}
                     onInput={(e) => updateBoneAxis(boneName, 2, parseFloat(e.currentTarget.value) || 0)}
-                    class="w-full h-1.5 bg-[#232D36] rounded-lg appearance-none cursor-pointer accent-[#EFF7F6]"
+                    class="w-full h-1.5 bg-theme-card rounded-lg appearance-none cursor-pointer accent-theme-text"
                   />
                 </div>
               </div>

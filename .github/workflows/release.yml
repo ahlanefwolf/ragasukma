@@ -23,7 +23,7 @@ jobs:
           # ------------------------------------------------------------------
           - platform: "ubuntu-22.04"
             target: "x86_64-unknown-linux-gnu"
-            package_format: "appimage"
+            package_format: "deb,rpm"
             os_name: "linux"
 
           # ------------------------------------------------------------------
@@ -64,8 +64,7 @@ jobs:
             pkg-config \
             libssl-dev \
             libasound2-dev \
-            squashfs-tools \
-            libfuse2
+            rpm
 
       # ======================================================================
       # NODE.JS / WEB DASHBOARD
@@ -135,7 +134,8 @@ jobs:
           find "target/${{ matrix.target }}/release" \
             -type f \
             \( \
-              -name "*.AppImage" \
+              -name "*.deb" \
+              -o -name "*.rpm" \
               -o -name "*.dmg" \
               -o -name "*.exe" \
             \) \
@@ -159,17 +159,17 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          files=$(find "target/${{ matrix.target }}/release" \
-            -type f \
-            -name "*.AppImage")
+          deb_files=$(find "target/${{ matrix.target }}/release" -type f -name "*.deb")
+          rpm_files=$(find "target/${{ matrix.target }}/release" -type f -name "*.rpm")
 
-          if [ -z "$files" ]; then
-            echo "ERROR: AppImage was not generated."
+          if [ -z "$deb_files" ] || [ -z "$rpm_files" ]; then
+            echo "ERROR: Linux .deb or .rpm package was not generated."
             exit 1
           fi
 
-          echo "Linux artifact found:"
-          echo "$files"
+          echo "Linux artifacts found:"
+          echo "$deb_files"
+          echo "$rpm_files"
 
       - name: Verify Windows Artifact
         if: runner.os == 'Windows'
@@ -214,7 +214,7 @@ jobs:
           cd "target/${{ matrix.target }}/release"
           find . \
             -type f \
-            -name "*.AppImage" \
+            \( -name "*.deb" -o -name "*.rpm" \) \
             -print0 |
             xargs -0 sha256sum > SHA256SUMS-linux.txt
 
@@ -296,7 +296,7 @@ jobs:
         run: |
           find "target/${{ matrix.target }}/release" \
             -type f \
-            -name "*.AppImage" \
+            \( -name "*.deb" -o -name "*.rpm" \) \
             -exec cp {} release/ \;
 
           cp "target/${{ matrix.target }}/release/SHA256SUMS-linux.txt" \

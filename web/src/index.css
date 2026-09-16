@@ -2,45 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design Tokens ─────────────────────────────── */
+:root {
+  --bg:      #161D24;
+  --surface: #1D252E;
+  --card:    #232D36;
+  --border:  #2F3B46;
+  --text:    #EFF7F6;
+  --muted:   #9AAAB7;
+  --cyan:    #7BDFF2;
+  --rose:    #F2B5D4;
+}
+
 @layer base {
   body {
-    @apply bg-[#161D24] text-[#EFF7F6] font-open;
+    @apply bg-theme-bg text-theme-text font-open;
   }
 
   h1, h2, h3, .font-heading {
-    @apply font-bangers tracking-wider uppercase;
+    @apply font-grotesk tracking-tight font-bold;
   }
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ── Scrollbar ─────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: var(--bg); }
+::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+
+/* ── Glow helpers ──────────────────────────────── */
+.glow-cyan { box-shadow: 0 4px 20px -2px rgba(123,223,242,0.35); }
+.glow-rose { box-shadow: 0 4px 20px -2px rgba(242,181,212,0.35); }
+.ring-cyan:focus-within {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px rgba(123,223,242,0.25);
 }
 
-::-webkit-scrollbar-track {
-  background: #161D24;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #2F3B46;
-  border-radius: 9999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #7BDFF2;
-}
-
-/* Anime Style Glow & Shadows */
-.anime-shadow-red {
-  box-shadow: 0 4px 20px -2px rgba(242, 181, 212, 0.35);
-}
-
-.anime-shadow-green {
-  box-shadow: 0 4px 20px -2px rgba(123, 223, 242, 0.35);
-}
-
-.anime-border-focus:focus-within {
-  border-color: #7BDFF2;
-  box-shadow: 0 0 0 2px rgba(123, 223, 242, 0.25);
-}
+/* keep old class names so nothing breaks */
+.anime-shadow-green { @apply glow-cyan; }
+.anime-shadow-red   { @apply glow-rose; }
+.anime-border-focus { @apply ring-cyan; }

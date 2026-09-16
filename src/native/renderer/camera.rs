@@ -56,6 +56,7 @@ impl CameraState {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn update_camera_and_bones(
     queue: &wgpu::Queue,
     camera_buffer: &wgpu::Buffer,
@@ -154,7 +155,7 @@ fn compute_global_transforms(
 
     if let Some(Some(bone_name)) = model.node_to_bone.get(node_idx) {
         if let Some(pose_rot) = pose_manager.get_bone_quat(bone_name) {
-            rotation = rotation * pose_rot;
+            rotation *= pose_rot;
         }
     }
 
