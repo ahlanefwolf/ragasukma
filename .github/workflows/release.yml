@@ -19,12 +19,12 @@ jobs:
       matrix:
         include:
           # ------------------------------------------------------------------
-          # Linux (Universal AppImage: Fedora, Ubuntu, Arch, dll)
+          # Windows (x86_64 NSIS / EXE / MSI)
           # ------------------------------------------------------------------
-          - platform: "ubuntu-22.04"
-            target: "x86_64-unknown-linux-gnu"
-            package_format: "appimage"
-            os_name: "linux"
+          - platform: "windows-latest"
+            target: "x86_64-pc-windows-msvc"
+            package_format: "nsis"
+            os_name: "windows"
 
     steps:
       # ======================================================================

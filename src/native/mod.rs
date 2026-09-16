@@ -8,6 +8,8 @@ use winit::event_loop::EventLoopBuilder;
 
 #[cfg(target_os = "linux")]
 use winit::platform::x11::EventLoopBuilderExtX11;
+#[cfg(target_os = "windows")]
+use winit::platform::windows::EventLoopBuilderExtWindows;
 
 pub fn run_native_overlay() {
     println!("✨ Memulai Ragasukma 3D Native Overlay (Ultra Lightweight WGPU)...");
@@ -26,7 +28,13 @@ pub fn run_native_overlay() {
                 })
                 .expect("Gagal membuat winit event loop (Wayland & X11 fallback)")
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(target_os = "windows")]
+        {
+            EventLoopBuilderExtWindows::with_any_thread(&mut EventLoopBuilder::new(), true)
+                .build()
+                .expect("Gagal membuat winit event loop (Windows)")
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
         {
             EventLoopBuilder::new()
                 .build()
