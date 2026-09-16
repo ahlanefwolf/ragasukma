@@ -24,16 +24,34 @@ Panduan standar ini wajib dibaca dan diikuti oleh developer maupun AI Assistant 
 1. **Alokasi Heap vs Stack untuk Objek Besar**:
    - ❌ **DILARANG** meletakkan struct data besar (seperti 3D Mesh vertices, Audio PCM buffers, atau VRM model data) di local stack.
    - ✅ **GUNAKAN** `Box<T>`, `Vec<T>`, atau `Arc<T>` agar dialokasikan di Heap. Hal ini mencegah *Stack Overflow* (terutama di Linux AppImage/FUSE dengan batasan stack ketat).
-2. **Dedicated Primary Thread**:
-   - Selalu inisialisasi thread utama dengan stack size terdefinisi (minimal 64 MB untuk `ragasukma-main`) agar kebal terhadap batasan stack bawaan runtime OS.
-3. **Windowing & Event Loop Compatibility**:
-   - Winit Event Loop / Windowing wajib berjalan di thread yang kompatibel dengan platform:
-     - Linux X11/Wayland: Menggunakan ekstensi `with_any_thread(true)` jika dipanggil dari sub-thread.
-     - macOS & Windows: Event loop window UI berjalan sinkron dengan siklus loop grafis.
+2. **Dedicated Primary Thread vs macOS Main Thread**:
+   - **Linux & Windows**: Jalankan loop aplikasi di dalam Dedicated Primary Thread dengan kapasitas stack minimal 64 MB (`ragasukma-main`) agar kebal terhadap batasan stack bawaan runtime OS / AppImage.
+   - **macOS**: ❌ **DILARANG KERAS** memindahkan inisialisasi Cocoa/NSApplication (`EventLoop`) ke sub-thread baru. macOS **WAJIB** mengeksekusi `run_ragasukma_app()` langsung di OS Main Thread (Thread 0).
+3. **Windowing & Event Loop Compatibility (`winit`)**:
+   - Winit Event Loop / Windowing wajib dikonfigurasi per platform:
+     - **Linux**: Menggunakan `EventLoopBuilderExtX11::with_any_thread(&mut b, true)` dengan fallback Wayland -> X11.
+     - **Windows**: Menggunakan `EventLoopBuilderExtWindows::with_any_thread(&mut b, true)` agar EventLoop aman berjalan di dalam `ragasukma-main` thread tanpa memicu panic.
+     - **macOS**: Dijalankan langsung di Main Thread (Thread 0) tanpa builder thread extension.
 
 ---
 
-## ⚡ 3. Eksekusi Subprocess, Shell Command & Runtime Isolation
+## 🎨 3. Standar Grafis & Shader (`wgpu` / WGSL)
+
+1. **Kompatibilitas Metal, DirectX 12 & Vulkan**:
+   - Gunakan `wgpu::Backends::all()` untuk pemilihan backend otomatis:
+     - macOS: **Metal** (Apple Silicon M-series & Intel Mac).
+     - Windows: **DirectX 12 / Vulkan**.
+     - Linux: **Vulkan / Mesa**.
+2. **Device Limits & Features**:
+   - Gunakan `wgpu::Limits::downlevel_webgl2_defaults()` dan `wgpu::Features::empty()` sebagai baseline terendah agar kompatibel dengan GPU terintegrasi, virtual GPU runner CI/CD, maupun chip Apple Silicon yang ketat.
+3. **Validasi Shader WGSL**:
+   - Gunakan macro compile-time `wgpu::include_wgsl!()` agar sintaks shader divalidasi langsung saat `cargo build` dan tidak menimbulkan *Metal driver panic* pada macOS saat runtime.
+4. **Dukungan Layar Retina & High-DPI**:
+   - Selalu tangani event `WindowEvent::ScaleFactorChanged` untuk memicu `renderer.resize(physical_size)` agar tampilan 3D tidak buram/pecah pada layar Retina Mac maupun scaling display Windows (125%/150%).
+
+---
+
+## ⚡ 4. Eksekusi Subprocess, Shell Command & Runtime Isolation
 
 1. **Abstraksi OS Command (`#[cfg(target_os = "...")]`)**:
    - **Membuka URL / Browser Default**:
@@ -56,7 +74,7 @@ Panduan standar ini wajib dibaca dan diikuti oleh developer maupun AI Assistant 
 
 ---
 
-## 📦 4. Asset Embedding & Fallback Resilien
+## 📦 5. Asset Embedding & Fallback Resilien
 
 1. **Embedded Default Assets (`RustEmbed`)**:
    - Seluruh aset vital default (`char.vrm`, `poses.json`, `skill-command.md`, avatar PNG, `icon.png`, `config-ai.json`) wajib di-embed ke dalam binary melalui `rust-embed`.
@@ -68,7 +86,7 @@ Panduan standar ini wajib dibaca dan diikuti oleh developer maupun AI Assistant 
 
 ---
 
-## 🔒 5. Universal Single-Instance & IPC Safety
+## 🔒 6. Universal Single-Instance & IPC Safety
 
 1. **Cegah Multiple Instances dengan Port Binding**:
    - ❌ **DILARANG** mengandalkan file lock `/tmp/app.lock` (tidak portabel dan rawan stale lock).
@@ -77,7 +95,7 @@ Panduan standar ini wajib dibaca dan diikuti oleh developer maupun AI Assistant 
 
 ---
 
-## 🎛️ 6. Audio Backend Compatibility (`cpal` & `rodio`)
+## 🎛️ 7. Audio Backend Compatibility (`cpal` & `rodio`)
 
 1. **Cross-Platform Audio Architecture**:
    - Linux: ALSA / PulseAudio / PipeWire (`libasound2-dev` pada CI build).
@@ -88,7 +106,7 @@ Panduan standar ini wajib dibaca dan diikuti oleh developer maupun AI Assistant 
 
 ---
 
-## 🚀 7. Checklist Validasi CI/CD Release
+## 🚀 8. Checklist Validasi CI/CD Release
 
 Sebelum melakukan rilis tag baru (`v*`), pastikan:
 - [ ] `cargo check` dan `cargo clippy --all-targets` bersih tanpa warning/error.
