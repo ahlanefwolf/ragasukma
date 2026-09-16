@@ -177,25 +177,26 @@ pub fn get_app_config_dir() -> PathBuf {
 }
 
 pub fn get_config_file_path() -> PathBuf {
-    // 1. Cek di assets/config-ai.json
-    let in_assets = PathBuf::from("assets/config-ai.json");
-    if in_assets.exists() {
-        return in_assets;
-    }
-
-    // 2. Cek di root project lokal ./config-ai.json
-    let local = PathBuf::from("config-ai.json");
-    if local.exists() {
-        return local;
-    }
-
-    // 3. Cek di user config dir (misal ~/.config/ragasukma/assets/config-ai.json atau %APPDATA%/ragasukma/assets/config-ai.json)
+    // 1. Cek di user config dir: ~/.config/ragasukma/assets/config-ai.json
     let p_assets = get_app_config_dir().join("assets").join("config-ai.json");
     if p_assets.exists() {
         return p_assets;
     }
 
-    get_app_config_dir().join("config-ai.json")
+    // 2. Cek di assets/config-ai.json lokal
+    let in_assets = PathBuf::from("assets/config-ai.json");
+    if in_assets.exists() {
+        return in_assets;
+    }
+
+    // 3. Cek di root project lokal ./config-ai.json
+    let local = PathBuf::from("config-ai.json");
+    if local.exists() {
+        return local;
+    }
+
+    // Default target selalu di dalam folder assets pengguna
+    p_assets
 }
 
 pub fn load_user_config() -> UserConfig {

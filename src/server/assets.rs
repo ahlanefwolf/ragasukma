@@ -1,9 +1,14 @@
+use rust_embed::RustEmbed;
 use std::fs;
 use std::path::PathBuf;
 use std::thread;
 
 use crate::config::UserConfig;
 use crate::native::pose_system::PosesConfig;
+
+#[derive(RustEmbed)]
+#[folder = "assets/"]
+pub struct EmbeddedAssets;
 
 pub fn get_assets_dir() -> PathBuf {
     if let Ok(exe_path) = std::env::current_exe() {
@@ -100,29 +105,23 @@ pub fn save_poses(poses: &PosesConfig) -> Result<(), String> {
     Ok(())
 }
 
-/// Memastikan semua file aset default (char.vrm, poses.json, avatar PNG, skill-command.md)
-/// otomatis tersalin ke direktori config pengguna (~/.config/ragasukma/assets) saat pertama kali dijalankan.
+/// Memastikan semua file aset default (char.vrm, poses.json, avatar PNG, skill-command.md, config-ai.json)
+/// otomatis diekstrak ke direktori config pengguna (~/.config/ragasukma/assets) saat pertama kali dijalankan.
 pub fn ensure_default_user_assets() {
     let target_dir = crate::config::get_app_config_dir().join("assets");
     let _ = fs::create_dir_all(&target_dir);
 
-    let default_files = [
-        "char.vrm",
-        "poses.json",
-        "skill-command.md",
-        "config-ai.json",
-        "char-avatar-idle.png",
-        "char-avatar-listening.png",
-        "char-avatar-talking.png",
-        "char-avatar-thinking.png",
-    ];
-
-    for file in &default_files {
-        let target_file = target_dir.join(file);
-        if !target_file.exists() {
-            let source = find_file_in_candidates(file);
-            if source.exists() && source != target_file {
-                let _ = fs::copy(&source, &target_file);
+    // 1. Ekstrak dari embedded binary assets
+    for file in EmbeddedAssets::iter() {
+        let file_str = file.as_ref();
+        let target_path = target_dir.join(file_str);
+        if !target_path.exists() {
+            if let Some(embedded_file) = EmbeddedAssets::get(file_str) {
+                if let Some(parent) = target_path.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                let _ = fs::write(&target_path, embedded_file.data.as_ref());
+                println!("✨ [Asset Extractor] Mengekstrak aset default: {:?}", file_str);
             }
         }
     }
