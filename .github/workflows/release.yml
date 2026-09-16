@@ -19,12 +19,12 @@ jobs:
       matrix:
         include:
           # ------------------------------------------------------------------
-          # Windows (x86_64 NSIS / EXE / MSI)
+          # macOS (Apple Silicon / aarch64 DMG)
           # ------------------------------------------------------------------
-          - platform: "windows-latest"
-            target: "x86_64-pc-windows-msvc"
-            package_format: "nsis"
-            os_name: "windows"
+          - platform: "macos-latest"
+            target: "aarch64-apple-darwin"
+            package_format: "dmg"
+            os_name: "macos"
 
     steps:
       # ======================================================================

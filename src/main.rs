@@ -16,21 +16,31 @@ use config::AppConfig;
 use engine::AppSession;
 
 fn main() -> Result<()> {
-    // Jalankan seluruh aplikasi di dalam Dedicated Primary Thread berkapasitas 64 MB Stack
-    // untuk mengeliminasi sepenuhnya limitasi stack bawaan Linux AppImage / FUSE runtime.
-    let main_thread = std::thread::Builder::new()
-        .name("ragasukma-main".to_string())
-        .stack_size(64 * 1024 * 1024) // 64 MB Heap-allocated stack
-        .spawn(|| -> Result<()> {
-            run_ragasukma_app()
-        })
-        .expect("Gagal membuat main application thread");
+    // Pada macOS, Apple melarang keras inisialisasi Cocoa EventLoop (NSApplication) di luar main thread.
+    // Oleh karena itu, macOS wajib mengeksekusi langsung di OS main thread.
+    #[cfg(target_os = "macos")]
+    {
+        run_ragasukma_app()
+    }
 
-    match main_thread.join() {
-        Ok(res) => res,
-        Err(e) => {
-            eprintln!("❌ Ragasukma thread panicked: {:?}", e);
-            std::process::exit(1);
+    // Pada Linux & Windows, jalankan aplikasi di dalam Dedicated Primary Thread berkapasitas 64 MB Stack
+    // untuk mengeliminasi sepenuhnya limitasi stack bawaan Linux AppImage / FUSE runtime.
+    #[cfg(not(target_os = "macos"))]
+    {
+        let main_thread = std::thread::Builder::new()
+            .name("ragasukma-main".to_string())
+            .stack_size(64 * 1024 * 1024) // 64 MB Heap-allocated stack
+            .spawn(|| -> Result<()> {
+                run_ragasukma_app()
+            })
+            .expect("Gagal membuat main application thread");
+
+        match main_thread.join() {
+            Ok(res) => res,
+            Err(e) => {
+                eprintln!("❌ Ragasukma thread panicked: {:?}", e);
+                std::process::exit(1);
+            }
         }
     }
 }
