@@ -6,7 +6,7 @@
   "groq_api_key": "",
   "llm_base_url": "http://localhost:20128/v1",
   "llm_model": "ag/gemini-3.7-flash-low",
-  "llm_api_key": "sk-0d0ce467e1e2f269-51ns1j-3f0a5658",
+  "llm_api_key": "sk-6193ecdf4d415f8e-95erfo-0eb6092b",
   "voice_mode": "auto",
   "mic_sensitivity": "3",
   "vad_silence_limit": "1",

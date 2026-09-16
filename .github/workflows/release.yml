@@ -19,28 +19,12 @@ jobs:
       matrix:
         include:
           # ------------------------------------------------------------------
-          # Linux
+          # Linux (Universal AppImage: Fedora, Ubuntu, Arch, dll)
           # ------------------------------------------------------------------
           - platform: "ubuntu-22.04"
             target: "x86_64-unknown-linux-gnu"
-            package_format: "deb,rpm"
+            package_format: "appimage"
             os_name: "linux"
-
-          # ------------------------------------------------------------------
-          # Windows
-          # ------------------------------------------------------------------
-          - platform: "windows-latest"
-            target: "x86_64-pc-windows-msvc"
-            package_format: "nsis"
-            os_name: "windows"
-
-          # ------------------------------------------------------------------
-          # macOS Apple Silicon
-          # ------------------------------------------------------------------
-          - platform: "macos-latest"
-            target: "aarch64-apple-darwin"
-            package_format: "dmg"
-            os_name: "macos"
 
     steps:
       # ======================================================================
@@ -64,7 +48,8 @@ jobs:
             pkg-config \
             libssl-dev \
             libasound2-dev \
-            rpm
+            squashfs-tools \
+            libfuse2
 
       # ======================================================================
       # NODE.JS / WEB DASHBOARD
@@ -134,8 +119,10 @@ jobs:
           find "target/${{ matrix.target }}/release" \
             -type f \
             \( \
-              -name "*.deb" \
-              -o -name "*.rpm" \
+              -name "*.AppImage" \
+              -o -name "*.deb" \
+              -o -name "*.tar.gz" \
+              -o -name "*.tar.zst" \
               -o -name "*.dmg" \
               -o -name "*.exe" \
             \) \
@@ -159,17 +146,15 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          deb_files=$(find "target/${{ matrix.target }}/release" -type f -name "*.deb")
-          rpm_files=$(find "target/${{ matrix.target }}/release" -type f -name "*.rpm")
+          files=$(find "target/${{ matrix.target }}/release" -type f -name "*.AppImage")
 
-          if [ -z "$deb_files" ] || [ -z "$rpm_files" ]; then
-            echo "ERROR: Linux .deb or .rpm package was not generated."
+          if [ -z "$files" ]; then
+            echo "ERROR: Linux AppImage package was not generated."
             exit 1
           fi
 
           echo "Linux artifacts found:"
-          echo "$deb_files"
-          echo "$rpm_files"
+          echo "$files"
 
       - name: Verify Windows Artifact
         if: runner.os == 'Windows'
@@ -214,7 +199,7 @@ jobs:
           cd "target/${{ matrix.target }}/release"
           find . \
             -type f \
-            \( -name "*.deb" -o -name "*.rpm" \) \
+            -name "*.AppImage" \
             -print0 |
             xargs -0 sha256sum > SHA256SUMS-linux.txt
 
@@ -296,7 +281,7 @@ jobs:
         run: |
           find "target/${{ matrix.target }}/release" \
             -type f \
-            \( -name "*.deb" -o -name "*.rpm" \) \
+            -name "*.AppImage" \
             -exec cp {} release/ \;
 
           cp "target/${{ matrix.target }}/release/SHA256SUMS-linux.txt" \
