@@ -117,10 +117,13 @@ impl Renderer {
             .alpha_modes
             .iter()
             .copied()
-            .find(|m| {
-                *m == wgpu::CompositeAlphaMode::PreMultiplied
-                    || *m == wgpu::CompositeAlphaMode::PostMultiplied
-                    || *m == wgpu::CompositeAlphaMode::Inherit
+            .find(|m| *m == wgpu::CompositeAlphaMode::PreMultiplied)
+            .or_else(|| {
+                surface_caps
+                    .alpha_modes
+                    .iter()
+                    .copied()
+                    .find(|m| *m == wgpu::CompositeAlphaMode::Auto)
             })
             .unwrap_or(surface_caps.alpha_modes[0]);
 

@@ -15,46 +15,8 @@ use anyhow::Result;
 use config::AppConfig;
 use engine::AppSession;
 
-#[cfg(unix)]
-mod stack_fix {
-    #[repr(C)]
-    struct Rlimit {
-        rlim_cur: u64,
-        rlim_max: u64,
-    }
-
-    const RLIMIT_STACK: i32 = 3;
-
-    unsafe extern "C" {
-        fn getrlimit(resource: i32, rlim: *mut Rlimit) -> i32;
-        fn setrlimit(resource: i32, rlim: *const Rlimit) -> i32;
-    }
-
-    pub fn ensure_adequate_stack_size() {
-        unsafe {
-            let mut rlim = Rlimit {
-                rlim_cur: 0,
-                rlim_max: 0,
-            };
-            if getrlimit(RLIMIT_STACK, &mut rlim) == 0 {
-                let target_stack = 32 * 1024 * 1024; // 32 MB
-                if rlim.rlim_cur < target_stack {
-                    rlim.rlim_cur = target_stack;
-                    if rlim.rlim_max < target_stack && rlim.rlim_max != u64::MAX {
-                        rlim.rlim_max = target_stack;
-                    }
-                    let _ = setrlimit(RLIMIT_STACK, &rlim);
-                }
-            }
-        }
-    }
-}
-
 fn main() -> Result<()> {
-    #[cfg(unix)]
-    stack_fix::ensure_adequate_stack_size();
-
-    // Pastikan stack size default aman untuk lingkungan Linux AppImage / Embedded
+    // Pastikan stack size default aman untuk worker threads di lingkungan Linux AppImage
     if std::env::var("RUST_MIN_STACK").is_err() {
         unsafe {
             std::env::set_var("RUST_MIN_STACK", "33554432"); // 32 MB
