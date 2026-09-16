@@ -100,6 +100,34 @@ pub fn save_poses(poses: &PosesConfig) -> Result<(), String> {
     Ok(())
 }
 
+/// Memastikan semua file aset default (char.vrm, poses.json, avatar PNG, skill-command.md)
+/// otomatis tersalin ke direktori config pengguna (~/.config/ragasukma/assets) saat pertama kali dijalankan.
+pub fn ensure_default_user_assets() {
+    let target_dir = crate::config::get_app_config_dir().join("assets");
+    let _ = fs::create_dir_all(&target_dir);
+
+    let default_files = [
+        "char.vrm",
+        "poses.json",
+        "skill-command.md",
+        "config-ai.json",
+        "char-avatar-idle.png",
+        "char-avatar-listening.png",
+        "char-avatar-talking.png",
+        "char-avatar-thinking.png",
+    ];
+
+    for file in &default_files {
+        let target_file = target_dir.join(file);
+        if !target_file.exists() {
+            let source = find_file_in_candidates(file);
+            if source.exists() && source != target_file {
+                let _ = fs::copy(&source, &target_file);
+            }
+        }
+    }
+}
+
 pub fn open_browser(url: &str) {
     let url = url.to_string();
     thread::spawn(move || {

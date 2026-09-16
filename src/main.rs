@@ -48,6 +48,9 @@ fn run_ragasukma_app() -> Result<()> {
     // Drop listener pengecekan agar server utama di server.rs bisa bind dengan lancar
     drop(single_instance_check);
 
+    // Salin otomatis semua aset default ke folder config pengguna (~/.config/ragasukma/assets)
+    server::ensure_default_user_assets();
+
     let config = AppConfig::load();
     let config_clone = config.clone();
 
