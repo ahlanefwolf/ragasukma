@@ -125,6 +125,65 @@ pub fn ensure_default_user_assets() {
             }
         }
     }
+
+    #[cfg(target_os = "linux")]
+    ensure_linux_desktop_entry();
+}
+
+#[cfg(target_os = "linux")]
+pub fn ensure_linux_desktop_entry() {
+    let exec_path = if let Ok(appimage_path) = std::env::var("APPIMAGE") {
+        PathBuf::from(appimage_path)
+    } else if let Ok(current) = std::env::current_exe() {
+        current
+    } else {
+        return;
+    };
+
+    let exec_str = exec_path.to_string_lossy();
+    // Jangan overwrite jika sedang dijalankan dari target build development
+    if exec_str.contains("/target/debug/") || exec_str.contains("/target/release/") {
+        return;
+    }
+
+    if let Ok(home) = std::env::var("HOME") {
+        let home_path = PathBuf::from(home);
+        let apps_dir = home_path.join(".local/share/applications");
+        let _ = fs::create_dir_all(&apps_dir);
+        let desktop_file = apps_dir.join("ragasukma.desktop");
+
+        let icon_path = crate::config::get_app_config_dir().join("assets").join("icon.png");
+
+        let content = format!(
+            "[Desktop Entry]\n\
+Name=Ragasukma\n\
+Comment=AI Voice Assistant & 3D/2D Avatar Assistant\n\
+Exec=\"{}\"\n\
+Icon={}\n\
+Terminal=false\n\
+Type=Application\n\
+Categories=Utility;AudioVideo;\n\
+StartupWMClass=ragasukma\n",
+            exec_str,
+            icon_path.to_string_lossy()
+        );
+
+        let need_write = match fs::read_to_string(&desktop_file) {
+            Ok(existing) => existing != content,
+            Err(_) => true,
+        };
+
+        if need_write {
+            let _ = fs::write(&desktop_file, content);
+            use std::os::unix::fs::PermissionsExt;
+            if let Ok(meta) = fs::metadata(&desktop_file) {
+                let mut perms = meta.permissions();
+                perms.set_mode(0o755);
+                let _ = fs::set_permissions(&desktop_file, perms);
+            }
+            println!("🚀 [Desktop Integration] Menu shortcut aplikasi terpasang di ~/.local/share/applications/ragasukma.desktop");
+        }
+    }
 }
 
 pub fn open_browser(url: &str) {
