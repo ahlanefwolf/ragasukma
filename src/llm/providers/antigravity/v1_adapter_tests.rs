@@ -56,7 +56,7 @@ fn test_clean_parameters_schema_with_zed_types() {
 #[test]
 fn test_thought_signature_cache_and_resolve() {
     let call_id = "call_test_12345";
-    let sig = "test_signature_abc_xyz";
+    let sig = "test_signature_abc_xyz==";
     store_thought_signature(call_id, sig);
 
     // Retrieve from cache
@@ -188,4 +188,44 @@ fn test_build_gemini_payload_uses_cached_signature() {
     let fc_part = &model_turn["parts"][0];
 
     assert_eq!(fc_part["thoughtSignature"].as_str().unwrap(), custom_sig);
+}
+
+#[test]
+fn test_default_thinking_ag_signature_is_strictly_valid_base64() {
+    assert_eq!(DEFAULT_THINKING_AG_SIGNATURE.len() % 4, 0);
+    assert!(is_valid_base64(DEFAULT_THINKING_AG_SIGNATURE));
+    assert_eq!(
+        sanitize_thought_signature(DEFAULT_THINKING_AG_SIGNATURE),
+        Some(DEFAULT_THINKING_AG_SIGNATURE.to_string())
+    );
+}
+
+#[test]
+fn test_base64_validation_and_sanitizer() {
+    // Valid standard and padded base64
+    assert!(is_valid_base64("EuwGCuk="));
+    assert!(is_valid_base64("EuwGCukG"));
+    assert_eq!(
+        sanitize_thought_signature("EuwGCuk="),
+        Some("EuwGCuk=".to_string())
+    );
+
+    // Auto-padded unpadded valid base64
+    assert!(is_valid_base64("EuwGCg")); // len 6 -> + "==" -> len 8
+    assert_eq!(
+        sanitize_thought_signature("EuwGCg"),
+        Some("EuwGCg==".to_string())
+    );
+
+    // Corrupted / impossible length (len % 4 == 1)
+    assert!(!is_valid_base64("EuwG1"));
+    assert_eq!(sanitize_thought_signature("EuwG1"), None);
+
+    // Corrupted non-base64 characters
+    assert!(!is_valid_base64("EuwG!@#$%^&*()"));
+    assert_eq!(sanitize_thought_signature("EuwG!@#$%^&*()"), None);
+
+    // Empty strings
+    assert!(!is_valid_base64(""));
+    assert_eq!(sanitize_thought_signature(""), None);
 }

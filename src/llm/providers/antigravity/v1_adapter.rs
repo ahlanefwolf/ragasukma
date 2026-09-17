@@ -13,11 +13,75 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 static THOUGHT_SIGNATURE_STORE: LazyLock<Mutex<HashMap<String, (String, Instant)>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// Validate if a string is a valid standard or URL-safe Base64 encoded string
+pub fn is_valid_base64(s: &str) -> bool {
+    let clean = s.trim();
+    if clean.is_empty() {
+        return false;
+    }
+    let mut normalized = clean.to_string();
+    match normalized.len() % 4 {
+        2 => normalized.push_str("=="),
+        3 => normalized.push('='),
+        1 => return false,
+        _ => {}
+    }
+
+    let bytes = normalized.as_bytes();
+    let len = bytes.len();
+    if len % 4 != 0 {
+        return false;
+    }
+
+    let mut pad_len = 0;
+    if bytes.ends_with(b"==") {
+        pad_len = 2;
+    } else if bytes.ends_with(b"=") {
+        pad_len = 1;
+    }
+
+    let data_part = &bytes[..len - pad_len];
+    if data_part.is_empty() {
+        return false;
+    }
+
+    for &b in data_part {
+        if !(b.is_ascii_alphanumeric() || b == b'+' || b == b'/' || b == b'-' || b == b'_') {
+            return false;
+        }
+    }
+    true
+}
+
+/// Sanitize and validate thought signature, returning a strictly valid padded base64 string
+pub fn sanitize_thought_signature(sig: &str) -> Option<String> {
+    let clean = sig.trim();
+    if clean.is_empty() {
+        return None;
+    }
+    let mut normalized = clean.to_string();
+    match normalized.len() % 4 {
+        2 => normalized.push_str("=="),
+        3 => normalized.push('='),
+        1 => return None,
+        _ => {}
+    }
+
+    if is_valid_base64(&normalized) {
+        Some(normalized)
+    } else {
+        None
+    }
+}
+
 /// Store a Gemini 3+ thoughtSignature for a tool call ID with a 2-hour TTL
 pub fn store_thought_signature(call_id: &str, signature: &str) {
     let clean_id = call_id.trim();
-    let clean_sig = signature.trim();
-    if clean_id.is_empty() || clean_sig.is_empty() {
+    let clean_sig = sanitize_thought_signature(signature);
+    let Some(valid_sig) = clean_sig else {
+        return;
+    };
+    if clean_id.is_empty() {
         return;
     }
     if let Ok(mut store) = THOUGHT_SIGNATURE_STORE.lock() {
@@ -32,7 +96,7 @@ pub fn store_thought_signature(call_id: &str, signature: &str) {
             }
         }
         let expires_at = Instant::now() + std::time::Duration::from_secs(2 * 3600);
-        store.insert(clean_id.to_string(), (clean_sig.to_string(), expires_at));
+        store.insert(clean_id.to_string(), (valid_sig, expires_at));
     }
 }
 
@@ -45,7 +109,7 @@ pub fn get_thought_signature(call_id: &str) -> Option<String> {
     if let Ok(store) = THOUGHT_SIGNATURE_STORE.lock() {
         if let Some((sig, exp)) = store.get(clean_id) {
             if *exp > Instant::now() {
-                return Some(sig.clone());
+                return sanitize_thought_signature(sig);
             }
         }
     }
@@ -59,8 +123,8 @@ pub fn resolve_call_signature(call_id: &str) -> Option<String> {
         return None;
     }
     if let Some((base, sig)) = clean_id.split_once("__thought__") {
-        if !sig.trim().is_empty() {
-            return Some(sig.trim().to_string());
+        if let Some(valid_sig) = sanitize_thought_signature(sig) {
+            return Some(valid_sig);
         }
         if let Some(cached) = get_thought_signature(base) {
             return Some(cached);
@@ -449,7 +513,7 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                         let direct_sig = tc
                             .thought_signature
                             .as_deref()
-                            .filter(|s| !s.trim().is_empty())
+                            .and_then(sanitize_thought_signature)
                             .or_else(|| {
                                 tc.extra_content
                                     .as_ref()
@@ -458,7 +522,7 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                                             .or_else(|| ec.pointer("/google/thoughtSignature"))
                                     })
                                     .and_then(|v| v.as_str())
-                                    .filter(|s| !s.trim().is_empty())
+                                    .and_then(sanitize_thought_signature)
                             })
                             .or_else(|| {
                                 tc.provider_specific_fields
@@ -468,9 +532,8 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                                             .or_else(|| ps.get("thoughtSignature"))
                                     })
                                     .and_then(|v| v.as_str())
-                                    .filter(|s| !s.trim().is_empty())
-                            })
-                            .map(|s| s.to_string());
+                                    .and_then(sanitize_thought_signature)
+                            });
 
                         let cached_sig = direct_sig.or_else(|| resolve_call_signature(&tc.id));
                         let call_sig = cached_sig.or_else(|| {
@@ -490,7 +553,7 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                             }
                         });
 
-                        if let Some(sig) = call_sig {
+                        if let Some(sig) = call_sig.as_deref().and_then(sanitize_thought_signature) {
                             part["thoughtSignature"] = serde_json::Value::String(sig);
                         }
 
@@ -605,8 +668,7 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                         let existing_sig = p.get("thoughtSignature")
                             .or_else(|| p.get("thought_signature"))
                             .and_then(|s| s.as_str())
-                            .filter(|s| !s.trim().is_empty())
-                            .map(|s| s.to_string());
+                            .and_then(sanitize_thought_signature);
 
                         let cached_sig = if !call_id.is_empty() {
                             resolve_call_signature(call_id)
@@ -623,7 +685,7 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                         });
                         first_fc_seen = true;
 
-                        if let Some(sig) = call_sig {
+                        if let Some(sig) = call_sig.as_deref().and_then(sanitize_thought_signature) {
                             if let Some(obj) = p.as_object_mut() {
                                 obj.insert("thoughtSignature".to_string(), serde_json::Value::String(sig));
                             }
