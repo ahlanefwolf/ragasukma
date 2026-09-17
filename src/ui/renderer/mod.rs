@@ -314,6 +314,10 @@ impl Renderer {
         }
     }
 
+    pub fn has_model(&self) -> bool {
+        self.model_data.is_some()
+    }
+
     pub fn load_vrm_model(&mut self, model: Box<VrmModelData>) {
         let loaded = pipeline_3d::load_vrm_model_to_gpu(
             &self.device,

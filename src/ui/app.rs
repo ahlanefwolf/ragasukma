@@ -50,6 +50,7 @@ pub struct App {
     pub was_maximized: bool,
     pub last_config_check: Instant,
     pub last_config_mtime: Option<std::time::SystemTime>,
+    pub has_opened_browser: bool,
 }
 
 impl App {
@@ -112,29 +113,36 @@ impl App {
         renderer.anchor_center_x = (win_w * 0.5) as f32;
         renderer.anchor_center_y = (win_h * 0.5) as f32;
 
-        // Lazy load asinkron via background thread: Logo bouncing langsung beranimasi 60 FPS tanpa hang/freeze
-        renderer.is_loading = true;
-        let (vrm_tx, vrm_rx) = std::sync::mpsc::channel::<Box<VrmModelData>>();
-        std::thread::spawn(move || {
-            let candidates = [
-                assets::find_file_in_candidates("char.vrm"),
-                assets::find_file_in_candidates("char.glb"),
-                PathBuf::from("assets/char.vrm"),
-                PathBuf::from("assets/char.glb"),
-            ];
-            for p in &candidates {
-                if p.exists() {
-                    println!(
-                        "📂 [Async Asset Loader] Memuat model avatar di background: {:?}",
-                        p
-                    );
-                    if let Ok(model) = VrmModelData::load_from_file(p) {
-                        let _ = vrm_tx.send(model);
-                        break;
+        // Lazy load asinkron via background thread: jika avatar_type adalah VRM
+        let is_vrm = initial_cfg.avatar_type.eq_ignore_ascii_case("vrm");
+        let vrm_loader_rx = if is_vrm {
+            renderer.is_loading = true;
+            let (vrm_tx, vrm_rx) = std::sync::mpsc::channel::<Box<VrmModelData>>();
+            std::thread::spawn(move || {
+                let candidates = [
+                    assets::find_file_in_candidates("char.vrm"),
+                    assets::find_file_in_candidates("char.glb"),
+                    PathBuf::from("assets/char.vrm"),
+                    PathBuf::from("assets/char.glb"),
+                ];
+                for p in &candidates {
+                    if p.exists() {
+                        println!(
+                            "📂 [Async Asset Loader] Memuat model avatar di background: {:?}",
+                            p
+                        );
+                        if let Ok(model) = VrmModelData::load_from_file(p) {
+                            let _ = vrm_tx.send(model);
+                            break;
+                        }
                     }
                 }
-            }
-        });
+            });
+            Some(vrm_rx)
+        } else {
+            renderer.is_loading = false;
+            None
+        };
 
         let pose_manager = PoseManager::default();
 
@@ -165,7 +173,7 @@ impl App {
             pose_manager,
             last_frame_time: Instant::now(),
             shared_server_state,
-            vrm_loader_rx: Some(vrm_rx),
+            vrm_loader_rx,
             is_right_mouse_down: false,
             is_left_mouse_down: false,
             is_ctrl_down: false,
@@ -178,6 +186,7 @@ impl App {
             was_maximized: false,
             last_config_check: Instant::now(),
             last_config_mtime: crate::config::get_config_modified_time(),
+            has_opened_browser: false,
         })
     }
 
@@ -402,9 +411,16 @@ impl App {
                         self.renderer.load_vrm_model(model);
                         self.renderer.is_loading = false;
                         self.vrm_loader_rx = None;
-                        // Buka browser dashboard hanya setelah avatar/model 3D selesai dimuat ke GPU!
-                        assets::open_browser("http://127.0.0.1:42128");
+                        // Buka browser dashboard hanya sekali setelah avatar/model 3D pertama kali selesai dimuat ke GPU!
+                        if !self.has_opened_browser {
+                            self.has_opened_browser = true;
+                            assets::open_browser("http://127.0.0.1:42128");
+                        }
                     }
+                } else if !self.has_opened_browser {
+                    // Jika mode 2D (tanpa perlu tunggu VRM loader), langsung buka browser dashboard sekali saat awal start
+                    self.has_opened_browser = true;
+                    assets::open_browser("http://127.0.0.1:42128");
                 }
 
                 // Sync state & live poses reload dari Web HTTP Dashboard
@@ -473,7 +489,42 @@ impl App {
 
                         if lock.config_updated || file_changed {
                             let cfg = assets::load_config();
+                            let old_avatar_type = self.renderer.avatar_type.clone();
                             self.renderer.avatar_type = cfg.avatar_type.clone();
+
+                            if !self.renderer.avatar_type.eq_ignore_ascii_case(&old_avatar_type) {
+                                if self.renderer.avatar_type.eq_ignore_ascii_case("2d") {
+                                    self.renderer.reload_2d_avatar_textures();
+                                } else if self.renderer.avatar_type.eq_ignore_ascii_case("vrm") {
+                                    if !self.renderer.has_model() && self.vrm_loader_rx.is_none() {
+                                        self.renderer.is_loading = true;
+                                        let (vrm_tx, vrm_rx) = std::sync::mpsc::channel::<Box<VrmModelData>>();
+                                        std::thread::spawn(move || {
+                                            let vrm_candidates = [
+                                                assets::find_file_in_candidates("char.vrm"),
+                                                PathBuf::from("assets/char.vrm"),
+                                                PathBuf::from("../assets/char.vrm"),
+                                                PathBuf::from("assets/char.glb"),
+                                                PathBuf::from("../assets/char.glb"),
+                                            ];
+                                            for p in &vrm_candidates {
+                                                if p.exists() {
+                                                    println!(
+                                                        "📂 [Async Asset Loader] Memuat model avatar di background: {:?}",
+                                                        p
+                                                    );
+                                                    if let Ok(model) = VrmModelData::load_from_file(p) {
+                                                        let _ = vrm_tx.send(model);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        });
+                                        self.vrm_loader_rx = Some(vrm_rx);
+                                    }
+                                }
+                            }
+
                             let lvl = if cfg.always_on_top {
                                 WindowLevel::AlwaysOnTop
                             } else {
