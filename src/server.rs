@@ -427,20 +427,44 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
     );
 }
 
+static PREBOUND_TCP_LISTENER: Mutex<Option<TcpListener>> = Mutex::new(None);
+
+pub fn register_prebound_listener(listener: TcpListener) {
+    if let Ok(mut lock) = PREBOUND_TCP_LISTENER.lock() {
+        *lock = Some(listener);
+    }
+}
+
+pub fn take_prebound_listener() -> Option<TcpListener> {
+    if let Ok(mut lock) = PREBOUND_TCP_LISTENER.lock() {
+        lock.take()
+    } else {
+        None
+    }
+}
+
 pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
     thread::spawn(move || {
         let addr = "127.0.0.1:42128";
-        let listener = match TcpListener::bind(addr) {
-            Ok(l) => {
-                println!(
-                    "🌐 [Web Dashboard & API Server] Berjalan di http://{}",
-                    addr
-                );
-                l
-            }
-            Err(e) => {
-                eprintln!("⚠️ [Web Server] Gagal bind ke {}: {}", addr, e);
-                return;
+        let listener = if let Some(prebound) = take_prebound_listener() {
+            println!(
+                "🌐 [Web Dashboard & API Server] Berjalan di http://{}",
+                addr
+            );
+            prebound
+        } else {
+            match TcpListener::bind(addr) {
+                Ok(l) => {
+                    println!(
+                        "🌐 [Web Dashboard & API Server] Berjalan di http://{}",
+                        addr
+                    );
+                    l
+                }
+                Err(e) => {
+                    eprintln!("⚠️ [Web Server] Gagal bind ke {}: {}", addr, e);
+                    return;
+                }
             }
         };
 

@@ -201,16 +201,19 @@ pub fn is_shutdown() -> bool {
 
 // ---------------------------------------------------------------------------
 // Client Action Trigger Queue (Music actions, UI commands, dll)
+// Thread-safe ring buffer with sequence ID per client for multi-client SSE pub-sub
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ClientAction {
+    pub id: u64,
     pub action: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payload: Option<String>,
 }
 
-pub static PENDING_CLIENT_ACTIONS: Mutex<std::collections::VecDeque<ClientAction>> =
+static NEXT_ACTION_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+pub static CLIENT_ACTIONS_BUFFER: Mutex<std::collections::VecDeque<ClientAction>> =
     Mutex::new(std::collections::VecDeque::new());
 
 pub fn notify_state_changed() {
@@ -223,20 +226,33 @@ pub fn notify_state_changed() {
     }
 }
 
+pub fn get_latest_action_id() -> u64 {
+    NEXT_ACTION_ID.load(std::sync::atomic::Ordering::SeqCst).saturating_sub(1)
+}
+
 pub fn push_client_action(action: &str, payload: Option<&str>) {
-    if let Ok(mut q) = PENDING_CLIENT_ACTIONS.lock() {
-        q.push_back(ClientAction {
-            action: action.to_string(),
-            payload: payload.map(|s| s.to_string()),
-        });
+    let id = NEXT_ACTION_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let item = ClientAction {
+        id,
+        action: action.to_string(),
+        payload: payload.map(|s| s.to_string()),
+    };
+
+    if let Ok(mut q) = CLIENT_ACTIONS_BUFFER.lock() {
+        if q.len() >= 100 {
+            q.pop_front();
+        }
+        q.push_back(item);
     }
     notify_state_changed();
 }
 
-pub fn pop_client_actions() -> Vec<ClientAction> {
-    if let Ok(mut q) = PENDING_CLIENT_ACTIONS.lock() {
-        q.drain(..).collect()
+pub fn get_client_actions_since(last_id: u64) -> (Vec<ClientAction>, u64) {
+    if let Ok(q) = CLIENT_ACTIONS_BUFFER.lock() {
+        let items: Vec<ClientAction> = q.iter().filter(|a| a.id > last_id).cloned().collect();
+        let new_last_id = q.back().map(|a| a.id).unwrap_or(last_id).max(last_id);
+        (items, new_last_id)
     } else {
-        Vec::new()
+        (Vec::new(), last_id)
     }
 }

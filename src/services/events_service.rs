@@ -38,6 +38,7 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
     let mut last_state = String::new();
     let mut initial_sent = false;
     let mut ping_ticks: u32 = 0;
+    let mut last_action_id = crate::app_state::get_latest_action_id();
 
     loop {
         let mut had_activity = false;
@@ -79,8 +80,9 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
             had_activity = true;
         }
 
-        // 2. Cek apakah ada Aksi Perintah Baru dari AI (event: action)
-        let pending_actions = crate::app_state::pop_client_actions();
+        // 2. Cek apakah ada Aksi Perintah Baru dari AI (event: action) - Multi-Client Pub-Sub
+        let (pending_actions, new_last_id) = crate::app_state::get_client_actions_since(last_action_id);
+        last_action_id = new_last_id;
         for act in pending_actions {
             if let Ok(act_json) = serde_json::to_string(&act) {
                 let msg = format!("event: action\ndata: {}\n\n", act_json);

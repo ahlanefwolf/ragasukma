@@ -95,7 +95,6 @@ impl TrayState {
             QUIT_REQUESTED.store(true, Ordering::SeqCst);
         }
         if let Ok(mut queue) = COMMAND_QUEUE.lock() {
-            queue.clear();
             queue.push_back(cmd);
         }
     }

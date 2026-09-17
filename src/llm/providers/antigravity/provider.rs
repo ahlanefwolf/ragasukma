@@ -9,7 +9,10 @@ use anyhow::{Context, Result, bail};
 use std::fs;
 use std::io::BufRead;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+static ACCOUNTS_FILE_LOCK: Mutex<()> = Mutex::new(());
 
 pub struct AntigravityProvider {
     pub accounts: Vec<AntigravityAccount>,
@@ -53,6 +56,8 @@ impl AntigravityProvider {
     }
 
     pub fn load_accounts(&mut self) -> Result<()> {
+        let _guard = ACCOUNTS_FILE_LOCK.lock().unwrap();
+
         if !self.config_file.exists() {
             self.config_file = Self::get_accounts_file_path();
             if !self.config_file.exists() {
@@ -145,6 +150,8 @@ impl AntigravityProvider {
     }
 
     pub fn save_accounts(&self) -> Result<()> {
+        let _guard = ACCOUNTS_FILE_LOCK.lock().unwrap();
+
         let target_path = if self.config_file.exists() {
             self.config_file.clone()
         } else {

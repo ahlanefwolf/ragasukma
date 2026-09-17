@@ -9,23 +9,6 @@ use std::net::TcpStream;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-static GLOBAL_ANTIGRAVITY: Mutex<Option<AntigravityProvider>> = Mutex::new(None);
-
-fn get_provider() -> AntigravityProvider {
-    let mut lock = GLOBAL_ANTIGRAVITY.lock().unwrap();
-    if lock.is_none() {
-        *lock = Some(AntigravityProvider::new());
-    }
-    let mut prov = lock.take().unwrap();
-    let _ = prov.load_accounts();
-    prov
-}
-
-fn release_provider(prov: AntigravityProvider) {
-    let mut lock = GLOBAL_ANTIGRAVITY.lock().unwrap();
-    *lock = Some(prov);
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ModelItem {
     pub id: String,
@@ -173,7 +156,7 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
     let cmpl_id = format!("chatcmpl-{}", current_ts());
     let now = current_ts();
 
-    let mut provider = get_provider();
+    let mut provider = AntigravityProvider::new();
 
     if is_stream {
         let resp_header = "HTTP/1.1 200 OK\r\n\
@@ -185,7 +168,6 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
             Access-Control-Allow-Headers: *\r\n\r\n";
 
         if stream.write_all(resp_header.as_bytes()).is_err() {
-            release_provider(provider);
             return;
         }
 
@@ -323,8 +305,6 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
                 let _ = stream.flush();
             }
         }
-
-        release_provider(provider);
     } else {
         // Non-streaming response
         match provider.chat_stream_v1(&req, |_| Ok(())) {
@@ -374,7 +354,5 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
                 send_json_response(stream, 500, &err_json);
             }
         }
-
-        release_provider(provider);
     }
 }

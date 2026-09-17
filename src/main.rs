@@ -21,45 +21,48 @@ use engine::AppSession;
 fn main() -> Result<()> {
     // 🔒 Single Instance Check: Verifikasi port dan handshake identitas aplikasi
     let server_port = 42128;
-    let single_instance_check = std::net::TcpListener::bind(("127.0.0.1", server_port));
-    if single_instance_check.is_err() {
-        // Cek apakah port 42128 memang benar instance Ragasukma (Handshake verification)
-        let is_ragasukma_instance = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_millis(500))
-            .build()
-            .ok()
-            .and_then(|client| {
-                client
-                    .get(format!("http://127.0.0.1:{}/api/ping", server_port))
-                    .send()
-                    .ok()
-            })
-            .and_then(|res| res.text().ok())
-            .map(|text| text.contains("\"ragasukma\""))
-            .unwrap_or(false);
+    let single_instance_check = match std::net::TcpListener::bind(("127.0.0.1", server_port)) {
+        Ok(listener) => listener,
+        Err(_) => {
+            // Cek apakah port 42128 memang benar instance Ragasukma (Handshake verification)
+            let is_ragasukma_instance = reqwest::blocking::Client::builder()
+                .timeout(std::time::Duration::from_millis(500))
+                .build()
+                .ok()
+                .and_then(|client| {
+                    client
+                        .get(format!("http://127.0.0.1:{}/api/ping", server_port))
+                        .send()
+                        .ok()
+                })
+                .and_then(|res| res.text().ok())
+                .map(|text| text.contains("\"ragasukma\""))
+                .unwrap_or(false);
 
-        if is_ragasukma_instance {
-            println!("⚠️  [Single Instance] Ragasukma sudah berjalan di latar belakang!");
-            println!(
-                "🌐 Membuka Dashboard yang sedang aktif di http://127.0.0.1:{} ...",
-                server_port
-            );
-            crate::assets::open_browser(&format!("http://127.0.0.1:{}", server_port));
-            return Ok(());
-        } else {
-            eprintln!(
-                "⚠️  [Port Conflict] Port {} sedang dipakai oleh aplikasi lain bukan Ragasukma!",
-                server_port
-            );
-            eprintln!(
-                "🛑 Harap tutup aplikasi yang menggunakan port {} tersebut.",
-                server_port
-            );
-            return Ok(());
+            if is_ragasukma_instance {
+                println!("⚠️  [Single Instance] Ragasukma sudah berjalan di latar belakang!");
+                println!(
+                    "🌐 Membuka Dashboard yang sedang aktif di http://127.0.0.1:{} ...",
+                    server_port
+                );
+                crate::assets::open_browser(&format!("http://127.0.0.1:{}", server_port));
+                return Ok(());
+            } else {
+                eprintln!(
+                    "⚠️  [Port Conflict] Port {} sedang dipakai oleh aplikasi lain bukan Ragasukma!",
+                    server_port
+                );
+                eprintln!(
+                    "🛑 Harap tutup aplikasi yang menggunakan port {} tersebut.",
+                    server_port
+                );
+                return Ok(());
+            }
         }
-    }
-    // Drop listener pengecekan agar server utama di server.rs bisa bind dengan lancar
-    drop(single_instance_check);
+    };
+
+    // Pertahankan socket listener tanpa drop untuk mencegah celah TOCTOU (Time-of-Check to Time-of-Use)
+    crate::server::register_prebound_listener(single_instance_check);
 
     // Salin otomatis semua aset default ke folder config pengguna (~/.config/ragasukma/assets)
     crate::assets::ensure_default_user_assets();
