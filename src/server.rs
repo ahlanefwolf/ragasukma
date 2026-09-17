@@ -158,6 +158,27 @@ pub fn handle_api_route(
             );
         }
 
+        // OpenAI-Compatible /v1 API Endpoints
+        ("OPTIONS", path) if path.starts_with("/v1") || path.starts_with("/api/v1") => {
+            handle_v1_options(&mut stream);
+        }
+        ("GET", "/v1") | ("GET", "/v1/") | ("GET", "/api/v1") | ("GET", "/api/v1/") => {
+            send_json_response(
+                &mut stream,
+                200,
+                "{\"status\":\"ok\",\"service\":\"ragasukma-openai-v1\",\"version\":\"0.2.0\"}",
+            );
+        }
+        ("GET", "/v1/models") | ("GET", "/api/v1/models") => {
+            handle_v1_models(&mut stream);
+        }
+        ("POST", "/v1/chat/completions") | ("POST", "/api/v1/chat/completions") => {
+            handle_v1_chat_completions(body_str, &mut stream);
+        }
+        ("POST", "/v1/completions") | ("POST", "/api/v1/completions") => {
+            handle_v1_chat_completions(body_str, &mut stream);
+        }
+
         // Assets Service
         ("GET", "/api/assets/info") => handle_assets_info(&mut stream),
         ("POST", "/api/upload/vrm") => handle_upload_vrm(body_bytes, &mut stream, &shared),
@@ -188,6 +209,28 @@ pub fn handle_api_route(
         // Logs Service
         ("GET", "/api/logs") => handle_get_logs(&mut stream),
         ("POST", "/api/logs/clear") => handle_clear_logs(&mut stream),
+
+        // LLM Providers - Antigravity
+        ("GET", "/api/llm/antigravity/accounts") => handle_get_antigravity_accounts(&mut stream),
+        ("POST", "/api/llm/antigravity/accounts") => handle_post_antigravity_account(body_str, &mut stream),
+        ("POST", "/api/llm/antigravity/accounts/delete") => handle_delete_antigravity_account(body_str, &mut stream),
+        ("POST", "/api/llm/antigravity/accounts/refresh") => handle_refresh_antigravity_account(body_str, &mut stream),
+        ("POST", "/api/llm/antigravity/accounts/toggle") => handle_toggle_antigravity_account(body_str, &mut stream),
+        ("POST", "/api/llm/antigravity/accounts/quota") => {
+            handle_get_antigravity_account_quota(body_str, full_url, &mut stream)
+        }
+        ("GET", path) if path.starts_with("/api/llm/antigravity/accounts/quota") => {
+            handle_get_antigravity_account_quota(body_str, full_url, &mut stream);
+        }
+        ("GET", path) if path.starts_with("/api/llm/antigravity/oauth/url") => {
+            handle_get_antigravity_auth_url(full_url, &mut stream);
+        }
+        ("GET", path) if path.starts_with("/api/llm/antigravity/oauth/callback") => {
+            handle_antigravity_oauth_callback(full_url, &mut stream);
+        }
+        ("POST", "/api/llm/antigravity/oauth/exchange") => {
+            handle_post_antigravity_oauth_exchange(body_str, &mut stream);
+        }
 
         // Menu Service
         ("POST", "/api/cmd") => handle_menu_cmd(body_str, &mut stream, &shared),
@@ -352,8 +395,8 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
     let full_url = parts[1];
     let url = full_url.split('?').next().unwrap_or(full_url);
 
-    // Jika ini SSE endpoint, hilangkan read/write timeout agar stream long-lived tidak terputus timeout
-    if url.starts_with("/api/events") {
+    // Jika ini SSE endpoint atau OpenAI API /v1, hilangkan read/write timeout agar stream long-lived tidak terputus timeout
+    if url.starts_with("/api/events") || url.starts_with("/v1") || url.starts_with("/api/v1") {
         let _ = stream.set_read_timeout(None);
         let _ = stream.set_write_timeout(None);
     }
@@ -363,7 +406,7 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
         let resp = "HTTP/1.1 204 No Content\r\n\
                     Access-Control-Allow-Origin: *\r\n\
                     Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n\
-                    Access-Control-Allow-Headers: Content-Type, Content-Length\r\n\
+                    Access-Control-Allow-Headers: *\r\n\
                     Connection: close\r\n\
                     Content-Length: 0\r\n\r\n";
         let _ = stream.write_all(resp.as_bytes());

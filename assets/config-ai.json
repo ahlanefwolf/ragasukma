@@ -4,8 +4,9 @@
   "personality_role": "tsundere",
   "stt_engine": "google",
   "groq_api_key": "",
+  "llm_provider": "antigravity",
   "llm_base_url": "http://localhost:20128/v1",
-  "llm_model": "",
+  "llm_model": "ag/gemini-3.8-flash-high",
   "llm_api_key": "",
   "voice_mode": "auto",
   "mic_sensitivity": "3",
@@ -17,5 +18,6 @@
   "tts_eleven_labs_key": "",
   "elevenlabs_voice_id": "",
   "avatar_type": "vrm",
-  "always_on_top": true
+  "always_on_top": true,
+  "voice_interruption": false
 }

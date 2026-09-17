@@ -7,6 +7,7 @@ import {
   musicService,
   posesService,
   skillsService,
+  antigravityService,
 } from './services';
 
 export * from './services';
@@ -58,4 +59,13 @@ export const api = {
   downloadMusic: musicService.downloadMusic,
   getMusicUrl: musicService.getMusicUrl,
   deleteMusic: musicService.deleteMusic,
+
+  // LLM Providers - Antigravity
+  getAntigravityAccounts: antigravityService.getAccounts,
+  getAntigravityAuthUrl: antigravityService.getAuthUrl,
+  addAntigravityAccount: antigravityService.addAccount,
+  deleteAntigravityAccount: antigravityService.deleteAccount,
+  refreshAntigravityAccount: antigravityService.refreshAccount,
+  toggleAntigravityAccount: antigravityService.toggleAccount,
+  getAntigravityAccountQuota: antigravityService.getAccountQuota,
 };

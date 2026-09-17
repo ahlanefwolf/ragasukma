@@ -1,14 +1,17 @@
 use super::cleaner::clean_ai_text;
 use super::prompt::build_system_prompt;
+use super::providers::antigravity::AntigravityProvider;
 use super::types::{ChatMessage, ChatRequest, OllamaChatRequest, OllamaChatResponse};
 use anyhow::{Context, Result};
 
 pub struct LlmClient {
+    pub provider: String,
     pub base_url: String,
     pub api_key: Option<String>,
     pub model: String,
     pub client: reqwest::blocking::Client,
     pub history: Vec<ChatMessage>,
+    pub antigravity: AntigravityProvider,
 }
 
 impl LlmClient {
@@ -19,6 +22,7 @@ impl LlmClient {
         } else {
             None
         };
+        let provider = u.llm_provider;
         let base_url = u.llm_base_url;
         let model = u.llm_model;
 
@@ -34,12 +38,16 @@ impl LlmClient {
             content: system_prompt,
         }];
 
+        let antigravity = AntigravityProvider::new();
+
         Self {
+            provider,
             base_url,
             api_key,
             model,
             client,
             history,
+            antigravity,
         }
     }
 
@@ -70,6 +78,33 @@ impl LlmClient {
             content: user_input.to_string(),
         });
 
+        // 1. Direct Antigravity Provider jika mode antigravity atau ada akun terdaftar
+        let is_ag_mode = self.provider.eq_ignore_ascii_case("antigravity")
+            || self.model.starts_with("ag/")
+            || (self.api_key.is_none() && !self.antigravity.accounts.is_empty());
+
+        if is_ag_mode && !self.antigravity.accounts.is_empty() {
+            match self.antigravity.chat_stream(
+                &self.model,
+                &self.history,
+                0.7,
+                8192,
+                &mut on_sentence,
+            ) {
+                Ok(reply) => {
+                    self.history.push(ChatMessage {
+                        role: "assistant".to_string(),
+                        content: clean_ai_text(&reply),
+                    });
+                    return Ok(reply);
+                }
+                Err(e) => {
+                    crate::term_err!("⚠️ [LLM Client] Antigravity error: {e}. Fallback ke provider berikutnya...");
+                }
+            }
+        }
+
+        // 2. OpenAI / 9router compatible proxy
         if let Some(ref key) = self.api_key {
             let endpoint = if self.base_url.ends_with("/chat/completions") {
                 self.base_url.clone()
@@ -181,7 +216,7 @@ impl LlmClient {
             return Ok(full_reply);
         }
 
-        // Fallback Ollama Lokal
+        // 3. Fallback Ollama Lokal
         self.chat_fallback_ollama(user_input, on_sentence)
     }
 

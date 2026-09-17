@@ -7,3 +7,4 @@ export * from './musicService';
 export * from './logsService';
 export * from './assetsService';
 export * from './eventsService';
+export * from './antigravityService';

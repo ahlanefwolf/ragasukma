@@ -6,6 +6,7 @@ import { MusicTab } from './components/MusicTab';
 import { TunerTab } from './components/TunerTab';
 import { LogsTab } from './components/LogsTab';
 import { SettingsTab } from './components/SettingsTab';
+import { AntigravityTab } from './components/AntigravityTab';
 import { BottomPlayer } from './components/BottomPlayer';
 import { initGlobalAudio, killGlobalAudio } from './playerStore';
 import { Sparkles, Menu as MenuIcon } from 'lucide-solid';
@@ -209,6 +210,9 @@ export const App: Component = () => {
             </Show>
             <Show when={activeTab() === 'settings'}>
               <SettingsTab showToast={showToast} />
+            </Show>
+            <Show when={activeTab() === 'provider-antigravity'}>
+              <AntigravityTab showToast={showToast} />
             </Show>
           </div>
 

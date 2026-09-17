@@ -27,6 +27,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
   const [personalityRole, setPersonalityRole] = createSignal('partner');
 
   // AI LLM Provider
+  const [llmProvider, setLlmProvider] = createSignal('antigravity');
   const [llmBaseUrl, setLlmBaseUrl] = createSignal('http://localhost:20128/v1');
   const [llmModel, setLlmModel] = createSignal('ag/gemini-3.8-flash-low');
   const [llmApiKey, setLlmApiKey] = createSignal('');
@@ -82,6 +83,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       setUserCallsign(cfg.user_callsign || 'Mas');
       setPersonalityRole(cfg.personality_role || 'partner');
 
+      setLlmProvider(cfg.llm_provider || 'antigravity');
       setLlmBaseUrl(cfg.llm_base_url || 'http://localhost:20128/v1');
       setLlmModel(cfg.llm_model || 'ag/gemini-3.8-flash-low');
       setLlmApiKey(cfg.llm_api_key || '');
@@ -164,6 +166,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       stt_engine: sttEngine(),
       voice_interruption: voiceInterruption(),
       groq_api_key: groqApiKey().trim(),
+      llm_provider: llmProvider(),
       llm_base_url: llmBaseUrl().trim(),
       llm_model: llmModel().trim(),
       llm_api_key: llmApiKey().trim(),
@@ -279,6 +282,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           setUserCallsign={setUserCallsign}
           personalityRole={personalityRole()}
           setPersonalityRole={setPersonalityRole}
+          llmProvider={llmProvider()}
+          setLlmProvider={setLlmProvider}
           llmBaseUrl={llmBaseUrl()}
           setLlmBaseUrl={setLlmBaseUrl}
           llmModel={llmModel()}

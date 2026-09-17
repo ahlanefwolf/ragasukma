@@ -85,6 +85,8 @@ pub struct UserConfig {
     pub personality_role: String,
     pub stt_engine: String,
     pub groq_api_key: String,
+    #[serde(default = "default_llm_provider")]
+    pub llm_provider: String,
     pub llm_base_url: String,
     pub llm_model: String,
     pub llm_api_key: String,
@@ -103,6 +105,10 @@ pub struct UserConfig {
     pub always_on_top: bool,
     #[serde(default = "default_voice_interruption")]
     pub voice_interruption: bool,
+}
+
+fn default_llm_provider() -> String {
+    "antigravity".to_string()
 }
 
 fn default_voice_interruption() -> bool {
@@ -125,8 +131,9 @@ impl Default for UserConfig {
             personality_role: "partner".to_string(),
             stt_engine: "google".to_string(),
             groq_api_key: "".to_string(),
+            llm_provider: "antigravity".to_string(),
             llm_base_url: "http://localhost:20128/v1".to_string(),
-            llm_model: "ag/gemini-3.7-flash-low".to_string(),
+            llm_model: "ag/gemini-3.8-flash-high".to_string(),
             llm_api_key: "".to_string(),
             voice_mode: "auto".to_string(),
             mic_sensitivity: "3".to_string(),
@@ -229,6 +236,7 @@ pub fn save_user_config(cfg: &UserConfig) -> Result<(), String> {
 pub struct AppConfig {
     pub stt_engine: String,
     pub groq_api_key: String,
+    pub llm_provider: String,
     pub llm_base_url: String,
     pub llm_model: String,
     pub llm_api_key: String,
@@ -278,6 +286,7 @@ impl AppConfig {
         Self {
             stt_engine: u.stt_engine,
             groq_api_key: u.groq_api_key,
+            llm_provider: u.llm_provider,
             llm_base_url: u.llm_base_url,
             llm_model: u.llm_model,
             llm_api_key: u.llm_api_key,

@@ -6,6 +6,7 @@ export interface UserConfig {
   personality_role: string;
   stt_engine: string;
   groq_api_key: string;
+  llm_provider?: string;
   llm_base_url: string;
   llm_model: string;
   llm_api_key: string;

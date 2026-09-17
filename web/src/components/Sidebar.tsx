@@ -1,4 +1,4 @@
-import { Component, Show } from 'solid-js';
+import { Component, createSignal, Show } from 'solid-js';
 import { 
   Menu as MenuIcon, 
   Zap, 
@@ -7,7 +7,10 @@ import {
   Settings as SettingsIcon,
   Terminal,
   X,
-  Sparkles
+  Sparkles,
+  Bot,
+  Rocket,
+  ChevronDown
 } from 'lucide-solid';
 import { BrandLogo } from './BrandLogo';
 
@@ -21,6 +24,8 @@ interface SidebarProps {
 }
 
 export const Sidebar: Component<SidebarProps> = (props) => {
+  const [providerMenuOpen, setProviderMenuOpen] = createSignal(true);
+
   const menuItems = [
     { id: 'menu', label: 'Main Menu', icon: MenuIcon, badge: props.currentState.toUpperCase() },
     { id: 'skills', label: 'Skill Commands', icon: Zap },
@@ -36,6 +41,8 @@ export const Sidebar: Component<SidebarProps> = (props) => {
       props.onCloseMobile();
     }
   };
+
+  const isProviderActive = () => props.activeTab.startsWith('provider-');
 
   const SidebarContent = () => (
     <div class="flex flex-col justify-between h-full select-none">
@@ -87,7 +94,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
           </span>
         </div>
 
-        {/* 5 Main Tabs Navigation */}
+        {/* Main Tabs Navigation */}
         <nav class="space-y-1.5">
           {menuItems.map((item) => {
             const Icon = item.icon;
@@ -116,6 +123,49 @@ export const Sidebar: Component<SidebarProps> = (props) => {
               </button>
             );
           })}
+
+          {/* Provider LLM Group with Submenu */}
+          <div class="pt-2">
+            <button
+              onClick={() => setProviderMenuOpen(!providerMenuOpen())}
+              class={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                isProviderActive()
+                  ? 'text-theme-cyan bg-theme-card/60 font-bold border border-theme-cyan/30'
+                  : 'text-theme-text/75 hover:bg-theme-card hover:text-theme-text'
+              }`}
+            >
+              <div class="flex items-center gap-3">
+                <Bot size={18} class={isProviderActive() ? 'stroke-[2.5] text-theme-cyan' : 'stroke-[2]'} />
+                <span class="tracking-wide">Provider LLM</span>
+              </div>
+              <ChevronDown 
+                size={16} 
+                class={`transition-transform duration-200 ${providerMenuOpen() ? 'rotate-180 text-theme-cyan' : 'text-theme-text/40'}`} 
+              />
+            </button>
+
+            {/* Submenu Items */}
+            <Show when={providerMenuOpen()}>
+              <div class="pl-5 pr-1 py-1 space-y-1 mt-1 border-l-2 border-theme-border/60 ml-4">
+                <button
+                  onClick={() => handleSelectTab('provider-antigravity')}
+                  class={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                    props.activeTab === 'provider-antigravity'
+                      ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30'
+                      : 'text-theme-text/65 hover:bg-theme-card hover:text-theme-text'
+                  }`}
+                >
+                  <div class="flex items-center gap-2.5">
+                    <Rocket size={14} class={props.activeTab === 'provider-antigravity' ? 'text-amber-400' : 'text-theme-text/50'} />
+                    <span>Antigravity</span>
+                  </div>
+                  <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase font-bold">
+                    OAuth
+                  </span>
+                </button>
+              </div>
+            </Show>
+          </div>
         </nav>
       </div>
 
