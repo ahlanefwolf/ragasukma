@@ -48,6 +48,8 @@ pub struct App {
     pub active_resize_dir: Option<winit::window::ResizeDirection>,
     pub prev_win_size: (f32, f32),
     pub was_maximized: bool,
+    pub last_config_check: Instant,
+    pub last_config_mtime: Option<std::time::SystemTime>,
 }
 
 impl App {
@@ -174,6 +176,8 @@ impl App {
             active_resize_dir: None,
             prev_win_size: (win_w as f32, win_h as f32),
             was_maximized: false,
+            last_config_check: Instant::now(),
+            last_config_mtime: crate::config::get_config_modified_time(),
         })
     }
 
@@ -453,7 +457,21 @@ impl App {
                             lock.vrm_updated = false;
                         }
 
-                        if lock.config_updated {
+                        let check_file = self.last_config_check.elapsed() >= std::time::Duration::from_millis(500);
+                        let file_changed = if check_file {
+                            self.last_config_check = Instant::now();
+                            let current_mtime = crate::config::get_config_modified_time();
+                            if current_mtime != self.last_config_mtime {
+                                self.last_config_mtime = current_mtime;
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
+
+                        if lock.config_updated || file_changed {
                             let cfg = assets::load_config();
                             self.renderer.avatar_type = cfg.avatar_type.clone();
                             let lvl = if cfg.always_on_top {

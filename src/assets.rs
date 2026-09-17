@@ -40,6 +40,7 @@ pub fn get_assets_dir() -> PathBuf {
 
 pub fn find_file_in_candidates(filename: &str) -> PathBuf {
     let mut candidates = Vec::new();
+    candidates.push(get_assets_dir().join(filename));
 
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
@@ -216,7 +217,11 @@ pub fn open_browser(url: &str) {
 
         #[cfg(target_os = "linux")]
         {
-            let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+            let mut cmd = std::process::Command::new("xdg-open");
+            cmd.arg(&url);
+            cmd.env_remove("LD_LIBRARY_PATH");
+            cmd.env_remove("LD_PRELOAD");
+            let _ = cmd.spawn();
         }
     });
 }

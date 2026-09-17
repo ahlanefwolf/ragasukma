@@ -4,6 +4,7 @@ export interface UserConfig {
   assistant_name: string;
   user_callsign: string;
   personality_role: string;
+  assistant_gender?: string;
   stt_engine: string;
   groq_api_key: string;
   llm_provider?: string;

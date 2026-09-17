@@ -83,6 +83,8 @@ pub struct UserConfig {
     pub assistant_name: String,
     pub user_callsign: String,
     pub personality_role: String,
+    #[serde(default = "default_assistant_gender")]
+    pub assistant_gender: String,
     pub stt_engine: String,
     pub groq_api_key: String,
     #[serde(default = "default_llm_provider")]
@@ -107,6 +109,10 @@ pub struct UserConfig {
     pub voice_interruption: bool,
 }
 
+fn default_assistant_gender() -> String {
+    "female".to_string()
+}
+
 fn default_llm_provider() -> String {
     "antigravity".to_string()
 }
@@ -129,6 +135,7 @@ impl Default for UserConfig {
             assistant_name: "Laras".to_string(),
             user_callsign: "Mas".to_string(),
             personality_role: "partner".to_string(),
+            assistant_gender: "female".to_string(),
             stt_engine: "google".to_string(),
             groq_api_key: "".to_string(),
             llm_provider: "antigravity".to_string(),
@@ -201,33 +208,67 @@ pub fn get_config_file_path() -> PathBuf {
     get_app_config_dir().join("assets").join("config-ai.json")
 }
 
+static CONFIG_MUTEX: Mutex<()> = Mutex::new(());
+
+pub fn get_config_modified_time() -> Option<SystemTime> {
+    let path = get_config_file_path();
+    fs::metadata(&path).and_then(|m| m.modified()).ok()
+}
+
 pub fn load_user_config() -> UserConfig {
+    let _guard = CONFIG_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
     let path = get_config_file_path();
     if path.exists() {
-        if let Ok(content) = fs::read_to_string(&path) {
-            if let Ok(cfg) = serde_json::from_str::<UserConfig>(&content) {
-                return cfg;
+        // Coba baca sampai 3 kali dengan jeda singkat untuk mengatasi file lock sementara di Windows
+        for _ in 0..3 {
+            if let Ok(content) = fs::read_to_string(&path) {
+                if let Ok(cfg) = serde_json::from_str::<UserConfig>(&content) {
+                    return cfg;
+                }
             }
+            std::thread::sleep(std::time::Duration::from_millis(15));
         }
+        crate::term_err!("⚠️ [Config Load] File config-ai.json sedang dikunci/tidak terbaca, menggunakan fallback memori.");
+        return UserConfig::default();
     }
 
-    // Default configuration jika belum ada config-ai.json (simpan sekali tanpa memanggil loop)
+    // Default configuration HANYA jika file config-ai.json memang belum pernah ada di disk
     let default_cfg = UserConfig::default();
-    let _ = save_user_config(&default_cfg);
+    let _ = save_user_config_locked(&default_cfg);
     default_cfg
 }
 
 pub fn save_user_config(cfg: &UserConfig) -> Result<(), String> {
+    let _guard = CONFIG_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+    save_user_config_locked(cfg)
+}
+
+fn save_user_config_locked(cfg: &UserConfig) -> Result<(), String> {
     let path = get_config_file_path();
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
     let json = serde_json::to_string_pretty(cfg).map_err(|e| e.to_string())?;
 
-    // Atomic write menggunakan file temporary + rename agar aman dari race condition
+    // Atomic write menggunakan file temporary + retry rename agar aman di Windows filesystem
     let tmp_path = path.with_extension("tmp");
-    fs::write(&tmp_path, json).map_err(|e| e.to_string())?;
-    fs::rename(&tmp_path, &path).map_err(|e| e.to_string())?;
+    fs::write(&tmp_path, &json).map_err(|e| e.to_string())?;
+
+    let mut rename_success = false;
+    for _ in 0..5 {
+        if fs::rename(&tmp_path, &path).is_ok() {
+            rename_success = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(15));
+    }
+
+    if !rename_success {
+        // Fallback: direct write jika rename terhalang file lock di Windows
+        fs::write(&path, json).map_err(|e| e.to_string())?;
+        let _ = fs::remove_file(&tmp_path);
+    }
+
     Ok(())
 }
 
@@ -251,6 +292,7 @@ pub struct AppConfig {
     pub tts_eleven_labs_key: String,
     pub elevenlabs_voice_id: String,
     pub assistant_name: String,
+    pub assistant_gender: String,
     pub user_callsign: String,
     pub personality_role: String,
     pub avatar_type: String,
@@ -301,6 +343,7 @@ impl AppConfig {
             tts_eleven_labs_key: u.tts_eleven_labs_key,
             elevenlabs_voice_id: u.elevenlabs_voice_id,
             assistant_name: u.assistant_name,
+            assistant_gender: u.assistant_gender,
             user_callsign: u.user_callsign,
             personality_role: u.personality_role,
             avatar_type: u.avatar_type,

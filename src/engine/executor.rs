@@ -5,7 +5,55 @@ pub fn execute_skill_by_identifier(identifier: &str) -> Option<(String, String)>
     let raw_target = identifier.trim();
     let target = raw_target.to_lowercase().replace(['_', '-'], " ");
 
-    // 0. Cek Perintah Musik Web Player
+    // 0. Cek Perintah Todo / Catat Tugas
+    if target.starts_with("catat tugas")
+        || target.starts_with("tambah todo")
+        || target.starts_with("catat todo")
+        || target.starts_with("tambah tugas")
+        || target.starts_with("buat todo")
+        || target.starts_with("add todo")
+        || target.starts_with("todo add")
+        || target.starts_with("catat:")
+        || target.starts_with("catat|")
+    {
+        let task = if let Some((_, q)) = raw_target.split_once('|') {
+            q.trim()
+        } else if let Some((_, q)) = raw_target.split_once(':') {
+            q.trim()
+        } else {
+            ""
+        };
+        if !task.is_empty() {
+            match super::todo::add_task(task) {
+                Ok(msg) => return Some(("Catat Tugas".to_string(), msg)),
+                Err(e) => return Some(("Catat Tugas".to_string(), format!("Error: {e}"))),
+            }
+        }
+    }
+
+    if target.starts_with("selesai tugas")
+        || target.starts_with("selesaikan tugas")
+        || target.starts_with("selesai todo")
+        || target.starts_with("tugas selesai")
+        || target.starts_with("complete todo")
+        || target.starts_with("todo done")
+    {
+        let query = if let Some((_, q)) = raw_target.split_once('|') {
+            q.trim()
+        } else if let Some((_, q)) = raw_target.split_once(':') {
+            q.trim()
+        } else {
+            ""
+        };
+        if !query.is_empty() {
+            match super::todo::complete_task(query) {
+                Ok(msg) => return Some(("Selesai Tugas".to_string(), msg)),
+                Err(e) => return Some(("Selesai Tugas".to_string(), format!("Error: {e}"))),
+            }
+        }
+    }
+
+    // 1. Cek Perintah Musik Web Player
     if target.starts_with("putar musik")
         || target.starts_with("play music")
         || target.starts_with("putar lagu")

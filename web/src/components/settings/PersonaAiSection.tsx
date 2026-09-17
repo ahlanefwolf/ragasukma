@@ -6,6 +6,8 @@ interface PersonaAiSectionProps {
   setAssistantName: (val: string) => void;
   userCallsign: string;
   setUserCallsign: (val: string) => void;
+  assistantGender: string;
+  setAssistantGender: (val: string) => void;
   personalityRole: string;
   setPersonalityRole: (val: string) => void;
   llmProvider: string;
@@ -22,10 +24,12 @@ interface PersonaAiSectionProps {
 
 const ANTIGRAVITY_MODELS = [
   { id: 'ag/gemini-3.8-flash-high', name: 'Gemini 3.8 Flash High (Sangat Cepat & Cerdas)', tag: 'Rekomendasi' },
-  { id: 'ag/gemini-3.7-flash-high', name: 'Gemini 3.7 Flash High (Responsif)', tag: 'Populer' },
-  { id: 'ag/gemini-3.5-flash-high', name: 'Gemini 3.5 Flash High', tag: '' },
+  { id: 'ag/claude-3-5-sonnet', name: 'Claude 3.5 Sonnet (Coding & Tool Calling)', tag: 'Coding' },
+  { id: 'ag/claude-3-7-sonnet', name: 'Claude 3.7 Sonnet (Thinking & Coding)', tag: 'Coding' },
   { id: 'ag/claude-sonnet-4-6', name: 'Claude Sonnet 4.6 (Penalaran Alami & Humanis)', tag: 'Smart' },
   { id: 'ag/claude-opus-4-6-thinking', name: 'Claude Opus 4.6 Thinking (Deep Reasoning)', tag: 'Thinking' },
+  { id: 'ag/gemini-3.7-flash-high', name: 'Gemini 3.7 Flash High (Responsif)', tag: 'Populer' },
+  { id: 'ag/gpt-4o', name: 'GPT-4o (High Speed Multimodal)', tag: '' },
 ];
 
 export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
@@ -38,7 +42,7 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
           1. PERSONA & IDENTITAS ASISTEN
         </h3>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div class="space-y-1.5">
             <label class="text-xs font-semibold text-theme-text/80">Nama Asisten</label>
             <input
@@ -62,16 +66,29 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
           </div>
 
           <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-theme-text/80">Gender Asisten</label>
+            <select
+              value={props.assistantGender || 'female'}
+              onChange={(e) => props.setAssistantGender(e.currentTarget.value)}
+              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
+            >
+              <option value="female">Cewek (Female)</option>
+              <option value="male">Cowok (Male)</option>
+            </select>
+          </div>
+
+          <div class="space-y-1.5">
             <label class="text-xs font-semibold text-theme-text/80">Peran Kepribadian</label>
             <select
               value={props.personalityRole}
               onChange={(e) => props.setPersonalityRole(e.currentTarget.value)}
               class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
-              <option value="partner">Partner (Hangat & Santai)</option>
-              <option value="assistant">Assistant (Formal & Rapi)</option>
+              <option value="partner">{props.assistantGender === 'male' ? 'Partner (Husbando Hangat)' : 'Partner (Waifu Manis)'}</option>
+              <option value="assistant">{props.assistantGender === 'male' ? 'Assistant (Butler Profesional)' : 'Assistant (Sekretaris Cerdas)'}</option>
+              <option value="friend">{props.assistantGender === 'male' ? 'Friend (Sahabat Bro Asyik)' : 'Friend (Sahabat Bestie Seru)'}</option>
               <option value="tsundere">Tsundere (Khas Anime)</option>
-              <option value="maid">Maid (Pelayan Santun)</option>
+              <option value="maid">{props.assistantGender === 'male' ? 'Butler (Pelayan Santun)' : 'Maid (Pelayan Santun)'}</option>
             </select>
           </div>
         </div>
@@ -89,8 +106,8 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
           </span>
         </div>
 
-        {/* Pilihan Provider */}
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Pilihan Provider (2 Card Bersih) */}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => {
@@ -99,7 +116,7 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
                 props.setLlmModel('ag/gemini-3.8-flash-high');
               }
             }}
-            class={`p-3 rounded-xl border text-left transition-all ${
+            class={`p-3.5 rounded-xl border text-left transition-all ${
               props.llmProvider === 'antigravity'
                 ? 'bg-theme-cyan/10 border-theme-cyan text-theme-text shadow-sm'
                 : 'bg-theme-card border-theme-border text-theme-text/70 hover:border-theme-text/30'
@@ -108,50 +125,30 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
             <div class="font-bold text-xs flex items-center gap-1.5 text-theme-cyan">
               <span>🚀 Antigravity (Google OAuth)</span>
             </div>
-            <div class="text-[10px] text-theme-text/60 mt-1">
-              Multi-akun gratis & tanpa API key.
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => props.setLlmProvider('custom')}
-            class={`p-3 rounded-xl border text-left transition-all ${
-              props.llmProvider === 'custom' || props.llmProvider === 'openai'
-                ? 'bg-theme-rose/10 border-theme-rose text-theme-text shadow-sm'
-                : 'bg-theme-card border-theme-border text-theme-text/70 hover:border-theme-text/30'
-            }`}
-          >
-            <div class="font-bold text-xs flex items-center gap-1.5 text-theme-rose">
-              <span>🌐 Custom / OpenAI API</span>
-            </div>
-            <div class="text-[10px] text-theme-text/60 mt-1">
-              OpenRouter, Groq, DeepSeek, dll.
+            <div class="text-[11px] text-theme-text/60 mt-1 leading-relaxed">
+              Multi-akun gratis & tanpa API key langsung ke pool Google.
             </div>
           </button>
 
           <button
             type="button"
             onClick={() => {
-              props.setLlmProvider('ollama');
+              props.setLlmProvider('custom');
               if (props.llmModel.startsWith('ag/')) {
-                props.setLlmModel('llama3.2');
-              }
-              if (!props.llmBaseUrl || props.llmBaseUrl.includes('20128')) {
-                props.setLlmBaseUrl('http://127.0.0.1:11434');
+                props.setLlmModel('gpt-4o');
               }
             }}
-            class={`p-3 rounded-xl border text-left transition-all ${
-              props.llmProvider === 'ollama'
-                ? 'bg-amber-500/10 border-amber-500 text-theme-text shadow-sm'
+            class={`p-3.5 rounded-xl border text-left transition-all ${
+              props.llmProvider !== 'antigravity'
+                ? 'bg-theme-rose/10 border-theme-rose text-theme-text shadow-sm'
                 : 'bg-theme-card border-theme-border text-theme-text/70 hover:border-theme-text/30'
             }`}
           >
-            <div class="font-bold text-xs flex items-center gap-1.5 text-amber-400">
-              <span>🦙 Ollama Lokal</span>
+            <div class="font-bold text-xs flex items-center gap-1.5 text-theme-rose">
+              <span>🌐 Custom / OpenAI-Compatible</span>
             </div>
-            <div class="text-[10px] text-theme-text/60 mt-1">
-              Model offline di komputer lokal.
+            <div class="text-[11px] text-theme-text/60 mt-1 leading-relaxed">
+              OpenAI, Groq, OpenRouter, DeepSeek, Ollama Lokal, dll.
             </div>
           </button>
         </div>
@@ -229,6 +226,9 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
                 />
               </div>
             </div>
+            <p class="text-[11px] text-theme-text/50">
+              💡 Mendukung semua endpoint OpenAI-compatible termasuk <b>Ollama lokal</b> (<code class="text-theme-cyan">http://127.0.0.1:11434/v1</code>), OpenRouter, Groq, dan DeepSeek. Kosongkan API Key jika menggunakan Ollama lokal.
+            </p>
           </div>
         )}
       </div>

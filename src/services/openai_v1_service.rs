@@ -1,5 +1,7 @@
+use crate::llm::v1_engine::{
+    V1ChatRequest, V1StreamEvent, V1ToolCall,
+};
 use crate::llm::providers::antigravity::AntigravityProvider;
-use crate::llm::types::ChatMessage;
 use crate::server::send_json_response;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
@@ -14,7 +16,6 @@ fn get_provider() -> AntigravityProvider {
     if lock.is_none() {
         *lock = Some(AntigravityProvider::new());
     }
-    // Return a clone or freshly synchronized instance
     let mut prov = lock.take().unwrap();
     let _ = prov.load_accounts();
     prov
@@ -39,38 +40,6 @@ pub struct ModelListResponse {
     pub data: Vec<ModelItem>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum MessageContent {
-    Text(String),
-    Parts(Vec<ContentPart>),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContentPart {
-    #[serde(rename = "type", default)]
-    pub part_type: Option<String>,
-    pub text: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OpenAIMessage {
-    pub role: String,
-    pub content: Option<MessageContent>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct OpenAIChatRequest {
-    pub model: String,
-    pub messages: Vec<OpenAIMessage>,
-    #[serde(default)]
-    pub temperature: Option<f32>,
-    #[serde(default)]
-    pub max_tokens: Option<u32>,
-    #[serde(default)]
-    pub stream: Option<bool>,
-}
-
 #[derive(Debug, Serialize)]
 pub struct OpenAIChatChoice {
     pub index: usize,
@@ -82,6 +51,8 @@ pub struct OpenAIChatChoice {
 pub struct OpenAIChatMessageOut {
     pub role: String,
     pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<V1ToolCall>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -100,19 +71,6 @@ pub struct OpenAIChatResponse {
     pub choices: Vec<OpenAIChatChoice>,
     pub usage: OpenAIChatUsage,
 }
-
-#[derive(Debug, Serialize)]
-pub struct StreamDeltaRole {
-    pub role: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct StreamDeltaContent {
-    pub content: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct StreamDeltaEmpty {}
 
 #[derive(Debug, Serialize)]
 pub struct StreamChoice<T: Serialize> {
@@ -149,24 +107,33 @@ pub fn handle_v1_options(stream: &mut TcpStream) {
 pub fn handle_v1_models(stream: &mut TcpStream) {
     let now = current_ts();
     let model_names = vec![
+        "ag/claude-3-5-sonnet",
+        "ag/claude-3-7-sonnet",
+        "ag/claude-sonnet-4-6",
+        "ag/claude-opus-4-6-thinking",
         "ag/gemini-3.8-flash-high",
+        "ag/gemini-3.8-pro-high",
         "ag/gemini-3.7-flash-high",
         "ag/gemini-3.5-flash-high",
         "ag/gemini-2.5-pro",
         "ag/gemini-2.5-flash",
-        "ag/claude-sonnet-4-6",
-        "ag/claude-opus-4-6-thinking",
-        "ag/claude-3-7-sonnet",
-        "ag/claude-3-5-sonnet",
+        "ag/gpt-4o",
+        "ag/gpt-4o-mini",
+        "ag/gpt-oss-120b-medium",
+        // Fallback names without ag/ prefix for flexible client compatibility
+        "claude-3-5-sonnet",
+        "claude-3-7-sonnet",
+        "claude-sonnet-4-6",
+        "claude-opus-4-6-thinking",
         "gemini-3.8-flash-high",
+        "gemini-3.8-pro-high",
         "gemini-3.7-flash-high",
         "gemini-3.5-flash-high",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
-        "claude-sonnet-4-6",
-        "claude-opus-4-6-thinking",
-        "claude-3-7-sonnet",
-        "claude-3-5-sonnet",
+        "gpt-4o",
+        "gpt-4o-mini",
+        "gpt-oss-120b-medium",
     ];
 
     let data = model_names
@@ -192,7 +159,7 @@ pub fn handle_v1_models(stream: &mut TcpStream) {
 }
 
 pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
-    let req: OpenAIChatRequest = match serde_json::from_str(body_str) {
+    let req: V1ChatRequest = match serde_json::from_str(body_str) {
         Ok(r) => r,
         Err(e) => {
             let err_json = format!("{{\"error\":{{\"message\":\"Invalid JSON request: {}\"}}}}", e);
@@ -201,31 +168,7 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
         }
     };
 
-    let mut chat_messages: Vec<ChatMessage> = Vec::new();
-    for m in req.messages {
-        let content_str = match m.content {
-            Some(MessageContent::Text(s)) => s,
-            Some(MessageContent::Parts(parts)) => {
-                let mut joined = String::new();
-                for p in parts {
-                    if let Some(t) = p.text {
-                        joined.push_str(&t);
-                    }
-                }
-                joined
-            }
-            None => String::new(),
-        };
-
-        chat_messages.push(ChatMessage {
-            role: m.role,
-            content: content_str,
-        });
-    }
-
     let is_stream = req.stream.unwrap_or(false);
-    let temperature = req.temperature.unwrap_or(0.7);
-    let max_tokens = req.max_tokens.unwrap_or(4096);
     let model = req.model.clone();
     let cmpl_id = format!("chatcmpl-{}", current_ts());
     let now = current_ts();
@@ -246,7 +189,7 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
             return;
         }
 
-        // Send initial chunk with role
+        // Send initial chunk with role: "assistant"
         let init_chunk = StreamChunk {
             id: cmpl_id.clone(),
             object: "chat.completion.chunk".to_string(),
@@ -254,9 +197,7 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
             model: model.clone(),
             choices: vec![StreamChoice {
                 index: 0,
-                delta: StreamDeltaRole {
-                    role: "assistant".to_string(),
-                },
+                delta: serde_json::json!({ "role": "assistant" }),
                 finish_reason: None,
             }],
         };
@@ -266,44 +207,92 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
             let _ = stream.flush();
         }
 
-        // Stream text chunks
         let mut stream_writer = stream.try_clone().ok();
         let cmpl_id_clone = cmpl_id.clone();
         let model_clone = model.clone();
+        let final_finish_reason = std::sync::Arc::new(Mutex::new("stop".to_string()));
+        let final_reason_clone = final_finish_reason.clone();
 
-        let stream_result = provider.chat_stream_raw(
-            &model,
-            &chat_messages,
-            temperature,
-            max_tokens,
-            move |text_delta| {
-                if let Some(ref mut sw) = stream_writer {
-                    let chunk = StreamChunk {
-                        id: cmpl_id_clone.clone(),
-                        object: "chat.completion.chunk".to_string(),
-                        created: now,
-                        model: model_clone.clone(),
-                        choices: vec![StreamChoice {
-                            index: 0,
-                            delta: StreamDeltaContent {
-                                content: text_delta.to_string(),
-                            },
-                            finish_reason: None,
-                        }],
-                    };
-                    if let Ok(json) = serde_json::to_string(&chunk) {
-                        let msg = format!("data: {}\n\n", json);
-                        let _ = sw.write_all(msg.as_bytes());
+        let stream_result = provider.chat_stream_v1(&req, move |event| {
+            if let Some(ref mut sw) = stream_writer {
+                match event {
+                    V1StreamEvent::ContentDelta(delta_text) => {
+                        let chunk = StreamChunk {
+                            id: cmpl_id_clone.clone(),
+                            object: "chat.completion.chunk".to_string(),
+                            created: now,
+                            model: model_clone.clone(),
+                            choices: vec![StreamChoice {
+                                index: 0,
+                                delta: serde_json::json!({ "content": delta_text }),
+                                finish_reason: None,
+                            }],
+                        };
+                        if let Ok(json) = serde_json::to_string(&chunk) {
+                            let msg = format!("data: {}\n\n", json);
+                            let _ = sw.write_all(msg.as_bytes());
+                            let _ = sw.flush();
+                        }
+                    }
+                    V1StreamEvent::ToolCallDelta {
+                        index,
+                        id,
+                        name,
+                        arguments,
+                    } => {
+                        let mut tc_json = serde_json::json!({
+                            "index": index,
+                            "type": "function",
+                            "function": {
+                                "arguments": arguments
+                            }
+                        });
+                        if let Some(ref call_id) = id {
+                            tc_json["id"] = serde_json::json!(call_id);
+                        }
+                        if let Some(ref fn_name) = name {
+                            tc_json["function"]["name"] = serde_json::json!(fn_name);
+                        }
+
+                        let chunk = StreamChunk {
+                            id: cmpl_id_clone.clone(),
+                            object: "chat.completion.chunk".to_string(),
+                            created: now,
+                            model: model_clone.clone(),
+                            choices: vec![StreamChoice {
+                                index: 0,
+                                delta: serde_json::json!({ "tool_calls": [tc_json] }),
+                                finish_reason: None,
+                            }],
+                        };
+                        if let Ok(json) = serde_json::to_string(&chunk) {
+                            let msg = format!("data: {}\n\n", json);
+                            let _ = sw.write_all(msg.as_bytes());
+                            let _ = sw.flush();
+                        }
+                    }
+                    V1StreamEvent::KeepAlive => {
+                        // Send SSE comment to keep TCP connection alive during thinking phases
+                        let _ = sw.write_all(b":\n\n");
                         let _ = sw.flush();
                     }
+                    V1StreamEvent::Finish { finish_reason } => {
+                        if let Ok(mut lock) = final_reason_clone.lock() {
+                            *lock = finish_reason;
+                        }
+                    }
                 }
-                Ok(())
-            },
-        );
+            }
+            Ok(())
+        });
 
         match stream_result {
-            Ok(_) => {
-                // Send stop chunk
+            Ok(v1_resp) => {
+                let finish_reason = final_finish_reason
+                    .lock()
+                    .map(|l| l.clone())
+                    .unwrap_or(v1_resp.finish_reason);
+
                 let finish_chunk = StreamChunk {
                     id: cmpl_id,
                     object: "chat.completion.chunk".to_string(),
@@ -311,8 +300,8 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
                     model,
                     choices: vec![StreamChoice {
                         index: 0,
-                        delta: StreamDeltaEmpty {},
-                        finish_reason: Some("stop".to_string()),
+                        delta: serde_json::json!({}),
+                        finish_reason: Some(finish_reason),
                     }],
                 };
                 if let Ok(json) = serde_json::to_string(&finish_chunk) {
@@ -338,15 +327,20 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
         release_provider(provider);
     } else {
         // Non-streaming response
-        match provider.chat_stream_raw(&model, &chat_messages, temperature, max_tokens, |_| Ok(()))
-        {
-            Ok(full_reply) => {
-                let approx_prompt_tokens = chat_messages
+        match provider.chat_stream_v1(&req, |_| Ok(())) {
+            Ok(v1_resp) => {
+                let approx_prompt_tokens = req
+                    .messages
                     .iter()
-                    .map(|m| m.content.len() / 4)
+                    .map(|m| {
+                        serde_json::to_string(&m.content)
+                            .unwrap_or_default()
+                            .len()
+                            / 4
+                    })
                     .sum::<usize>()
                     .max(1);
-                let approx_comp_tokens = (full_reply.len() / 4).max(1);
+                let approx_comp_tokens = (v1_resp.content.len() / 4).max(1);
 
                 let resp = OpenAIChatResponse {
                     id: cmpl_id,
@@ -357,9 +351,10 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
                         index: 0,
                         message: OpenAIChatMessageOut {
                             role: "assistant".to_string(),
-                            content: full_reply,
+                            content: v1_resp.content,
+                            tool_calls: v1_resp.tool_calls,
                         },
-                        finish_reason: "stop".to_string(),
+                        finish_reason: v1_resp.finish_reason,
                     }],
                     usage: OpenAIChatUsage {
                         prompt_tokens: approx_prompt_tokens,

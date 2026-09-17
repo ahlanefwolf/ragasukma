@@ -1,10 +1,23 @@
 use super::skills::{SkillItem, execute_command_by_os, get_installed_applications};
 
+fn append_common_skills(skills: &mut Vec<SkillItem>) {
+    skills.push(SkillItem {
+        name: "Catat Tugas".to_string(),
+        description: "Mencatat tugas atau agenda baru ke daftar to-do (assets/todo.md)".to_string(),
+        command: "internal:todo_add".to_string(),
+    });
+    skills.push(SkillItem {
+        name: "Selesai Tugas".to_string(),
+        description: "Menandai tugas di daftar to-do sebagai selesai".to_string(),
+        command: "internal:todo_done".to_string(),
+    });
+}
+
 /// Daftar aksi sistem bawaan yang otomatis aktif sesuai OS (Linux / Windows)
 pub fn get_builtin_system_skills() -> Vec<SkillItem> {
     #[cfg(target_os = "windows")]
     {
-        vec![
+        let mut list = vec![
             SkillItem {
                 name: "Buka File Manager".to_string(),
                 description: "Membuka File Explorer Windows".to_string(),
@@ -46,12 +59,14 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
                 description: "Membuka aplikasi catatan Notepad".to_string(),
                 command: "notepad.exe".to_string(),
             },
-        ]
+        ];
+        append_common_skills(&mut list);
+        list
     }
 
     #[cfg(target_os = "macos")]
     {
-        vec![
+        let mut list = vec![
             SkillItem {
                 name: "Buka File Manager".to_string(),
                 description: "Membuka Finder macOS".to_string(),
@@ -92,12 +107,14 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
                 description: "Membuka aplikasi Calculator macOS".to_string(),
                 command: "open -a Calculator".to_string(),
             },
-        ]
+        ];
+        append_common_skills(&mut list);
+        list
     }
 
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
-        vec![
+        let mut list = vec![
             SkillItem {
                 name: "Buka File Manager".to_string(),
                 description: "Membuka pengelola berkas / file manager utama".to_string(),
@@ -145,7 +162,9 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
                 description: "Membuka aplikasi kalkulator sistem".to_string(),
                 command: "gnome-calculator || kcalc || galculator || xcalc".to_string(),
             },
-        ]
+        ];
+        append_common_skills(&mut list);
+        list
     }
 }
 
@@ -190,6 +209,32 @@ pub fn try_execute_builtin_or_app(target: &str) -> Option<(String, String)> {
                     format!("Error: {e}"),
                 )),
             };
+        }
+    }
+
+    // 3. Deteksi Perintah To-Do / Catat Tugas
+    if lower_trim.starts_with("catat tugas|")
+        || lower_trim.starts_with("tambah todo|")
+        || lower_trim.starts_with("catat todo|")
+        || lower_trim.starts_with("tambah tugas|")
+    {
+        if let Some((_, task)) = target_trim.split_once('|') {
+            match super::todo::add_task(task.trim()) {
+                Ok(msg) => return Some(("Catat Tugas".to_string(), msg)),
+                Err(e) => return Some(("Catat Tugas".to_string(), format!("Error: {e}"))),
+            }
+        }
+    }
+
+    if lower_trim.starts_with("selesai tugas|")
+        || lower_trim.starts_with("selesai todo|")
+        || lower_trim.starts_with("selesaikan tugas|")
+    {
+        if let Some((_, query)) = target_trim.split_once('|') {
+            match super::todo::complete_task(query.trim()) {
+                Ok(msg) => return Some(("Selesai Tugas".to_string(), msg)),
+                Err(e) => return Some(("Selesai Tugas".to_string(), format!("Error: {e}"))),
+            }
         }
     }
 

@@ -52,8 +52,19 @@ impl LlmClient {
     }
 
     pub fn reset_history(&mut self) {
-        if let Some(system_msg) = self.history.first_mut() {
-            system_msg.content = build_system_prompt();
+        self.history = vec![ChatMessage {
+            role: "system".to_string(),
+            content: build_system_prompt(),
+        }];
+    }
+
+    pub fn prune_history(&mut self) {
+        // Hemat token di RAM/API: simpan system prompt + maksimal 6 percakapan terakhir
+        if self.history.len() > 7 {
+            let keep_start = self.history.len() - 6;
+            let mut pruned = vec![self.history[0].clone()];
+            pruned.extend_from_slice(&self.history[keep_start..]);
+            self.history = pruned;
         }
     }
 
@@ -88,14 +99,26 @@ impl LlmClient {
                 &self.model,
                 &self.history,
                 0.7,
-                8192,
+                8192, // Ruang token leluasa agar model reasoning (Gemini Flash/Claude) tidak terpotong di tengah jalan
                 &mut on_sentence,
             ) {
                 Ok(reply) => {
+                    let clean = clean_ai_text(&reply);
                     self.history.push(ChatMessage {
                         role: "assistant".to_string(),
-                        content: clean_ai_text(&reply),
+                        content: clean.clone(),
                     });
+                    self.prune_history();
+
+                    let u = crate::config::load_user_config();
+                    crate::llm::history::log_conversation_turn(
+                        &u.user_callsign,
+                        &u.assistant_name,
+                        &u.personality_role,
+                        user_input,
+                        &clean,
+                    );
+
                     return Ok(reply);
                 }
                 Err(e) => {
@@ -118,7 +141,7 @@ impl LlmClient {
                 model: self.model.clone(),
                 messages: self.history.clone(),
                 temperature: 0.5,
-                max_tokens: 160,
+                max_tokens: 2048,
                 stream: true, // Gunakan live streaming
             };
 
@@ -208,10 +231,21 @@ impl LlmClient {
                 on_sentence(&clean_rest, active_emotion)?;
             }
 
+            let clean = clean_ai_text(&full_reply);
             self.history.push(ChatMessage {
                 role: "assistant".to_string(),
-                content: clean_ai_text(&full_reply),
+                content: clean.clone(),
             });
+            self.prune_history();
+
+            let u = crate::config::load_user_config();
+            crate::llm::history::log_conversation_turn(
+                &u.user_callsign,
+                &u.assistant_name,
+                &u.personality_role,
+                user_input,
+                &clean,
+            );
 
             return Ok(full_reply);
         }
@@ -220,7 +254,7 @@ impl LlmClient {
         self.chat_fallback_ollama(user_input, on_sentence)
     }
 
-    fn chat_fallback_ollama<F>(&mut self, _user_input: &str, mut on_sentence: F) -> Result<String>
+    fn chat_fallback_ollama<F>(&mut self, user_input: &str, mut on_sentence: F) -> Result<String>
     where
         F: FnMut(&str, &str) -> Result<()>,
     {
@@ -260,8 +294,19 @@ impl LlmClient {
 
         self.history.push(ChatMessage {
             role: "assistant".to_string(),
-            content: final_reply,
+            content: final_reply.clone(),
         });
+        self.prune_history();
+
+        let u = crate::config::load_user_config();
+        crate::llm::history::log_conversation_turn(
+            &u.user_callsign,
+            &u.assistant_name,
+            &u.personality_role,
+            user_input,
+            &final_reply,
+        );
+
         Ok(chat_res.message.content)
     }
 }

@@ -64,7 +64,12 @@ impl AppSession {
                     "\n[DIJEDA] {} berhenti mendengarkan sementara.",
                     self.config.assistant_name
                 );
+                let mut last_pause_check = Instant::now();
                 loop {
+                    if last_pause_check.elapsed() >= std::time::Duration::from_millis(500) {
+                        self.reload_config_if_changed();
+                        last_pause_check = Instant::now();
+                    }
                     if let Some(cmd) = check_and_consume_cmd() {
                         if cmd == "toggle_pause" || cmd == "start_chat" {
                             is_paused = false;
@@ -100,7 +105,13 @@ impl AppSession {
             let mut audio_data = Vec::new();
 
             // Cek antrean audio dari continuous audio worker tanpa blocking
+            let mut last_audio_check = Instant::now();
             loop {
+                if last_audio_check.elapsed() >= std::time::Duration::from_millis(500) {
+                    self.reload_config_if_changed();
+                    last_audio_check = Instant::now();
+                }
+
                 if let Some(cmd) = check_and_consume_cmd() {
                     if cmd == "toggle_pause" {
                         should_pause = true;

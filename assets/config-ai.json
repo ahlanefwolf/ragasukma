@@ -2,6 +2,7 @@
   "assistant_name": "Sukma",
   "user_callsign": "Mas",
   "personality_role": "tsundere",
+  "assistant_gender": "female",
   "stt_engine": "google",
   "groq_api_key": "",
   "llm_provider": "antigravity",

@@ -14,8 +14,6 @@ interface AudioTtsSectionProps {
   setNoiseReduction: (val: number) => void;
   ttsEngine: string;
   setTtsEngine: (val: string) => void;
-  ttsLang: string;
-  setTtsLang: (val: string) => void;
   ttsSpeed: number;
   setTtsSpeed: (val: number) => void;
   ttsElevenLabsKey: string;
@@ -119,7 +117,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
           4. SUARA KARAKTER (TEXT-TO-SPEECH)
         </h3>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1.5">
             <label class="text-xs font-semibold text-theme-text/80">TTS Engine</label>
             <select
@@ -129,19 +127,6 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             >
               <option value="google">Google TTS (Ringan & Cepat)</option>
               <option value="elevenlabs">ElevenLabs Neural Voice</option>
-            </select>
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Bahasa Voice</label>
-            <select
-              value={props.ttsLang}
-              onChange={(e) => props.setTtsLang(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
-            >
-              <option value="id">Indonesian (id)</option>
-              <option value="ja">Japanese (ja)</option>
-              <option value="en">English (en)</option>
             </select>
           </div>
 

@@ -15,6 +15,7 @@ pub struct AppSession {
     pub(crate) stt: SttEngine,
     pub(crate) llm: LlmClient,
     pub(crate) tts: Arc<TextToSpeech>,
+    pub(crate) last_config_mtime: Option<std::time::SystemTime>,
 }
 
 pub(crate) fn check_and_consume_cmd() -> Option<String> {
@@ -38,27 +39,39 @@ impl AppSession {
         let tts = Arc::new(TextToSpeech::new());
         crate::term_log!("🔊 Engine TTS: {} siap.", config.tts_engine.to_uppercase());
 
+        let last_config_mtime = crate::config::get_config_modified_time();
+
         Ok(Self {
             config,
             recorder,
             stt,
             llm,
             tts,
+            last_config_mtime,
         })
     }
 
     pub fn reload_config_if_changed(&mut self) {
+        let current_mtime = crate::config::get_config_modified_time();
+        if self.last_config_mtime.is_some() && self.last_config_mtime == current_mtime {
+            return;
+        }
+        self.last_config_mtime = current_mtime;
+
         let latest_config = AppConfig::load();
 
         // Cek apakah konfigurasi audio / STT / TTS berubah
         let stt_changed = latest_config.stt_engine != self.config.stt_engine
             || latest_config.groq_api_key != self.config.groq_api_key;
 
+        let gender_changed = latest_config.assistant_gender != self.config.assistant_gender;
+
         let tts_changed = latest_config.tts_engine != self.config.tts_engine
             || latest_config.tts_lang != self.config.tts_lang
             || (latest_config.tts_speed - self.config.tts_speed).abs() > 0.01
             || latest_config.tts_eleven_labs_key != self.config.tts_eleven_labs_key
-            || latest_config.elevenlabs_voice_id != self.config.elevenlabs_voice_id;
+            || latest_config.elevenlabs_voice_id != self.config.elevenlabs_voice_id
+            || gender_changed;
 
         let interrup_changed = latest_config.voice_interruption != self.config.voice_interruption;
 
@@ -69,12 +82,14 @@ impl AppSession {
                 || latest_config.noise_reduction_level != self.config.noise_reduction_level
                 || interrup_changed;
 
-        let llm_changed = latest_config.llm_base_url != self.config.llm_base_url
+        let llm_changed = latest_config.llm_provider != self.config.llm_provider
+            || latest_config.llm_base_url != self.config.llm_base_url
             || latest_config.llm_model != self.config.llm_model
             || latest_config.llm_api_key != self.config.llm_api_key
             || latest_config.assistant_name != self.config.assistant_name
             || latest_config.user_callsign != self.config.user_callsign
-            || latest_config.personality_role != self.config.personality_role;
+            || latest_config.personality_role != self.config.personality_role
+            || gender_changed;
 
         if vad_changed {
             self.recorder.update_config(latest_config.clone());
@@ -96,16 +111,17 @@ impl AppSession {
         if tts_changed {
             self.tts = Arc::new(TextToSpeech::new());
             crate::term_log!(
-                "🔄 [Reactive Update] TTS Engine / Bahasa dialihkan ke: {} (Lang: {})",
-                latest_config.tts_engine.to_uppercase(),
-                latest_config.tts_lang
+                "🔄 [Reactive Update] TTS Engine / Gender ({}) dialihkan ke: {}",
+                latest_config.assistant_gender,
+                latest_config.tts_engine.to_uppercase()
             );
         }
 
         if llm_changed {
             self.llm = LlmClient::new();
             crate::term_log!(
-                "🔄 [Reactive Update] LLM Persona / Model dialihkan ke: {} ({})",
+                "🔄 [Reactive Update] LLM Provider / Model / Persona dialihkan ke: {} / {} ({})",
+                latest_config.llm_provider,
                 latest_config.llm_model,
                 latest_config.assistant_name
             );
@@ -134,7 +150,15 @@ impl AppSession {
             );
         }));
 
+        let mut last_config_check = std::time::Instant::now();
+
         loop {
+            // Cek perubahan konfigurasi secara live saat standby
+            if last_config_check.elapsed() >= std::time::Duration::from_millis(500) {
+                self.reload_config_if_changed();
+                last_config_check = std::time::Instant::now();
+            }
+
             // Standby mode: menunggu komando dari Web Dashboard atau tombol Mulai
             if let Some(cmd) = check_and_consume_cmd() {
                 match cmd.as_str() {

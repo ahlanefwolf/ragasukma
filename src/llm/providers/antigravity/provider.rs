@@ -1,7 +1,7 @@
 use super::constants::*;
 use super::oauth::{complete_oauth_flow, ensure_project_id, refresh_account_token};
 use super::types::{
-    AntigravityAccount, AntigravityAccountInfo, AntigravityQuotaResponse, ModelQuotaInfo,
+    AntigravityAccount, AntigravityAccountInfo, AntigravityQuotaResponse,
     current_timestamp_secs, generate_pseudo_uuid,
 };
 use crate::llm::types::ChatMessage;
@@ -19,8 +19,18 @@ pub struct AntigravityProvider {
 }
 
 impl AntigravityProvider {
+    pub fn get_accounts_file_path() -> PathBuf {
+        let candidate = crate::assets::find_file_in_candidates("antigravity_accounts.json");
+        if candidate.exists() {
+            return candidate;
+        }
+        crate::config::get_app_config_dir()
+            .join("assets")
+            .join("antigravity_accounts.json")
+    }
+
     pub fn new() -> Self {
-        let config_file = crate::assets::find_file_in_candidates("antigravity_accounts.json");
+        let config_file = Self::get_accounts_file_path();
 
         let client = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(60))
@@ -44,12 +54,8 @@ impl AntigravityProvider {
 
     pub fn load_accounts(&mut self) -> Result<()> {
         if !self.config_file.exists() {
-            let alt = crate::config::get_app_config_dir()
-                .join("assets")
-                .join("antigravity_accounts.json");
-            if alt.exists() {
-                self.config_file = alt;
-            } else {
+            self.config_file = Self::get_accounts_file_path();
+            if !self.config_file.exists() {
                 return Ok(());
             }
         }
@@ -139,11 +145,20 @@ impl AntigravityProvider {
     }
 
     pub fn save_accounts(&self) -> Result<()> {
-        if let Some(parent) = self.config_file.parent() {
+        let target_path = if self.config_file.exists() {
+            self.config_file.clone()
+        } else {
+            Self::get_accounts_file_path()
+        };
+        if let Some(parent) = target_path.parent() {
             let _ = fs::create_dir_all(parent);
         }
         let json = serde_json::to_string_pretty(&self.accounts)?;
-        fs::write(&self.config_file, json)?;
+        let tmp_path = target_path.with_extension("tmp");
+        if fs::write(&tmp_path, &json).is_ok() && fs::rename(&tmp_path, &target_path).is_ok() {
+            return Ok(());
+        }
+        fs::write(&target_path, json)?;
         Ok(())
     }
 
@@ -298,215 +313,15 @@ impl AntigravityProvider {
 
     pub fn get_account_quota(&mut self, id: &str) -> Result<AntigravityQuotaResponse> {
         let client = self.client.clone();
-        let (access_token, project_id, email, tier_id) = {
+        let res = {
             let account = match self.accounts.iter_mut().find(|a| a.id == id) {
                 Some(a) => a,
                 None => bail!("Account with ID '{id}' not found"),
             };
-
-            let now = current_timestamp_secs();
-            if account.access_token.is_none() || account.expires_at <= now {
-                let _ = refresh_account_token(&client, account)?;
-            }
-
-            let _ = ensure_project_id(&client, account);
-            (
-                account.access_token.clone().unwrap_or_default(),
-                account.project_id.clone(),
-                account.email.clone(),
-                account.tier_id.clone(),
-            )
+            super::quota::fetch_account_quota(&client, account)?
         };
-
         let _ = self.save_accounts();
-
-        let body = if let Some(ref pid) = project_id {
-            serde_json::json!({ "project": pid })
-        } else {
-            serde_json::json!({})
-        };
-
-        // 1. Fetch available models with quota info
-        let mut models_quota = Vec::new();
-        let mut fetch_err: Option<String> = None;
-
-        let models_resp = client
-            .post(ANTIGRAVITY_FETCH_MODELS_URL)
-            .header("Authorization", format!("Bearer {access_token}"))
-            .header("Content-Type", "application/json")
-            .header("User-Agent", ANTIGRAVITY_USER_AGENT)
-            .header("X-Client-Name", "antigravity")
-            .header("X-Client-Version", "2.11.0")
-            .json(&body)
-            .send();
-
-        match models_resp {
-            Ok(resp) => {
-                let status = resp.status();
-                if status.is_success() {
-                    if let Ok(val) = resp.json::<serde_json::Value>() {
-                        if let Some(models_obj) = val.get("models").and_then(|v| v.as_object()) {
-                            for (model_key, model_val) in models_obj {
-                                let is_internal = model_val
-                                    .get("isInternal")
-                                    .and_then(|v| v.as_bool())
-                                    .unwrap_or(false);
-                                if is_internal {
-                                    continue;
-                                }
-
-                                if let Some(q_info) = model_val.get("quotaInfo") {
-                                    let frac = q_info
-                                        .get("remainingFraction")
-                                        .and_then(|v| v.as_f64())
-                                        .unwrap_or(0.0);
-                                    let pct = (frac * 1000.0).round() / 10.0;
-                                    let reset_time = q_info
-                                        .get("resetTime")
-                                        .and_then(|v| v.as_str())
-                                        .map(|s| s.to_string());
-                                    let display_name = model_val
-                                        .get("displayName")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or(model_key)
-                                        .to_string();
-
-                                    models_quota.push(ModelQuotaInfo {
-                                        model_id: model_key.clone(),
-                                        display_name,
-                                        remaining_fraction: frac,
-                                        remaining_percentage: pct,
-                                        reset_time,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    let err_txt = resp.text().unwrap_or_default();
-                    fetch_err = Some(format!("HTTP {status}: {err_txt}"));
-                }
-            }
-            Err(e) => {
-                fetch_err = Some(format!("Request failed: {e}"));
-            }
-        }
-
-        // Sort models_quota to put priority models first
-        let priority_order = [
-            "gemini-3.8-flash-high",
-            "gemini-3.8-flash-medium",
-            "gemini-3.8-flash-low",
-            "gemini-3.7-flash-high",
-            "gemini-3.7-flash-medium",
-            "gemini-3.7-flash-low",
-            "gemini-3.6-flash-high",
-            "gemini-3.6-flash-medium",
-            "gemini-3.6-flash-low",
-            "gemini-3.5-flash-high",
-            "gemini-3.5-flash-low",
-            "gemini-pro-agent",
-            "claude-sonnet-4-6",
-            "claude-opus-4-6-thinking",
-            "gpt-oss-120b-medium",
-            "gemini-3.1-flash-image",
-        ];
-
-        models_quota.sort_by(|a, b| {
-            let pos_a = priority_order.iter().position(|&m| m == a.model_id);
-            let pos_b = priority_order.iter().position(|&m| m == b.model_id);
-            match (pos_a, pos_b) {
-                (Some(pa), Some(pb)) => pa.cmp(&pb),
-                (Some(_), None) => std::cmp::Ordering::Less,
-                (None, Some(_)) => std::cmp::Ordering::Greater,
-                (None, None) => a.model_id.cmp(&b.model_id),
-            }
-        });
-
-        // 2. Fetch weekly quota summary
-        let mut weekly_quota = Vec::new();
-        let weekly_resp = client
-            .post(ANTIGRAVITY_QUOTA_SUMMARY_URL)
-            .header("Authorization", format!("Bearer {access_token}"))
-            .header("Content-Type", "application/json")
-            .header("User-Agent", ANTIGRAVITY_USER_AGENT)
-            .header("X-Client-Name", "antigravity")
-            .header("X-Client-Version", "2.11.0")
-            .json(&body)
-            .send();
-
-        if let Ok(w_res) = weekly_resp {
-            if w_res.status().is_success() {
-                if let Ok(w_val) = w_res.json::<serde_json::Value>() {
-                    let groups = w_val
-                        .get("groups")
-                        .or_else(|| w_val.pointer("/quotaSummary/groups"))
-                        .and_then(|v| v.as_array());
-
-                    if let Some(groups_arr) = groups {
-                        for g in groups_arr {
-                            let g_name = g.get("displayName").and_then(|v| v.as_str()).unwrap_or("");
-                            let buckets = g.get("buckets").and_then(|v| v.as_array());
-                            if let Some(b_arr) = buckets {
-                                for b in b_arr {
-                                    let b_id = b.get("bucketId").and_then(|v| v.as_str()).unwrap_or("");
-                                    let b_name = b.get("displayName").and_then(|v| v.as_str()).unwrap_or("");
-                                    let b_text = format!("{b_id} {b_name}").to_lowercase();
-                                    if !b_text.contains("weekly") {
-                                        continue;
-                                    }
-                                    if b.get("disabled").and_then(|v| v.as_bool()).unwrap_or(false) {
-                                        continue;
-                                    }
-                                    if let Some(frac) = b.get("remainingFraction").and_then(|v| v.as_f64()) {
-                                        let d_name = if g_name.to_lowercase().contains("gemini") {
-                                            "Gemini (Weekly)".to_string()
-                                        } else if g_name.to_lowercase().contains("claude") || g_name.to_lowercase().contains("gpt") {
-                                            "Claude & GPT (Weekly)".to_string()
-                                        } else {
-                                            format!("{g_name} (Weekly)")
-                                        };
-                                        let reset_time = b.get("resetTime").and_then(|v| v.as_str()).map(|s| s.to_string());
-                                        let pct = (frac * 1000.0).round() / 10.0;
-                                        weekly_quota.push(ModelQuotaInfo {
-                                            model_id: b_id.to_string(),
-                                            display_name: d_name,
-                                            remaining_fraction: frac,
-                                            remaining_percentage: pct,
-                                            reset_time,
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Tier / Plan name
-        let plan = tier_id.as_deref().map(|t| match t {
-            "g1-pro-tier" => "Google AI Pro".to_string(),
-            "free-tier" | "starter" => "Starter (Free)".to_string(),
-            other => other.to_string(),
-        });
-
-        let status = if fetch_err.is_some() && models_quota.is_empty() && weekly_quota.is_empty() {
-            "error".to_string()
-        } else {
-            "success".to_string()
-        };
-
-        Ok(AntigravityQuotaResponse {
-            status,
-            account_id: id.to_string(),
-            email,
-            project_id,
-            plan,
-            models: models_quota,
-            weekly: weekly_quota,
-            error: fetch_err,
-        })
+        Ok(res)
     }
 
     fn select_available_account_index(&self) -> Option<usize> {
@@ -646,6 +461,7 @@ impl AntigravityProvider {
         bail!("All Antigravity accounts failed during execution.")
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn execute_stream_request<F>(
         &self,
         access_token: &str,
@@ -817,16 +633,13 @@ impl AntigravityProvider {
         Ok(full_reply)
     }
 
-    pub fn chat_stream_raw<F>(
+    pub fn chat_stream_v1<F>(
         &mut self,
-        model: &str,
-        messages: &[ChatMessage],
-        temperature: f32,
-        max_tokens: u32,
-        mut on_chunk: F,
-    ) -> Result<String>
+        req: &crate::llm::v1_engine::V1ChatRequest,
+        mut on_event: F,
+    ) -> Result<crate::llm::v1_engine::V1Response>
     where
-        F: FnMut(&str) -> Result<()>,
+        F: FnMut(crate::llm::v1_engine::V1StreamEvent) -> Result<()>,
     {
         if self.accounts.is_empty() {
             bail!("Antigravity has no configured accounts. Please add an account first.");
@@ -885,14 +698,12 @@ impl AntigravityProvider {
                 .clone()
                 .unwrap_or_default();
 
-            let result = self.execute_raw_stream_request(
+            let result = super::v1_adapter::execute_v1_stream(
+                &self.client,
                 &access_token,
                 &project_id,
-                model,
-                messages,
-                temperature,
-                max_tokens,
-                &mut on_chunk,
+                req,
+                &mut on_event,
             );
 
             match result {
@@ -935,129 +746,5 @@ impl AntigravityProvider {
         }
 
         bail!("All Antigravity accounts failed during execution.")
-    }
-
-    fn execute_raw_stream_request<F>(
-        &self,
-        access_token: &str,
-        project_id: &str,
-        model: &str,
-        messages: &[ChatMessage],
-        temperature: f32,
-        max_tokens: u32,
-        on_chunk: &mut F,
-    ) -> Result<String>
-    where
-        F: FnMut(&str) -> Result<()>,
-    {
-        let endpoint = format!("{}/v1internal:streamGenerateContent?alt=sse", ANTIGRAVITY_BASE_URL);
-
-        let mut contents = Vec::new();
-        for msg in messages {
-            let role = match msg.role.as_str() {
-                "assistant" => "model",
-                _ => "user",
-            };
-            contents.push(serde_json::json!({
-                "role": role,
-                "parts": [{ "text": msg.content }]
-            }));
-        }
-
-        let session_id = generate_pseudo_uuid("ag-sess");
-        let conversation_id = generate_pseudo_uuid("ag-conv");
-        let trajectory_id = generate_pseudo_uuid("ag-traj");
-        let step = (messages.len() * 2).max(1);
-        let now_ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
-        let request_id = format!("agent/{conversation_id}/{now_ms}/{trajectory_id}/{step}");
-
-        let clean_model = if let Some(stripped) = model.strip_prefix("ag/") {
-            stripped
-        } else {
-            model
-        };
-
-        let payload = serde_json::json!({
-            "project": project_id,
-            "model": clean_model,
-            "userAgent": "antigravity",
-            "requestType": "agent",
-            "requestId": request_id,
-            "request": {
-                "contents": contents,
-                "generationConfig": {
-                    "temperature": temperature,
-                    "topP": 0.95,
-                    "topK": 40,
-                    "maxOutputTokens": max_tokens.min(8192)
-                },
-                "sessionId": session_id
-            }
-        });
-
-        let response = self
-            .client
-            .post(&endpoint)
-            .header("Authorization", format!("Bearer {access_token}"))
-            .header("Content-Type", "application/json")
-            .header("User-Agent", ANTIGRAVITY_USER_AGENT)
-            .header("X-Client-Name", "antigravity")
-            .header("X-Client-Version", "2.11.0")
-            .json(&payload)
-            .send()
-            .context("Failed to send request to Antigravity stream endpoint")?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let err_text = response.text().unwrap_or_default();
-            bail!("Antigravity HTTP error {status}: {err_text}");
-        }
-
-        let reader = std::io::BufReader::new(response);
-        let mut full_reply = String::new();
-
-        for line in reader.lines() {
-            let line = line?;
-            let trimmed = line.trim();
-            if let Some(data_str) = trimmed.strip_prefix("data: ") {
-                if data_str.trim() == "[DONE]" {
-                    break;
-                }
-                if let Ok(val) = serde_json::from_str::<serde_json::Value>(data_str) {
-                    let candidates = val
-                        .pointer("/response/candidates")
-                        .or_else(|| val.pointer("/candidates"))
-                        .and_then(|c| c.as_array());
-
-                    if let Some(cands) = candidates {
-                        for cand in cands {
-                            if let Some(parts) =
-                                cand.pointer("/content/parts").and_then(|p| p.as_array())
-                            {
-                                for part in parts {
-                                    if part
-                                        .get("thought")
-                                        .and_then(|t| t.as_bool())
-                                        .unwrap_or(false)
-                                    {
-                                        continue;
-                                    }
-
-                                    if let Some(text) = part.get("text").and_then(|t| t.as_str()) {
-                                        full_reply.push_str(text);
-                                        on_chunk(text)?;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(full_reply)
     }
 }

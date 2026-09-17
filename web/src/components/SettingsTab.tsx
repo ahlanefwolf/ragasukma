@@ -24,6 +24,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
   // Assistant Persona & Call
   const [assistantName, setAssistantName] = createSignal('Laras');
   const [userCallsign, setUserCallsign] = createSignal('Mas');
+  const [assistantGender, setAssistantGender] = createSignal('female');
   const [personalityRole, setPersonalityRole] = createSignal('partner');
 
   // AI LLM Provider
@@ -81,6 +82,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
     if (cfg) {
       setAssistantName(cfg.assistant_name || 'Laras');
       setUserCallsign(cfg.user_callsign || 'Mas');
+      setAssistantGender(cfg.assistant_gender || 'female');
       setPersonalityRole(cfg.personality_role || 'partner');
 
       setLlmProvider(cfg.llm_provider || 'antigravity');
@@ -162,6 +164,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
     const payload: UserConfig = {
       assistant_name: assistantName().trim(),
       user_callsign: userCallsign().trim(),
+      assistant_gender: assistantGender(),
       personality_role: personalityRole(),
       stt_engine: sttEngine(),
       voice_interruption: voiceInterruption(),
@@ -280,6 +283,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           setAssistantName={setAssistantName}
           userCallsign={userCallsign()}
           setUserCallsign={setUserCallsign}
+          assistantGender={assistantGender()}
+          setAssistantGender={setAssistantGender}
           personalityRole={personalityRole()}
           setPersonalityRole={setPersonalityRole}
           llmProvider={llmProvider()}
@@ -309,8 +314,6 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           setNoiseReduction={setNoiseReduction}
           ttsEngine={ttsEngine()}
           setTtsEngine={setTtsEngine}
-          ttsLang={ttsLang()}
-          setTtsLang={setTtsLang}
           ttsSpeed={ttsSpeed()}
           setTtsSpeed={setTtsSpeed}
           ttsElevenLabsKey={ttsElevenLabsKey()}

@@ -5,13 +5,110 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-/// DSP Audio Post-Processing untuk Karakter Anime Imut:
-/// 1. Low-cut EQ (Memotong bass berat bapak-bapak/robot di bawah 260Hz)
-/// 2. Formant Peaking Filter & High-Air (Mencerahkan vokal di frekuensi ~3.8kHz - 5.5kHz)
-/// 3. Harmonic Soft Warmth (Memberikan overtone lembut khas karakter anime)
-/// 4. Subtle Room Ambience Reverb (Memberi sentuhan ruang studio anime alami)
-/// 5. Soft-Knee Dynamic Limiter (Mencegah clipping & menjaga volume tetap seimbang)
-fn apply_anime_dsp_filter(samples: &[f32], sample_rate: u32) -> Vec<f32> {
+/// Granular delay-line crossfading pitch shifter dengan Hann Window:
+/// Menurunkan frekuensi nada (pitch) tanpa merusak tempo/durasi bicara
+fn pitch_shift_granular(samples: &[f32], sample_rate: u32, pitch_ratio: f32) -> Vec<f32> {
+    if samples.is_empty() || (pitch_ratio - 1.0).abs() < 0.01 {
+        return samples.to_vec();
+    }
+
+    // Grain size ~50ms agar gelombang fundamental frekuensi pria (~130Hz) tertampung utuh
+    let grain_size = ((sample_rate as f32) * 0.052) as usize;
+    if grain_size < 16 {
+        return samples.to_vec();
+    }
+
+    let mut out = Vec::with_capacity(samples.len());
+    let mut phase0 = 0.0f32;
+    let rate_diff = 1.0 - pitch_ratio;
+
+    for (i, &s) in samples.iter().enumerate() {
+        phase0 = (phase0 + rate_diff).rem_euclid(grain_size as f32);
+        let phase1 = (phase0 + (grain_size as f32) * 0.5).rem_euclid(grain_size as f32);
+
+        // Hann Window crossfading halus (mencegah suara robotik / kresek-kresek)
+        let norm0 = phase0 / (grain_size as f32);
+        let norm1 = phase1 / (grain_size as f32);
+        let w0 = 0.5 * (1.0 - (2.0 * std::f32::consts::PI * norm0).cos());
+        let w1 = 0.5 * (1.0 - (2.0 * std::f32::consts::PI * norm1).cos());
+        let sum_w = (w0 + w1).max(0.0001);
+
+        let read_idx0 = (i as f32 - phase0).max(0.0) as usize;
+        let read_idx1 = (i as f32 - phase1).max(0.0) as usize;
+
+        let sample0 = samples.get(read_idx0).copied().unwrap_or(s);
+        let sample1 = samples.get(read_idx1).copied().unwrap_or(s);
+
+        let blended = (sample0 * w0 + sample1 * w1) / sum_w;
+        out.push(blended);
+    }
+
+    out
+}
+
+/// DSP Audio Post-Processing untuk Karakter Anime Cowok (Cool & Masculine Male Anime Voice):
+/// 1. Pitch shift down ~6 semitone (0.70x ratio) mengubah vokal cewek Google Translate jadi nada bariton cowok asli.
+/// 2. High-cut formant filter di ~3200Hz (Membuang sibilance cempreng khas vokal cewek).
+/// 3. Low-shelf chest resonance boost di ~180Hz (Resonansi dada pria tebal & gagah).
+/// 4. Harmonic Soft Warmth (tanh saturation).
+/// 5. Subtle Studio Room Reverb.
+/// 6. Dynamic Limiter.
+fn apply_male_anime_dsp(samples: &[f32], sample_rate: u32) -> Vec<f32> {
+    if samples.is_empty() || sample_rate == 0 {
+        return samples.to_vec();
+    }
+
+    // Step 1: Pitch shift turun ~6 semitone ke range vokal pria (0.70x)
+    let pitched = pitch_shift_granular(samples, sample_rate, 0.70);
+
+    let dt = 1.0 / (sample_rate as f32);
+    let mut out = Vec::with_capacity(pitched.len());
+
+    // Step 2: Formant De-Feminizer (Pangkas frekuensi tinggi cempreng di atas 3.2kHz)
+    let cutoff_treble = 3200.0f32;
+    let rc_treble = 1.0 / (2.0 * std::f32::consts::PI * cutoff_treble);
+    let alpha_treble = dt / (rc_treble + dt);
+    let mut lp_treble = 0.0f32;
+
+    // Step 3: Chest Resonance Booster di 180Hz (Resonansi dada maskulin)
+    let cutoff_low = 180.0f32;
+    let rc_low = 1.0 / (2.0 * std::f32::consts::PI * cutoff_low);
+    let alpha_low = dt / (rc_low + dt);
+    let mut lp_bass = 0.0f32;
+    let bass_gain = 1.45f32;
+
+    let delay_samples = ((sample_rate as f32) * 0.038) as usize;
+    let mut delay_buf = vec![0.0f32; delay_samples.max(1)];
+    let mut delay_idx = 0;
+
+    for &s in &pitched {
+        // Redam cempreng wanita
+        lp_treble += alpha_treble * (s - lp_treble);
+        let tamed = lp_treble * 0.85 + s * 0.15;
+
+        // Tebalkan nada dada pria
+        lp_bass += alpha_low * (tamed - lp_bass);
+        let chest_enhanced = tamed + (lp_bass * (bass_gain - 1.0));
+
+        // Soft harmonic warmth
+        let warmed = (chest_enhanced * 1.10).tanh();
+
+        // Studio ambience
+        let delayed = delay_buf[delay_idx];
+        let wet = warmed + (delayed * 0.12);
+        delay_buf[delay_idx] = wet;
+        delay_idx = (delay_idx + 1) % delay_buf.len();
+
+        let mixed = warmed * 0.88 + delayed * 0.12;
+        let final_sample = mixed.clamp(-0.95, 0.95);
+        out.push(final_sample);
+    }
+
+    out
+}
+
+/// DSP Audio Post-Processing untuk Karakter Anime Cewek (Sweet & Crisp Anime Voice):
+fn apply_female_anime_dsp(samples: &[f32], sample_rate: u32) -> Vec<f32> {
     if samples.is_empty() || sample_rate == 0 {
         return samples.to_vec();
     }
@@ -19,7 +116,7 @@ fn apply_anime_dsp_filter(samples: &[f32], sample_rate: u32) -> Vec<f32> {
     let dt = 1.0 / (sample_rate as f32);
     let mut out = Vec::with_capacity(samples.len());
 
-    // 1. High-Pass Filter (Low-Cut di 260Hz untuk membuang frekuensi dada/berat)
+    // 1. High-Pass Filter (Low-Cut di 260Hz untuk membuang frekuensi dada berat)
     let cutoff_hp = 260.0f32;
     let rc_hp = 1.0 / (2.0 * std::f32::consts::PI * cutoff_hp);
     let alpha_hp = rc_hp / (rc_hp + dt);
@@ -32,7 +129,7 @@ fn apply_anime_dsp_filter(samples: &[f32], sample_rate: u32) -> Vec<f32> {
     let mut delay_buf = vec![0.0f32; delay_samples.max(1)];
     let mut delay_idx = 0;
 
-    // 2. Formant & Air High-Shelf Booster di ~3.8kHz (Memberi kesan suara imut, renyah, dan cerah)
+    // 2. Formant & Air High-Shelf Booster di ~3.8kHz
     let boost_gain = 1.45f32;
     let cutoff_shelf = 3800.0f32;
     let rc_shelf = 1.0 / (2.0 * std::f32::consts::PI * cutoff_shelf);
@@ -40,32 +137,39 @@ fn apply_anime_dsp_filter(samples: &[f32], sample_rate: u32) -> Vec<f32> {
     let mut lp_shelf = 0.0f32;
 
     for &s in samples {
-        // Step 1: High-pass filter (Low-cut)
         let hp = alpha_hp * (prev_out_hp + s - prev_in);
         prev_in = s;
         prev_out_hp = hp;
 
-        // Step 2: Formant High-Presence (Treble & Air boost)
         lp_shelf += alpha_shelf * (hp - lp_shelf);
         let high_part = hp - lp_shelf;
         let enhanced_voice = lp_shelf + (high_part * boost_gain);
 
-        // Step 3: Soft Harmonic Warmth (Overtone halus)
         let warmed = (enhanced_voice * 1.08).tanh();
 
-        // Step 4: Ambience Reverb Studio
         let delayed = delay_buf[delay_idx];
         let wet = warmed + (delayed * 0.16);
         delay_buf[delay_idx] = wet;
         delay_idx = (delay_idx + 1) % delay_buf.len();
 
-        // Step 5: Soft-Knee Limiter / Normalization
         let mixed = warmed * 0.88 + delayed * 0.12;
         let final_sample = mixed.clamp(-0.95, 0.95);
         out.push(final_sample);
     }
 
     out
+}
+
+fn apply_anime_dsp_filter(samples: &[f32], sample_rate: u32) -> Vec<f32> {
+    let u = crate::config::load_user_config();
+    let gender = u.assistant_gender.trim().to_lowercase();
+    let is_male = gender == "male" || gender == "cowok" || gender == "pria" || gender == "laki-laki";
+
+    if is_male {
+        apply_male_anime_dsp(samples, sample_rate)
+    } else {
+        apply_female_anime_dsp(samples, sample_rate)
+    }
 }
 
 use crate::tray::{AssistantState, TrayState};
@@ -144,8 +248,8 @@ impl TextToSpeech {
                 if !self.elevenlabs_disabled.load(Ordering::Relaxed) {
                     match self.synthesize_elevenlabs(&clean_text, api_key) {
                         Ok(audio_bytes) => {
-                            // Terapkan DSP Anime Filter & sync lipsync
-                            if let Err(e) = self.play_audio_buffer(audio_bytes, true, emotion, asst_name) {
+                            // Putar suara ElevenLabs asli murni sesuai Voice ID tanpa terkena DSP filter
+                            if let Err(e) = self.play_audio_buffer(audio_bytes, false, emotion, asst_name) {
                                 crate::term_err!("⚠️ [ElevenLabs Playback Error]: {}", e);
                             } else {
                                 played_successfully = true;
@@ -174,12 +278,78 @@ impl TextToSpeech {
             }
         }
 
-        // 2. Seamless Fallback ke Google Translate TTS + Custom DSP Anime
+        // 2. Jika Asisten Cowok (Male), gunakan Edge TTS (id-ID-ArdiNeural) yang 100% gratis suara cowok asli
+        let u = crate::config::load_user_config();
+        let is_male = u.assistant_gender.trim().eq_ignore_ascii_case("male")
+            || u.assistant_gender.trim().eq_ignore_ascii_case("cowok")
+            || u.assistant_gender.trim().eq_ignore_ascii_case("pria");
+
+        if !played_successfully && is_male {
+            match self.synthesize_edge_tts(&clean_text) {
+                Ok(audio_bytes) => {
+                    if let Err(e) = self.play_audio_buffer(audio_bytes, false, emotion, asst_name) {
+                        crate::term_err!("⚠️ [Edge TTS Playback Error]: {}", e);
+                    } else {
+                        played_successfully = true;
+                    }
+                }
+                Err(e) => {
+                    crate::term_err!("⚠️ [Edge TTS Gagal -> Fallback Google TTS]: {}", e);
+                }
+            }
+        }
+
+        // 3. Suara Cewek (Female) atau fallback: gunakan Google Translate TTS + DSP Anime Filter
         if !played_successfully {
             self.play_google_stream(&clean_text, emotion, asst_name)?;
         }
 
         Ok(())
+    }
+
+    fn synthesize_edge_tts(&self, text: &str) -> Result<Vec<u8>> {
+        static CACHED_CONFIG: std::sync::Mutex<Option<msedge_tts::tts::SpeechConfig>> =
+            std::sync::Mutex::new(None);
+
+        let config = {
+            let mut lock = CACHED_CONFIG.lock().unwrap();
+            if let Some(ref cfg) = *lock {
+                cfg.clone()
+            } else {
+                let voices = msedge_tts::voice::get_voices_list()
+                    .map_err(|e| anyhow::anyhow!("Gagal mengambil daftar suara Edge TTS: {e:?}"))?;
+                let ardi = voices
+                    .iter()
+                    .find(|v| {
+                        v.name.contains("ArdiNeural")
+                            || v.short_name
+                                .as_deref()
+                                .map(|s| s.contains("ArdiNeural"))
+                                .unwrap_or(false)
+                    })
+                    .or_else(|| {
+                        voices.iter().find(|v| {
+                            v.locale
+                                .as_deref()
+                                .map(|l| l.starts_with("id"))
+                                .unwrap_or(false)
+                        })
+                    })
+                    .ok_or_else(|| anyhow::anyhow!("Suara pria Indonesia (id-ID-ArdiNeural) tidak ditemukan"))?;
+                let cfg = msedge_tts::tts::SpeechConfig::from(ardi);
+                *lock = Some(cfg.clone());
+                cfg
+            }
+        };
+
+        let mut client = msedge_tts::tts::client::connect()
+            .map_err(|e| anyhow::anyhow!("Gagal menghubungkan ke Edge TTS: {e:?}"))?;
+
+        let audio = client
+            .synthesize(text, &config)
+            .map_err(|e| anyhow::anyhow!("Gagal sintesis Edge TTS: {e:?}"))?;
+
+        Ok(audio.audio_bytes)
     }
 
     fn synthesize_elevenlabs(&self, text: &str, api_key: &str) -> Result<Vec<u8>> {
