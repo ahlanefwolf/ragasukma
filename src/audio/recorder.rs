@@ -6,7 +6,9 @@ use rubato::{
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use crate::audio::dsp::{TARGET_SAMPLE_RATE, apply_noise_reduction, normalize_volume};
+#[cfg(not(target_os = "linux"))]
+use crate::audio::dsp::apply_noise_reduction;
+use crate::audio::dsp::{normalize_volume, TARGET_SAMPLE_RATE};
 use crate::config::AppConfig;
 use crate::tray::{AssistantState, TrayState};
 
@@ -280,13 +282,18 @@ impl AudioRecorder {
             }
         };
 
-        let cutoff = 160.0f32;
-        let mut rc = 1.0 / (2.0 * std::f32::consts::PI * cutoff);
+        let cutoff_hp = 160.0f32;
+        let mut rc_hp = 1.0 / (2.0 * std::f32::consts::PI * cutoff_hp);
         let mut dt = 1.0 / cur_sr as f32;
-        let mut alpha = rc / (rc + dt);
+        let mut alpha_hp = rc_hp / (rc_hp + dt);
 
-        let mut prev_in = 0.0f32;
-        let mut prev_out = 0.0f32;
+        let cutoff_lp = 3800.0f32;
+        let mut rc_lp = 1.0 / (2.0 * std::f32::consts::PI * cutoff_lp);
+        let mut alpha_lp = dt / (rc_lp + dt);
+
+        let mut prev_hp_in = 0.0f32;
+        let mut prev_hp_out = 0.0f32;
+        let mut prev_lp_out = 0.0f32;
 
         let mut noise_floor = 0.008f32;
         let mut peak_voice_rms = 0.020f32;
@@ -322,8 +329,10 @@ impl AudioRecorder {
                         let updated_ch = self.channels.lock().map(|c| *c).unwrap_or(1);
                         samples_per_chunk = updated_sr as usize * updated_ch / 40;
                         dt = 1.0 / updated_sr as f32;
-                        rc = 1.0 / (2.0 * std::f32::consts::PI * cutoff);
-                        alpha = rc / (rc + dt);
+                        rc_hp = 1.0 / (2.0 * std::f32::consts::PI * cutoff_hp);
+                        alpha_hp = rc_hp / (rc_hp + dt);
+                        rc_lp = 1.0 / (2.0 * std::f32::consts::PI * cutoff_lp);
+                        alpha_lp = dt / (rc_lp + dt);
                         crate::term_log!(
                             "🎙️  [Audio Reconnect] Microphone terhubung kembali & aktif!"
                         );
@@ -393,25 +402,24 @@ impl AudioRecorder {
                 }
                 ac_sum_sq += cur_in * cur_in;
 
-                // High-pass filter (160 Hz) untuk isolasi pita suara manusia
-                let cur_out = alpha * (prev_out + cur_in - prev_in);
-                prev_in = cur_in;
-                prev_out = cur_out;
-                filtered_sum_sq += cur_out * cur_out;
+                // Band-pass filter (160 Hz - 3800 Hz) untuk isolasi pita suara manusia
+                let hp_out = alpha_hp * (prev_hp_out + cur_in - prev_hp_in);
+                prev_hp_in = cur_in;
+                prev_hp_out = hp_out;
+
+                let lp_out = prev_lp_out + alpha_lp * (hp_out - prev_lp_out);
+                prev_lp_out = lp_out;
+
+                filtered_sum_sq += lp_out * lp_out;
             }
 
             let ac_rms = (ac_sum_sq / sample_count).sqrt();
 
             #[cfg(target_os = "linux")]
             let voice_rms = {
-                // Di Linux, ALSA/PulseAudio tidak memiliki hardware APO/AEC driver seperti Windows/macOS.
-                // Gunakan murni sinyal pita vokal manusia (High-Pass 160Hz) dan redam broadband static rumble.
-                let filtered_rms = (filtered_sum_sq / sample_count).sqrt();
-                if ac_rms > 0.0001 && (filtered_rms / ac_rms) < 0.45 {
-                    filtered_rms * 0.5
-                } else {
-                    filtered_rms
-                }
+                // Di Linux: Gunakan band-pass filter vokal murni (160Hz - 3800Hz)
+                let bp_rms = (filtered_sum_sq / sample_count).sqrt();
+                bp_rms.max(ac_rms * 0.75)
             };
 
             #[cfg(not(target_os = "linux"))]
@@ -478,14 +486,25 @@ impl AudioRecorder {
                     continue;
                 }
 
-                noise_floor = noise_floor * 0.95 + voice_rms * 0.05;
+                #[cfg(target_os = "linux")]
+                {
+                    if voice_rms > noise_floor {
+                        noise_floor = noise_floor * 0.994 + voice_rms * 0.006;
+                    } else {
+                        noise_floor = noise_floor * 0.90 + voice_rms * 0.10;
+                    }
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    noise_floor = noise_floor * 0.95 + voice_rms * 0.05;
+                }
 
                 if ai_speaking {
                     // Deteksi Barge-in / Interupsi saat AI berbicara (HANYA jika diaktifkan):
                     if is_interruption_enabled {
                         // Ambang batas dinaikkan agar pantulan speaker tidak memicu interupsi palsu
                         #[cfg(target_os = "linux")]
-                        let interrupt_threshold = (noise_floor * 2.8).max(base_threshold * 2.0);
+                        let interrupt_threshold = (noise_floor * 3.6).max(base_threshold * 2.5);
                         #[cfg(not(target_os = "linux"))]
                         let interrupt_threshold = (noise_floor * 2.2).max(base_threshold * 1.6);
 
@@ -511,7 +530,7 @@ impl AudioRecorder {
                 } else {
                     // Ambang batas deteksi VAD normal saat AI standby
                     #[cfg(target_os = "linux")]
-                    let trigger_threshold = (noise_floor * 2.1).max(base_threshold * 1.15);
+                    let trigger_threshold = (noise_floor * 1.8).max(base_threshold);
                     #[cfg(not(target_os = "linux"))]
                     let trigger_threshold = (noise_floor * 1.8).max(base_threshold);
 
@@ -538,7 +557,13 @@ impl AudioRecorder {
                     peak_voice_rms = peak_voice_rms * 0.8 + voice_rms * 0.2;
                 }
 
-                // Voice continuation threshold yang lebih adaptif agar nafas/jeda pendek tidak langsung menutup rekaman
+                // Voice continuation threshold:
+                // Di Linux, jangan biarkan desis/noise ruangan mereset penghitung hening (consecutive_silence).
+                #[cfg(target_os = "linux")]
+                let speech_threshold = (noise_floor * 1.60)
+                    .max(base_threshold * 0.90)
+                    .min(peak_voice_rms * 0.55);
+                #[cfg(not(target_os = "linux"))]
                 let speech_threshold = (noise_floor * 1.35)
                     .max(base_threshold * 0.65)
                     .min(peak_voice_rms * 0.40);
@@ -550,7 +575,11 @@ impl AudioRecorder {
                     consecutive_silence += 1;
                 }
 
-                // Minimum durasi hening sebelum dianggap selesai (sekitar ~450ms - 875ms)
+                // Batas durasi hening sebelum rekaman otomatis dihentikan:
+                // Di Linux, batasi maksimal ~500ms (12-14 chunk) agar cepat memproses saat Anda selesai bicara
+                #[cfg(target_os = "linux")]
+                let target_silence_chunks = silence_limit_chunks.clamp(8, 14);
+                #[cfg(not(target_os = "linux"))]
                 let target_silence_chunks = silence_limit_chunks.max(14);
                 let max_length_exceeded = recorded_audio.len() > cur_sr as usize * cur_ch * 25;
 
@@ -560,7 +589,12 @@ impl AudioRecorder {
                     consecutive_voice = 0;
                     consecutive_silence = 0;
 
-                    if active_voice_chunks >= 4 && !recorded_audio.is_empty() {
+                    #[cfg(target_os = "linux")]
+                    let min_active_chunks = 6;
+                    #[cfg(not(target_os = "linux"))]
+                    let min_active_chunks = 4;
+
+                    if active_voice_chunks >= min_active_chunks && !recorded_audio.is_empty() {
                         if let Ok(processed) = self.process_raw_audio(&recorded_audio) {
                             if !processed.is_empty() {
                                 let _ = turn_sender.send(processed);
@@ -602,18 +636,18 @@ impl AudioRecorder {
 
         #[cfg(target_os = "linux")]
         {
-            // Windows APO Voice Processing Emulation for Linux:
-            // 1. DC Offset & 2-Pass High-Pass 120Hz (menghilangkan dengung kipas/meja)
+            // Modular Voice Processing untuk Linux:
+            // 1. DC Offset & High-Pass 100Hz (potong dengung getaran hardware)
             crate::audio::dsp::remove_dc_offset(&mut resampled);
-            crate::audio::dsp::apply_high_pass_filter(&mut resampled, TARGET_SAMPLE_RATE, 120.0, 2);
+            crate::audio::dsp::apply_high_pass_filter(&mut resampled, TARGET_SAMPLE_RATE, 100.0, 1);
 
-            // 2. Smooth Noise Gate (level 1 jika default/0, atau sesuai pilihan pengguna)
-            let effective_nr = if noise_reduction_level == 0 { 1 } else { noise_reduction_level };
-            crate::audio::dsp::apply_smooth_noise_gate(&mut resampled, TARGET_SAMPLE_RATE, effective_nr);
+            // 2. Dynamic Noise Reduction
+            if noise_reduction_level > 0 {
+                crate::audio::dsp::apply_smooth_noise_gate(&mut resampled, TARGET_SAMPLE_RATE, noise_reduction_level);
+            }
 
-            // 3. Dynamic Speech AGC (menjaga dynamic range vokal stabil & jernih layaknya Windows WASAPI APO)
-            crate::audio::dsp::apply_speech_agc(&mut resampled, 0.12);
-            normalize_volume(&mut resampled, 0.85, 4.0);
+            // 3. Normalisasi volume optimal untuk Google STT
+            normalize_volume(&mut resampled, 0.90, 6.0);
         }
 
         #[cfg(not(target_os = "linux"))]

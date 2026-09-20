@@ -101,18 +101,17 @@ pub fn load_active_browser_summary() -> String {
     // 2. Snapshot DOM halaman web yang sedang aktif
     if let Some(snapshot) = crate::services::get_latest_snapshot() {
         let mut summary = format!(
-            "\n🌐 HALAMAN WEB AKTIF SAAT INI (GROUND OF TRUTH):\n\
-            - URL: {}\n\
-            - Judul: {}\n\
-            - Domain: {}\n",
-            snapshot.url, snapshot.title, snapshot.domain
+            "\n### 🌐 KONTEKS HALAMAN BROWSER AKTIF (GROUND OF TRUTH):\n\
+            * **Judul Halaman:** {}\n\
+            * **URL:** {}\n\
+            * **Domain:** {}\n",
+            snapshot.title, snapshot.url, snapshot.domain
         );
 
         if !snapshot.inputs.is_empty() {
             let inputs_str: Vec<String> = snapshot
                 .inputs
                 .iter()
-                .take(6)
                 .map(|i| {
                     let id_or_sel = i.selector.as_deref().or(i.id.as_deref()).unwrap_or("");
                     let placeholder = i
@@ -120,46 +119,61 @@ pub fn load_active_browser_summary() -> String {
                         .as_deref()
                         .or(i.aria_label.as_deref())
                         .unwrap_or("");
-                    format!(
-                        "{}(name: {:?}, placeholder: {:?}, sel: {:?})",
-                        i.tag,
-                        i.name.as_deref().unwrap_or(""),
-                        placeholder,
-                        id_or_sel
-                    )
+                    let cur_val = i.text.as_deref().unwrap_or("");
+                    if !cur_val.is_empty() {
+                        format!(
+                            "`{}` (placeholder: \"{}\", nilai: \"{}\", selector: `{}`)",
+                            i.tag, placeholder, cur_val, id_or_sel
+                        )
+                    } else {
+                        format!(
+                            "`{}` (placeholder: \"{}\", selector: `{}`)",
+                            i.tag, placeholder, id_or_sel
+                        )
+                    }
                 })
                 .collect();
-            summary.push_str(&format!("- Input: {}\n", inputs_str.join(", ")));
+            summary.push_str(&format!("* **Kolom Form / Input:**\n  - {}\n", inputs_str.join("\n  - ")));
         }
 
         if !snapshot.buttons.is_empty() {
             let btns_str: Vec<String> = snapshot
                 .buttons
                 .iter()
-                .take(6)
-                .map(|b| {
+                .filter_map(|b| {
                     let txt = b
                         .text
                         .as_deref()
                         .or(b.aria_label.as_deref())
-                        .unwrap_or("Button");
-                    let sel = b.selector.as_deref().unwrap_or("");
-                    format!("{:?}(sel: {:?})", txt, sel)
+                        .unwrap_or("")
+                        .trim();
+                    let sel = b.selector.as_deref().unwrap_or("").trim();
+                    if txt.is_empty() && sel.is_empty() {
+                        None
+                    } else {
+                        Some(format!("\"{}\" (selector: `{}`)", txt, sel))
+                    }
                 })
                 .collect();
-            summary.push_str(&format!("- Tombol: {}\n", btns_str.join(", ")));
+            summary.push_str(&format!("* **Tombol Interaktif:**\n  - {}\n", btns_str.join(", ")));
         }
 
-        if !snapshot.text_summary.is_empty() {
-            summary.push_str(&format!("- Ringkasan: {}\n", snapshot.text_summary));
-        } else if !snapshot.texts.is_empty() {
-            let texts_str: Vec<String> = snapshot
-                .texts
-                .iter()
-                .take(25)
-                .map(|t| format!("- {}", t))
-                .collect();
-            summary.push_str(&format!("- Teks di Layar:\n{}\n", texts_str.join("\n")));
+        if !snapshot.texts.is_empty() {
+            // Bersihkan dan masukkan seluruh teks konten DOM dari halaman web
+            let mut cleaned_texts = Vec::new();
+            let mut last_line = "";
+            for t in snapshot.texts.iter().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                if t != last_line {
+                    cleaned_texts.push(t);
+                    last_line = t;
+                }
+            }
+            summary.push_str(&format!(
+                "* **Konten Teks Lengkap di Halaman:**\n{}\n",
+                cleaned_texts.join(" • ")
+            ));
+        } else if !snapshot.text_summary.is_empty() {
+            summary.push_str(&format!("* **Ringkasan Teks:**\n{}\n", snapshot.text_summary));
         }
 
         parts.push(summary);

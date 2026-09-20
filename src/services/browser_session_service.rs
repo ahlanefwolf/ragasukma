@@ -397,15 +397,16 @@ pub fn format_open_tabs_for_llm() -> String {
     }
 
     let mut lines = Vec::new();
-    lines.push("\nTAB BROWSER YANG SEDANG TERBUKA:".to_string());
+    lines.push("\n### 📑 DAFTAR TAB BROWSER TERBUKA:".to_string());
     for (i, t) in tabs.iter().take(8).enumerate() {
-        let active_mark = if t.active { " (Aktif)" } else { "" };
+        let active_mark = if t.active { " `[SEDANG DILIHAT]`" } else { "" };
         lines.push(format!(
-            "{}. [{}]{} - URL: {}",
+            "{}. **{}**{} (URL: `{}`) [Tab ID: `{}`]",
             i + 1,
             if t.title.is_empty() { "Untitled" } else { &t.title },
             active_mark,
-            t.url
+            t.url,
+            t.id
         ));
     }
     lines.join("\n")
