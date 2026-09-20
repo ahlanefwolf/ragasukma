@@ -191,10 +191,6 @@ pub fn open_browser(url: &str) {
 
         #[cfg(target_os = "windows")]
         {
-            let profile_dir = crate::config::get_app_config_dir().join("browser-profile");
-            let _ = fs::create_dir_all(&profile_dir);
-            let profile_dir_str = profile_dir.to_string_lossy().to_string();
-
             let mut opened = false;
             let chrome_candidates = [
                 "chrome.exe",

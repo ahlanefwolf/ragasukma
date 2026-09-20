@@ -118,7 +118,7 @@ fn default_llm_provider() -> String {
 }
 
 fn default_voice_interruption() -> bool {
-    true
+    false
 }
 
 fn default_always_on_top() -> bool {
@@ -153,7 +153,7 @@ impl Default for UserConfig {
             elevenlabs_voice_id: "".to_string(),
             avatar_type: "vrm".to_string(),
             always_on_top: true,
-            voice_interruption: true,
+            voice_interruption: false,
         }
     }
 }

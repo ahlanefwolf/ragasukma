@@ -401,6 +401,20 @@ impl AudioRecorder {
             }
 
             let ac_rms = (ac_sum_sq / sample_count).sqrt();
+
+            #[cfg(target_os = "linux")]
+            let voice_rms = {
+                // Di Linux, ALSA/PulseAudio tidak memiliki hardware APO/AEC driver seperti Windows/macOS.
+                // Gunakan murni sinyal pita vokal manusia (High-Pass 160Hz) dan redam broadband static rumble.
+                let filtered_rms = (filtered_sum_sq / sample_count).sqrt();
+                if ac_rms > 0.0001 && (filtered_rms / ac_rms) < 0.45 {
+                    filtered_rms * 0.5
+                } else {
+                    filtered_rms
+                }
+            };
+
+            #[cfg(not(target_os = "linux"))]
             let voice_rms = (filtered_sum_sq / sample_count).sqrt().max(ac_rms * 0.7);
 
             // 3. Audio VU Meter Standar (dBFS):
@@ -469,8 +483,12 @@ impl AudioRecorder {
                 if ai_speaking {
                     // Deteksi Barge-in / Interupsi saat AI berbicara (HANYA jika diaktifkan):
                     if is_interruption_enabled {
-                        // Ambang batas dinaikkan (+60%) agar suara speaker / pantulan ruangan tidak memicu interupsi palsu
+                        // Ambang batas dinaikkan agar pantulan speaker tidak memicu interupsi palsu
+                        #[cfg(target_os = "linux")]
+                        let interrupt_threshold = (noise_floor * 2.8).max(base_threshold * 2.0);
+                        #[cfg(not(target_os = "linux"))]
                         let interrupt_threshold = (noise_floor * 2.2).max(base_threshold * 1.6);
+
                         if voice_rms > interrupt_threshold {
                             consecutive_voice += 1;
                             if consecutive_voice > required_voice {
@@ -492,7 +510,11 @@ impl AudioRecorder {
                     }
                 } else {
                     // Ambang batas deteksi VAD normal saat AI standby
+                    #[cfg(target_os = "linux")]
+                    let trigger_threshold = (noise_floor * 2.1).max(base_threshold * 1.15);
+                    #[cfg(not(target_os = "linux"))]
                     let trigger_threshold = (noise_floor * 1.8).max(base_threshold);
+
                     if voice_rms > trigger_threshold {
                         consecutive_voice += 1;
                         if consecutive_voice >= required_voice {
@@ -577,8 +599,28 @@ impl AudioRecorder {
             .lock()
             .map(|c| c.noise_reduction_level)
             .unwrap_or(0);
-        apply_noise_reduction(&mut resampled, TARGET_SAMPLE_RATE, noise_reduction_level);
-        normalize_volume(&mut resampled, 0.85, 8.0);
+
+        #[cfg(target_os = "linux")]
+        {
+            // Windows APO Voice Processing Emulation for Linux:
+            // 1. DC Offset & 2-Pass High-Pass 120Hz (menghilangkan dengung kipas/meja)
+            crate::audio::dsp::remove_dc_offset(&mut resampled);
+            crate::audio::dsp::apply_high_pass_filter(&mut resampled, TARGET_SAMPLE_RATE, 120.0, 2);
+
+            // 2. Smooth Noise Gate (level 1 jika default/0, atau sesuai pilihan pengguna)
+            let effective_nr = if noise_reduction_level == 0 { 1 } else { noise_reduction_level };
+            crate::audio::dsp::apply_smooth_noise_gate(&mut resampled, TARGET_SAMPLE_RATE, effective_nr);
+
+            // 3. Dynamic Speech AGC (menjaga dynamic range vokal stabil & jernih layaknya Windows WASAPI APO)
+            crate::audio::dsp::apply_speech_agc(&mut resampled, 0.12);
+            normalize_volume(&mut resampled, 0.85, 4.0);
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            apply_noise_reduction(&mut resampled, TARGET_SAMPLE_RATE, noise_reduction_level);
+            normalize_volume(&mut resampled, 0.85, 8.0);
+        }
 
         if resampled.len() < TARGET_SAMPLE_RATE as usize / 2 {
             resampled.resize(TARGET_SAMPLE_RATE as usize / 2, 0.0);

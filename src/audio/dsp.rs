@@ -132,3 +132,27 @@ pub fn normalize_volume(samples: &mut [f32], target_amp: f32, max_gain: f32) {
         }
     }
 }
+
+/// AGC / Dynamic Speech Compressor yang meniru karakteristik Windows APO Voice Processing:
+/// Meratakan vokal yang pelan/jauh tanpa menimbulkan clipping saat berbicara keras/dekat.
+pub fn apply_speech_agc(samples: &mut [f32], target_rms: f32) {
+    if samples.is_empty() {
+        return;
+    }
+    let current_rms = (samples.iter().map(|&x| x * x).sum::<f32>() / samples.len() as f32).sqrt();
+    if current_rms < 0.002 {
+        return; // Jangan angkat hening / noise murni
+    }
+    let target_gain = (target_rms / current_rms).clamp(0.6, 3.5);
+    for s in samples.iter_mut() {
+        let val = *s * target_gain;
+        // Soft saturation untuk menjaga suara tetap natural dan bebas distorsi
+        *s = if val > 0.95 {
+            0.95 + (val - 0.95) * 0.1
+        } else if val < -0.95 {
+            -0.95 + (val + 0.95) * 0.1
+        } else {
+            val
+        };
+    }
+}
