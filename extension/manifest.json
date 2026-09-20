@@ -8,19 +8,39 @@
   },
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "tabs",
+    "alarms"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "<all_urls>",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
   ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ragasukma-companion@local",
+      "strict_min_version": "109.0"
+    }
+  },
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["*://www.youtube.com/*", "*://music.youtube.com/*", "*://*/*"],
-      "js": ["content.js"],
-      "run_at": "document_end"
+      "matches": ["<all_urls>"],
+      "exclude_matches": [
+        "http://127.0.0.1:42128/*",
+        "http://localhost:42128/*"
+      ],
+      "js": [
+        "modules/click_engine.js",
+        "modules/dom_extractor.js",
+        "modules/input_engine.js",
+        "modules/media_controller.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
     }
   ]
 }

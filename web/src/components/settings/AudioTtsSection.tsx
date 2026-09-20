@@ -26,7 +26,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
   return (
     <div class="space-y-5 animate-in fade-in duration-200">
       {/* 3. Audio & Speech-to-Text (STT) */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
+      <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
         <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
           <Mic size={18} />
           3. AUDIO & SPEECH-TO-TEXT (STT)
@@ -38,7 +38,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             <select
               value={props.sttEngine}
               onChange={(e) => props.setSttEngine(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
+              class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
               <option value="google">Google Cloud STT (Cepat & Akurat ID)</option>
               <option value="groq">Groq Whisper Large v3</option>
@@ -50,7 +50,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             <select
               value={props.micSensitivity}
               onChange={(e) => props.setMicSensitivity(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
+              class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
               <option value="0">0 - Ekstra Kebal (Ruangan Sangat Ramai)</option>
               <option value="1">1 - Sangat Rendah</option>
@@ -67,7 +67,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             <select
               value={props.vadSilenceLimit}
               onChange={(e) => props.setVadSilenceLimit(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
+              class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
               <option value="0">Sangat Cepat (~0.5 Detik)</option>
               <option value="1">Cepat (~0.7 Detik)</option>
@@ -82,7 +82,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             <select
               value={props.noiseReduction}
               onChange={(e) => props.setNoiseReduction(parseInt(e.currentTarget.value, 10))}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
+              class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
               <option value={0}>0 - Nonaktif (Direct Mic)</option>
               <option value={1}>1 - Ringan (High-Pass + Noise Gate)</option>
@@ -90,10 +90,10 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             </select>
           </div>
 
-          <div class="space-y-1.5 sm:col-span-2 md:col-span-4 p-3 bg-theme-card rounded-xl border border-theme-border flex items-center justify-between gap-4">
+          <div class="space-y-1.5 sm:col-span-2 md:col-span-4 p-3 bg-theme-card border border-theme-border flex items-center justify-between gap-4">
             <div>
               <label class="text-xs sm:text-sm font-semibold text-theme-text block">⚡ Interupsi Suara (Barge-in Voice Interrupt)</label>
-              <p class="text-[11px] text-theme-text/60 mt-0.5">
+              <p class="text-xs text-theme-text/60 mt-0.5">
                 Mengizinkan kamu memotong pembicaraan asisten seketika hanya dengan berbicara langsung ke mikrofon.
               </p>
             </div>
@@ -104,14 +104,14 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 onChange={(e) => props.setVoiceInterruption(e.currentTarget.checked)}
                 class="sr-only peer"
               />
-              <div class="w-11 h-6 bg-theme-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-theme-cyan"></div>
+              <div class="w-11 h-6 bg-theme-border peer-focus:outline-none peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-theme-text after:h-5 after:w-5 after:transition-all peer-checked:bg-theme-cyan"></div>
             </label>
           </div>
         </div>
       </div>
 
       {/* 4. Text-to-Speech (TTS) Voice */}
-      <div class="p-4 sm:p-5 rounded-2xl bg-theme-surface border border-theme-border space-y-4">
+      <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
         <h3 class="text-base sm:text-lg font-carter text-theme-rose flex items-center gap-2">
           <Volume2 size={18} />
           4. SUARA KARAKTER (TEXT-TO-SPEECH)
@@ -123,7 +123,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             <select
               value={props.ttsEngine}
               onChange={(e) => props.setTtsEngine(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
+              class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
               <option value="google">Google TTS (Ringan & Cepat)</option>
               <option value="elevenlabs">ElevenLabs Neural Voice</option>
@@ -142,7 +142,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
               step="0.05"
               value={props.ttsSpeed}
               onInput={(e) => props.setTtsSpeed(parseFloat(e.currentTarget.value))}
-              class="w-full h-2 bg-theme-card rounded-lg appearance-none cursor-pointer accent-theme-cyan mt-2"
+              class="w-full h-2 bg-theme-card appearance-none cursor-pointer accent-theme-cyan mt-2"
             />
           </div>
         </div>
@@ -156,7 +156,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 value={props.ttsElevenLabsKey}
                 onInput={(e) => props.setTtsElevenLabsKey(e.currentTarget.value)}
                 placeholder="sk_..."
-                class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan transition-colors"
+                class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan transition-colors"
               />
             </div>
 
@@ -167,7 +167,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 value={props.elevenLabsVoiceId}
                 onInput={(e) => props.setElevenLabsVoiceId(e.currentTarget.value)}
                 placeholder="cgSgspJ2msm6clMCkdW9"
-                class="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan transition-colors"
+                class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan transition-colors"
               />
             </div>
           </div>

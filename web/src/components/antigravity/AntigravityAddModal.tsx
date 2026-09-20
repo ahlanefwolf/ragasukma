@@ -36,20 +36,20 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
   return (
     <Show when={props.isOpen}>
       <div class="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in select-none">
-        <div class="max-w-md w-full p-6 rounded-3xl bg-theme-surface border border-theme-border shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
+        <div class="max-w-md w-full p-6 bg-theme-surface border border-theme-border shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
           <div class="flex items-center justify-between pb-3 border-b border-theme-border">
             <div class="flex items-center gap-2.5">
-              <div class="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <div class="p-2 bg-amber-500/10 text-amber-400 border border-amber-500/20">
                 <Rocket size={18} />
               </div>
               <div>
                 <h3 class="text-base font-bold text-theme-text">Input Token Antigravity Manual</h3>
-                <p class="text-[11px] text-theme-text/50">Google OAuth Refresh Token</p>
+                <p class="text-xs text-theme-text/50">Google OAuth Refresh Token</p>
               </div>
             </div>
             <button
               onClick={props.onClose}
-              class="p-1.5 rounded-lg text-theme-text/50 hover:text-theme-text hover:bg-theme-card transition-colors"
+              class="p-1.5 text-theme-text/50 hover:text-theme-text hover:bg-theme-card transition-colors"
             >
               <X size={18} />
             </button>
@@ -67,7 +67,7 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
                 placeholder="Contoh: 1//04..."
                 rows={3}
                 required
-                class="w-full px-3.5 py-2.5 rounded-xl bg-theme-bg border border-theme-border focus:border-theme-cyan outline-none text-theme-text font-mono text-xs transition-colors select-text"
+                class="w-full px-3.5 py-2.5 bg-theme-bg border border-theme-border focus:border-theme-cyan outline-none text-theme-text font-mono text-xs transition-colors select-text"
               />
             </div>
 
@@ -81,7 +81,7 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
                 value={email()}
                 onInput={(e) => setEmail(e.currentTarget.value)}
                 placeholder="user@gmail.com"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-theme-bg border border-theme-border focus:border-theme-cyan outline-none text-theme-text text-xs transition-colors select-text"
+                class="w-full px-3.5 py-2.5 bg-theme-bg border border-theme-border focus:border-theme-cyan outline-none text-theme-text text-xs transition-colors select-text"
               />
             </div>
 
@@ -95,7 +95,7 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
                 value={projectId()}
                 onInput={(e) => setProjectId(e.currentTarget.value)}
                 placeholder="Biarkan kosong untuk auto-discovery"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-theme-bg border border-theme-border focus:border-theme-cyan outline-none text-theme-text font-mono text-xs transition-colors select-text"
+                class="w-full px-3.5 py-2.5 bg-theme-bg border border-theme-border focus:border-theme-cyan outline-none text-theme-text font-mono text-xs transition-colors select-text"
               />
             </div>
 
@@ -103,14 +103,14 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
               <button
                 type="button"
                 onClick={props.onClose}
-                class="px-4 py-2.5 rounded-xl bg-theme-card hover:bg-theme-border text-theme-text/80 font-bold transition-all"
+                class="px-4 py-2.5 bg-theme-card hover:bg-theme-border text-theme-text/80 font-bold transition-all"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting()}
-                class="px-5 py-2.5 rounded-xl bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green hover:opacity-95 active:scale-95 transition-all flex items-center gap-2"
+                class="px-5 py-2.5 bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green hover:opacity-95 active:scale-95 transition-all flex items-center gap-2"
               >
                 <Show when={isSubmitting()} fallback={<Plus size={16} />}>
                   <RefreshCw size={16} class="animate-spin" />

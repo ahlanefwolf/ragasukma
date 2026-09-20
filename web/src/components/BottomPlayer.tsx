@@ -14,6 +14,9 @@ import {
 import { pipManager } from '../services/pipService';
 import {
   globalStatus,
+  currentTrack,
+  isPlaying,
+  isPaused,
   currentTime,
   duration,
   volume,
@@ -34,12 +37,9 @@ interface BottomPlayerProps {
 
 export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
   const isVisible = () =>
-    props.activeTab !== 'music' &&
-    (globalStatus().is_playing || globalStatus().is_paused) &&
-    !!globalStatus().current_track;
+    props.activeTab !== 'music' && !!currentTrack();
 
-  const currentTrack = () => globalStatus().current_track;
-  const isPlaying = () => globalStatus().is_playing;
+  const isPlayingTrack = () => isPlaying();
 
   const progressPercent = () => {
     const dur = duration() || currentTrack()?.duration || 100;
@@ -74,12 +74,12 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
               onClick={props.onOpenMusicTab}
               title="Buka Tab Musik"
             >
-              <div class="relative shrink-0 w-10 h-10 sm:w-11 sm:h-11 rounded-xl overflow-hidden bg-theme-card border border-theme-border group-hover:border-theme-cyan/60 transition-all shadow-md">
+              <div class="relative shrink-0 w-11 h-11 bg-theme-card border border-theme-border group-hover:border-theme-cyan/60 transition-all shadow-md overflow-hidden">
                 <Show
                   when={currentTrack()?.thumbnail}
                   fallback={
                     <div class="w-full h-full flex items-center justify-center">
-                      <Music size={18} class="text-theme-cyan/70" />
+                      <Music size={20} class="text-theme-cyan/70" />
                     </div>
                   }
                 >
@@ -93,84 +93,84 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
                 {/* Live Animated Equalizer Overlay when playing */}
                 <Show when={isPlaying()}>
                   <div class="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-end justify-center gap-0.5 p-1">
-                    <span class="w-1 bg-theme-cyan rounded-t animate-[pulse_0.6s_ease-in-out_infinite] h-3" />
-                    <span class="w-1 bg-theme-rose rounded-t animate-[pulse_0.9s_ease-in-out_infinite] h-4.5" />
-                    <span class="w-1 bg-theme-cyan rounded-t animate-[pulse_0.7s_ease-in-out_infinite] h-2" />
+                    <span class="w-1 bg-theme-cyan animate-[pulse_0.6s_ease-in-out_infinite] h-3" />
+                    <span class="w-1 bg-theme-rose animate-[pulse_0.9s_ease-in-out_infinite] h-5" />
+                    <span class="w-1 bg-theme-cyan animate-[pulse_0.7s_ease-in-out_infinite] h-2.5" />
                   </div>
                 </Show>
               </div>
 
               <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-1.5">
-                  <span class={`w-2 h-2 rounded-full shrink-0 ${isPlaying() ? 'bg-theme-cyan animate-pulse shadow-[0_0_6px_#7BDFF2]' : 'bg-theme-rose'}`} />
-                  <p class="text-xs sm:text-sm font-bold text-theme-text truncate group-hover:text-theme-cyan transition-colors">
+                <div class="flex items-center gap-2">
+                  <span class={`w-2 h-2 shrink-0 ${isPlaying() ? 'bg-theme-cyan animate-pulse shadow-[0_0_8px_#7BDFF2]' : 'bg-theme-rose'}`} />
+                  <p class="text-sm font-bold text-theme-text truncate group-hover:text-theme-cyan transition-colors">
                     {currentTrack()?.title || 'Unknown Title'}
                   </p>
                 </div>
-                <p class="text-[11px] text-theme-text/60 truncate mt-0.5">
+                <p class="text-xs text-theme-text/60 truncate mt-0.5 font-medium">
                   {currentTrack()?.uploader || 'Local Library'}
                 </p>
               </div>
             </div>
 
             {/* Center: Playback Navigation Controls & Time */}
-            <div class="flex flex-col items-center gap-1 shrink-0">
-              <div class="flex items-center gap-1.5 sm:gap-2">
+            <div class="flex flex-col items-center gap-1.5 shrink-0">
+              <div class="flex items-center gap-2">
                 {/* Prev Button */}
                 <button
                   onClick={prevTrack}
-                  class="p-1.5 sm:p-2 rounded-xl bg-theme-card/80 hover:bg-theme-card text-theme-text/80 hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/40 transition-all active:scale-95"
+                  class="p-2 bg-theme-card hover:bg-theme-border text-theme-text hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/40 transition-all active:scale-95"
                   title="Lagu Sebelumnya"
                   aria-label="Previous Track"
                 >
-                  <SkipBack size={15} />
+                  <SkipBack size={16} />
                 </button>
 
                 {/* Play / Pause Toggle Button */}
                 <Show when={isPlaying()}>
                   <button
                     onClick={pauseMusic}
-                    class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-theme-rose/20 hover:bg-theme-rose/30 text-theme-rose border border-theme-rose/50 transition-all flex items-center justify-center active:scale-95 shadow-sm"
+                    class="w-9 h-9 bg-theme-rose/20 hover:bg-theme-rose/30 text-theme-rose border border-theme-rose/50 transition-all flex items-center justify-center active:scale-95 shadow-sm"
                     title="Jeda"
                     aria-label="Pause"
                   >
-                    <Pause size={16} />
+                    <Pause size={17} />
                   </button>
                 </Show>
 
                 <Show when={!isPlaying()}>
                   <button
                     onClick={resumeMusic}
-                    class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-theme-cyan to-[#9BE7F6] hover:brightness-110 text-theme-bg font-bold transition-all flex items-center justify-center active:scale-95 shadow-md shadow-theme-cyan/20"
+                    class="w-9 h-9 bg-gradient-to-tr from-theme-cyan to-[#9BE7F6] hover:brightness-110 text-theme-bg font-bold transition-all flex items-center justify-center active:scale-95 shadow-md shadow-theme-cyan/20"
                     title="Lanjutkan"
                     aria-label="Play"
                   >
-                    <Play size={16} class="ml-0.5 fill-current" />
+                    <Play size={17} class="ml-0.5 fill-current" />
                   </button>
                 </Show>
 
                 {/* Next Button */}
                 <button
                   onClick={nextTrack}
-                  class="p-1.5 sm:p-2 rounded-xl bg-theme-card/80 hover:bg-theme-card text-theme-text/80 hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/40 transition-all active:scale-95"
+                  class="p-2 bg-theme-card hover:bg-theme-border text-theme-text hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/40 transition-all active:scale-95"
                   title="Lagu Berikutnya"
                   aria-label="Next Track"
                 >
-                  <SkipForward size={15} />
+                  <SkipForward size={16} />
                 </button>
 
                 {/* Stop Button */}
                 <button
                   onClick={stopMusic}
-                  class="p-1.5 sm:p-2 rounded-xl bg-theme-card/80 hover:bg-theme-rose/20 text-theme-text/60 hover:text-theme-rose border border-theme-border hover:border-theme-rose/40 transition-all active:scale-95"
+                  class="p-2 bg-theme-card hover:bg-theme-rose/20 text-theme-text/70 hover:text-theme-rose border border-theme-border hover:border-theme-rose/40 transition-all active:scale-95"
                   title="Hentikan Musik"
                   aria-label="Stop"
                 >
-                  <Square size={14} />
+                  <Square size={15} />
                 </button>
               </div>
 
-              <div class="flex items-center gap-1 text-[10px] font-mono text-theme-text/50">
+              <div class="flex items-center gap-1.5 text-xs font-mono text-theme-text/60">
                 <span>{formatDuration(Math.floor(currentTime()))}</span>
                 <span>/</span>
                 <span>{formatDuration(Math.floor(duration() || currentTrack()?.duration || 0))}</span>
@@ -179,14 +179,14 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
 
             {/* Right: Volume Slider & Tab Link */}
             <div class="hidden sm:flex items-center gap-3 shrink-0 flex-1 justify-end">
-              <div class="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-theme-card/60 border border-theme-border">
+              <div class="flex items-center gap-2 px-3 py-1.5 bg-theme-card border border-theme-border">
                 <button
                   onClick={() => changeVolume(volume() > 0 ? 0 : 1)}
-                  class="text-theme-text/60 hover:text-theme-cyan p-0.5 transition-colors"
+                  class="text-theme-text/70 hover:text-theme-cyan p-0.5 transition-colors"
                   title={volume() > 0 ? 'Mute' : 'Unmute'}
                 >
-                  <Show when={volume() > 0} fallback={<VolumeX size={14} />}>
-                    <Volume2 size={14} />
+                  <Show when={volume() > 0} fallback={<VolumeX size={15} />}>
+                    <Volume2 size={15} />
                   </Show>
                 </button>
                 <input
@@ -196,14 +196,14 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
                   step="0.05"
                   value={volume()}
                   onInput={(e) => changeVolume(parseFloat(e.currentTarget.value))}
-                  class="w-16 h-1 bg-theme-border rounded-lg appearance-none cursor-pointer accent-theme-cyan"
+                  class="w-20 h-1.5 bg-theme-border appearance-none cursor-pointer accent-theme-cyan"
                   title={`Volume: ${Math.round(volume() * 100)}%`}
                 />
               </div>
 
               <button
                 onClick={() => pipManager.togglePip()}
-                class="px-3 py-1.5 rounded-xl bg-theme-card hover:bg-theme-border text-theme-text/90 hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/50 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 text-xs font-semibold"
+                class="px-3.5 py-1.5 bg-theme-card hover:bg-theme-border text-theme-text hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/50 transition-all flex items-center gap-2 shadow-sm active:scale-95 text-xs font-semibold"
                 title="Picture-in-Picture (Layar Melayang)"
                 aria-label="Picture-in-Picture"
               >
@@ -213,10 +213,10 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
 
               <button
                 onClick={props.onOpenMusicTab}
-                class="px-3 py-1.5 rounded-xl bg-theme-card hover:bg-theme-border text-theme-cyan text-xs font-semibold border border-theme-border hover:border-theme-cyan/50 transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                class="px-3.5 py-1.5 bg-theme-card hover:bg-theme-border text-theme-cyan text-xs font-semibold border border-theme-border hover:border-theme-cyan/50 transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
                 title="Buka Tampilan Penuh Musik"
               >
-                <span class="text-xs">Tab Musik</span>
+                <span>Tab Musik</span>
                 <ExternalLink size={14} />
               </button>
             </div>

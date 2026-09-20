@@ -2,7 +2,7 @@ use regex::Regex;
 use std::sync::LazyLock;
 
 static RE_SKILL: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\[SKILL:[^\]]+\]").expect("valid regex"));
+    LazyLock::new(|| Regex::new(r"\[(?:SKILL|CMD):[^\]]+\]").expect("valid regex"));
 
 /// Membersihkan teks dari teks aksi roleplay ekspresi tanpa memotong judul atau kata penting
 pub fn clean_ai_text(text: &str) -> String {

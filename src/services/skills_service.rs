@@ -81,7 +81,17 @@ pub fn handle_run_skill(body_str: &str, stream: &mut TcpStream) {
     }
 
     if let Ok(payload) = serde_json::from_str::<RunSkillPayload>(body_str) {
-        if let Err(e) = execute_command_by_os(&payload.command) {
+        let cmd = payload.command.trim();
+
+        // 1. Cek apakah ini aksi sistem bawaan, internal skill, atau perintah aplikasi
+        if let Some((name, res)) = crate::engine::execute_skill_by_identifier(cmd) {
+            println!("⚡ [Skill Run UI] Mengeksekusi internal skill '{}' -> {}", name, res);
+            send_json_response(stream, 200, &format!("{{\"success\":true,\"message\":\"{}\"}}", res.replace('\"', "\\\"")));
+            return;
+        }
+
+        // 2. Fallback ke eksekusi command shell OS
+        if let Err(e) = execute_command_by_os(cmd) {
             send_json_response(stream, 500, &format!("{{\"error\":\"{}\"}}", e));
         } else {
             send_json_response(stream, 200, "{\"success\":true}");

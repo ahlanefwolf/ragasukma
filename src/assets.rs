@@ -110,62 +110,48 @@ pub fn save_poses(poses: &PosesConfig) -> Result<(), String> {
     Ok(())
 }
 
-/// Memastikan semua file aset default (char.vrm, poses.json, avatar PNG, skill-command.md, config-ai.json)
-/// otomatis diekstrak ke direktori config pengguna (~/.config/ragasukma/assets) saat pertama kali dijalankan.
+/// Memastikan seluruh file aset default (char.vrm, poses.json, avatar PNG, skill-command.md, config-ai.json, todo.md, dll)
+/// otomatis diekstrak ke direktori config pengguna (~/.config/ragasukma/assets) saat pertama kali diinstal/dijalankan.
 pub fn ensure_default_user_assets() {
-    let target_dir = crate::config::get_app_config_dir().join("assets");
-    let _ = fs::create_dir_all(&target_dir);
+    let cfg_assets_dir = crate::config::get_app_config_dir().join("assets");
+    let _ = fs::create_dir_all(&cfg_assets_dir);
 
-    // 1. Ekstrak dari embedded binary assets
-    for file in EmbeddedAssets::iter() {
-        let file_str = file.as_ref();
-        let target_path = target_dir.join(file_str);
+    // Ekstrak semua file aset yang ter-embed dalam binary secara dinamis
+    for file_path in EmbeddedAssets::iter() {
+        let file_name = file_path.as_ref();
+        let target_path = cfg_assets_dir.join(file_name);
+
         if !target_path.exists() {
-            if let Some(embedded_file) = EmbeddedAssets::get(file_str) {
-                if let Some(parent) = target_path.parent() {
-                    let _ = fs::create_dir_all(parent);
+            if let Some(parent) = target_path.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            if let Some(embedded_file) = EmbeddedAssets::get(file_name) {
+                if let Err(e) = fs::write(&target_path, embedded_file.data) {
+                    eprintln!("⚠️ Gagal mengekstrak aset default '{}': {:?}", file_name, e);
+                } else {
+                    println!(
+                        "📦 [Assets Inisialisasi] Berhasil mengekstrak default aset: {:?}",
+                        target_path
+                    );
                 }
-                let _ = fs::write(&target_path, embedded_file.data.as_ref());
-                println!(
-                    "✨ [Asset Extractor] Mengekstrak aset default: {:?}",
-                    file_str
-                );
             }
         }
     }
 
     #[cfg(target_os = "linux")]
-    ensure_linux_desktop_entry();
-}
-
-#[cfg(target_os = "linux")]
-pub fn ensure_linux_desktop_entry() {
-    let exec_path = if let Ok(appimage_path) = std::env::var("APPIMAGE") {
-        PathBuf::from(appimage_path)
-    } else if let Ok(current) = std::env::current_exe() {
-        current
-    } else {
-        return;
-    };
-
-    let exec_str = exec_path.to_string_lossy();
-    // Jangan overwrite jika sedang dijalankan dari target build development
-    if exec_str.contains("/target/debug/") || exec_str.contains("/target/release/") {
-        return;
-    }
-
-    if let Ok(home) = std::env::var("HOME") {
-        let home_path = PathBuf::from(home);
-        let apps_dir = home_path.join(".local/share/applications");
+    {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let apps_dir = PathBuf::from(format!("{}/.local/share/applications", home));
         let _ = fs::create_dir_all(&apps_dir);
         let desktop_file = apps_dir.join("ragasukma.desktop");
 
-        let icon_path = crate::config::get_app_config_dir()
-            .join("assets")
-            .join("icon.png");
+        let exe_path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("ragasukma"));
+        let exec_str = exe_path.to_string_lossy();
+        let icon_path = find_file_in_candidates("avatar.png");
 
         let content = format!(
             "[Desktop Entry]\n\
+Version=1.0\n\
 Name=Ragasukma\n\
 Comment=AI Voice Assistant & 3D/2D Avatar Assistant\n\
 Exec=\"{}\"\n\
@@ -205,9 +191,30 @@ pub fn open_browser(url: &str) {
 
         #[cfg(target_os = "windows")]
         {
-            let _ = std::process::Command::new("cmd")
-                .args(["/C", "start", &url])
-                .spawn();
+            let profile_dir = crate::config::get_app_config_dir().join("browser-profile");
+            let _ = fs::create_dir_all(&profile_dir);
+            let profile_dir_str = profile_dir.to_string_lossy().to_string();
+
+            let mut opened = false;
+            let chrome_candidates = [
+                "chrome.exe",
+                "msedge.exe",
+                "brave.exe",
+            ];
+            for browser in chrome_candidates {
+                let mut cmd = std::process::Command::new(browser);
+                cmd.arg(&url);
+
+                if let Ok(_) = cmd.spawn() {
+                    opened = true;
+                    break;
+                }
+            }
+            if !opened {
+                let _ = std::process::Command::new("cmd")
+                    .args(["/C", "start", "", &url])
+                    .spawn();
+            }
         }
 
         #[cfg(target_os = "macos")]
@@ -217,11 +224,38 @@ pub fn open_browser(url: &str) {
 
         #[cfg(target_os = "linux")]
         {
-            let mut cmd = std::process::Command::new("xdg-open");
-            cmd.arg(&url);
-            cmd.env_remove("LD_LIBRARY_PATH");
-            cmd.env_remove("LD_PRELOAD");
-            let _ = cmd.spawn();
+            let chromium_candidates = [
+                "google-chrome-stable",
+                "google-chrome",
+                "brave-browser",
+                "chromium-browser",
+                "chromium",
+                "microsoft-edge-stable",
+            ];
+
+            let mut opened = false;
+
+            // Jika URL adalah internal chrome://, buka langsung di binary Chrome/Brave sebagai tab baru
+            for bin in chromium_candidates {
+                let mut cmd = std::process::Command::new(bin);
+                cmd.arg(&url);
+                cmd.env_remove("LD_LIBRARY_PATH");
+                cmd.env_remove("LD_PRELOAD");
+
+                if let Ok(_) = cmd.spawn() {
+                    println!("🌐 [Browser Tab] Membuka tab baru via {}", bin);
+                    opened = true;
+                    break;
+                }
+            }
+
+            if !opened {
+                let mut cmd = std::process::Command::new("xdg-open");
+                cmd.arg(&url);
+                cmd.env_remove("LD_LIBRARY_PATH");
+                cmd.env_remove("LD_PRELOAD");
+                let _ = cmd.spawn();
+            }
         }
     });
 }

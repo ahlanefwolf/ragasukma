@@ -67,6 +67,12 @@ fn main() -> Result<()> {
     // Salin otomatis semua aset default ke folder config pengguna (~/.config/ragasukma/assets)
     crate::assets::ensure_default_user_assets();
 
+    // 🧹 Reset bersih folder snapshot browser sessions dari sesi sebelumnya
+    crate::services::browser_session_service::cleanup_browser_sessions_on_startup();
+
+    // Inisialisasi dedicated BrowserSessionWorker untuk sinkronisasi non-blocking active_tab_browser.json
+    crate::services::browser_session_service::init_browser_session_worker();
+
     // Inisialisasi dedicated background task worker thread
     crate::engine::init_background_task_worker();
 

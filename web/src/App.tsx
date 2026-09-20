@@ -111,21 +111,21 @@ export const App: Component = () => {
   };
 
   return (
-    <div class="flex h-screen w-screen overflow-hidden bg-theme-bg text-theme-text font-open">
+    <div class="flex h-screen w-screen overflow-hidden bg-theme-bg text-theme-text font-sans selection:bg-theme-rose selection:text-theme-card">
       <Show
         when={!isDead()}
         fallback={
           /* Modal Tab Mati / Aplikasi Ditutup — DOM ringan, 0 background resource */
-          <div class="fixed inset-0 z-[200] bg-theme-bg flex items-center justify-center p-4 select-none">
-            <div class="max-w-sm w-full p-8 rounded-3xl bg-theme-surface border border-theme-rose/40 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
-              <div class="w-14 h-14 mx-auto rounded-2xl bg-theme-rose/20 text-theme-rose border border-theme-rose/30 flex items-center justify-center text-2xl font-bold shadow-lg shadow-theme-rose/10">
+          <div class="fixed inset-0 z-[200] bg-theme-bg/95 backdrop-blur-md flex items-center justify-center p-4 select-none">
+            <div class="max-w-md w-full p-8 bg-theme-surface border border-theme-rose/50 shadow-2xl text-center space-y-5 animate-in fade-in duration-200">
+              <div class="w-14 h-14 mx-auto bg-theme-rose/20 text-theme-rose border border-theme-rose/40 flex items-center justify-center text-2xl font-bold shadow-lg shadow-theme-rose/10">
                 ✕
               </div>
-              <div class="space-y-1.5">
-                <h3 class="text-base font-bold text-theme-text">
+              <div class="space-y-2">
+                <h3 class="text-lg font-bold text-theme-text font-heading">
                   {deadReason() === 'shutdown' ? 'Aplikasi Ragasukma Ditutup' : 'Tab Dinonaktifkan'}
                 </h3>
-                <p class="text-xs text-theme-text/60 leading-relaxed">
+                <p class="text-sm text-theme-text/70 leading-relaxed">
                   {deadReason() === 'shutdown'
                     ? 'Jendela overlay dan server utama telah ditutup. Seluruh pemutar audio, background stream, dan memori browser telah dibersihkan secara tuntas.'
                     : 'Dashboard telah dibuka di tab browser lain. Semua koneksi audio, event stream, dan resource di tab ini sudah dinonaktifkan.'}
@@ -134,13 +134,13 @@ export const App: Component = () => {
               <Show when={deadReason() === 'duplicate'}>
                 <button
                   onClick={() => window.location.reload()}
-                  class="w-full px-4 py-2.5 rounded-xl bg-theme-card hover:bg-theme-border text-theme-cyan text-xs font-bold border border-theme-border hover:border-theme-cyan/50 transition-all shadow-sm active:scale-95"
+                  class="w-full px-5 py-3 bg-theme-card hover:bg-theme-border text-theme-cyan text-sm font-bold border border-theme-border hover:border-theme-cyan/50 transition-all shadow-sm active:scale-[0.98]"
                 >
                   Gunakan Tab Ini Kembali
                 </button>
               </Show>
               <Show when={deadReason() === 'shutdown'}>
-                <div class="text-[11px] font-mono text-theme-text/40 pt-1">
+                <div class="text-xs font-mono text-theme-text/50 pt-1">
                   Kamu dapat menutup tab browser ini.
                 </div>
               </Show>
@@ -158,37 +158,39 @@ export const App: Component = () => {
         />
 
         <main class="flex-1 flex flex-col h-full overflow-hidden bg-theme-surface">
-          {/* Top Responsive Navbar */}
-          <header class="h-16 px-4 sm:px-6 md:px-8 border-b border-theme-border flex items-center justify-between shrink-0 bg-theme-bg/90 backdrop-blur-md">
-            <div class="flex items-center gap-2.5 sm:gap-3">
+          {/* Top Header */}
+          <header class="h-14 px-4 sm:px-6 md:px-8 border-b border-theme-border flex items-center justify-between shrink-0 bg-theme-bg/90 backdrop-blur-xl select-none">
+            <div class="flex items-center gap-3">
               <button
                 onClick={() => setMobileMenuOpen(true)}
-                class="p-2 rounded-xl bg-theme-card text-theme-text border border-theme-border hover:border-theme-cyan/50 md:hidden transition-colors"
+                class="p-2 bg-theme-card text-theme-text border border-theme-border hover:border-theme-cyan/50 md:hidden transition-colors"
                 aria-label="Buka Menu"
               >
-                <MenuIcon size={20} />
+                <MenuIcon size={18} />
               </button>
 
-              <span class="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-theme-rose/20 text-theme-rose border border-theme-rose/30 uppercase tracking-wide">
-                STATE: {currentState()}
-              </span>
-              <span class="hidden sm:inline text-xs text-theme-text/40">•</span>
-              <span class="hidden sm:flex text-xs text-theme-cyan font-semibold items-center gap-1.5">
-                <Sparkles size={14} />
-                WGPU MToon 1:1 Three-VRM
-              </span>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-mono font-bold px-2.5 py-1 bg-theme-rose/20 text-theme-rose border border-theme-rose/30 uppercase tracking-wider">
+                  STATE: {currentState()}
+                </span>
+                <span class="hidden sm:inline text-xs text-theme-text/40">•</span>
+                <span class="hidden sm:flex text-xs text-theme-cyan font-semibold items-center gap-1.5">
+                  <Sparkles size={14} />
+                  WGPU MToon 1:1 Three-VRM
+                </span>
+              </div>
             </div>
 
-            <div class="flex items-center gap-2 sm:gap-3">
-              <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-theme-card border border-theme-border text-xs font-semibold text-theme-text">
-                <span class="w-2 h-2 rounded-full bg-theme-cyan shadow-[0_0_6px_#7BDFF2] animate-pulse" />
-                <span class="hidden xs:inline sm:inline">Overlay 9:16</span>
+            <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2 px-3 py-1 bg-theme-card border border-theme-border text-xs font-semibold text-theme-text">
+                <span class="w-2 h-2 bg-theme-cyan shadow-[0_0_8px_#7BDFF2] animate-pulse" />
+                <span class="tracking-wide">Overlay 9:16</span>
               </div>
             </div>
           </header>
 
           {/* Scrollable View Content */}
-          <div class="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 max-w-5xl w-full mx-auto pb-10">
+          <div class="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 max-w-5xl w-full mx-auto pb-12">
             <Show when={activeTab() === 'menu'}>
               <MenuTab
                 currentState={currentState()}
@@ -226,11 +228,11 @@ export const App: Component = () => {
 
       {/* Toast */}
       <div
-        class={`fixed bottom-6 right-4 sm:right-8 px-4 sm:px-5 py-3 rounded-xl bg-theme-card border border-theme-cyan text-xs sm:text-sm font-semibold text-theme-text shadow-2xl transition-all duration-300 pointer-events-none z-50 flex items-center gap-2.5 max-w-[90vw] ${
+        class={`fixed bottom-6 right-4 sm:right-8 px-5 py-3.5 bg-theme-card border border-theme-cyan text-sm font-semibold text-theme-text shadow-2xl transition-all duration-300 pointer-events-none z-50 flex items-center gap-3 max-w-[90vw] ${
           toastVisible() ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
         }`}
       >
-        <span class="w-2 h-2 rounded-full bg-theme-cyan shrink-0" />
+        <span class="w-2 h-2 bg-theme-cyan shrink-0 shadow-[0_0_6px_#7BDFF2]" />
         <span class="truncate">{toastMessage()}</span>
       </div>
     </div>

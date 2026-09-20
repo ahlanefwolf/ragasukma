@@ -184,6 +184,24 @@ pub fn handle_api_route(
         ("POST", "/api/upload/vrm") => handle_upload_vrm(body_bytes, &mut stream, &shared),
         ("POST", "/api/upload/avatar") => handle_upload_avatar(full_url, body_bytes, &mut stream),
 
+        // Browser Sessions & DOM Snapshot Service
+        ("POST", "/api/browser/snapshot") => {
+            let (resp_body, _) = handle_post_browser_snapshot(body_str);
+            send_json_response(&mut stream, 200, &resp_body);
+        }
+        ("POST", "/api/browser/tabs") => {
+            let (resp_body, _) = handle_post_browser_tabs(body_str);
+            send_json_response(&mut stream, 200, &resp_body);
+        }
+        ("GET", "/api/browser/tabs") => {
+            let (resp_body, _) = handle_get_browser_tabs();
+            send_json_response(&mut stream, 200, &resp_body);
+        }
+        ("GET", "/api/browser/command/next") => {
+            let (resp_body, _) = handle_get_next_browser_command();
+            send_json_response(&mut stream, 200, &resp_body);
+        }
+
         // Config Service
         ("GET", "/api/config") => handle_get_config(&mut stream),
         ("POST", "/api/config") => handle_post_config(body_str, &mut stream, &shared),
@@ -248,6 +266,7 @@ pub fn handle_api_route(
         ("GET", path) if path.starts_with("/music/") || path.starts_with("/api/music/stream") => {
             handle_music_stream(full_url, header_str, &mut stream);
         }
+        ("POST", "/api/music/control") => handle_music_control(body_str, &mut stream),
         ("POST", "/api/music/download") => handle_music_download(body_str, &mut stream),
         ("POST", "/api/music/delete") => handle_music_delete(body_str, &mut stream),
 

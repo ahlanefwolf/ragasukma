@@ -14,22 +14,7 @@ use crate::app_state::ServerSharedState;
 use crate::assets;
 use crate::server;
 
-pub fn open_browser(url: &str) {
-    #[cfg(target_os = "windows")]
-    {
-        let _ = std::process::Command::new("cmd")
-            .args(["/c", "start", "", url])
-            .spawn();
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let _ = std::process::Command::new("open").arg(url).spawn();
-    }
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    {
-        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
-    }
-}
+
 
 pub struct App {
     pub window: Arc<Window>,
@@ -190,7 +175,11 @@ impl App {
         })
     }
 
-    pub fn handle_window_event(&mut self, event: WindowEvent, elwt: &EventLoopWindowTarget<()>) {
+    pub fn handle_window_event(
+        &mut self,
+        event: WindowEvent,
+        elwt: &EventLoopWindowTarget<()>,
+    ) {
         match event {
             WindowEvent::Focused(focused) => {
                 self.is_window_focused = focused;
@@ -411,14 +400,14 @@ impl App {
                         self.renderer.load_vrm_model(model);
                         self.renderer.is_loading = false;
                         self.vrm_loader_rx = None;
-                        // Buka browser dashboard hanya sekali setelah avatar/model 3D pertama kali selesai dimuat ke GPU!
+                        // Buka dashboard mandiri hanya sekali setelah avatar/model 3D pertama kali selesai dimuat ke GPU!
                         if !self.has_opened_browser {
                             self.has_opened_browser = true;
                             assets::open_browser("http://127.0.0.1:42128");
                         }
                     }
                 } else if !self.has_opened_browser {
-                    // Jika mode 2D (tanpa perlu tunggu VRM loader), langsung buka browser dashboard sekali saat awal start
+                    // Jika mode 2D (tanpa perlu tunggu VRM loader), langsung buka dashboard sekali saat awal start
                     self.has_opened_browser = true;
                     assets::open_browser("http://127.0.0.1:42128");
                 }

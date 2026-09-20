@@ -41,12 +41,20 @@ pub fn run_native_overlay() {
         }
     };
 
+    let target_frame_duration = std::time::Duration::from_millis(16); // ~60 FPS
+    let mut next_frame_time = std::time::Instant::now();
+
     let _ = event_loop.run(move |event, elwt| match event {
         Event::WindowEvent { event, .. } => {
             app.handle_window_event(event, elwt);
         }
         Event::AboutToWait => {
-            app.window.request_redraw();
+            let now = std::time::Instant::now();
+            if now >= next_frame_time {
+                next_frame_time = now + target_frame_duration;
+                app.window.request_redraw();
+            }
+            elwt.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(next_frame_time));
         }
         _ => {}
     });

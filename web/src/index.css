@@ -15,30 +15,39 @@
 }
 
 @layer base {
+  *, *::before, *::after {
+    border-radius: 0 !important;
+    border-color: var(--border);
+  }
+
   body {
-    @apply bg-theme-bg text-theme-text font-open;
+    @apply bg-theme-bg text-theme-text font-sans text-sm tracking-normal antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
   h1, h2, h3, .font-heading {
     @apply font-grotesk tracking-tight font-bold;
   }
+
+  /* Clean 1px Focus Highlight without thick ring or outline */
+  button:focus-visible, input:focus-visible, input:focus, select:focus-visible, select:focus, textarea:focus-visible, textarea:focus {
+    outline: none !important;
+    border-color: var(--cyan);
+  }
 }
 
-/* ── Scrollbar ─────────────────────────────────── */
+/* ── Scrollbar (Minimalist) ────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track  { background: var(--bg); }
-::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 9999px; }
+::-webkit-scrollbar-thumb  { background: var(--border); }
 ::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
 
-/* ── Glow helpers ──────────────────────────────── */
-.glow-cyan { box-shadow: 0 4px 20px -2px rgba(123,223,242,0.35); }
-.glow-rose { box-shadow: 0 4px 20px -2px rgba(242,181,212,0.35); }
+/* ── Subtle Focus helpers ───────────────────────── */
 .ring-cyan:focus-within {
   border-color: var(--cyan);
-  box-shadow: 0 0 0 2px rgba(123,223,242,0.25);
+}
+.anime-border-focus {
+  border-color: var(--cyan);
 }
 
-/* keep old class names so nothing breaks */
-.anime-shadow-green { @apply glow-cyan; }
-.anime-shadow-red   { @apply glow-rose; }
-.anime-border-focus { @apply ring-cyan; }
+

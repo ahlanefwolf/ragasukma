@@ -57,6 +57,7 @@ export const api = {
   checkYtDlp: musicService.checkYtDlp,
   listMusic: musicService.listMusic,
   downloadMusic: musicService.downloadMusic,
+  controlMusic: musicService.controlMusic,
   getMusicUrl: musicService.getMusicUrl,
   deleteMusic: musicService.deleteMusic,
 

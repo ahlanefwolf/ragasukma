@@ -1,4 +1,5 @@
 pub mod assets_service;
+pub mod browser_session_service;
 pub mod config_service;
 pub mod events_service;
 pub mod llm_providers;
@@ -14,6 +15,7 @@ pub mod tray_service;
 pub use tray_service::{AssistantState, TrayState};
 
 pub use assets_service::*;
+pub use browser_session_service::*;
 pub use config_service::*;
 pub use events_service::*;
 pub use llm_providers::*;

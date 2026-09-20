@@ -6,6 +6,36 @@ use std::net::TcpStream;
 use crate::engine::ytdlp::{check_ytdlp, download_audio, list_downloaded};
 use crate::server::{send_disk_file_stream_with_range, send_json_response};
 
+pub fn handle_music_control(body_str: &str, stream: &mut TcpStream) {
+    #[derive(Deserialize)]
+    struct ControlPayload {
+        action: String,
+        payload: Option<String>,
+    }
+
+    if let Ok(data) = serde_json::from_str::<ControlPayload>(body_str) {
+        let action_str = data.action.trim().to_lowercase();
+        let payload_str = data.payload.unwrap_or_default();
+        let res = crate::engine::actions::media::execute_media_action(&action_str, &payload_str);
+        if let Some((title, desc)) = res {
+            let json = serde_json::json!({
+                "success": true,
+                "title": title,
+                "description": desc
+            })
+            .to_string();
+            send_json_response(stream, 200, &json);
+            return;
+        }
+    }
+
+    send_json_response(
+        stream,
+        400,
+        "{\"success\":false,\"error\":\"Invalid control action or payload\"}",
+    );
+}
+
 pub fn handle_music_check(stream: &mut TcpStream) {
     let info = check_ytdlp();
     let json = serde_json::to_string(&info).unwrap_or_default();
@@ -46,15 +76,33 @@ pub fn handle_music_list(stream: &mut TcpStream) {
     send_json_response(stream, 200, &json);
 }
 
+fn decode_url_component(input: &str) -> String {
+    let mut bytes = Vec::new();
+    let input_bytes = input.as_bytes();
+    let mut i = 0;
+    while i < input_bytes.len() {
+        if input_bytes[i] == b'%' && i + 2 < input_bytes.len() {
+            if let Ok(h) = u8::from_str_radix(
+                std::str::from_utf8(&input_bytes[i + 1..=i + 2]).unwrap_or(""),
+                16,
+            ) {
+                bytes.push(h);
+                i += 3;
+                continue;
+            }
+        }
+        bytes.push(input_bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&bytes).to_string()
+}
+
 pub fn handle_music_stream(full_url: &str, header_str: &str, stream: &mut TcpStream) {
     let url_without_query = full_url.split_once('?').map(|(p, _)| p).unwrap_or(full_url);
 
     // 1. Coba ambil nama file dari path direct /music/<filename>
     let filename = if let Some(stripped) = url_without_query.strip_prefix("/music/") {
-        form_urlencoded::parse(stripped.as_bytes())
-            .map(|(k, _)| k.into_owned())
-            .next()
-            .unwrap_or_else(|| stripped.to_string())
+        decode_url_component(stripped)
     } else {
         // 2. Fallback query param ?filename=... atau ?file=...
         let query_str = full_url.split_once('?').map(|(_, q)| q).unwrap_or("");

@@ -187,15 +187,15 @@ impl LlmClient {
                             full_reply.push_str(delta);
                             current_sentence.push_str(delta);
 
-                            // Tangani buffering kalimat dan proteksi jika ada tag [SKILL: ...] yang belum tertutup
-                            let has_skill_tag = current_sentence.contains("[SKILL:");
+                            // Tangani buffering kalimat dan proteksi jika ada tag [CMD: ...] atau [SKILL: ...] yang belum tertutup
+                            let has_skill_tag = current_sentence.contains("[SKILL:") || current_sentence.contains("[CMD:");
                             let has_skill_closed = has_skill_tag && current_sentence.contains(']');
 
                             if !has_skill_tag || has_skill_closed {
                                 while let Some(pos) = current_sentence.find(['.', '?', '!', '\n']) {
-                                    // Cegah pemotongan jika tanda baca berada di dalam tag skill
-                                    if let Some(skill_idx) = current_sentence.find("[SKILL:") {
-                                        if pos > skill_idx {
+                                    // Cegah pemotongan jika tanda baca berada di dalam tag perintah
+                                    if let Some(tag_idx) = current_sentence.find("[SKILL:").or_else(|| current_sentence.find("[CMD:")) {
+                                        if pos > tag_idx {
                                             break;
                                         }
                                     }

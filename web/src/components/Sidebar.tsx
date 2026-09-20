@@ -50,15 +50,15 @@ export const Sidebar: Component<SidebarProps> = (props) => {
         {/* Brand Header */}
         <div class="flex items-center justify-between mb-6 px-1">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-2xl overflow-hidden shadow-lg anime-shadow-green shrink-0 flex items-center justify-center">
+            <div class="w-10 h-10 overflow-hidden shadow-lg anime-shadow-green shrink-0 flex items-center justify-center border border-theme-border">
               <BrandLogo size={40} />
             </div>
             <div>
-              <h1 class="text-2xl font-carter tracking-wider text-theme-text leading-none">
+              <h1 class="text-2xl font-heading tracking-wide text-theme-text leading-none">
                 RAGASUKMA
               </h1>
-              <p class="text-[11px] text-theme-cyan font-semibold tracking-wide flex items-center gap-1">
-                <Sparkles size={11} /> NATIVE AI DESKTOP
+              <p class="text-xs text-theme-cyan font-semibold tracking-wider flex items-center gap-1.5 mt-1">
+                <Sparkles size={13} /> NATIVE AI DESKTOP
               </p>
             </div>
           </div>
@@ -67,7 +67,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
           <Show when={props.isMobileOpen}>
             <button
               onClick={props.onCloseMobile}
-              class="p-2 rounded-xl text-theme-text/60 hover:text-theme-text hover:bg-theme-card md:hidden transition-colors"
+              class="p-2 text-theme-text/60 hover:text-theme-text hover:bg-theme-card md:hidden transition-colors border border-theme-border"
               aria-label="Tutup Menu"
             >
               <X size={20} />
@@ -76,26 +76,26 @@ export const Sidebar: Component<SidebarProps> = (props) => {
         </div>
 
         {/* Live Overlay Status Pill */}
-        <div class="mb-5 p-3 rounded-xl bg-theme-card border border-theme-border flex items-center justify-between">
-          <div class="flex items-center gap-2">
+        <div class="mb-5 p-3.5 bg-theme-card border border-theme-border flex items-center justify-between shadow-sm">
+          <div class="flex items-center gap-2.5">
             <span 
-              class={`w-2.5 h-2.5 rounded-full ${
+              class={`w-2.5 h-2.5 ${
                 props.overlayConnected 
                   ? 'bg-theme-cyan shadow-[0_0_8px_var(--cyan)] animate-pulse' 
                   : 'bg-theme-rose'
               }`} 
             />
-            <span class="text-xs font-semibold text-theme-text">
+            <span class="text-xs font-semibold text-theme-text tracking-wide">
               {props.overlayConnected ? '3D Native Aktif' : 'Offline'}
             </span>
           </div>
-          <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-theme-bg text-theme-cyan border border-theme-border">
+          <span class="text-xs uppercase font-mono font-bold px-2 py-0.5 bg-theme-bg text-theme-cyan border border-theme-border">
             WGPU 9:16
           </span>
         </div>
 
         {/* Main Tabs Navigation */}
-        <nav class="space-y-1.5">
+        <nav class="space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = () => props.activeTab === item.id;
@@ -103,10 +103,10 @@ export const Sidebar: Component<SidebarProps> = (props) => {
             return (
               <button
                 onClick={() => handleSelectTab(item.id)}
-                class={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                class={`w-full flex items-center justify-between px-3.5 py-3 text-sm font-semibold transition-all duration-150 border ${
                   isActive()
-                    ? 'bg-theme-cyan text-theme-card shadow-md anime-shadow-green font-bold'
-                    : 'text-theme-text/75 hover:bg-theme-card hover:text-theme-text'
+                    ? 'bg-theme-cyan text-theme-card border-theme-cyan shadow-md anime-shadow-green font-bold'
+                    : 'bg-transparent border-transparent text-theme-text/80 hover:bg-theme-card hover:text-theme-text hover:border-theme-border'
                 }`}
               >
                 <div class="flex items-center gap-3">
@@ -114,8 +114,10 @@ export const Sidebar: Component<SidebarProps> = (props) => {
                   <span class="tracking-wide">{item.label}</span>
                 </div>
                 {item.badge && (
-                  <span class={`text-[10px] px-2 py-0.5 rounded-full font-bold font-mono uppercase ${
-                    isActive() ? 'bg-theme-card/20 text-theme-card' : 'bg-theme-rose/20 text-theme-rose border border-theme-rose/30'
+                  <span class={`text-xs px-2 py-0.5 font-bold font-mono uppercase border ${
+                    isActive() 
+                      ? 'bg-theme-card/20 text-theme-card border-theme-card/30' 
+                      : 'bg-theme-rose/20 text-theme-rose border-theme-rose/40'
                   }`}>
                     {item.badge}
                   </span>
@@ -128,10 +130,10 @@ export const Sidebar: Component<SidebarProps> = (props) => {
           <div class="pt-2">
             <button
               onClick={() => setProviderMenuOpen(!providerMenuOpen())}
-              class={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+              class={`w-full flex items-center justify-between px-3.5 py-2.5 text-sm font-semibold transition-all duration-150 border ${
                 isProviderActive()
-                  ? 'text-theme-cyan bg-theme-card/60 font-bold border border-theme-cyan/30'
-                  : 'text-theme-text/75 hover:bg-theme-card hover:text-theme-text'
+                  ? 'text-theme-cyan bg-theme-card/80 border-theme-cyan/40 font-bold'
+                  : 'bg-transparent border-transparent text-theme-text/80 hover:bg-theme-card hover:text-theme-text hover:border-theme-border'
               }`}
             >
               <div class="flex items-center gap-3">
@@ -140,26 +142,26 @@ export const Sidebar: Component<SidebarProps> = (props) => {
               </div>
               <ChevronDown 
                 size={16} 
-                class={`transition-transform duration-200 ${providerMenuOpen() ? 'rotate-180 text-theme-cyan' : 'text-theme-text/40'}`} 
+                class={`transition-transform duration-200 ${providerMenuOpen() ? 'rotate-180 text-theme-cyan' : 'text-theme-text/50'}`} 
               />
             </button>
 
             {/* Submenu Items */}
             <Show when={providerMenuOpen()}>
-              <div class="pl-5 pr-1 py-1 space-y-1 mt-1 border-l-2 border-theme-border/60 ml-4">
+              <div class="pl-4 pr-1 py-1 space-y-1 mt-1 border-l-2 border-theme-border/70 ml-4">
                 <button
                   onClick={() => handleSelectTab('provider-antigravity')}
-                  class={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                  class={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-all border ${
                     props.activeTab === 'provider-antigravity'
-                      ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30'
-                      : 'text-theme-text/65 hover:bg-theme-card hover:text-theme-text'
+                      ? 'bg-amber-500/20 text-amber-300 font-bold border-amber-500/40'
+                      : 'bg-transparent border-transparent text-theme-text/70 hover:bg-theme-card hover:text-theme-text hover:border-theme-border'
                   }`}
                 >
                   <div class="flex items-center gap-2.5">
-                    <Rocket size={14} class={props.activeTab === 'provider-antigravity' ? 'text-amber-400' : 'text-theme-text/50'} />
+                    <Rocket size={15} class={props.activeTab === 'provider-antigravity' ? 'text-amber-400' : 'text-theme-text/60'} />
                     <span>Antigravity</span>
                   </div>
-                  <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase font-bold">
+                  <span class="text-[10px] font-mono px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/30 uppercase font-bold">
                     OAuth
                   </span>
                 </button>
@@ -170,14 +172,14 @@ export const Sidebar: Component<SidebarProps> = (props) => {
       </div>
 
       {/* Footer System Info */}
-      <div class="pt-4 border-t border-theme-border/60 text-xs text-theme-text/50 px-1 space-y-1.5">
+      <div class="pt-4 border-t border-theme-border/70 text-xs text-theme-text/60 px-1 space-y-2">
         <div class="flex items-center justify-between">
           <span>Engine Status</span>
-          <span class="text-theme-cyan font-semibold text-[11px]">WGPU 1:1 Three-VRM</span>
+          <span class="text-theme-cyan font-semibold text-xs">WGPU 1:1 Three-VRM</span>
         </div>
-        <div class="flex items-center justify-between text-[11px]">
+        <div class="flex items-center justify-between text-xs">
           <span>Dashboard Port</span>
-          <span class="font-mono text-theme-text/80 font-bold">42128</span>
+          <span class="font-mono text-theme-text font-bold">42128</span>
         </div>
       </div>
     </div>

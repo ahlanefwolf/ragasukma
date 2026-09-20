@@ -1,185 +1,321 @@
 /**
- * Ragasukma AI Web Companion - Content Script
- * Menghubungkan Tab Browser (YouTube, YouTube Music, dll) dengan Backend Ragasukma AI
+ * Ragasukma AI Web Companion - Content Script Main Coordinator
+ * Merakit modul DOM Extractor, Click Engine, Input Engine, dan Media Controller.
  */
 
 (function () {
-  console.log("⚡ Ragasukma AI Companion terhubung pada:", window.location.hostname);
+  // Cegah injeksi berulang di frame/subframe yang bukan window utama
+  if (window.top !== window.self) return;
 
-  let socket = null;
-  let isConnected = false;
+  // Abaikan dan jangan jalankan companion di internal dashboard Ragasukma (127.0.0.1:42128)
+  if (window.location.host === "127.0.0.1:42128" || window.location.host === "localhost:42128") return;
 
-  function sendTabInfo() {
-    if (isConnected && socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({
-        url: window.location.href,
-        title: document.title,
-        domain: window.location.hostname
-      }));
+  console.log("⚡ Ragasukma AI Companion aktif pada:", window.location.hostname);
+
+  let lastSentUrl = "";
+  let lastSentTitle = "";
+  let debounceTimer = null;
+
+  let lastSnapshotHash = "";
+
+  function computeSimpleHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
     }
+    return String(hash);
   }
 
-  function connect() {
-    socket = new WebSocket("ws://127.0.0.1:42128/ws/browser");
-
-    socket.onopen = () => {
-      isConnected = true;
-      console.log("✅ Ragasukma AI Companion: Terhubung ke Desktop Server!");
-      sendTabInfo();
-    };
-
-    socket.onmessage = async (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        handleCommand(data);
-      } catch (err) {
-        console.error("Gagal memproses pesan AI:", err);
+  function sendSnapshot(force = false) {
+    try {
+      // Jika bukan force, HANYA kirim jika halaman saat ini sedang aktif & visible
+      if (!force && document.visibilityState !== "visible") {
+        return;
       }
-    };
+      if (!window.RagasukmaDOM || typeof window.RagasukmaDOM.extractSnapshot !== "function") return;
+      const snapshot = window.RagasukmaDOM.extractSnapshot();
+      if (!snapshot) return;
 
-    socket.onclose = () => {
-      isConnected = false;
-      setTimeout(connect, 3000); // Reconnect otomatis setiap 3 detik jika server mati
-    };
+      const textsJoined = (snapshot.texts || []).join("|");
+      const currentHash = computeSimpleHash(snapshot.url + snapshot.title + textsJoined);
 
-    socket.onerror = () => {
-      socket.close();
-    };
-  }
-
-  function handleCommand(data) {
-    if (!data || !data.action) return;
-
-    // 1. YouTube & YouTube Music Media Control
-    if (window.location.hostname.includes("youtube.com")) {
-    // 2. Aksi Khusus YouTube & YouTube Music (Play / Pause / Next / Prev)
-    if (window.location.hostname.includes("youtube.com") || window.location.hostname.includes("music.youtube.com")) {
-      const video = document.querySelector("video");
-      if (data.action === "pause" && video) video.pause();
-      if (data.action === "play" && video) video.play();
-      if (data.action === "toggle" && video) {
-        video.paused ? video.play() : video.pause();
+      // Jika bukan force dan isi halaman sama persis, abaikan
+      if (!force && currentHash === lastSnapshotHash) {
+        return;
       }
 
-      if (data.action === "next") {
-        const nextBtn = document.querySelector(".next-button") || document.querySelector("button[aria-label='Lagu berikutnya']") || document.querySelector("button[aria-label='Next track']");
-        if (nextBtn) nextBtn.click();
-      }
+      lastSentUrl = snapshot.url;
+      lastSentTitle = snapshot.title;
+      lastSnapshotHash = currentHash;
+      console.log("📸 [Ragasukma Extension] Mengirim snapshot:", snapshot.title, snapshot.url, `(${snapshot.texts?.length || 0} teks)`);
 
-      if (data.action === "prev") {
-        const prevBtn = document.querySelector(".previous-button") || document.querySelector("button[aria-label='Lagu sebelumnya']") || document.querySelector("button[aria-label='Previous track']");
-        if (prevBtn) prevBtn.click();
-      }
-    }
-  }
-
-  // 3. Fitur Auto-Play Otomatis untuk YouTube & YouTube Music (Bypass Autoplay Policy)
-  function checkAndAutoPlayMusic() {
-    // A. Jika di halaman Watch / Playlist YouTube Music (/watch?v=...)
-    if (window.location.hostname.includes("music.youtube.com") && window.location.pathname.includes("/watch")) {
-      console.log("⏳ [Ragasukma] Menyiapkan auto-play YouTube Music...");
-
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts++;
-        const video = document.querySelector("video");
-        const playBtn = document.querySelector("#play-pause-button") || 
-                        document.querySelector(".play-pause-button") ||
-                        document.querySelector("ytmusic-player-bar #play-pause-button") ||
-                        document.querySelector("tp-yt-paper-icon-button#play-pause-button");
-
-        if (video) {
-          if (video.paused) {
-            // Trik Resmi Browser: Play dalam kondisi Muted (selalu diizinkan 100% oleh browser policy)
-            video.muted = true;
-            
-            const playPromise = video.play();
-            if (playPromise !== undefined) {
-              playPromise.then(() => {
-                // Begitu stream audio berjalan, kembalikan volume (unmute)
-                setTimeout(() => {
-                  video.muted = false;
-                  console.log("🔊 [Ragasukma] Autoplay sukses & audio unmuted!");
-                }, 200);
-              }).catch(() => {
-                if (playBtn) playBtn.click();
-              });
+      // Kirim HANYA via Background Service Worker (karena background script terbebas dari CSP HTTPS website)
+      const extApi = typeof chrome !== "undefined" && chrome.runtime ? chrome : (typeof browser !== "undefined" && browser.runtime ? browser : null);
+      if (extApi && extApi.runtime && extApi.runtime.id && extApi.runtime.sendMessage) {
+        try {
+          extApi.runtime.sendMessage({ type: "DOM_SNAPSHOT", data: snapshot }, (resp) => {
+            if (extApi.runtime && extApi.runtime.lastError) {
+              // Ignore disconnected port/context invalidated quietly
+            } else {
+              console.log("💾 [Ragasukma Extension] Snapshot berhasil disimpan ke active_tab_browser.json");
             }
-          } else {
-            video.muted = false;
-            clearInterval(interval);
-            console.log("✅ [Ragasukma] Musik berputar aktif dengan suara!");
-          }
-        }
-
-        if (attempts >= 40) {
-          clearInterval(interval);
-        }
-      }, 300);
-      return;
-    }
-
-    // B. Jika di halaman Search YouTube Music (/search?q=...)
-    if (window.location.hostname.includes("music.youtube.com") && window.location.pathname.includes("/search")) {
-      console.log("🔍 [Ragasukma] Mendeteksi halaman search YouTube Music, mencari lagu/playlist teratas...");
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts++;
-
-        const topPlayBtn = document.querySelector("ytmusic-responsive-list-item-renderer #play-button") ||
-                           document.querySelector("ytmusic-card-shelf-renderer #play-button") ||
-                           document.querySelector("ytmusic-shelf-renderer ytmusic-responsive-list-item-renderer .play-button") ||
-                           document.querySelector("ytmusic-responsive-list-item-renderer .flex-columns a") ||
-                           document.querySelector("ytmusic-responsive-list-item-renderer a.yt-simple-endpoint");
-
-        if (topPlayBtn) {
-          clearInterval(interval);
-          console.log("▶️ [Ragasukma] Memutar lagu/playlist teratas di YouTube Music!");
-          topPlayBtn.click();
-        } else if (attempts >= 40) {
-          clearInterval(interval);
-        }
-      }, 350);
-      return;
-    }
-
-    // C. Jika di halaman Search YouTube Video Biasa (/results?search_query=...)
-    if (window.location.hostname.includes("youtube.com") && !window.location.hostname.includes("music.youtube.com") && window.location.pathname.includes("/results")) {
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts++;
-        const topVideo = document.querySelector("ytd-video-renderer a#thumbnail") ||
-                         document.querySelector("ytd-video-renderer a#video-title");
-
-        if (topVideo) {
-          clearInterval(interval);
-          console.log("▶️ [Ragasukma] Memutar video hasil pencarian teratas di YouTube...");
-          topVideo.click();
-        } else if (attempts >= 25) {
-          clearInterval(interval);
-        }
-      }, 400);
+          });
+        } catch (_) {}
+      }
+    } catch (e) {
+      console.warn("⚠️ [Ragasukma Extension] Info snapshot:", e.message || e);
     }
   }
 
-  let lastTitle = document.title;
-  setInterval(() => {
-    if (document.title !== lastTitle) {
-      lastTitle = document.title;
-      sendTabInfo();
-    }
-  }, 2000);
+  // JALANKAN SAAT CONTENT SCRIPT INJECT HANYA JIKA TAB SEDANG VISIBLE
+  if (document.visibilityState === "visible") {
+    sendSnapshot(true);
+  }
 
+  function triggerSnapshotDebounced(delay = 150, force = false) {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      sendSnapshot(force);
+    }, delay);
+  }
+
+  // User Interaction & Manual Activity Listeners (Klik manual, scroll, ketik user, fokus window/tab)
+  // Memastikan snapshot selalu segar saat user berinteraksi langsung di browser
+  window.addEventListener("focus", () => {
+    lastSnapshotHash = "";
+    sendSnapshot(true);
+  }, { passive: true });
+  window.addEventListener("click", () => triggerSnapshotDebounced(150, true), { passive: true });
+  window.addEventListener("keyup", () => triggerSnapshotDebounced(300, false), { passive: true });
+  window.addEventListener("scroll", () => triggerSnapshotDebounced(400, false), { passive: true });
+
+  // Event Listeners Lifecycle & Navigasi
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    triggerSnapshotDebounced(50, true);
+  } else {
+    window.addEventListener("DOMContentLoaded", () => triggerSnapshotDebounced(50, true));
+  }
+
+  window.addEventListener("load", () => triggerSnapshotDebounced(100, true));
+
+  // Universal SPA, YouTube/SPA Events, History, and Visibility Events
+  window.addEventListener("popstate", () => {
+    lastSnapshotHash = "";
+    triggerSnapshotDebounced(20, true);
+  });
+  window.addEventListener("hashchange", () => {
+    lastSnapshotHash = "";
+    triggerSnapshotDebounced(20, true);
+  });
+  window.addEventListener("pageshow", () => {
+    lastSnapshotHash = "";
+    sendSnapshot(true);
+  });
   window.addEventListener("yt-navigate-finish", () => {
-    setTimeout(sendTabInfo, 1000);
+    lastSnapshotHash = "";
+    triggerSnapshotDebounced(150, true);
+  });
+  window.addEventListener("yt-page-data-updated", () => {
+    lastSnapshotHash = "";
+    triggerSnapshotDebounced(200, true);
+  });
+  document.addEventListener("visibilitychange", () => {
+    lastSnapshotHash = "";
+    if (document.visibilityState === "visible") {
+      setTimeout(() => sendSnapshot(true), 30);
+      setTimeout(() => sendSnapshot(true), 250);
+    } else {
+      // BATALKAN SEMUA TIMER SAAT TAB MENJADI HIDDEN/BACKGROUND
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
+    }
   });
 
-  if (document.readyState === "complete" || document.readyState === "interactive") {
-    checkAndAutoPlayMusic();
-  } else {
-    window.addEventListener("DOMContentLoaded", checkAndAutoPlayMusic);
-  }
+  // Reaktif terhadap perubahan DOM struktural (HANYA jika tab sedang aktif/visible)
+  try {
+    const observer = new MutationObserver((mutations) => {
+      if (document.visibilityState !== "visible") return;
 
-  // Coba hubungkan saat script dimuat
-  connect();
+      // Filter mutasi sepele dari video player / timer / subtitle
+      let hasSignificantMutation = false;
+      for (const m of mutations) {
+        if (m.type === "childList" && (m.addedNodes.length > 0 || m.removedNodes.length > 0)) {
+          hasSignificantMutation = true;
+          break;
+        }
+      }
+
+      if (hasSignificantMutation) {
+        triggerSnapshotDebounced(600);
+      }
+    });
+
+    if (document.body) {
+      observer.observe(document.body, { childList: true, subtree: true });
+    } else {
+      window.addEventListener("DOMContentLoaded", () => {
+        if (document.body) {
+          observer.observe(document.body, { childList: true, subtree: true });
+        }
+      });
+    }
+  } catch (_) {}
+
+  // Monitor perubahan URL & Judul secara realtime (HANYA jika tab sedang aktif/visible)
+  let lastObservedUrl = window.location.href;
+  let lastTitle = document.title;
+  setInterval(() => {
+    if (document.visibilityState !== "visible") return;
+    if (window.location.href !== lastObservedUrl || document.title !== lastTitle) {
+      lastObservedUrl = window.location.href;
+      lastTitle = document.title;
+      lastSnapshotHash = "";
+      triggerSnapshotDebounced(300, true);
+    }
+  }, 500);
+
+    // Router Eksekusi Aksi dari Background Script
+    const extApi = typeof chrome !== "undefined" && chrome.runtime ? chrome : (typeof browser !== "undefined" && browser.runtime ? browser : null);
+    if (extApi && extApi.runtime && extApi.runtime.onMessage) {
+      extApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message && message.type === "REQUEST_SNAPSHOT") {
+          lastSnapshotHash = "";
+          sendSnapshot(true);
+          sendResponse({ status: "ok" });
+          return;
+        }
+
+        if (message && message.type === "EXECUTE_BROWSER_ACTION" && message.command) {
+        const cmd = message.command;
+        console.log("🎮 [Ragasukma DOM Action] Menerima aksi:", cmd.action, cmd);
+
+        // 1. Pencarian In-Page Universal
+        if (cmd.action === "IN_PAGE_SEARCH") {
+          const query = cmd.query || "";
+          const newUrl = cmd.new_url || "";
+
+          console.log("🔍 [Ragasukma In-Page Search] Menjalankan pencarian universal:", query, newUrl);
+          const searchInput = window.RagasukmaInput.findBestSearchInput();
+
+          if (searchInput && query) {
+            try { searchInput.focus(); } catch (_) {}
+            try { searchInput.select(); } catch (_) {}
+            window.RagasukmaInput.setNativeInputValue(searchInput, query);
+            window.RagasukmaInput.triggerInputEvents(searchInput, query);
+
+            setTimeout(() => {
+              window.RagasukmaInput.triggerEnterSubmit(searchInput);
+            }, 80);
+          } else if (newUrl) {
+            window.location.href = newUrl;
+          }
+          sendResponse({ status: "ok", action: "IN_PAGE_SEARCH" });
+        } 
+        // 2. Media Controller
+        else if (cmd.action === "MEDIA_PAUSE") {
+          window.RagasukmaMedia.pause();
+          sendResponse({ status: "ok", action: "MEDIA_PAUSE" });
+        } else if (cmd.action === "MEDIA_PLAY") {
+          window.RagasukmaMedia.play();
+          sendResponse({ status: "ok", action: "MEDIA_PLAY" });
+        } else if (cmd.action === "MEDIA_TOGGLE") {
+          window.RagasukmaMedia.toggle();
+          sendResponse({ status: "ok", action: "MEDIA_TOGGLE" });
+        } else if (cmd.action === "MEDIA_NEXT") {
+          window.RagasukmaMedia.next();
+          sendResponse({ status: "ok", action: "MEDIA_NEXT" });
+        } else if (cmd.action === "MEDIA_PREV") {
+          window.RagasukmaMedia.prev();
+          sendResponse({ status: "ok", action: "MEDIA_PREV" });
+        } 
+        // 3. Click Engine (Klik Tulisan vs Klik Tombol vs Universal)
+        else if (cmd.action === "CLICK_TEXT") {
+          const rawSel = (cmd.selector || "").trim();
+          const target = window.RagasukmaClick.findText(rawSel);
+
+          if (target) {
+            window.RagasukmaClick.triggerClick(target);
+            console.log("👆 [Ragasukma Click] Berhasil klik tulisan/link:", rawSel, target);
+            // Langsung ambil snapshot baru setelah eksekusi klik
+            setTimeout(() => sendSnapshot(true), 100);
+            setTimeout(() => sendSnapshot(true), 400);
+          } else {
+            console.warn("⚠️ [Ragasukma Click] Tulisan tidak ditemukan untuk klik:", rawSel);
+          }
+          sendResponse({ status: "ok", action: "CLICK_TEXT", found: Boolean(target) });
+        }
+        else if (cmd.action === "CLICK_BUTTON") {
+          const rawSel = (cmd.selector || "").trim();
+          const target = window.RagasukmaClick.findButton(rawSel) || window.RagasukmaClick.findSmartElement(rawSel);
+
+          if (target) {
+            window.RagasukmaClick.triggerClick(target);
+            console.log("👆 [Ragasukma Click] Berhasil klik tombol:", rawSel, target);
+            // Langsung ambil snapshot baru setelah eksekusi klik tombol
+            setTimeout(() => sendSnapshot(true), 100);
+            setTimeout(() => sendSnapshot(true), 400);
+          } else {
+            console.warn("⚠️ [Ragasukma Click] Tombol tidak ditemukan untuk klik:", rawSel);
+          }
+          sendResponse({ status: "ok", action: "CLICK_BUTTON", found: Boolean(target) });
+        }
+        else if (cmd.action === "CLICK_ELEMENT") {
+          const rawSel = (cmd.selector || "").trim();
+          const target = window.RagasukmaClick.findSmartElement(rawSel);
+
+          if (target) {
+            window.RagasukmaClick.triggerClick(target);
+            console.log("👆 [Ragasukma Click] Berhasil klik elemen universal:", rawSel, target);
+            // Langsung ambil snapshot baru setelah eksekusi klik elemen
+            setTimeout(() => sendSnapshot(true), 100);
+            setTimeout(() => sendSnapshot(true), 400);
+          } else {
+            console.warn("⚠️ [Ragasukma Click] Elemen tidak ditemukan untuk klik:", rawSel);
+          }
+          sendResponse({ status: "ok", action: "CLICK_ELEMENT", found: Boolean(target) });
+        } 
+        // 4. Input Engine (Pengetikan Teks Tanpa Auto-Enter)
+        else if (cmd.action === "TYPE_TEXT") {
+          const sel = (cmd.selector || "").trim();
+          const text = cmd.text_to_type || "";
+          const found = window.RagasukmaInput.executeType(sel, text, false);
+          if (found) {
+            setTimeout(() => sendSnapshot(true), 100);
+          }
+          sendResponse({ status: "ok", action: "TYPE_TEXT", found: found });
+        } 
+        // 5. Tekan Tombol Enter
+        else if (cmd.action === "PRESS_ENTER") {
+          const activeEl = document.activeElement;
+          const searchInput = window.RagasukmaInput.findBestSearchInput();
+          const targetEl = (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.isContentEditable)) ? activeEl : searchInput;
+
+          if (targetEl) {
+            window.RagasukmaInput.triggerEnterSubmit(targetEl);
+            console.log("⌨️ [Ragasukma Key] Berhasil tekan Enter pada:", targetEl);
+            setTimeout(() => sendSnapshot(true), 150);
+            setTimeout(() => sendSnapshot(true), 500);
+          } else {
+            // Dispatch window keydown fallback
+            const evt = new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true });
+            document.dispatchEvent(evt);
+            setTimeout(() => sendSnapshot(true), 150);
+          }
+          sendResponse({ status: "ok", action: "PRESS_ENTER" });
+        }
+        // 6. Scroll Halaman
+        else if (cmd.action === "SCROLL") {
+          const y = cmd.scroll_y || 400;
+          window.scrollBy({ top: y, behavior: "smooth" });
+          setTimeout(() => sendSnapshot(true), 250);
+          sendResponse({ status: "ok", action: "SCROLL" });
+        }
+        return true;
+      }
+      return false;
+    });
+  }
 })();

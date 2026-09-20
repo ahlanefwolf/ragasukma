@@ -19,12 +19,14 @@ export default {
         },
       },
       fontFamily: {
-        grotesk: ["Space Grotesk", "sans-serif"],
-        heading: ["Space Grotesk", "sans-serif"],
-        carter:  ["Space Grotesk", "sans-serif"], // backward compatibility
-        bebas:   ["Space Grotesk", "sans-serif"], // fallback alias
-        bangers: ["Space Grotesk", "sans-serif"], // fallback alias
-        open:    ["Open Sans", "sans-serif"],
+        sans:    ["IBM Plex Sans", "-apple-system", "BlinkMacSystemFont", "system-ui", "sans-serif"],
+        grotesk: ["IBM Plex Sans", "sans-serif"],
+        heading: ["IBM Plex Sans", "sans-serif"],
+        mono:    ["IBM Plex Mono", "Menlo", "Monaco", "Consolas", "monospace"],
+        carter:  ["IBM Plex Sans", "sans-serif"],
+        bebas:   ["IBM Plex Sans", "sans-serif"],
+        bangers: ["IBM Plex Sans", "sans-serif"],
+        open:    ["IBM Plex Sans", "sans-serif"],
       },
     },
   },

@@ -129,11 +129,11 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
   return (
     <div class="space-y-6">
       {/* Top Header Card */}
-      <div class="p-4 sm:p-6 rounded-2xl bg-theme-surface border border-theme-border space-y-4 shadow-xl">
+      <div class="p-4 sm:p-6 bg-theme-surface border border-theme-border space-y-4 shadow-xl">
         {/* 1. Header Banner */}
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="flex items-center gap-3">
-            <div class="p-2.5 rounded-xl bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30 shrink-0">
+            <div class="p-2.5 bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30 shrink-0">
               <Terminal size={22} />
             </div>
             <div>
@@ -141,7 +141,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
                 <h2 class="text-xl sm:text-2xl font-carter tracking-wide text-theme-text leading-none">
                   LIVE CONSOLE & SYSTEM LOGS
                 </h2>
-                <span class="text-xs px-2 py-0.5 rounded-full font-mono font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
+                <span class="text-xs px-2 py-0.5 font-mono font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
                   {filteredLogs().length} baris
                 </span>
               </div>
@@ -153,15 +153,15 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
 
           {/* Realtime Stream Indicator Badge */}
           <div class="flex items-center gap-2">
-            <span class="text-xs font-mono px-3 py-1 rounded-full bg-theme-bg text-theme-cyan border border-theme-border flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-theme-cyan animate-pulse" />
+            <span class="text-xs font-mono px-3 py-1 bg-theme-bg text-theme-cyan border border-theme-border flex items-center gap-2">
+              <span class="w-2 h-2 bg-theme-cyan animate-pulse" />
               <span>LIVE LOG STREAM</span>
             </span>
           </div>
         </div>
 
         {/* 2. Structured Action & Filter Toolbar (Between: Kiri = Search & Filter, Kanan = Actions) */}
-        <div class="p-2.5 rounded-xl bg-theme-bg border border-theme-border flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div class="p-2.5 bg-theme-bg border border-theme-border flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Sisi Kiri: Search Input & Level Filter Pills */}
           <div class="flex flex-col sm:flex-row sm:items-center gap-2.5 flex-1 max-w-full lg:max-w-xl">
             {/* Search Box */}
@@ -172,15 +172,15 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
                 placeholder="Cari kata kunci log..."
                 value={searchQuery()}
                 onInput={(e) => setSearchQuery(e.currentTarget.value)}
-                class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-theme-card border border-theme-border text-xs text-theme-text focus:border-theme-cyan focus:outline-none transition-all placeholder:text-theme-text/30 font-mono"
+                class="w-full pl-8 pr-3 py-1.5 bg-theme-card border border-theme-border text-xs text-theme-text focus:border-theme-cyan focus:outline-none transition-all placeholder:text-theme-text/30 font-mono"
               />
             </div>
 
             {/* Level Filter Segmented Control */}
-            <div class="flex items-center bg-theme-card p-1 rounded-lg border border-theme-border shrink-0">
+            <div class="flex items-center bg-theme-card p-1 border border-theme-border shrink-0">
               <button
                 onClick={() => setLevelFilter('all')}
-                class={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                class={`px-2.5 py-1 text-xs font-semibold transition-all ${
                   levelFilter() === 'all'
                     ? 'bg-theme-cyan text-theme-card font-bold shadow'
                     : 'text-theme-text/70 hover:text-theme-text'
@@ -190,7 +190,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
               </button>
               <button
                 onClick={() => setLevelFilter('info')}
-                class={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                class={`px-2.5 py-1 text-xs font-semibold transition-all ${
                   levelFilter() === 'info'
                     ? 'bg-theme-cyan text-theme-card font-bold shadow'
                     : 'text-theme-text/70 hover:text-theme-text'
@@ -200,7 +200,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
               </button>
               <button
                 onClick={() => setLevelFilter('error')}
-                class={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                class={`px-2.5 py-1 text-xs font-semibold transition-all ${
                   levelFilter() === 'error'
                     ? 'bg-[#FF7B7B] text-theme-card font-bold shadow'
                     : 'text-[#FF7B7B]/80 hover:text-[#FF7B7B]'
@@ -216,7 +216,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
             {/* Refresh Button */}
             <button
               onClick={handleManualRefresh}
-              class="p-2 rounded-lg bg-theme-card text-theme-text/80 hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/50 transition-all"
+              class="p-2 bg-theme-card text-theme-text/80 hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/50 transition-all"
               title="Refresh Log"
             >
               <RefreshCw size={14} class={isRefreshing() ? 'animate-spin text-theme-cyan' : ''} />
@@ -225,7 +225,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
             {/* Auto-Scroll Toggle */}
             <button
               onClick={() => setAutoScroll(!autoScroll())}
-              class={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              class={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border transition-all ${
                 autoScroll()
                   ? 'bg-theme-cyan/20 text-theme-cyan border-theme-cyan/40 shadow-sm font-bold'
                   : 'bg-theme-card text-theme-text/60 border-theme-border'
@@ -238,7 +238,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
             {/* Copy Logs */}
             <button
               onClick={handleCopyLogs}
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-theme-card text-theme-text/80 hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/50 transition-all"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-theme-card text-theme-text/80 hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/50 transition-all"
             >
               {copied() ? <Check size={13} class="text-theme-cyan" /> : <Copy size={13} />}
               <span>{copied() ? 'Tersalin' : 'Salin Semua'}</span>
@@ -247,7 +247,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
             {/* Clear Logs */}
             <button
               onClick={handleClearLogs}
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-theme-card hover:bg-[#FF7B7B]/20 text-[#FF7B7B] border border-[#FF7B7B]/30 transition-all"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-theme-card hover:bg-[#FF7B7B]/20 text-[#FF7B7B] border border-[#FF7B7B]/30 transition-all"
             >
               <Trash2 size={13} />
               <span>Bersihkan</span>
@@ -257,19 +257,17 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
       </div>
 
       {/* Terminal Display Screen */}
-      <div class="rounded-2xl bg-theme-bg border border-theme-border shadow-2xl overflow-hidden flex flex-col h-[480px] sm:h-[540px]">
+      <div class="bg-theme-bg border border-theme-border shadow-2xl overflow-hidden flex flex-col h-[480px] sm:h-[540px]">
         {/* Terminal Window Header Bar */}
         <div class="px-4 py-3 bg-theme-surface border-b border-theme-border flex items-center justify-between select-none">
           <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full bg-[#FF5F56] inline-block" />
-            <span class="w-3 h-3 rounded-full bg-[#FFBD2E] inline-block" />
-            <span class="w-3 h-3 rounded-full bg-[#27C93F] inline-block" />
-            <span class="text-xs font-mono text-theme-text/60 ml-2 font-semibold">ragasukma-stdout.log</span>
+            <Terminal size={14} class="text-theme-cyan" />
+            <span class="text-xs font-mono text-theme-text/80 font-semibold">ragasukma-stdout.log</span>
           </div>
 
           <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-theme-cyan shadow-[0_0_6px_#7BDFF2] animate-pulse" />
-            <span class="text-[11px] font-mono text-theme-cyan font-semibold">STREAM ACTIVE</span>
+            <span class="w-2 h-2 bg-theme-cyan shadow-[0_0_6px_#7BDFF2] animate-pulse" />
+            <span class="text-xs font-mono text-theme-cyan font-semibold">STREAM ACTIVE</span>
           </div>
         </div>
 
@@ -290,15 +288,15 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
           >
             <For each={filteredLogs()}>
               {(entry) => (
-                <div class="flex items-start gap-3 py-0.5 hover:bg-theme-card/40 px-2 rounded -mx-2 transition-colors">
+                <div class="flex items-start gap-3 py-0.5 hover:bg-theme-card/40 px-2 -mx-2 transition-colors">
                   {/* Timestamp */}
-                  <span class="text-theme-text/40 select-none shrink-0 text-[11px]">
+                  <span class="text-theme-text/40 select-none shrink-0 text-xs">
                     [{entry.timestamp}]
                   </span>
 
                   {/* Level Badge */}
                   <span
-                    class={`text-[10px] uppercase font-bold px-1.5 py-0.2 rounded select-none shrink-0 ${
+                    class={`text-xs uppercase font-bold px-1.5 py-0.5 select-none shrink-0 ${
                       entry.level === 'error'
                         ? 'bg-[#FF7B7B]/20 text-[#FF7B7B] border border-[#FF7B7B]/30'
                         : 'bg-theme-cyan/10 text-theme-cyan'

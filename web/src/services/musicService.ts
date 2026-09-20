@@ -82,6 +82,19 @@ export const musicService = {
     }
   },
 
+  async controlMusic(action: string, payload?: string): Promise<boolean> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/music/control`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, payload }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   getMusicUrl(filename: string): string {
     return `${API_BASE}/music/${encodeURIComponent(filename)}`;
   },

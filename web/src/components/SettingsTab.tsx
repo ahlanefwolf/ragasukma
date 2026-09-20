@@ -198,9 +198,9 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
   return (
     <form onSubmit={handleSave} class="space-y-6">
       {/* Header Banner */}
-      <div class="rounded-2xl bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg p-4 sm:p-6 border border-theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg p-4 sm:p-6 border border-theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span class="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
+          <span class="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
             System & Engine Preferences
           </span>
           <h2 class="text-2xl sm:text-3xl font-carter tracking-wide text-theme-text mt-2">
@@ -214,7 +214,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         <button
           type="submit"
           disabled={isSaving()}
-          class="w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-sm bg-theme-cyan hover:bg-[#68cbdd] text-theme-card shadow-md anime-shadow-green flex items-center justify-center gap-2 transition-all shrink-0 font-semibold"
+          class="w-full sm:w-auto px-6 py-3 font-bold text-sm bg-theme-cyan hover:bg-[#68cbdd] text-theme-card shadow-md anime-shadow-green flex items-center justify-center gap-2 transition-all shrink-0 font-semibold"
         >
           <Save size={16} />
           <span>{isSaving() ? 'Menyimpan...' : 'Simpan Semua'}</span>
@@ -222,13 +222,13 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       </div>
 
       {/* Sub-Tab Navigation Bar - Segmented Precision Control */}
-      <div class="p-1.5 rounded-2xl bg-theme-surface border border-theme-border/80 grid grid-cols-2 sm:grid-cols-4 gap-1.5 shadow-sm">
+      <div class="p-1.5 bg-theme-surface border border-theme-border/80 grid grid-cols-2 sm:grid-cols-4 gap-1.5 shadow-sm">
         <button
           type="button"
           onClick={() => setActiveSubTab('persona_ai')}
-          class={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
+          class={`flex items-center justify-center gap-2 py-3 px-3 text-xs sm:text-sm font-semibold transition-all duration-150 ${
             activeSubTab() === 'persona_ai'
-              ? 'bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green border border-theme-cyan/40 scale-[1.01]'
+              ? 'bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green border border-theme-cyan/40'
               : 'text-theme-text/70 hover:text-theme-text hover:bg-theme-card/80 border border-transparent'
           }`}
         >
@@ -239,9 +239,9 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         <button
           type="button"
           onClick={() => setActiveSubTab('audio_tts')}
-          class={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
+          class={`flex items-center justify-center gap-2 py-3 px-3 text-xs sm:text-sm font-semibold transition-all duration-150 ${
             activeSubTab() === 'audio_tts'
-              ? 'bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green border border-theme-cyan/40 scale-[1.01]'
+              ? 'bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green border border-theme-cyan/40'
               : 'text-theme-text/70 hover:text-theme-text hover:bg-theme-card/80 border border-transparent'
           }`}
         >
@@ -252,9 +252,9 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         <button
           type="button"
           onClick={() => setActiveSubTab('avatar_model')}
-          class={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
+          class={`flex items-center justify-center gap-2 py-3 px-3 text-xs sm:text-sm font-semibold transition-all duration-150 ${
             activeSubTab() === 'avatar_model'
-              ? 'bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green border border-theme-cyan/40 scale-[1.01]'
+              ? 'bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green border border-theme-cyan/40'
               : 'text-theme-text/70 hover:text-theme-text hover:bg-theme-card/80 border border-transparent'
           }`}
         >
@@ -265,9 +265,9 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         <button
           type="button"
           onClick={() => setActiveSubTab('system_overlay')}
-          class={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
+          class={`flex items-center justify-center gap-2 py-3 px-3 text-xs sm:text-sm font-semibold transition-all duration-150 ${
             activeSubTab() === 'system_overlay'
-              ? 'bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green border border-theme-cyan/40 scale-[1.01]'
+              ? 'bg-theme-cyan text-theme-card font-bold shadow-md anime-shadow-green border border-theme-cyan/40'
               : 'text-theme-text/70 hover:text-theme-text hover:bg-theme-card/80 border border-transparent'
           }`}
         >

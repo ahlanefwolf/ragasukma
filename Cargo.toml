@@ -17,6 +17,8 @@ resources = ["assets"]
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"
 
+
+
 [dependencies]
 # Audio, STT, LLM, TTS
 cpal = "0.15"

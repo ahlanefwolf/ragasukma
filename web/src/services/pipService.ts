@@ -1,26 +1,50 @@
-import { globalStatus, currentTime, duration, pauseMusic, resumeMusic, nextTrack, prevTrack, formatDuration } from '../playerStore';
+import {
+  globalStatus,
+  currentTime,
+  duration,
+  isPlaying,
+  pauseMusic,
+  resumeMusic,
+  nextTrack,
+  prevTrack,
+  seekMusic,
+  formatDuration,
+  onPlayStateChange,
+} from '../playerStore';
 
 class PipManager {
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
   private video: HTMLVideoElement | null = null;
-  private animFrameId: number | null = null;
+  private timerId: any = null;
+  private workerTimer: Worker | null = null;
   private isPipActive = false;
   private currentCoverImage: HTMLImageElement | null = null;
   private lastThumbnailUrl = '';
+  private isSyncing = false;
 
   init() {
     if (this.canvas) return;
 
     this.canvas = document.createElement('canvas');
-    this.canvas.width = 512;
-    this.canvas.height = 512;
-    this.ctx = this.canvas.getContext('2d');
+    // Render pada buffer 2x HiDPI / Retina agar font, border, dan gambar super tajam (HD)
+    const dpr = 2;
+    this.canvas.width = 680 * dpr;
+    this.canvas.height = 210 * dpr;
+    this.ctx = this.canvas.getContext('2d', { alpha: false });
 
     this.video = document.createElement('video');
     this.video.muted = true;
     this.video.autoplay = true;
     this.video.playsInline = true;
+    // Pasang video ke DOM secara invisible agar browser tidak men-throttle
+    this.video.style.position = 'fixed';
+    this.video.style.width = '1px';
+    this.video.style.height = '1px';
+    this.video.style.opacity = '0';
+    this.video.style.pointerEvents = 'none';
+    this.video.style.top = '-9999px';
+    document.body.appendChild(this.video);
 
     // Sinkronisasi status PiP saat user menutup jendela PiP secara manual
     this.video.addEventListener('leavepictureinpicture', () => {
@@ -28,7 +52,26 @@ class PipManager {
       this.stopRenderLoop();
     });
 
-    // Registrasi MediaSession API bawaan browser OS (agar tombol PiP OS next/prev/play/pause berfungsi)
+    // Sinkronisasi saat user menekan Play/Pause di floating PiP window
+    this.video.addEventListener('pause', () => {
+      if (this.isSyncing) return;
+      if (isPlaying()) {
+        this.isSyncing = true;
+        pauseMusic();
+        setTimeout(() => { this.isSyncing = false; }, 100);
+      }
+    });
+
+    this.video.addEventListener('play', () => {
+      if (this.isSyncing) return;
+      if (!isPlaying()) {
+        this.isSyncing = true;
+        resumeMusic();
+        setTimeout(() => { this.isSyncing = false; }, 100);
+      }
+    });
+
+    // Registrasi MediaSession API bawaan browser OS
     if ('mediaSession' in navigator) {
       navigator.mediaSession.setActionHandler('play', () => {
         resumeMusic();
@@ -42,12 +85,42 @@ class PipManager {
       navigator.mediaSession.setActionHandler('nexttrack', () => {
         nextTrack();
       });
+      try {
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (details.seekTime !== undefined && details.seekTime !== null) {
+            seekMusic(details.seekTime);
+          }
+        });
+      } catch (_) {}
     }
   }
 
-  private updateMediaSession() {
+  // Dipanggil langsung dari playerStore saat audio play
+  onAudioPlay() {
+    this.updateMediaSession(true);
+    if (this.video && this.video.paused && !this.isSyncing) {
+      this.isSyncing = true;
+      this.video.play().catch(() => {}).finally(() => {
+        this.isSyncing = false;
+      });
+    }
+  }
+
+  // Dipanggil langsung dari playerStore saat audio pause
+  onAudioPause() {
+    this.updateMediaSession(false);
+    if (this.video && !this.video.paused && !this.isSyncing) {
+      this.isSyncing = true;
+      this.video.pause();
+      setTimeout(() => { this.isSyncing = false; }, 50);
+    }
+  }
+
+  private updateMediaSession(playingState?: boolean) {
     if (!('mediaSession' in navigator)) return;
     const track = globalStatus().current_track;
+    const playing = playingState !== undefined ? playingState : isPlaying();
+
     if (track) {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.title || 'Ragasukma Music',
@@ -61,8 +134,21 @@ class PipManager {
             ]
           : [],
       });
-      navigator.mediaSession.playbackState = globalStatus().is_playing ? 'playing' : 'paused';
     }
+
+    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+
+    try {
+      const dur = duration() || track?.duration || 0;
+      const cur = currentTime() || 0;
+      if (dur > 0 && isFinite(dur) && isFinite(cur) && cur <= dur) {
+        navigator.mediaSession.setPositionState({
+          duration: dur,
+          playbackRate: playing ? 1.0 : 0.0,
+          position: Math.min(cur, dur),
+        });
+      }
+    } catch (_) {}
   }
 
   private loadThumbnail(url?: string) {
@@ -82,136 +168,303 @@ class PipManager {
   private drawFrame() {
     if (!this.ctx || !this.canvas) return;
     const ctx = this.ctx;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    const dpr = 2;
+    const w = 680;
+    const h = 210;
     const track = globalStatus().current_track;
     const isPlaying = globalStatus().is_playing;
+    const now = performance.now() / 1000;
 
-    // Background Gradient Gelap Tema Ragasukma
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    // ── 1. BACKGROUND & AMBIENT GLOW ──
+    ctx.clearRect(0, 0, w, h);
+
+    // Deep Dark Base Gradient
+    const bgGrad = ctx.createLinearGradient(0, 0, w, h);
     bgGrad.addColorStop(0, '#161D24');
-    bgGrad.addColorStop(1, '#0D1117');
+    bgGrad.addColorStop(0.5, '#1D252E');
+    bgGrad.addColorStop(1, '#0F141C');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
-    // Album Artwork / Thumbnail
+    // Album Artwork / Thumbnail Loader
     if (track?.thumbnail && track.thumbnail !== this.lastThumbnailUrl) {
       this.loadThumbnail(track.thumbnail);
     }
 
+    // Dynamic Ambient Glow from Album
     if (this.currentCoverImage) {
       ctx.save();
-      // Rounded Card Cover
-      const coverSize = 280;
-      const x = (w - coverSize) / 2;
-      const y = 30;
-      const radius = 20;
-
-      ctx.beginPath();
-      ctx.moveTo(x + radius, y);
-      ctx.lineTo(x + coverSize - radius, y);
-      ctx.quadraticCurveTo(x + coverSize, y, x + coverSize, y + radius);
-      ctx.lineTo(x + coverSize, y + coverSize - radius);
-      ctx.quadraticCurveTo(x + coverSize, y + coverSize, x + coverSize - radius, y + coverSize);
-      ctx.lineTo(x + radius, y + coverSize);
-      ctx.quadraticCurveTo(x, y + coverSize, x, y + coverSize - radius);
-      ctx.lineTo(x, y + radius);
-      ctx.quadraticCurveTo(x, y, x + radius, y);
-      ctx.closePath();
-      ctx.clip();
-
-      ctx.drawImage(this.currentCoverImage, x, y, coverSize, coverSize);
+      ctx.globalAlpha = 0.18;
+      ctx.filter = 'blur(40px)';
+      ctx.drawImage(this.currentCoverImage, -20, -20, 260, h + 40);
       ctx.restore();
-
-      // Border Glow
-      ctx.strokeStyle = '#7BDFF2';
-      ctx.lineWidth = 3;
-      ctx.stroke();
     } else {
-      // Placeholder Cover
-      const coverSize = 280;
-      const x = (w - coverSize) / 2;
-      const y = 30;
-      ctx.fillStyle = '#232D36';
-      ctx.beginPath();
-      ctx.roundRect(x, y, coverSize, coverSize, 20);
-      ctx.fill();
-      ctx.strokeStyle = '#2F3B46';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      ctx.fillStyle = '#7BDFF2';
-      ctx.font = 'bold 36px Carter One, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('🎵 Ragasukma', w / 2, y + 150);
+      const orb = ctx.createRadialGradient(90, h / 2, 10, 90, h / 2, 160);
+      orb.addColorStop(0, 'rgba(123, 223, 242, 0.18)');
+      orb.addColorStop(1, 'rgba(123, 223, 242, 0)');
+      ctx.fillStyle = orb;
+      ctx.fillRect(0, 0, w, h);
     }
 
-    // Title Text - Extra Bold & Besar
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 26px Inter, sans-serif';
-    ctx.textAlign = 'center';
+    // Crisp Window Frame Border
+    ctx.save();
+    ctx.strokeStyle = '#2F3B46';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(6, 6, w - 12, h - 12);
+    ctx.restore();
+
+    // ── 2. LEFT COLUMN: ALBUM ARTWORK CARD (Zero Radius Square) ──
+    const coverSize = 166;
+    const coverX = 22;
+    const coverY = 22;
+
+    // Drop shadow behind cover
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 6;
+    ctx.fillStyle = '#232D36';
+    ctx.fillRect(coverX, coverY, coverSize, coverSize);
+    ctx.restore();
+
+    // Draw Thumbnail inside sharp rect
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(coverX, coverY, coverSize, coverSize);
+    ctx.clip();
+
+    if (this.currentCoverImage) {
+      ctx.drawImage(this.currentCoverImage, coverX, coverY, coverSize, coverSize);
+    } else {
+      const cardGrad = ctx.createLinearGradient(coverX, coverY, coverX + coverSize, coverY + coverSize);
+      cardGrad.addColorStop(0, '#232D36');
+      cardGrad.addColorStop(1, '#161D24');
+      ctx.fillStyle = cardGrad;
+      ctx.fillRect(coverX, coverY, coverSize, coverSize);
+
+      ctx.fillStyle = '#7BDFF2';
+      ctx.font = 'bold 32px "IBM Plex Sans", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🎵', coverX + coverSize / 2, coverY + coverSize / 2 - 12);
+
+      ctx.fillStyle = '#9AAAB7';
+      ctx.font = '600 12px "IBM Plex Sans", sans-serif';
+      ctx.fillText('Ragasukma', coverX + coverSize / 2, coverY + coverSize / 2 + 24);
+    }
+
+    // Sheen
+    const sheen = ctx.createLinearGradient(coverX, coverY, coverX, coverY + 60);
+    sheen.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
+    sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(coverX, coverY, coverSize, 60);
+
+    // Live Equalizer Overlay inside Album (Bottom-Right)
+    if (isPlaying) {
+      const eqW = 46;
+      const eqH = 26;
+      const eqX = coverX + coverSize - eqW - 6;
+      const eqY = coverY + coverSize - eqH - 6;
+      ctx.fillStyle = 'rgba(29, 37, 46, 0.9)';
+      ctx.fillRect(eqX, eqY, eqW, eqH);
+      ctx.strokeStyle = '#2F3B46';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(eqX, eqY, eqW, eqH);
+
+      // 4 Animated Waveform Bars
+      for (let i = 0; i < 4; i++) {
+        const barH = 4 + Math.abs(Math.sin(now * 5 + i * 1.3)) * 14;
+        const bX = eqX + 6 + i * 9;
+        const bY = eqY + eqH - 5 - barH;
+        ctx.fillStyle = i % 2 === 0 ? '#7BDFF2' : '#F2B5D4';
+        ctx.fillRect(bX, bY, 4, barH);
+      }
+    }
+    ctx.restore();
+
+    // Crisp Border Stroke on Cover
+    ctx.save();
+    ctx.strokeStyle = isPlaying ? 'rgba(123, 223, 242, 0.5)' : '#2F3B46';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(coverX, coverY, coverSize, coverSize);
+    ctx.restore();
+
+    // ── 3. RIGHT COLUMN: METADATA & CONTROLS ──
+    const contentX = 210;
+    const contentW = w - contentX - 22;
+
+    // Top Header: Status Badge & Brand Watermark
+    ctx.save();
+    const badgeW = 145;
+    const badgeH = 24;
+    const badgeY = 22;
+
+    ctx.fillStyle = '#1D252E';
+    ctx.fillRect(contentX, badgeY, badgeW, badgeH);
+    ctx.strokeStyle = isPlaying ? 'rgba(123, 223, 242, 0.4)' : '#2F3B46';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(contentX, badgeY, badgeW, badgeH);
+
+    // Indicator Square
+    const dotX = contentX + 10;
+    const dotY = badgeY + badgeH / 2 - 3;
+    ctx.fillStyle = isPlaying ? '#7BDFF2' : '#F2B5D4';
+    ctx.fillRect(dotX, dotY, 6, 6);
+
+    ctx.font = '600 11px "IBM Plex Sans", sans-serif';
+    ctx.fillStyle = isPlaying ? '#EFF7F6' : '#9AAAB7';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(isPlaying ? 'SEDANG DIPUTAR' : 'PLAYBACK DIJEDA', contentX + 24, badgeY + badgeH / 2);
+
+    // Brand Watermark on Top-Right
+    ctx.textAlign = 'right';
+    ctx.font = '600 11px "IBM Plex Mono", monospace';
+    ctx.fillStyle = 'rgba(239, 247, 246, 0.35)';
+    ctx.fillText('RAGASUKMA • PIP', contentX + contentW, badgeY + badgeH / 2);
+    ctx.restore();
+
+    // Track Metadata (Title & Artist)
     const title = track?.title || 'Ragasukma Music Player';
-    const cleanTitle = title.length > 26 ? title.substring(0, 24) + '...' : title;
-    ctx.fillText(cleanTitle, w / 2, 360);
+    const artist = track?.uploader || 'YouTube Desktop Audio Stream';
 
-    // Artist / Uploader Text
+    // Title
+    ctx.save();
+    ctx.fillStyle = '#EFF7F6';
+    ctx.font = 'bold 18px "IBM Plex Sans", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 6;
+
+    const maxTitleLen = 38;
+    const cleanTitle = title.length > maxTitleLen ? title.substring(0, maxTitleLen - 2) + '...' : title;
+    ctx.fillText(cleanTitle, contentX, 72);
+
+    // Artist
     ctx.fillStyle = '#7BDFF2';
-    ctx.font = '600 18px Inter, sans-serif';
-    const artist = track?.uploader || 'Local Library';
-    const cleanArtist = artist.length > 32 ? artist.substring(0, 30) + '...' : artist;
-    ctx.fillText(cleanArtist, w / 2, 395);
+    ctx.font = '500 13px "IBM Plex Sans", sans-serif';
+    const maxArtistLen = 44;
+    const cleanArtist = artist.length > maxArtistLen ? artist.substring(0, maxArtistLen - 2) + '...' : artist;
+    ctx.fillText(cleanArtist, contentX, 94);
+    ctx.restore();
 
-    // Timeline Progress Bar
-    const barX = 40;
-    const barY = 435;
-    const barW = w - 80;
-    const barH = 8;
+    // ── 4. TIMELINE PROGRESS BAR ──
+    const barX = contentX;
+    const barY = 132;
+    const barW = contentW;
+    const barH = 6;
     const dur = duration() || track?.duration || 100;
     const cur = currentTime();
     const pct = Math.min(1, Math.max(0, dur > 0 ? cur / dur : 0));
 
-    // Bar Background
-    ctx.fillStyle = '#2F3B46';
-    ctx.beginPath();
-    ctx.roundRect(barX, barY, barW, barH, 4);
-    ctx.fill();
+    // Background Bar
+    ctx.save();
+    ctx.fillStyle = '#232D36';
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.strokeStyle = '#2F3B46';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(barX, barY, barW, barH);
 
-    // Active Bar Progress with Cyan Glow
-    ctx.fillStyle = '#7BDFF2';
-    ctx.beginPath();
-    ctx.roundRect(barX, barY, barW * pct, barH, 4);
-    ctx.fill();
+    // Filled Gradient Bar
+    if (pct > 0) {
+      const progGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+      progGrad.addColorStop(0, '#7BDFF2');
+      progGrad.addColorStop(0.7, '#9BE7F6');
+      progGrad.addColorStop(1, '#F2B5D4');
 
-    // Time Indicators & Status Badge
-    ctx.fillStyle = '#94A3B8';
-    ctx.font = 'bold 15px monospace';
+      ctx.fillStyle = progGrad;
+      ctx.fillRect(barX, barY, barW * pct, barH);
+
+      // Square Knob
+      const knopX = barX + barW * pct - 3.5;
+      const knopY = barY + barH / 2 - 3.5;
+      ctx.fillStyle = '#EFF7F6';
+      ctx.fillRect(knopX, knopY, 7, 7);
+    }
+    ctx.restore();
+
+    // Time Indicators
+    ctx.save();
+    ctx.fillStyle = '#9AAAB7';
+    ctx.font = '600 12px "IBM Plex Mono", monospace';
+    ctx.textBaseline = 'top';
+
     ctx.textAlign = 'left';
-    ctx.fillText(formatDuration(Math.floor(cur)), barX, barY + 30);
-    ctx.textAlign = 'right';
-    ctx.fillText(formatDuration(Math.floor(dur)), barX + barW, barY + 30);
+    ctx.fillText(formatDuration(Math.floor(cur)), barX, barY + 12);
 
-    // State Badge
-    ctx.textAlign = 'center';
-    ctx.fillStyle = isPlaying ? '#7BDFF2' : '#F2B5D4';
-    ctx.font = 'bold 16px Inter, sans-serif';
-    ctx.fillText(isPlaying ? '▶ SEDANG MEMUTAR' : '⏸ DIJEDA', w / 2, barY + 30);
+    ctx.textAlign = 'right';
+    ctx.fillText(formatDuration(Math.floor(dur)), barX + barW, barY + 12);
+    ctx.restore();
+
+    // Subtle Bottom Footer Hint
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.font = '500 11px "IBM Plex Sans", sans-serif';
+    ctx.fillStyle = 'rgba(239, 247, 246, 0.28)';
+    ctx.fillText('Tekan Space / Gunakan Kontrol Media OS untuk Play & Pause', contentX, h - 18);
+    ctx.restore();
+
+    ctx.restore(); // Restore HiDPI scale
   }
 
   private startRenderLoop() {
-    const loop = () => {
+    this.stopRenderLoop();
+
+    const render = () => {
       this.drawFrame();
       this.updateMediaSession();
-      if (this.isPipActive) {
-        this.animFrameId = requestAnimationFrame(loop);
-      }
     };
-    this.animFrameId = requestAnimationFrame(loop);
+
+    // Render frame pertama seketika
+    render();
+
+    // ── Web Worker Timer ──
+    // Browser Chromium secara agresif membekukan requestAnimationFrame dan men-throttle setInterval biasa
+    // saat tab web diminimize atau berada di background. Web Worker timer berjalan di thread terpisah
+    // sehingga render loop PiP tetap berjalan 30 FPS konstan dan realtime tanpa freeze!
+    try {
+      const blob = new Blob(
+        [`let t = null; self.onmessage = function(e) { if(e.data === 'start') { t = setInterval(function() { postMessage('tick'); }, 1000/30); } else if(e.data === 'stop') { clearInterval(t); } };`],
+        { type: 'application/javascript' }
+      );
+      const workerUrl = URL.createObjectURL(blob);
+      this.workerTimer = new Worker(workerUrl);
+      this.workerTimer.onmessage = () => {
+        if (this.isPipActive) {
+          render();
+        }
+      };
+      this.workerTimer.postMessage('start');
+    } catch {
+      // Fallback standard interval jika Web Worker tidak diizinkan
+      this.timerId = setInterval(() => {
+        if (this.isPipActive) {
+          render();
+        }
+      }, 1000 / 30);
+    }
   }
 
   private stopRenderLoop() {
-    if (this.animFrameId) {
-      cancelAnimationFrame(this.animFrameId);
-      this.animFrameId = null;
+    if (this.workerTimer) {
+      try {
+        this.workerTimer.postMessage('stop');
+        this.workerTimer.terminate();
+      } catch (_) {}
+      this.workerTimer = null;
+    }
+    if (this.timerId !== null) {
+      clearInterval(this.timerId);
+      this.timerId = null;
     }
   }
 
@@ -257,3 +510,12 @@ class PipManager {
 }
 
 export const pipManager = new PipManager();
+
+// Sinkronkan otomatis saat status playback berubah
+onPlayStateChange((playing) => {
+  if (playing) {
+    pipManager.onAudioPlay();
+  } else {
+    pipManager.onAudioPause();
+  }
+});

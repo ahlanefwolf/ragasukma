@@ -1,99 +1,81 @@
 <div align="center">
 
-  <img src="icons/128x128@2x.png" alt="Ragasukma Logo" width="130" height="130" />
+  <img src="icons/128x128@2x.png" alt="Ragasukma Logo" width="120" height="120" />
 
-  # 🔮 Ragasukma
-  **Asisten Suara AI Interaktif Bahasa Indonesia dengan Avatar 3D / 2D Transparent Overlay**
+  # Ragasukma
+  **Native Desktop AI Voice Assistant & 3D Avatar Companion**
 
-  [![Release](https://img.shields.io/github/v/release/ahlanefwolf/ragasukma?style=for-the-badge&color=7BDFF2)](https://github.com/ahlanefwolf/ragasukma/releases)
-  [![Platform](https://img.shields.io/badge/Platform-Linux_|_Windows_|_macOS-lightgrey?style=for-the-badge)](https://github.com/ahlanefwolf/ragasukma/releases)
-  [![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](https://github.com/ahlanefwolf/ragasukma)
+  [![Release](https://img.shields.io/github/v/release/ahlanefwolf/ragasukma?style=flat-square&color=7BDFF2)](https://github.com/ahlanefwolf/ragasukma/releases)
+  [![Platform](https://img.shields.io/badge/Platform-Linux_%7C_Windows_%7C_macOS-2F3B46?style=flat-square)](https://github.com/ahlanefwolf/ragasukma/releases)
+  [![License](https://img.shields.io/badge/License-Proprietary-F2B5D4?style=flat-square)](https://github.com/ahlanefwolf/ragasukma)
 
   <p align="center">
-    <b>Ragasukma</b> adalah asisten suara AI pintar berbahasa Indonesia yang hadir langsung di layar desktop kamu. Menampilkan karakter avatar 3D/2D yang hidup, responsif mendengarkan suara secara otomatis, dan dapat membantu berbagai aktivitas harian serta otomasi perintah komputer.
+    Asisten suara AI desktop berbahasa Indonesia dengan avatar 3D/2D transparent overlay, automasi browser in-page, local music player, dan local OpenAI-compatible LLM router.
   </p>
 
 </div>
 
 ---
 
-## ✨ Fitur Utama
+## Fitur & Kemampuan Sistem
 
-- 🎭 **Avatar 3D & 2D di Layar Desktop**:
-  - Avatar transparan melayang di layar dengan animasi hidup (bernapas, berkedip, bergerak alami, dan ekspresi emosi wajah yang menyesuaikan percakapan).
-  - Mendukung model 3D kustom (**VRoid / VRM / GLB**) serta gambar 2D avatar pilihanmu sendiri.
+### 1. Interaksi Suara & Visual 3D
+- **Transparent 3D VRM Overlay**: Engine rendering native WGPU dengan shader MToon 1:1, sinkronisasi ekspresi wajah (blendshapes/morph targets), dan tuning pose realtime.
+- **Hands-free Voice Activity Detection (VAD)**: Deteksi suara otomatis dengan noise reduction DSP dan audio processing real-time.
+- **Multi-Engine STT & TTS**: Mendukung Google STT, Groq Whisper, Google Translate TTS, dan ElevenLabs Multilingual v2.
 
-- 🎙️ **Deteksi Suara Otomatis (VAD & DSP)**:
-  - Cukup bicara tanpa perlu menekan tombol (*hands-free*). Sistem cerdas menyaring suara desis/kebisingan ruangan dan fokus menangkap suara vokalmu.
+### 2. Browser DOM Automation & Click Engine
+- **Active Tab DOM Ground-of-Truth**: Analisis visual dan elemen interaktif tab aktif secara realtime untuk eksekusi perintah tanpa halusinasi.
+- **In-Page Navigation**:
+  - `browser:open` — Membuka atau berpindah ke tab website tertentu.
+  - `browser:search` — Melakukan pencarian di situs target atau pencarian in-page.
+  - `browser:type` & `browser:enter` — Mengetikkan teks ke form/input aktif dan mengeksekusi enter.
+  - `browser:click_text` & `browser:click_button` — Menemukan dan mengklik teks, tautan, atau tombol interaktif.
+  - `browser:switch` & `browser:close` — Manajemen tab aktif di browser.
 
-- 🧠 **Kecerdasan Buatan Multi-Engine**:
-  - **Speech-to-Text**: Mendengar dengan akurat menggunakan Google STT atau Whisper.
-  - **Otak AI (LLM)**: Terhubung ke berbagai model AI pilihan (Gemini, Groq, OpenAI, Ollama, DeepSeek, dll) dengan persona teman bicara yang hangat.
-  - **Suara Natural (TTS)**: Suara ucapan yang jernih dan ekspresif (Google TTS & ElevenLabs).
+### 3. Pemutar Musik & HiDPI PiP
+- **Automated YouTube Download & Playback**: Unduh dan putar audio lokal otomatis di latar belakang via `yt-dlp` (`media:play`, `media:pause`, `media:resume`, `media:next`, `media:prev`, `media:stop`).
+- **Retina Picture-in-Picture (PiP)**: Mini-player melayang widescreen (680x210 @ 2x HiDPI) dengan Dedicated Web Worker timer (30 FPS) yang tetap berjalan lancar saat browser diminimalkan.
 
-- ⚡ **Skill & Otomasi Perintah Cerdas**:
-  - **Kontrol Sistem Komputer**: Atur volume audio (+/- 10%), mute/unmute, ambil tangkapan layar (screenshot), hingga kunci layar (*lock workstation*) langsung via suara.
-  - **Peluncur Aplikasi Otomatis**: Cukup ucapkan *"Buka Spotify"*, *"Buka Steam"*, *"Buka VS Code"*, dsb. Ragasukma otomatis mendeteksi dan menjalankan aplikasi yang terpasang di OS.
-  - **Pencarian Web & Navigasi**: Buka website atau lakukan pencarian Google dinamis (*"Cari resep soto di Google"*, *"Buka GitHub"*).
-  - **Pemutar Musik & Unduhan Lokal (yt-dlp Engine)**:
-    - Cari dan putar lagu favorit langsung dari perintah suara (*"Putar musik Denny Caknan Sugeng Dalu"*).
-    - Otomatis mengunduh audio jernih ke koleksi lokal dan memutarnya langsung via Web Music Player & Floating Bottom Bar tanpa perlu browser extension.
-    - Manajemen koleksi musik offline di tab **Music Player** dashboard.
-  - **Custom Script Automation**: Tetap mendukung penambahan script bash / terminal buatanmu sendiri di dashboard.
+### 4. Kontrol Sistem OS & Utilitas
+- **Peluncur Aplikasi**: Otomatis mendeteksi dan membuka aplikasi desktop terinstal (`app:open`).
+- **Kontrol Audio & OS**: Pengaturan volume sistem (`os:volume_up`, `os:volume_down`, `os:mute`), tangkapan layar (`os:screenshot`), kunci layar (`os:lock`), kalkulator, terminal, dan file manager.
+- **Manajemen Catatan**: Pencatatan agenda dan to-do list terintegrasi (`todo:add`, `todo:done`).
 
-- 🎛️ **Dashboard Pengaturan Modern**:
-  - Begitu aplikasi dijalankan, browser otomatis membuka panel kendali interaktif untuk mengatur sensitivitas suara, pose karakter, gaya bicara, dan melihat status sistem.
-
----
-
-## 💻 Persyaratan Sistem (System Requirements)
-
-Untuk menjalankan Ragasukma dengan lancar menggunakan akselerasi grafis WGPU 3D dan audio realtime:
-
-- 🐧 **Linux**:
-  - **Distro**: Ubuntu 20.04+, Debian 11+, Fedora 36+, Arch Linux, CentOS / RHEL, atau distro modern lainnya.
-  - **Kernel**: Linux Kernel **5.4** ke atas.
-  - **Display Server**: X11 atau Wayland (dengan layer Vulkan / OpenGL aktif).
-  - **Paket Tambahan**: `libasound2` (ALSA/PulseAudio/PipeWire).
-- 🪟 **Windows**:
-  - **Sistem Operasi**: Windows 10 (64-bit) versi 1909+ atau **Windows 11**.
-  - **Grafis**: Dukungan DirectX 12 / Vulkan.
-- 🍏 **macOS**:
-  - **Sistem Operasi**: macOS 12 Monterey ke atas (macOS 13/14/15+ disarankan).
-  - **Arsitektur**: Apple Silicon (**M1 / M2 / M3 / M4**) dengan Metal Graphics Engine.
+### 5. Antigravity Pool & Local OpenAI Router
+- **Multi-Account OAuth Pooling**: Manajemen akun Google OAuth ganda dengan failover kuota otomatis.
+- **OpenAI-Compatible Local Endpoint (`http://127.0.0.1:42128/v1`)**: Kompatibel langsung dengan Cursor, VS Code, Cline, dan tools pengembang pihak ketiga.
 
 ---
 
-## 🚀 Panduan Penggunaan Cepat
+## Persyaratan Sistem
 
-### 1. Download & Pasang
-Unduh file installer resmi sesuai sistem operasi kamu di halaman [**GitHub Releases**](https://github.com/ahlanefwolf/ragasukma/releases):
-- **Linux**: File portable **`.AppImage`** (Universal untuk Ubuntu, Fedora, Arch Linux, Debian, openSUSE, dll)
-- **Windows**: File installer **`.exe`**
-- **macOS**: File **`.dmg`**
-
-### 2. Jalankan Ragasukma
-1. Buka aplikasi **Ragasukma**.
-2. Karakter avatar akan langsung muncul di sudut layar desktop kamu.
-3. Halaman web dashboard kendali akan otomatis terbuka di browser (`http://127.0.0.1:42128`).
-
-### 3. Mulai Mengobrol
-- Buka tab **Menu Utama** di dashboard lalu klik tombol **Mulai Percakapan (Aktifkan AI)**.
-- Bicara ke mikrofon seperti biasa—Ragasukma akan mendengarkan, berpikir, dan menjawab langsung dengan suara serta animasi gerak!
+| Platform | Kebutuhan Minimum |
+| :--- | :--- |
+| **Linux** | Kernel 5.4+, X11 / Wayland (Vulkan/OpenGL aktif), `libasound2` (ALSA/PulseAudio/PipeWire) |
+| **Windows** | Windows 10 (64-bit) 1909+ / Windows 11, DirectX 12 / Vulkan support |
+| **macOS** | macOS 12 Monterey ke atas, Apple Silicon (M1/M2/M3/M4) dengan Metal Engine |
 
 ---
 
-## 🎨 Kustomisasi Karakter & Suara
+## Panduan Penggunaan
 
-Melalui dashboard kendali, kamu bisa bebas menyesuaikan:
-- **Karakter**: Unggah model 3D `.vrm` buatan sendiri (dari VRoid Studio) atau foto 2D favoritmu.
-- **Nama & Karakteristik**: Ganti nama asisten, panggilanmu (*Mas/Kak/Boss*), dan gaya bahasanya.
-- **Pose 3D**: Atur sendiri posisi dan gaya gerak tubuh karakter di tab *Pose Tuner*.
-- **Pembaruan**: Cukup klik tombol **Cek Pembaruan** di dashboard untuk melihat fitur-fitur baru.
+### 1. Unduh & Jalankan
+Unduh installer binary dari [GitHub Releases](https://github.com/ahlanefwolf/ragasukma/releases):
+- **Linux**: `.AppImage`
+- **Windows**: `.exe`
+- **macOS**: `.dmg`
+
+Setelah aplikasi dibuka, avatar 3D akan tampil melayang di layar dan dashboard kontrol web otomatis terbuka di `http://127.0.0.1:42128`.
+
+### 2. Mulai Percakapan
+1. Masuk ke tab **Main Menu** pada dashboard.
+2. Klik **Mulai Percakapan (Aktifkan AI)**.
+3. Berbicaralah langsung ke mikrofon untuk berinteraksi, memutar musik, atau menjalankan perintah sistem.
 
 ---
 
-## 📜 Hak Cipta & Pengembang
+## Hak Cipta & Lisensi
 
-Dibuat dengan ❤️ oleh **Ahlan Saputra** ([@ahlanefwolf](https://github.com/ahlanefwolf)).  
-Hak Cipta © 2026 **Ahlan Saputra**. Seluruh hak cipta dilindungi undang-undang (*All Rights Reserved / Proprietary*).
+Dibuat oleh **Ahlan Saputra** ([@ahlanefwolf](https://github.com/ahlanefwolf)).  
+Hak Cipta © 2026 Ahlan Saputra. Seluruh hak cipta dilindungi undang-undang (*Proprietary*).

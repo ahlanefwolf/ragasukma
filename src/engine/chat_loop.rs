@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
-use super::executor::execute_skill_by_identifier;
+use super::actions::execute_skill_by_identifier;
 use super::session::{AppSession, check_and_consume_cmd};
 use crate::audio::dsp::TARGET_SAMPLE_RATE;
 use crate::tray::{AssistantState, TrayState};
@@ -334,11 +334,11 @@ impl AppSession {
                 continue;
             }
 
-            // Eksekusi skill jika LLM menyertakan tag [SKILL:ID]
+            // Eksekusi skill jika LLM menyertakan tag [CMD:ID] atau [SKILL:ID]
             if let Ok(full_reply) = &result {
                 static RE_SKILL: std::sync::LazyLock<regex::Regex> =
                     std::sync::LazyLock::new(|| {
-                        regex::Regex::new(r"\[SKILL:([^\]]+)\]").expect("valid skill regex")
+                        regex::Regex::new(r"\[(?:SKILL|CMD):([^\]]+)\]").expect("valid skill regex")
                     });
                 let mut found_skill = false;
                 for cap in RE_SKILL.captures_iter(full_reply) {

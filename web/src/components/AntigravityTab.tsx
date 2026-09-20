@@ -194,9 +194,9 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
   return (
     <div class="space-y-6 animate-fade-in text-theme-text select-text">
       {/* Header Banner */}
-      <div class="p-6 rounded-3xl bg-theme-card border border-theme-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+      <div class="p-6 bg-theme-card border border-theme-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
         <div class="flex items-center gap-4">
-          <div class="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/5">
+          <div class="w-14 h-14 bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/5">
             <Rocket size={28} />
           </div>
           <div>
@@ -204,7 +204,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
               <h2 class="text-xl font-carter tracking-wide text-theme-text">
                 ANTIGRAVITY POOL
               </h2>
-              <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold uppercase">
+              <span class="text-xs font-mono px-2 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold uppercase">
                 Google Multi-OAuth
               </span>
             </div>
@@ -217,7 +217,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
         <div class="flex items-center gap-2.5 w-full md:w-auto flex-wrap sm:flex-nowrap">
           <button
             onClick={() => loadAccounts()}
-            class="p-2.5 rounded-xl bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan hover:border-theme-cyan/50 transition-all flex items-center justify-center"
+            class="p-2.5 bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan hover:border-theme-cyan/50 transition-all flex items-center justify-center"
             title="Muat Ulang"
           >
             <RefreshCw size={18} class={loading() ? 'animate-spin text-theme-cyan' : ''} />
@@ -227,7 +227,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
           <button
             onClick={handleOAuthLogin}
             disabled={isOAuthLoading()}
-            class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-theme-cyan text-theme-card font-bold text-xs shadow-md anime-shadow-green hover:opacity-95 active:scale-95 transition-all"
+            class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-theme-cyan text-theme-card font-bold text-xs shadow-md anime-shadow-green hover:opacity-95 active:scale-95 transition-all"
           >
             <Show when={isOAuthLoading()} fallback={<LogIn size={16} />}>
               <RefreshCw size={16} class="animate-spin" />
@@ -237,7 +237,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
 
           <button
             onClick={() => setShowAddModal(true)}
-            class="p-2.5 rounded-xl bg-theme-bg border border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/50 text-xs font-semibold transition-all flex items-center gap-1.5"
+            class="p-2.5 bg-theme-bg border border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/50 text-xs font-semibold transition-all flex items-center gap-1.5"
             title="Input Token Manual"
           >
             <Plus size={16} />
@@ -268,7 +268,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
         <Show
           when={!loading()}
           fallback={
-            <div class="p-12 text-center text-xs text-theme-text/50 rounded-2xl bg-theme-card border border-theme-border animate-pulse">
+            <div class="p-12 text-center text-xs text-theme-text/50 bg-theme-card border border-theme-border animate-pulse">
               Memuat daftar akun Antigravity...
             </div>
           }
@@ -276,8 +276,8 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
           <Show
             when={accounts().length > 0}
             fallback={
-              <div class="p-12 text-center rounded-2xl bg-theme-card border border-theme-border/60 space-y-4">
-                <div class="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <div class="p-12 text-center bg-theme-card border border-theme-border/60 space-y-4">
+                <div class="w-14 h-14 mx-auto bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
                   <Rocket size={28} />
                 </div>
                 <div class="space-y-1">
@@ -289,7 +289,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
                 <button
                   onClick={handleOAuthLogin}
                   disabled={isOAuthLoading()}
-                  class="px-5 py-2.5 rounded-xl bg-theme-cyan text-theme-card font-bold text-xs shadow-md anime-shadow-green hover:opacity-95 active:scale-95 transition-all inline-flex items-center gap-2"
+                  class="px-5 py-2.5 bg-theme-cyan text-theme-card font-bold text-xs shadow-md anime-shadow-green hover:opacity-95 active:scale-95 transition-all inline-flex items-center gap-2"
                 >
                   <LogIn size={16} />
                   <span>Login dengan Google Sekarang</span>
@@ -322,13 +322,13 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
       </div>
 
       {/* OpenAI-Compatible API Endpoint Info Card */}
-      <div class="p-5 rounded-2xl bg-theme-card/80 border border-theme-cyan/30 text-xs text-theme-text/80 space-y-3 shadow-lg">
+      <div class="p-5 bg-theme-card/80 border border-theme-cyan/30 text-xs text-theme-text/80 space-y-3 shadow-lg">
         <div class="flex items-center justify-between">
           <div class="font-bold text-theme-text flex items-center gap-2">
-            <span class="p-1 rounded bg-theme-cyan/10 text-theme-cyan font-mono text-[10px] font-extrabold uppercase tracking-wider border border-theme-cyan/30">OpenAI API</span>
+            <span class="p-1 bg-theme-cyan/10 text-theme-cyan font-mono text-xs font-extrabold uppercase tracking-wider border border-theme-cyan/30">OpenAI API</span>
             <span>Local Endpoint (OpenAI-Compatible)</span>
           </div>
-          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <span class="text-xs font-mono px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             Port 42128 Ready
           </span>
         </div>
@@ -337,22 +337,22 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
           Gunakan endpoint ini di aplikasi AI apapun (Zed Editor, Cline, Continue, Cursor, Aider, Claude Code, Python OpenAI SDK, dll) untuk menggunakan model Antigravity:
         </p>
 
-        <div class="p-3 rounded-xl bg-theme-bg/80 border border-theme-border font-mono text-[11px] flex items-center justify-between gap-2 overflow-x-auto">
+        <div class="p-3 bg-theme-bg/80 border border-theme-border font-mono text-xs flex items-center justify-between gap-2 overflow-x-auto">
           <div class="text-theme-cyan select-all">
             Base URL: <span class="text-theme-text font-bold">http://127.0.0.1:42128/v1</span>
           </div>
           <button
             onClick={() => copyToClipboard('http://127.0.0.1:42128/v1', 'Base URL')}
-            class="px-2.5 py-1 rounded-lg bg-theme-card border border-theme-border text-theme-text/70 hover:text-theme-cyan hover:border-theme-cyan text-[10px] font-sans font-semibold shrink-0 transition-all"
+            class="px-2.5 py-1 bg-theme-card border border-theme-border text-theme-text/70 hover:text-theme-cyan hover:border-theme-cyan text-xs font-sans font-semibold shrink-0 transition-all"
           >
             Salin URL
           </button>
         </div>
 
-        <div class="pt-1 text-[11px] text-theme-text/50 flex flex-wrap items-center gap-2">
+        <div class="pt-1 text-xs text-theme-text/50 flex flex-wrap items-center gap-2">
           <span>Endpoint:</span>
-          <code class="px-1.5 py-0.5 rounded bg-theme-bg border border-theme-border/60 text-theme-text/70">/v1/chat/completions</code>
-          <code class="px-1.5 py-0.5 rounded bg-theme-bg border border-theme-border/60 text-theme-text/70">/v1/models</code>
+          <code class="px-1.5 py-0.5 bg-theme-bg border border-theme-border/60 text-theme-text/70">/v1/chat/completions</code>
+          <code class="px-1.5 py-0.5 bg-theme-bg border border-theme-border/60 text-theme-text/70">/v1/models</code>
           <span class="text-theme-border">•</span>
           <span>API Key:</span>
           <span class="text-theme-text/70 font-mono">Bebas (isi apa saja / sembarang)</span>
