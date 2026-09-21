@@ -265,6 +265,12 @@ export const CanvasTab: Component<CanvasTabProps> = (props) => {
     }
   };
 
+  const handleKeyUp = (e: KeyboardEvent) => {
+    if (e.code === 'Space') {
+      fabricService.setSpacePressed(false);
+    }
+  };
+
   onMount(() => {
     if (!canvasContainerRef || !canvasElRef) return;
 
@@ -272,13 +278,6 @@ export const CanvasTab: Component<CanvasTabProps> = (props) => {
     const height = Math.max(500, canvasContainerRef.clientHeight || 550);
 
     fabricService.init(canvasElRef, width, height);
-
-    // Attach global keyboard shortcuts
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        fabricService.setSpacePressed(false);
-      }
-    };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
@@ -300,6 +299,7 @@ export const CanvasTab: Component<CanvasTabProps> = (props) => {
 
   onCleanup(() => {
     window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('keyup', handleKeyUp);
     window.removeEventListener('paste', handlePaste);
     fabricService.setSpacePressed(false);
     if (resizeObserver) {

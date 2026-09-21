@@ -86,13 +86,13 @@ export const App: Component = () => {
       console.warn('[Session] BroadcastChannel not supported:', err);
     }
 
-    // ── 2. Storage event (cross-window broadcast instan) ──
-    window.addEventListener('storage', (e) => {
+    const handleStorage = (e: StorageEvent) => {
       if (e.key === LS_KEY && e.newValue && e.newValue !== MY_TOKEN) {
         console.log('[Session] storage event -> killThisTab');
         killThisTab('duplicate');
       }
-    });
+    };
+    window.addEventListener('storage', handleStorage);
 
     // ── 3. CLAIM 1X: kirim ke backend + tulis ke localStorage (tab lama langsung mati) ──
     console.log('[Session] Claiming ownership 1x...');
@@ -130,6 +130,7 @@ export const App: Component = () => {
 
     onCleanup(() => {
       try { bc?.close(); } catch {}
+      window.removeEventListener('storage', handleStorage);
       window.removeEventListener('hashchange', handleHashChange);
       unsubState();
       unsubActions();

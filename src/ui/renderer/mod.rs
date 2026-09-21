@@ -26,8 +26,10 @@ pub struct Renderer {
     pub size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
 
-    msaa_texture: wgpu::TextureView,
-    depth_texture: wgpu::TextureView,
+    msaa_texture: wgpu::Texture,
+    msaa_texture_view: wgpu::TextureView,
+    depth_texture: wgpu::Texture,
+    depth_texture_view: wgpu::TextureView,
 
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
@@ -77,6 +79,13 @@ pub struct Renderer {
     overlay_pipeline: wgpu::RenderPipeline,
     overlay_buffer: wgpu::Buffer,
     overlay_bind_group: wgpu::BindGroup,
+}
+
+impl Drop for Renderer {
+    fn drop(&mut self) {
+        self.msaa_texture.destroy();
+        self.depth_texture.destroy();
+    }
 }
 
 impl Renderer {
@@ -163,8 +172,8 @@ impl Renderer {
         // 3. Pipeline 2D Sprite Quad
         let pipeline_2d = pipeline_2d::create_2d_pipeline(&device, &queue, &config);
 
-        let msaa_texture = Self::create_msaa_view(&device, &config);
-        let depth_texture = Self::create_depth_view(&device, &config);
+        let (msaa_texture, msaa_texture_view) = Self::create_msaa_texture(&device, &config);
+        let (depth_texture, depth_texture_view) = Self::create_depth_texture(&device, &config);
 
         Ok(Self {
             surface,
@@ -174,7 +183,9 @@ impl Renderer {
             size,
             render_pipeline: pipeline_3d.render_pipeline,
             msaa_texture,
+            msaa_texture_view,
             depth_texture,
+            depth_texture_view,
             camera_buffer: pipeline_3d.camera_buffer,
             camera_bind_group: pipeline_3d.camera_bind_group,
             bone_buffer: pipeline_3d.bone_buffer,
@@ -255,10 +266,10 @@ impl Renderer {
         self.anchor_center_y = self.anchor_center_y.clamp(new_h * 0.1, new_h * 0.9);
     }
 
-    fn create_msaa_view(
+    fn create_msaa_texture(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
-    ) -> wgpu::TextureView {
+    ) -> (wgpu::Texture, wgpu::TextureView) {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("MSAA Multisample Texture"),
             size: wgpu::Extent3d {
@@ -273,13 +284,14 @@ impl Renderer {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
-        texture.create_view(&wgpu::TextureViewDescriptor::default())
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        (texture, view)
     }
 
-    fn create_depth_view(
+    fn create_depth_texture(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
-    ) -> wgpu::TextureView {
+    ) -> (wgpu::Texture, wgpu::TextureView) {
         let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Depth Texture"),
             size: wgpu::Extent3d {
@@ -294,7 +306,8 @@ impl Renderer {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
-        depth_texture.create_view(&wgpu::TextureViewDescriptor::default())
+        let view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        (depth_texture, view)
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -309,8 +322,18 @@ impl Renderer {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
-            self.msaa_texture = Self::create_msaa_view(&self.device, &self.config);
-            self.depth_texture = Self::create_depth_view(&self.device, &self.config);
+
+            // Bebaskan alokasi VRAM / GTT lama seketika sebelum membuat texture baru
+            self.msaa_texture.destroy();
+            self.depth_texture.destroy();
+
+            let (msaa_tex, msaa_view) = Self::create_msaa_texture(&self.device, &self.config);
+            let (depth_tex, depth_view) = Self::create_depth_texture(&self.device, &self.config);
+
+            self.msaa_texture = msaa_tex;
+            self.msaa_texture_view = msaa_view;
+            self.depth_texture = depth_tex;
+            self.depth_texture_view = depth_view;
         }
     }
 
@@ -319,6 +342,14 @@ impl Renderer {
     }
 
     pub fn load_vrm_model(&mut self, model: Box<VrmModelData>) {
+        // Bebaskan GPU buffers (vertex & index) dari model VRM sebelumnya jika ada
+        for prim in &self.gpu_primitives {
+            prim.vertex_buffer.destroy();
+            prim.index_buffer.destroy();
+        }
+        self.gpu_primitives.clear();
+        self.gpu_materials.clear();
+
         let loaded = pipeline_3d::load_vrm_model_to_gpu(
             &self.device,
             &self.queue,
@@ -414,7 +445,7 @@ impl Renderer {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.msaa_texture,
+                    view: &self.msaa_texture_view,
                     resolve_target: Some(&view),
                     ops: wgpu::Operations {
                         // Background 100% transparan
@@ -423,7 +454,7 @@ impl Renderer {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_texture,
+                    view: &self.depth_texture_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,

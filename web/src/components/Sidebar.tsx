@@ -1,4 +1,4 @@
-import { Component, createSignal, Show } from 'solid-js';
+import { Component, createSignal, Show, For } from 'solid-js';
 import { 
   Menu as MenuIcon, 
   Zap, 
@@ -27,7 +27,7 @@ interface SidebarProps {
 export const Sidebar: Component<SidebarProps> = (props) => {
   const [providerMenuOpen, setProviderMenuOpen] = createSignal(true);
 
-  const menuItems = [
+  const menuItems = () => [
     { id: 'menu', label: 'Main Menu', icon: MenuIcon, badge: props.currentState.toUpperCase() },
     { id: 'canvas', label: '2D Whiteboard', icon: Palette },
     { id: 'skills', label: 'Skill Commands', icon: Zap },
@@ -98,35 +98,38 @@ export const Sidebar: Component<SidebarProps> = (props) => {
 
         {/* Main Tabs Navigation */}
         <nav class="space-y-1">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = () => props.activeTab === item.id;
+          <For each={menuItems()}>
+            {(item) => {
+              const Icon = item.icon;
+              const isActive = () => props.activeTab === item.id;
 
-            return (
-              <button
-                onClick={() => handleSelectTab(item.id)}
-                class={`w-full flex items-center justify-between px-3.5 py-3 text-sm font-semibold transition-all duration-150 border ${
-                  isActive()
-                    ? 'bg-theme-cyan text-theme-card border-theme-cyan shadow-md anime-shadow-green font-bold'
-                    : 'bg-transparent border-transparent text-theme-text/80 hover:bg-theme-card hover:text-theme-text hover:border-theme-border'
-                }`}
-              >
-                <div class="flex items-center gap-3">
-                  <Icon size={18} class={isActive() ? 'stroke-[2.5]' : 'stroke-[2]'} />
-                  <span class="tracking-wide">{item.label}</span>
-                </div>
-                {item.badge && (
-                  <span class={`text-xs px-2 py-0.5 font-bold font-mono uppercase border ${
-                    isActive() 
-                      ? 'bg-theme-card/20 text-theme-card border-theme-card/30' 
-                      : 'bg-theme-rose/20 text-theme-rose border-theme-rose/40'
-                  }`}>
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+              return (
+                <button
+                  type="button"
+                  onClick={() => handleSelectTab(item.id)}
+                  class={`w-full flex items-center justify-between px-3.5 py-3 text-sm font-semibold transition-all duration-150 border ${
+                    isActive()
+                      ? 'bg-theme-cyan text-theme-card border-theme-cyan shadow-md anime-shadow-green font-bold'
+                      : 'bg-transparent border-transparent text-theme-text/80 hover:bg-theme-card hover:text-theme-text hover:border-theme-border'
+                  }`}
+                >
+                  <div class="flex items-center gap-3">
+                    <Icon size={18} class={isActive() ? 'stroke-[2.5]' : 'stroke-[2]'} />
+                    <span class="tracking-wide">{item.label}</span>
+                  </div>
+                  {item.badge && (
+                    <span class={`text-xs px-2 py-0.5 font-bold font-mono uppercase border ${
+                      isActive() 
+                        ? 'bg-theme-card/20 text-theme-card border-theme-card/30' 
+                        : 'bg-theme-rose/20 text-theme-rose border-theme-rose/40'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            }}
+          </For>
 
           {/* Provider LLM Group with Submenu */}
           <div class="pt-2">
