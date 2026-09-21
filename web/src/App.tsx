@@ -1,6 +1,7 @@
 import { Component, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { Sidebar } from './components/Sidebar';
 import { MenuTab } from './components/MenuTab';
+import { CanvasTab } from './components/canvas/CanvasTab';
 import { SkillsTab } from './components/SkillsTab';
 import { MusicTab } from './components/MusicTab';
 import { TunerTab } from './components/TunerTab';
@@ -17,8 +18,37 @@ const MY_TOKEN = 'sess_' + Math.random().toString(36).substring(2, 11) + Date.no
 const LS_KEY = 'ragasukma_active_tab';
 const BC_NAME = 'ragasukma_session';
 
+const TAB_HASH_ALIASES: Record<string, string> = {
+  '': 'menu',
+  '#': 'menu',
+  '#menu': 'menu',
+  '#canvas': 'canvas',
+  '#2d': 'canvas',
+  '#whiteboard': 'canvas',
+  '#draw': 'canvas',
+  '#skills': 'skills',
+  '#music': 'music',
+  '#tuner': 'tuner',
+  '#logs': 'logs',
+  '#settings': 'settings',
+  '#provider-antigravity': 'provider-antigravity',
+  '#antigravity': 'provider-antigravity',
+};
+
+const getInitialTabFromHash = (): string => {
+  try {
+    const hash = window.location.hash.toLowerCase();
+    if (TAB_HASH_ALIASES[hash]) {
+      return TAB_HASH_ALIASES[hash];
+    }
+    const clean = hash.replace(/^#/, '');
+    if (clean) return clean;
+  } catch {}
+  return 'menu';
+};
+
 export const App: Component = () => {
-  const [activeTab, setActiveTab] = createSignal('menu');
+  const [activeTab, setActiveTab] = createSignal(getInitialTabFromHash());
   const [currentState, setCurrentState] = createSignal('idle');
   const [isDead, setIsDead] = createSignal(false);
   const [deadReason, setDeadReason] = createSignal<'duplicate' | 'shutdown'>('duplicate');
@@ -89,8 +119,18 @@ export const App: Component = () => {
       }
     });
 
+    // ── 5. Hash change listener (Back/Forward / Manual URL edit) ──
+    const handleHashChange = () => {
+      const tab = getInitialTabFromHash();
+      if (tab !== activeTab()) {
+        setActiveTab(tab);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+
     onCleanup(() => {
       try { bc?.close(); } catch {}
+      window.removeEventListener('hashchange', handleHashChange);
       unsubState();
       unsubActions();
     });
@@ -107,6 +147,13 @@ export const App: Component = () => {
       api.closeMenuSSE();
     }
     setActiveTab(tab);
+    // Sinkronisasi URL Hash tanpa reload
+    try {
+      const targetHash = tab === 'menu' ? '' : `#${tab}`;
+      if (window.location.hash !== targetHash) {
+        window.history.replaceState(null, '', targetHash || window.location.pathname);
+      }
+    } catch {}
     api.notifyActiveTab(tab);
   };
 
@@ -197,6 +244,9 @@ export const App: Component = () => {
                 setCurrentState={setCurrentState}
                 showToast={showToast}
               />
+            </Show>
+            <Show when={activeTab() === 'canvas'}>
+              <CanvasTab showToast={showToast} />
             </Show>
             <Show when={activeTab() === 'skills'}>
               <SkillsTab showToast={showToast} />

@@ -8,6 +8,7 @@ import {
   Terminal,
   X,
   Sparkles,
+  Palette,
   Bot,
   Rocket,
   ChevronDown
@@ -28,6 +29,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
 
   const menuItems = [
     { id: 'menu', label: 'Main Menu', icon: MenuIcon, badge: props.currentState.toUpperCase() },
+    { id: 'canvas', label: '2D Whiteboard', icon: Palette },
     { id: 'skills', label: 'Skill Commands', icon: Zap },
     { id: 'music', label: 'Music Player', icon: Music },
     { id: 'tuner', label: 'Pose Tuner', icon: Sliders },

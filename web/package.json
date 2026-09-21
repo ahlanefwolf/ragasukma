@@ -9,7 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "fabric": "^7.4.0",
     "lucide-solid": "^0.477.0",
+    "polygon-clipping": "^0.15.7",
     "solid-js": "^1.9.4"
   },
   "devDependencies": {
