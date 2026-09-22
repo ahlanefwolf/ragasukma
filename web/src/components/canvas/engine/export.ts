@@ -65,11 +65,48 @@ export class ExportEngine {
     const activeObj = canvas.getActiveObject();
 
     if (activeObj) {
-      const rect = activeObj.getBoundingRect();
+      let left = Infinity;
+      let top = Infinity;
+      let right = -Infinity;
+      let bottom = -Infinity;
+
+      const objectsToCheck = (activeObj as any).getObjects ? (activeObj as any).getObjects() : [activeObj];
+      objectsToCheck.forEach((obj: any) => {
+        if ((obj.type === 'line' || obj.isArrow) && obj.connectorData?.computedPoints?.length > 1) {
+          const strokeW = (obj.strokeWidth || 2) * 2;
+          for (const pt of obj.connectorData.computedPoints) {
+            if (pt.x - strokeW < left) left = pt.x - strokeW;
+            if (pt.x + strokeW > right) right = pt.x + strokeW;
+            if (pt.y - strokeW < top) top = pt.y - strokeW;
+            if (pt.y + strokeW > bottom) bottom = pt.y + strokeW;
+          }
+        } else if (typeof obj.getBoundingRect === 'function') {
+          const r = obj.getBoundingRect();
+          if (r.left < left) left = r.left;
+          if (r.top < top) top = r.top;
+          if (r.left + r.width > right) right = r.left + r.width;
+          if (r.top + r.height > bottom) bottom = r.top + r.height;
+        }
+      });
+
+      const fallbackRect = activeObj.getBoundingRect();
+      if (!isFinite(left) || !isFinite(right) || !isFinite(top) || !isFinite(bottom)) {
+        left = fallbackRect.left;
+        top = fallbackRect.top;
+        right = fallbackRect.left + fallbackRect.width;
+        bottom = fallbackRect.top + fallbackRect.height;
+      }
+
+      const padding = 8;
+      const cropLeft = Math.max(0, left - padding);
+      const cropTop = Math.max(0, top - padding);
+      const cropWidth = Math.min(canvasWidth - cropLeft, (right - left) + padding * 2);
+      const cropHeight = Math.min(canvasHeight - cropTop, (bottom - top) + padding * 2);
+
       return {
         hasSelection: true,
-        selectionWidth: Math.max(1, Math.round(rect.width)),
-        selectionHeight: Math.max(1, Math.round(rect.height)),
+        selectionWidth: Math.max(1, Math.round(cropWidth)),
+        selectionHeight: Math.max(1, Math.round(cropHeight)),
         canvasWidth,
         canvasHeight,
       };
@@ -112,12 +149,49 @@ export class ExportEngine {
 
     if (options.format === 'svg') {
       if (hasSelection && activeObj) {
-        const rect = activeObj.getBoundingRect();
-        const targetW = options.width || rect.width;
-        const targetH = options.height || rect.height;
+        let left = Infinity;
+        let top = Infinity;
+        let right = -Infinity;
+        let bottom = -Infinity;
+
+        const objectsToCheck = (activeObj as any).getObjects ? (activeObj as any).getObjects() : [activeObj];
+        objectsToCheck.forEach((obj: any) => {
+          if ((obj.type === 'line' || obj.isArrow) && obj.connectorData?.computedPoints?.length > 1) {
+            const strokeW = (obj.strokeWidth || 2) * 2;
+            for (const pt of obj.connectorData.computedPoints) {
+              if (pt.x - strokeW < left) left = pt.x - strokeW;
+              if (pt.x + strokeW > right) right = pt.x + strokeW;
+              if (pt.y - strokeW < top) top = pt.y - strokeW;
+              if (pt.y + strokeW > bottom) bottom = pt.y + strokeW;
+            }
+          } else if (typeof obj.getBoundingRect === 'function') {
+            const r = obj.getBoundingRect();
+            if (r.left < left) left = r.left;
+            if (r.top < top) top = r.top;
+            if (r.left + r.width > right) right = r.left + r.width;
+            if (r.top + r.height > bottom) bottom = r.top + r.height;
+          }
+        });
+
+        const fallbackRect = activeObj.getBoundingRect();
+        if (!isFinite(left) || !isFinite(right) || !isFinite(top) || !isFinite(bottom)) {
+          left = fallbackRect.left;
+          top = fallbackRect.top;
+          right = fallbackRect.left + fallbackRect.width;
+          bottom = fallbackRect.top + fallbackRect.height;
+        }
+
+        const padding = 8;
+        const cropLeft = Math.max(0, left - padding);
+        const cropTop = Math.max(0, top - padding);
+        const cropWidth = (right - left) + padding * 2;
+        const cropHeight = (bottom - top) + padding * 2;
+
+        const targetW = options.width || cropWidth;
+        const targetH = options.height || cropHeight;
         return `<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${targetW}" height="${targetH}" viewBox="0 0 ${rect.width} ${rect.height}">
-  <g transform="translate(${-rect.left}, ${-rect.top})">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${targetW}" height="${targetH}" viewBox="0 0 ${cropWidth} ${cropHeight}">
+  <g transform="translate(${-cropLeft}, ${-cropTop})">
     ${activeObj.toSVG()}
   </g>
 </svg>`;
@@ -136,18 +210,64 @@ export class ExportEngine {
       bg = options.format === 'jpeg' ? '#FFFFFF' : '';
     }
 
+    // Simpan viewport transform saat ini agar export selalu merender scene kanvas penuh (1:1 tanpa zoom/pan terpotong)
+    const originalVpt = canvas.viewportTransform ? [...canvas.viewportTransform] : [1, 0, 0, 1, 0, 0];
+    const originalZoom = canvas.getZoom();
+
+    // Reset viewport sementara saat export
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     canvas.backgroundColor = bg;
     canvas.renderAll();
 
     let dataUrl = '';
     if (hasSelection && activeObj) {
-      const rect = activeObj.getBoundingRect();
-      const mult = options.width ? options.width / Math.max(1, rect.width) : (options.multiplier || 1);
+      // Hitung bounding rect aktual yang memperhitungkan waypoint connectorData
+      // jika ada garis/arrow dengan rute siku/melengkung yang melebihi batas 2 objek
+      let left = Infinity;
+      let top = Infinity;
+      let right = -Infinity;
+      let bottom = -Infinity;
+
+      const objectsToCheck = (activeObj as any).getObjects ? (activeObj as any).getObjects() : [activeObj];
+      objectsToCheck.forEach((obj: any) => {
+        if ((obj.type === 'line' || obj.isArrow) && obj.connectorData?.computedPoints?.length > 1) {
+          const strokeW = (obj.strokeWidth || 2) * 2;
+          for (const pt of obj.connectorData.computedPoints) {
+            if (pt.x - strokeW < left) left = pt.x - strokeW;
+            if (pt.x + strokeW > right) right = pt.x + strokeW;
+            if (pt.y - strokeW < top) top = pt.y - strokeW;
+            if (pt.y + strokeW > bottom) bottom = pt.y + strokeW;
+          }
+        } else if (typeof obj.getBoundingRect === 'function') {
+          const r = obj.getBoundingRect();
+          if (r.left < left) left = r.left;
+          if (r.top < top) top = r.top;
+          if (r.left + r.width > right) right = r.left + r.width;
+          if (r.top + r.height > bottom) bottom = r.top + r.height;
+        }
+      });
+
+      const fallbackRect = activeObj.getBoundingRect();
+      if (!isFinite(left) || !isFinite(right) || !isFinite(top) || !isFinite(bottom)) {
+        left = fallbackRect.left;
+        top = fallbackRect.top;
+        right = fallbackRect.left + fallbackRect.width;
+        bottom = fallbackRect.top + fallbackRect.height;
+      }
+
+      // Berikan margin padding kecil (8px) agar stroke garis paling luar tidak terpotong
+      const padding = 8;
+      const cropLeft = Math.max(0, left - padding);
+      const cropTop = Math.max(0, top - padding);
+      const cropWidth = Math.min(canvas.getWidth() - cropLeft, (right - left) + padding * 2);
+      const cropHeight = Math.min(canvas.getHeight() - cropTop, (bottom - top) + padding * 2);
+
+      const mult = options.width ? options.width / Math.max(1, cropWidth) : (options.multiplier || 1);
       dataUrl = canvas.toDataURL({
-        left: rect.left,
-        top: rect.top,
-        width: rect.width,
-        height: rect.height,
+        left: cropLeft,
+        top: cropTop,
+        width: cropWidth,
+        height: cropHeight,
         format: options.format === 'jpeg' ? 'jpeg' : 'png',
         quality: options.quality || 0.95,
         multiplier: mult,
@@ -156,13 +276,20 @@ export class ExportEngine {
       const cWidth = Math.max(1, canvas.getWidth());
       const mult = options.width ? options.width / cWidth : (options.multiplier || 1);
       dataUrl = canvas.toDataURL({
+        left: 0,
+        top: 0,
+        width: canvas.getWidth(),
+        height: canvas.getHeight(),
         format: options.format === 'jpeg' ? 'jpeg' : 'png',
         quality: options.quality || 0.95,
         multiplier: mult,
       });
     }
 
+    // Kembalikan background dan viewport semula
     canvas.backgroundColor = originalBg;
+    canvas.setViewportTransform(originalVpt as any);
+    canvas.setZoom(originalZoom);
     canvas.renderAll();
 
     return dataUrl;

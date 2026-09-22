@@ -1,7 +1,7 @@
 import { Component, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { Sidebar } from './components/Sidebar';
 import { MenuTab } from './components/MenuTab';
-import { CanvasTab } from './components/canvas/CanvasTab';
+import { CanvasTab } from './components/canvas';
 import { SkillsTab } from './components/SkillsTab';
 import { MusicTab } from './components/MusicTab';
 import { TunerTab } from './components/TunerTab';

@@ -18,7 +18,9 @@ import {
   cornerRadius,
   arrowHead,
   lineStyle,
+  connectorRouting,
 } from '../../canvasStore';
+import { computeConnectorPoints } from '../connector';
 import { applyShapeStrokeAlignment } from '../drawing';
 import { LayersEngine } from '../layers';
 import { HistoryManager } from './history';
@@ -49,12 +51,20 @@ export class FabricCore {
 
     // Ensure all objects maintain pure pixel stroke widths when scaled
     FabricObject.ownDefaults.strokeUniform = true;
+    // Matikan cache raster untuk garis/panah agar tidak terpotong saat zoom in / zoom out
+    // dan pastikan fill default garis adalah string kosong (transparan), BUKAN hitam bawaan Fabric
+    (Line as any).ownDefaults = {
+      ...(Line as any).ownDefaults,
+      objectCaching: false,
+      fill: '',
+    };
 
     this.canvas = new Canvas(canvasEl, {
       width,
       height,
       backgroundColor: '',
       selection: true,
+      selectionFullyContained: false, // Sentuhan seleksi parsial tetap memilih objek
       preserveObjectStacking: true,
     });
 
@@ -71,6 +81,7 @@ export class FabricCore {
 
   public destroy() {
     if (this.canvas) {
+      this.canvas.off();
       this.canvas.dispose();
       this.canvas = null;
     }
@@ -99,7 +110,8 @@ export class FabricCore {
     this.canvas.selection = tool === 'select' && !this.viewport.isSpacePressed;
     this.canvas.defaultCursor = tool === 'select' ? 'default' : 'crosshair';
 
-    this.canvas.forEachObject((obj) => {
+    this.canvas.forEachObject((obj: any) => {
+      if (obj.isConnectionIndicator) return;
       obj.selectable = tool === 'select';
       obj.evented = tool === 'select' || tool === 'eraser';
     });
@@ -129,11 +141,13 @@ export class FabricCore {
           obj.set({ fill: strokeColor(), fontSize: fontSize(), fontFamily: fontFamily() });
         } else if (obj instanceof Line || obj.type === 'line') {
           const hasBorder = strokeColor() !== 'transparent' && strokeWidth() > 0;
-          let dash: number[] | undefined = undefined;
+          let dash: number[] | null = null;
           if (lineStyle() === 'dashed') {
             dash = [8, 6];
           } else if (lineStyle() === 'dotted') {
             dash = [3, 4];
+          } else {
+            dash = null;
           }
 
           const hasEnd = arrowHead() === 'end' || arrowHead() === 'both';
@@ -149,12 +163,63 @@ export class FabricCore {
           obj.arrowEnd = hasEnd;
           obj.arrowStart = hasStart;
           obj.isArrow = hasEnd || hasStart;
+
+          // Update rute garis / konektor secara reaktif (Lurus, Siku, Lengkung)
+          const lineStartX = (obj as any).x1 ?? obj.connectorData?.startX ?? 0;
+          const lineStartY = (obj as any).y1 ?? obj.connectorData?.startY ?? 0;
+          const lineEndX = (obj as any).x2 ?? obj.connectorData?.endX ?? 100;
+          const lineEndY = (obj as any).y2 ?? obj.connectorData?.endY ?? 100;
+
+          const routing = connectorRouting();
+
+          if (!obj.connectorData) {
+            obj.connectorData = {
+              startX: lineStartX,
+              startY: lineStartY,
+              endX: lineEndX,
+              endY: lineEndY,
+              routing,
+            };
+          }
+
+          obj.connectorData.routing = routing;
+          obj.connectorData.startX = lineStartX;
+          obj.connectorData.startY = lineStartY;
+          obj.connectorData.endX = lineEndX;
+          obj.connectorData.endY = lineEndY;
+
+          const route = computeConnectorPoints(
+            lineStartX,
+            lineStartY,
+            lineEndX,
+            lineEndY,
+            routing,
+            obj.connectorData.fromPortId,
+            obj.connectorData.toPortId,
+            obj.connectorData.fromObj,
+            obj.connectorData.toObj
+          );
+          obj.connectorData.computedPoints = route.points;
+          obj.connectorData.lastAngle = route.lastAngle;
+          obj.connectorData.firstAngle = route.firstAngle;
+
           obj.dirty = true;
           obj.setCoords();
         } else {
           const hasBorder = strokeColor() !== 'transparent' && strokeWidth() > 0;
+          let dash: number[] | null = null;
+          if (lineStyle() === 'dashed') {
+            dash = [8, 6];
+          } else if (lineStyle() === 'dotted') {
+            dash = [3, 4];
+          } else {
+            dash = null;
+          }
+
           const updateData: any = {
             stroke: hasBorder ? strokeColor() : '',
+            strokeWidth: hasBorder ? strokeWidth() : 0,
+            strokeDashArray: dash,
             strokeUniform: true,
             fill: fillColor() === 'transparent' ? '' : fillColor(),
           };
@@ -164,6 +229,8 @@ export class FabricCore {
           }
           obj.set(updateData);
           applyShapeStrokeAlignment(obj, strokeAlign(), hasBorder ? strokeWidth() : 0);
+          obj.dirty = true;
+          obj.setCoords();
         }
       };
 

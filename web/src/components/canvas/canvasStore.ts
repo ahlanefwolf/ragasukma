@@ -1,5 +1,14 @@
 import { createSignal } from 'solid-js';
-import { CanvasTool, CanvasStyleConfig, CanvasLayerItem, McpDrawingPlan, McpDrawingStep, StrokeAlign, ArrowHead, LineStyle } from './types';
+import {
+  CanvasTool,
+  CanvasStyleConfig,
+  CanvasLayerItem,
+  McpDrawingPlan,
+  StrokeAlign,
+  ArrowHead,
+  LineStyle,
+  ConnectorRouting,
+} from './types';
 
 // Default Styles
 export const DEFAULT_STYLE: CanvasStyleConfig = {
@@ -11,37 +20,6 @@ export const DEFAULT_STYLE: CanvasStyleConfig = {
   fontSize: 18,
   opacity: 1,
 };
-
-// Preset Palette Colors matching the App's Theme & Diagrams
-export const STROKE_PALETTE = [
-  { label: 'Tanpa Border (None)', hex: 'transparent' },
-  { label: 'Cyan Glow', hex: '#7BDFF2' },
-  { label: 'Neon Rose', hex: '#F28482' },
-  { label: 'Amber Sun', hex: '#F6BD60' },
-  { label: 'Mint Soft', hex: '#84DCC6' },
-  { label: 'Lavender', hex: '#B8C0FF' },
-  { label: 'Pure White', hex: '#FFFFFF' },
-  { label: 'Charcoal', hex: '#1E293B' },
-];
-
-export const COLOR_PALETTE = [
-  { label: 'Cyan Glow', hex: '#7BDFF2' },
-  { label: 'Neon Rose', hex: '#F28482' },
-  { label: 'Amber Sun', hex: '#F6BD60' },
-  { label: 'Mint Soft', hex: '#84DCC6' },
-  { label: 'Lavender', hex: '#B8C0FF' },
-  { label: 'Pure White', hex: '#FFFFFF' },
-  { label: 'Charcoal', hex: '#1E293B' },
-];
-
-export const FILL_PALETTE = [
-  { label: 'None', hex: 'transparent' },
-  { label: 'Cyan Tint', hex: 'rgba(123, 223, 242, 0.15)' },
-  { label: 'Rose Tint', hex: 'rgba(242, 132, 130, 0.15)' },
-  { label: 'Amber Tint', hex: 'rgba(246, 189, 96, 0.15)' },
-  { label: 'Surface', hex: '#161B22' },
-  { label: 'White', hex: '#FFFFFF' },
-];
 
 // Grid Alignment Size (matching CSS 24px dot-matrix)
 export const GRID_SIZE = 24;
@@ -71,6 +49,7 @@ export const [fillColor, setFillColor] = createSignal<string>(DEFAULT_STYLE.fill
 export const [strokeWidth, setStrokeWidth] = createSignal<number>(DEFAULT_STYLE.strokeWidth);
 export const [strokeAlign, setStrokeAlign] = createSignal<StrokeAlign>(DEFAULT_STYLE.strokeAlign);
 export const [arrowHead, setArrowHead] = createSignal<ArrowHead>('end');
+export const [connectorRouting, setConnectorRouting] = createSignal<ConnectorRouting>('orthogonal');
 export const [lineStyle, setLineStyle] = createSignal<LineStyle>('solid');
 export const [cornerRadius, setCornerRadius] = createSignal<number>(DEFAULT_STYLE.cornerRadius);
 export const [fontSize, setFontSize] = createSignal<number>(DEFAULT_STYLE.fontSize);

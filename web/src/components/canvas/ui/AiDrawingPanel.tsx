@@ -18,9 +18,9 @@ import {
   aiSpeedMultiplier,
   setAiSpeedMultiplier,
   DEMO_AI_PLANS,
-} from './canvasStore';
-import { fabricService } from './fabricService';
-import { McpDrawingPlan } from './types';
+} from '../canvasStore';
+import { fabricService } from '../fabricService';
+import { McpDrawingPlan } from '../types';
 
 interface AiDrawingPanelProps {
   showToast: (msg: string) => void;

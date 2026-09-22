@@ -23,12 +23,11 @@ import {
   FolderPlus,
   FolderMinus,
   Layers2,
-  Scissors,
-  Split
+  Scissors
 } from 'lucide-solid';
-import { layersList, showLayersPanel, setShowLayersPanel, selectedObjectType } from './canvasStore';
-import { fabricService } from './fabricService';
-import { CanvasLayerItem } from './types';
+import { layersList, showLayersPanel, setShowLayersPanel, selectedObjectType } from '../canvasStore';
+import { fabricService } from '../fabricService';
+import { CanvasLayerItem } from '../types';
 
 interface LayersPanelProps {
   showToast: (msg: string) => void;
@@ -197,30 +196,6 @@ export const LayersPanel: Component<LayersPanelProps> = (props) => {
         </div>
         <div class="flex items-center gap-1">
           <Show when={selectedCount() > 1}>
-            <button
-              type="button"
-              onClick={() => {
-                const ok = fabricService.splitIntoFragments();
-                if (ok) props.showToast('✂️ Berhasil memecah semua pertemuan objek!');
-              }}
-              title="Pisahkan semua perpotongan objek menjadi pecahan objek mandiri"
-              class="px-2 py-1 text-[11px] font-mono font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 hover:bg-theme-cyan/30 flex items-center gap-1 transition-all"
-            >
-              <Split size={12} />
-              <span>Pisahkan</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const ok = fabricService.unionSelected();
-                if (ok) props.showToast('✨ Berhasil menggabungkan objek terpilih (Union)!');
-              }}
-              title="Gabung objek terpilih menjadi 1 bentuk poligon (Union)"
-              class="px-2 py-1 text-[11px] font-mono font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 hover:bg-theme-cyan/30 flex items-center gap-1 transition-all"
-            >
-              <Layers size={12} />
-              <span>Union</span>
-            </button>
             <button
               type="button"
               onClick={handleGroup}

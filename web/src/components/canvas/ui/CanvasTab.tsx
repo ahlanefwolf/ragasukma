@@ -5,7 +5,7 @@ import { LayersPanel } from './LayersPanel';
 import { ExportModal } from './ExportModal';
 import { ShortcutsModal } from './ShortcutsModal';
 import { AiDrawingPanel } from './AiDrawingPanel';
-import { fabricService } from './fabricService';
+import { fabricService } from '../fabricService';
 import {
   showAiSimulator,
   isAiDrawing,
@@ -13,8 +13,8 @@ import {
   isFullscreen,
   setIsFullscreen,
   showLayersPanel,
-} from './canvasStore';
-import { CanvasTool } from './types';
+} from '../canvasStore';
+import { CanvasTool } from '../types';
 
 interface CanvasTabProps {
   showToast: (msg: string) => void;

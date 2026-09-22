@@ -11,6 +11,7 @@ export type CanvasTool =
 export type StrokeAlign = 'center' | 'inner' | 'outer';
 export type ArrowHead = 'none' | 'end' | 'both';
 export type LineStyle = 'solid' | 'dashed' | 'dotted';
+export type ConnectorRouting = 'straight' | 'orthogonal' | 'curved';
 
 export interface CanvasStyleConfig {
   strokeColor: string;

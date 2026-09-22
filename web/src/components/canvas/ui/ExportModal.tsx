@@ -10,7 +10,7 @@ import {
   Sliders, 
   Monitor 
 } from 'lucide-solid';
-import { fabricService } from './fabricService';
+import { fabricService } from '../fabricService';
 
 interface ExportModalProps {
   isOpen: boolean;

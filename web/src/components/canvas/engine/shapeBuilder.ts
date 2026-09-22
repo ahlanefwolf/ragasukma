@@ -18,10 +18,45 @@ interface ObjectStyle {
 }
 
 /**
+ * Menentukan apakah sebuah objek Fabric merupakan 2D closed-shape yang valid
+ * untuk operasi kalkulasi irisan (Shape Builder & Union).
+ * Garis, konektor, panah, teks, dan freehand drawing diabaikan.
+ */
+export function is2DClosedShape(obj: any): boolean {
+  if (!obj) return false;
+  if (obj.__isHatchPreview || obj.__isPort) return false;
+
+  const objType = (obj.type || '').toLowerCase();
+  const disallowedTypes = [
+    'line',
+    'connector',
+    'arrow',
+    'i-text',
+    'text',
+    'textbox',
+    'path', // freehand brush drawing
+    'image',
+  ];
+
+  if (disallowedTypes.includes(objType)) {
+    return false;
+  }
+
+  // Jika berupa group, cek apakah group tersebut adalah connector atau arrow kustom
+  if (obj.isConnector || obj.arrowHead) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Mengonversi objek Fabric apa pun menjadi geometri poligon absolut (GeoJSON Polygon)
  * yang kompatibel dengan library polygon-clipping.
  */
 function fabricObjectToGeom(obj: any): PcPolygon | null {
+  if (!is2DClosedShape(obj)) return null;
+
   try {
     const matrix = typeof obj.calcTransformMatrix === 'function' ? obj.calcTransformMatrix() : null;
     const objType = (obj.type || '').toLowerCase();
@@ -76,6 +111,14 @@ function fabricObjectToGeom(obj: any): PcPolygon | null {
         obj.points.forEach((p: any) => {
           pts.push(util.transformPoint(new Point(p.x - po.x, p.y - po.y), matrix));
         });
+      } else if (objType === 'triangle') {
+        const w = (obj.width || 0) / 2;
+        const h = (obj.height || 0) / 2;
+        pts.push(
+          util.transformPoint(new Point(0, -h), matrix),
+          util.transformPoint(new Point(w, h), matrix),
+          util.transformPoint(new Point(-w, h), matrix)
+        );
       } else {
         const coords = obj.getCoords ? obj.getCoords() : [];
         coords.forEach((c: any) => pts.push({ x: c.x, y: c.y }));
@@ -152,7 +195,7 @@ function createPolygonFromRing(
 
 export class ShapeBuilderEngine {
   /**
-   * Mengambil semua objek yang sedang terpilih
+   * Mengambil semua objek tertutup 2D yang sedang terpilih (hanya closed shape yang valid)
    */
   public static getSelectedObjects(canvas: Canvas | null): FabricObject[] {
     if (!canvas) return [];
@@ -163,7 +206,7 @@ export class ShapeBuilderEngine {
         selected = activeObj.getObjects().slice();
       }
     }
-    return selected;
+    return selected.filter((o) => is2DClosedShape(o));
   }
 
   /**
