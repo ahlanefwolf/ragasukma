@@ -80,79 +80,76 @@ macro_rules! term_err {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserConfig {
+    #[serde(default)]
     pub assistant_name: String,
+    #[serde(default)]
     pub user_callsign: String,
+    #[serde(default)]
     pub personality_role: String,
-    #[serde(default = "default_assistant_gender")]
+    #[serde(default)]
     pub assistant_gender: String,
+    #[serde(default)]
     pub stt_engine: String,
+    #[serde(default)]
     pub groq_api_key: String,
-    #[serde(default = "default_llm_provider")]
+    #[serde(default)]
     pub llm_provider: String,
+    #[serde(default)]
     pub llm_base_url: String,
+    #[serde(default)]
     pub llm_model: String,
+    #[serde(default)]
     pub llm_api_key: String,
+    #[serde(default)]
     pub voice_mode: String,
+    #[serde(default)]
     pub mic_sensitivity: String,
+    #[serde(default)]
     pub vad_silence_limit: String,
+    #[serde(default)]
     pub noise_reduction_level: u8,
+    #[serde(default)]
     pub tts_engine: String,
-    #[serde(default = "default_tts_lang")]
+    #[serde(default)]
     pub tts_lang: String,
+    #[serde(default)]
     pub tts_speed: f32,
+    #[serde(default)]
     pub tts_eleven_labs_key: String,
+    #[serde(default)]
     pub elevenlabs_voice_id: String,
+    #[serde(default)]
     pub avatar_type: String,
-    #[serde(default = "default_always_on_top")]
+    #[serde(default)]
     pub always_on_top: bool,
-    #[serde(default = "default_voice_interruption")]
+    #[serde(default)]
     pub voice_interruption: bool,
-}
-
-fn default_assistant_gender() -> String {
-    "female".to_string()
-}
-
-fn default_llm_provider() -> String {
-    "antigravity".to_string()
-}
-
-fn default_voice_interruption() -> bool {
-    false
-}
-
-fn default_always_on_top() -> bool {
-    true
-}
-
-fn default_tts_lang() -> String {
-    "id".to_string()
 }
 
 impl Default for UserConfig {
     fn default() -> Self {
         Self {
-            assistant_name: "Laras".to_string(),
-            user_callsign: "Mas".to_string(),
-            personality_role: "partner".to_string(),
-            assistant_gender: "female".to_string(),
-            stt_engine: "google".to_string(),
+            assistant_name: "".to_string(),
+            user_callsign: "".to_string(),
+            personality_role: "".to_string(),
+            assistant_gender: "".to_string(),
+            stt_engine: "".to_string(),
             groq_api_key: "".to_string(),
-            llm_provider: "antigravity".to_string(),
-            llm_base_url: "http://localhost:20128/v1".to_string(),
-            llm_model: "ag/gemini-3.8-flash-high".to_string(),
+            llm_provider: "".to_string(),
+            llm_base_url: "".to_string(),
+            llm_model: "".to_string(),
             llm_api_key: "".to_string(),
-            voice_mode: "auto".to_string(),
-            mic_sensitivity: "3".to_string(),
-            vad_silence_limit: "2".to_string(),
+            voice_mode: "".to_string(),
+            mic_sensitivity: "".to_string(),
+            vad_silence_limit: "".to_string(),
             noise_reduction_level: 0,
-            tts_engine: "google".to_string(),
-            tts_lang: "id".to_string(),
-            tts_speed: 1.15f32,
+            tts_engine: "".to_string(),
+            tts_lang: "".to_string(),
+            tts_speed: 1.0f32,
             tts_eleven_labs_key: "".to_string(),
             elevenlabs_voice_id: "".to_string(),
-            avatar_type: "vrm".to_string(),
-            always_on_top: true,
+            avatar_type: "".to_string(),
+            always_on_top: false,
             voice_interruption: false,
         }
     }

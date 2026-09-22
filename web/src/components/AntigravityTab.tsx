@@ -214,10 +214,10 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
           </div>
         </div>
 
-        <div class="flex items-center gap-2.5 w-full md:w-auto flex-wrap sm:flex-nowrap">
+        <div class="flex items-center gap-2.5 w-full md:w-auto shrink-0 flex-nowrap">
           <button
             onClick={() => loadAccounts()}
-            class="p-2.5 bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan hover:border-theme-cyan/50 transition-all flex items-center justify-center"
+            class="p-2.5 bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan hover:border-theme-cyan/50 transition-all flex items-center justify-center shrink-0"
             title="Muat Ulang"
           >
             <RefreshCw size={18} class={loading() ? 'animate-spin text-theme-cyan' : ''} />
@@ -227,7 +227,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
           <button
             onClick={handleOAuthLogin}
             disabled={isOAuthLoading()}
-            class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-theme-cyan text-theme-card font-bold text-xs shadow-md anime-shadow-green hover:opacity-95 active:scale-95 transition-all"
+            class="whitespace-nowrap shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 bg-theme-cyan text-theme-card font-bold text-xs shadow-md anime-shadow-green hover:opacity-95 active:scale-95 transition-all"
           >
             <Show when={isOAuthLoading()} fallback={<LogIn size={16} />}>
               <RefreshCw size={16} class="animate-spin" />
@@ -237,11 +237,11 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
 
           <button
             onClick={() => setShowAddModal(true)}
-            class="p-2.5 bg-theme-bg border border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/50 text-xs font-semibold transition-all flex items-center gap-1.5"
+            class="whitespace-nowrap shrink-0 p-2.5 sm:px-3 sm:py-2.5 bg-theme-bg border border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/50 text-xs font-semibold transition-all flex items-center gap-1.5"
             title="Input Token Manual"
           >
             <Plus size={16} />
-            <span class="hidden sm:inline">Manual</span>
+            <span class="inline">Manual</span>
           </button>
         </div>
       </div>

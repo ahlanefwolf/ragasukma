@@ -1,5 +1,5 @@
 import { Component, For, Show } from 'solid-js';
-import { Gauge, RefreshCw, AlertTriangle, Sparkles, Zap, Clock, Copy, Check } from 'lucide-solid';
+import { Gauge, RefreshCw, AlertTriangle, Zap, Clock, Copy, Check } from 'lucide-solid';
 import { AntigravityQuotaResponse } from '../../api';
 
 interface AntigravityQuotaViewProps {
@@ -115,7 +115,7 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
         <Show when={props.quotaData?.weekly && props.quotaData.weekly.length > 0}>
           <div class="space-y-1.5">
             <div class="text-xs font-bold text-theme-text/60 uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles size={12} class="text-amber-400" />
+              <Clock size={12} class="text-amber-400" />
               <span>Kuota Mingguan (Weekly Cap)</span>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">

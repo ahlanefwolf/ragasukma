@@ -4,10 +4,10 @@ export interface UserConfig {
   assistant_name: string;
   user_callsign: string;
   personality_role: string;
-  assistant_gender?: string;
+  assistant_gender: string;
   stt_engine: string;
   groq_api_key: string;
-  llm_provider?: string;
+  llm_provider: string;
   llm_base_url: string;
   llm_model: string;
   llm_api_key: string;
@@ -21,8 +21,8 @@ export interface UserConfig {
   tts_eleven_labs_key: string;
   elevenlabs_voice_id: string;
   avatar_type: string;
-  always_on_top?: boolean;
-  voice_interruption?: boolean;
+  always_on_top: boolean;
+  voice_interruption: boolean;
 }
 
 export const configService = {

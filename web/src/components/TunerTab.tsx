@@ -9,7 +9,7 @@ import {
   RotateCw,
   ZoomIn,
   MousePointer,
-  Sparkles
+  Compass
 } from 'lucide-solid';
 import { api, PosesConfig } from '../api';
 import { BONE_CATEGORIES, BONE_LABELS, MIRROR_MAP } from './tunerBones';
@@ -301,7 +301,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
         <div class="bg-theme-bg p-3 border border-theme-border space-y-2">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold uppercase tracking-wider text-theme-cyan flex items-center gap-1.5">
-              <Sparkles size={13} />
+              <Compass size={13} />
               Panduan Navigasi Layar Avatar
             </span>
             <span class="text-xs text-theme-text/50">Interaksi Mouse & Keyboard</span>

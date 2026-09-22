@@ -8,8 +8,7 @@ import {
   Layers, 
   Crop, 
   Sliders, 
-  Monitor, 
-  Sparkles 
+  Monitor 
 } from 'lucide-solid';
 import { fabricService } from './fabricService';
 

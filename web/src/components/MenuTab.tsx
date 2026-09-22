@@ -8,7 +8,6 @@ import {
   MicOff, 
   RefreshCw, 
   RotateCcw, 
-  Sparkles, 
   Bot, 
   Layers, 
   Headphones,
@@ -34,12 +33,12 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
   const [micMuted, setMicMuted] = createSignal(false);
   const [voiceInterruption, setVoiceInterruption] = createSignal(true);
   const [isUpdating, setIsUpdating] = createSignal(false);
-  const [assistantName, setAssistantName] = createSignal('Laras');
-  const [ttsEngineName, setTtsEngineName] = createSignal('Google TTS');
+  const [assistantName, setAssistantName] = createSignal('');
+  const [ttsEngineName, setTtsEngineName] = createSignal('');
   const [micLevel, setMicLevel] = createSignal(0);
   const [micBars, setMicBars] = createSignal<number[]>(new Array(24).fill(0));
   const [micActive, setMicActive] = createSignal(true);
-  const [micSensitivity, setMicSensitivity] = createSignal('3');
+  const [micSensitivity, setMicSensitivity] = createSignal('');
   const [noiseReductionLevel, setNoiseReductionLevel] = createSignal(0);
   const [updateModalOpen, setUpdateModalOpen] = createSignal(false);
   const [updateInfo, setUpdateInfo] = createSignal<{
@@ -80,11 +79,13 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
   onMount(async () => {
     const cfg = await api.getConfig();
     if (cfg) {
-      setAssistantName(cfg.assistant_name || 'Laras');
-      setTtsEngineName(`${cfg.tts_engine.toUpperCase()} (${cfg.tts_lang})`);
-      setMicSensitivity(cfg.mic_sensitivity || '3');
-      setNoiseReductionLevel(cfg.noise_reduction_level || 0);
-      setVoiceInterruption(cfg.voice_interruption ?? true);
+      setAssistantName(cfg.assistant_name);
+      setTtsEngineName(
+        cfg.tts_engine ? `${cfg.tts_engine.toUpperCase()} (${cfg.tts_lang})` : ''
+      );
+      setMicSensitivity(cfg.mic_sensitivity);
+      setNoiseReductionLevel(cfg.noise_reduction_level);
+      setVoiceInterruption(Boolean(cfg.voice_interruption));
     }
 
     // Ambil initial state kontrol 1x via GET /api/state

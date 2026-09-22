@@ -2,7 +2,7 @@ import { Component, For, Show, createSignal } from 'solid-js';
 import {
   Play,
   Square as StopIcon,
-  Sparkles,
+  Wand2,
   Bot,
   Zap,
   Code2,
@@ -97,7 +97,7 @@ export const AiDrawingPanel: Component<AiDrawingPanelProps> = (props) => {
       {/* Demo Plans Quick Runner */}
       <div class="space-y-2">
         <span class="text-xs font-mono font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-          <Sparkles size={13} />
+          <Wand2 size={13} />
           Preset Template Demo AI:
         </span>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">

@@ -7,7 +7,7 @@ import {
   Edit2,
   Check,
   X,
-  Sparkles,
+  Zap,
   Layers,
   Search,
   Globe,
@@ -213,36 +213,36 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
       </div>
 
       {/* Browser AI Companion Extension Setup Banner */}
-      <div class="p-5 bg-gradient-to-r from-theme-card/90 via-theme-surface to-theme-bg border border-theme-cyan/40 shadow-lg space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div class="flex items-start gap-3">
+      <div class="p-4 sm:p-5 bg-gradient-to-r from-theme-card/90 via-theme-surface to-theme-bg border border-theme-cyan/40 shadow-lg space-y-4">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div class="flex items-start sm:items-center gap-3.5">
             <div class="p-2.5 bg-theme-cyan/10 border border-theme-cyan/30 text-theme-cyan shrink-0">
-              <Globe size={22} class="animate-pulse" />
+              <Globe size={20} class="animate-pulse" />
             </div>
-            <div>
-              <div class="flex items-center gap-2">
+            <div class="space-y-1">
+              <div class="flex flex-wrap items-center gap-2">
                 <h3 class="text-sm sm:text-base font-bold text-theme-text font-heading tracking-wide">
                   EKSTENSI BROWSER AI (CHROME / BRAVE / EDGE / FIREFOX)
                 </h3>
-                <span class="px-2 py-0.5 text-xs font-bold uppercase bg-theme-rose/20 text-theme-rose border border-theme-rose/30">
+                <span class="px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-theme-rose/20 text-theme-rose border border-theme-rose/30">
                   DOM Learning & Snapshot
                 </span>
               </div>
-              <p class="text-xs text-theme-text/70 mt-1">
-                Memungkinkan AI mengenali elemen halaman (YouTube, pencarian, tombol, form) dan menyimpannya ke <code class="text-theme-cyan font-mono">assets/active_tab_browser.json</code> secara realtime.
+              <p class="text-xs text-theme-text/70 leading-relaxed max-w-3xl">
+                Memungkinkan AI mengenali elemen halaman (YouTube, pencarian, tombol, form) dan menyimpannya ke <code class="text-theme-cyan font-mono px-1 py-0.5 bg-theme-card border border-theme-border text-[11px]">assets/active_tab_browser.json</code> secara realtime.
               </p>
             </div>
           </div>
 
-          <div class="flex items-center gap-2 shrink-0">
+          <div class="flex items-center shrink-0">
             <button
               onClick={async () => {
                 props.showToast("Membuka folder ekstensi di File Manager...");
                 await api.runSkill("internal:open_extension_installer");
               }}
-              class="px-4 py-2.5 bg-theme-cyan hover:bg-theme-cyan/90 text-theme-bg font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer border border-theme-cyan"
+              class="w-full sm:w-auto px-4 py-2.5 bg-theme-cyan hover:bg-[#68cbdd] text-theme-card font-bold text-xs flex items-center justify-center gap-2 shadow-md anime-shadow-green transition-all cursor-pointer border border-theme-cyan"
             >
-              <Sparkles size={14} />
+              <Globe size={14} />
               <span>Buka Folder Ekstensi</span>
             </button>
           </div>
@@ -340,7 +340,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
       <div class="p-4 bg-theme-surface border border-theme-cyan/25 space-y-3">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div class="flex items-center gap-2 text-xs text-theme-cyan font-bold tracking-wide">
-            <Sparkles size={16} class="text-theme-rose" />
+            <Zap size={16} class="text-theme-rose" />
             <span>Kemampuan Bawaan AI (Selalu Aktif Otomatis):</span>
           </div>
           <div class="flex items-center gap-2 self-start sm:self-auto">

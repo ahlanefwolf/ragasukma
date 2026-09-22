@@ -89,21 +89,141 @@ impl LlmClient {
             content: user_input.to_string(),
         });
 
-        // 1. Direct Antigravity Provider jika mode antigravity atau ada akun terdaftar
-        let is_ag_mode = self.provider.eq_ignore_ascii_case("antigravity")
-            || self.model.starts_with("ag/")
-            || (self.api_key.is_none() && !self.antigravity.accounts.is_empty());
+        // 1. Mode Lokal: Menggunakan internal engine Ragasukma (saat ini Antigravity pool, siap berkembang)
+        let is_local_engine = self.provider.eq_ignore_ascii_case("local")
+            || self.provider.eq_ignore_ascii_case("antigravity");
 
-        if is_ag_mode && !self.antigravity.accounts.is_empty() {
-            match self.antigravity.chat_stream(
-                &self.model,
-                &self.history,
-                0.7,
-                8192, // Ruang token leluasa agar model reasoning (Gemini Flash/Claude) tidak terpotong di tengah jalan
-                &mut on_sentence,
-            ) {
-                Ok(reply) => {
-                    let clean = clean_ai_text(&reply);
+        if is_local_engine {
+            if !self.antigravity.accounts.is_empty() {
+                match self.antigravity.chat_stream(
+                    &self.model,
+                    &self.history,
+                    0.7,
+                    8192,
+                    &mut on_sentence,
+                ) {
+                    Ok(reply) => {
+                        let clean = clean_ai_text(&reply);
+                        self.history.push(ChatMessage {
+                            role: "assistant".to_string(),
+                            content: clean.clone(),
+                        });
+                        self.prune_history();
+
+                        let u = crate::config::load_user_config();
+                        crate::llm::history::log_conversation_turn(
+                            &u.user_callsign,
+                            &u.assistant_name,
+                            &u.personality_role,
+                            user_input,
+                            &clean,
+                        );
+
+                        return Ok(reply);
+                    }
+                    Err(e) => {
+                        crate::term_err!("⚠️ [LLM Client] Local Engine error: {e}. Mencoba fallback...");
+                    }
+                }
+            } else {
+                crate::term_log!("⚠️ [LLM Client] Provider diatur ke 'local', tapi belum ada akun engine lokal terhubung di pool.");
+            }
+        }
+
+        // 2. Mode Custom: AI Assistant kustom (OpenAI-compatible, Ollama, LM Studio, vLLM, Groq, dll)
+        // Endpoint kustom murni mematuhi konfigurasi base_url dan model pilihan user
+        let custom_endpoint = if self.base_url.ends_with("/chat/completions") {
+            self.base_url.clone()
+        } else {
+            format!("{}/chat/completions", self.base_url.trim_end_matches('/'))
+        };
+
+        let req_body = ChatRequest {
+            model: self.model.clone(),
+            messages: self.history.clone(),
+            temperature: 0.5,
+            max_tokens: 2048,
+            stream: true,
+        };
+
+        let mut req_builder = self
+            .client
+            .post(&custom_endpoint)
+            .header("Content-Type", "application/json");
+
+        if let Some(ref key) = self.api_key {
+            if !key.trim().is_empty() {
+                req_builder = req_builder.header("Authorization", format!("Bearer {key}"));
+            }
+        }
+
+        use std::io::BufRead;
+        match req_builder.json(&req_body).send() {
+            Ok(response) => {
+                if response.status().is_success() {
+                    let reader = std::io::BufReader::new(response);
+                    let mut full_reply = String::new();
+                    let mut current_sentence = String::new();
+                    let mut active_emotion = "neutral";
+
+                    for line in reader.lines() {
+                        let line = line?;
+                        let trimmed = line.trim();
+                        if let Some(data_str) = trimmed.strip_prefix("data: ") {
+                            if data_str.trim() == "[DONE]" {
+                                break;
+                            }
+                            if let Ok(val) = serde_json::from_str::<serde_json::Value>(data_str) {
+                                if val.pointer("/choices/0/delta/reasoning_content").is_some() {
+                                    continue;
+                                }
+
+                                let chunk_text = val
+                                    .pointer("/choices/0/delta/content")
+                                    .or_else(|| val.pointer("/choices/0/message/content"))
+                                    .and_then(|v| v.as_str());
+
+                                if let Some(delta) = chunk_text {
+                                    full_reply.push_str(delta);
+                                    current_sentence.push_str(delta);
+
+                                    let has_skill_tag = current_sentence.contains("[SKILL:") || current_sentence.contains("[CMD:");
+                                    let has_skill_closed = has_skill_tag && current_sentence.contains(']');
+
+                                    if !has_skill_tag || has_skill_closed {
+                                        while let Some(pos) = current_sentence.find(['.', '?', '!', '\n']) {
+                                            if let Some(tag_idx) = current_sentence.find("[SKILL:").or_else(|| current_sentence.find("[CMD:")) {
+                                                if pos > tag_idx {
+                                                    break;
+                                                }
+                                            }
+                                            let sentence = current_sentence[..=pos].to_string();
+                                            current_sentence = current_sentence[pos + 1..].to_string();
+
+                                            if let Some(emo) = crate::ui::renderer::expressions::detect_emotion(&sentence) {
+                                                active_emotion = emo;
+                                            }
+
+                                            let clean = clean_ai_text(&sentence);
+                                            if !clean.is_empty() {
+                                                on_sentence(&clean, active_emotion)?;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let clean_rest = clean_ai_text(&current_sentence);
+                    if !clean_rest.is_empty() {
+                        if let Some(emo) = crate::ui::renderer::expressions::detect_emotion(&current_sentence) {
+                            active_emotion = emo;
+                        }
+                        on_sentence(&clean_rest, active_emotion)?;
+                    }
+
+                    let clean = clean_ai_text(&full_reply);
                     self.history.push(ChatMessage {
                         role: "assistant".to_string(),
                         content: clean.clone(),
@@ -119,138 +239,18 @@ impl LlmClient {
                         &clean,
                     );
 
-                    return Ok(reply);
+                    return Ok(full_reply);
+                } else {
+                    let err_text = response.text().unwrap_or_default();
+                    crate::term_err!("⚠️ [LLM Client] Custom endpoint status {}: {}", custom_endpoint, err_text);
                 }
-                Err(e) => {
-                    crate::term_err!("⚠️ [LLM Client] Antigravity error: {e}. Fallback ke provider berikutnya...");
-                }
+            }
+            Err(e) => {
+                crate::term_err!("⚠️ [LLM Client] Gagal request streaming ke {}: {e}", custom_endpoint);
             }
         }
 
-        // 2. OpenAI / 9router compatible proxy
-        if let Some(ref key) = self.api_key {
-            let endpoint = if self.base_url.ends_with("/chat/completions") {
-                self.base_url.clone()
-            } else if self.base_url.ends_with("/v1") {
-                format!("{}/chat/completions", self.base_url.trim_end_matches('/'))
-            } else {
-                self.base_url.clone()
-            };
-
-            let req_body = ChatRequest {
-                model: self.model.clone(),
-                messages: self.history.clone(),
-                temperature: 0.5,
-                max_tokens: 2048,
-                stream: true, // Gunakan live streaming
-            };
-
-            use std::io::BufRead;
-            let response = self
-                .client
-                .post(&endpoint)
-                .header("Authorization", format!("Bearer {key}"))
-                .header("Content-Type", "application/json")
-                .json(&req_body)
-                .send()
-                .context("Gagal mengirim request streaming ke LLM (9router/OpenAI)")?;
-
-            if !response.status().is_success() {
-                let err_text = response.text().unwrap_or_default();
-                anyhow::bail!("API Stream error: {err_text}");
-            }
-
-            let reader = std::io::BufReader::new(response);
-            let mut full_reply = String::new();
-            let mut current_sentence = String::new();
-            let mut active_emotion = "neutral";
-
-            for line in reader.lines() {
-                let line = line?;
-                let trimmed = line.trim();
-                if let Some(data_str) = trimmed.strip_prefix("data: ") {
-                    if data_str.trim() == "[DONE]" {
-                        break;
-                    }
-                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(data_str) {
-                        // Abaikan field reasoning_content (CoT) jika ada
-                        if val.pointer("/choices/0/delta/reasoning_content").is_some() {
-                            continue;
-                        }
-
-                        let chunk_text = val
-                            .pointer("/choices/0/delta/content")
-                            .or_else(|| val.pointer("/choices/0/message/content"))
-                            .and_then(|v| v.as_str());
-
-                        if let Some(delta) = chunk_text {
-                            full_reply.push_str(delta);
-                            current_sentence.push_str(delta);
-
-                            // Tangani buffering kalimat dan proteksi jika ada tag [CMD: ...] atau [SKILL: ...] yang belum tertutup
-                            let has_skill_tag = current_sentence.contains("[SKILL:") || current_sentence.contains("[CMD:");
-                            let has_skill_closed = has_skill_tag && current_sentence.contains(']');
-
-                            if !has_skill_tag || has_skill_closed {
-                                while let Some(pos) = current_sentence.find(['.', '?', '!', '\n']) {
-                                    // Cegah pemotongan jika tanda baca berada di dalam tag perintah
-                                    if let Some(tag_idx) = current_sentence.find("[SKILL:").or_else(|| current_sentence.find("[CMD:")) {
-                                        if pos > tag_idx {
-                                            break;
-                                        }
-                                    }
-                                    let sentence = current_sentence[..=pos].to_string();
-                                    current_sentence = current_sentence[pos + 1..].to_string();
-
-                                    // Deteksi emosi dari teks mentah SEBELUM tag bintang dibersihkan
-                                    if let Some(emo) =
-                                        crate::ui::renderer::expressions::detect_emotion(&sentence)
-                                    {
-                                        active_emotion = emo;
-                                    }
-
-                                    let clean = clean_ai_text(&sentence);
-                                    if !clean.is_empty() {
-                                        on_sentence(&clean, active_emotion)?;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Sisa potongan kalimat terakhir
-            let clean_rest = clean_ai_text(&current_sentence);
-            if !clean_rest.is_empty() {
-                if let Some(emo) =
-                    crate::ui::renderer::expressions::detect_emotion(&current_sentence)
-                {
-                    active_emotion = emo;
-                }
-                on_sentence(&clean_rest, active_emotion)?;
-            }
-
-            let clean = clean_ai_text(&full_reply);
-            self.history.push(ChatMessage {
-                role: "assistant".to_string(),
-                content: clean.clone(),
-            });
-            self.prune_history();
-
-            let u = crate::config::load_user_config();
-            crate::llm::history::log_conversation_turn(
-                &u.user_callsign,
-                &u.assistant_name,
-                &u.personality_role,
-                user_input,
-                &clean,
-            );
-
-            return Ok(full_reply);
-        }
-
-        // 3. Fallback Ollama Lokal
+        // 3. Fallback jika custom endpoint Ollama native /api/chat digunakan
         self.chat_fallback_ollama(user_input, on_sentence)
     }
 

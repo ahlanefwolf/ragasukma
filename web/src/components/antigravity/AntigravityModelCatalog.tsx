@@ -1,5 +1,5 @@
 import { Component, For, Show } from 'solid-js';
-import { Sparkles, Copy, Check } from 'lucide-solid';
+import { Cpu, Copy, Check } from 'lucide-solid';
 import { ANTIGRAVITY_PRESET_MODELS } from '../../services';
 
 interface AntigravityModelCatalogProps {
@@ -13,7 +13,7 @@ export const AntigravityModelCatalog: Component<AntigravityModelCatalogProps> = 
       <div class="flex items-center justify-between flex-wrap gap-2 pb-1 border-b border-theme-border/60">
         <div class="flex items-center gap-2.5">
           <div class="p-2 bg-theme-cyan/10 text-theme-cyan border border-theme-cyan/20">
-            <Sparkles size={18} />
+            <Cpu size={18} />
           </div>
           <div>
             <h3 class="text-sm font-bold text-theme-text">

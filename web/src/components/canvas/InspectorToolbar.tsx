@@ -14,7 +14,7 @@ import {
   FolderSearch,
   Scissors,
   Split,
-  Sparkles,
+  Layers as MultiLayers,
 } from 'lucide-solid';
 import {
   strokeColor,
@@ -168,7 +168,7 @@ export const InspectorToolbar: Component<InspectorToolbarProps> = (props) => {
       <Show when={props.effectiveType === 'activeSelection' || props.effectiveType === 'group'}>
         <div class="flex items-center gap-1.5 bg-theme-surface p-1 border border-theme-cyan/50">
           <div class="flex items-center gap-1 px-1.5 py-0.5 bg-theme-cyan/15 text-theme-cyan text-xs font-mono font-bold">
-            <Sparkles size={12} />
+            <MultiLayers size={12} />
             <span>Multi Objek</span>
           </div>
 

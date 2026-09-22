@@ -328,21 +328,32 @@ export const CanvasToolbar: Component<CanvasToolbarProps> = (props) => {
           <Trash2 size={16} />
         </button>
 
+        <button
+          type="button"
+          onClick={() => setIsFullscreen(!isFullscreen())}
+          title={isFullscreen() ? 'Keluar Layar Penuh (F)' : 'Layar Penuh (F)'}
+          class={`p-2 transition-all flex items-center justify-center border ${
+            isFullscreen()
+              ? 'bg-theme-cyan text-theme-card border-theme-cyan shadow-sm anime-shadow-green font-bold'
+              : 'bg-theme-surface text-theme-text/80 hover:text-theme-text border-theme-border hover:bg-theme-card'
+          }`}
+        >
+          {isFullscreen() ? <Minimize2 size={16} class="stroke-[2.5]" /> : <Maximize2 size={16} />}
+        </button>
+
         {/* ── Dropdown Menu Pengaturan & Aksi ── */}
         <div class="relative" ref={dropdownRef}>
           <button
             type="button"
             onClick={() => setShowSettingsMenu(!showSettingsMenu())}
             title="Pengaturan & Aksi Tambahan"
-            class={`px-3 py-2 text-xs font-bold border transition-all flex items-center gap-1.5 ${
+            class={`p-2 transition-all flex items-center justify-center border ${
               showSettingsMenu()
                 ? 'bg-theme-cyan text-theme-card border-theme-cyan shadow-sm anime-shadow-green font-bold'
                 : 'bg-theme-surface text-theme-text/80 hover:text-theme-text border-theme-border hover:bg-theme-card'
             }`}
           >
-            <Settings size={15} class={showSettingsMenu() ? 'animate-spin-slow' : ''} />
-            <span class="hidden sm:inline">Pengaturan</span>
-            <ChevronDown size={13} class={`transition-transform duration-200 ${showSettingsMenu() ? 'rotate-180' : ''}`} />
+            <Settings size={16} class={showSettingsMenu() ? 'animate-spin-slow' : ''} />
           </button>
 
           {/* Hidden file input for Image import */}
@@ -422,20 +433,7 @@ export const CanvasToolbar: Component<CanvasToolbarProps> = (props) => {
                 <span>Import Gambar...</span>
               </button>
 
-              {/* 5. Fullscreen */}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSettingsMenu(false);
-                  setIsFullscreen(!isFullscreen());
-                }}
-                class="w-full px-3 py-2 text-xs font-semibold text-theme-text hover:bg-theme-surface hover:text-theme-cyan flex items-center gap-2.5 transition-all text-left"
-              >
-                {isFullscreen() ? <Minimize2 size={15} class="text-theme-rose" /> : <Maximize2 size={15} class="text-theme-cyan" />}
-                <span>{isFullscreen() ? 'Keluar Fullscreen' : 'Layar Penuh (F)'}</span>
-              </button>
-
-              {/* 6. Shortcuts Keyboard Modal */}
+              {/* 5. Shortcuts Keyboard Modal */}
               <Show when={props.onOpenShortcutsModal}>
                 <button
                   type="button"

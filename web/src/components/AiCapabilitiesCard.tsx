@@ -6,7 +6,7 @@ import {
   Terminal, 
   CheckSquare, 
   MousePointerClick, 
-  Sparkles,
+  Wand2,
   ChevronDown,
   ChevronUp,
   Command
@@ -121,7 +121,7 @@ export const AiCapabilitiesCard: Component = () => {
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="p-2.5 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30">
-            <Sparkles size={18} />
+            <Wand2 size={18} />
           </div>
           <div>
             <h3 class="text-sm sm:text-base font-bold text-theme-text flex items-center gap-2">
@@ -167,7 +167,7 @@ export const AiCapabilitiesCard: Component = () => {
                   : 'bg-theme-card border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/40'
               }`}
             >
-              🌐 Web & Browser
+              Web & Browser
             </button>
             <button
               onClick={() => setSelectedCategory('media')}
@@ -177,7 +177,7 @@ export const AiCapabilitiesCard: Component = () => {
                   : 'bg-theme-card border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/40'
               }`}
             >
-              🎵 Musik & Media
+              Musik & Media
             </button>
             <button
               onClick={() => setSelectedCategory('system')}
@@ -187,7 +187,7 @@ export const AiCapabilitiesCard: Component = () => {
                   : 'bg-theme-card border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/40'
               }`}
             >
-              💻 Kontrol OS
+              Kontrol OS
             </button>
             <button
               onClick={() => setSelectedCategory('tools')}
@@ -197,7 +197,7 @@ export const AiCapabilitiesCard: Component = () => {
                   : 'bg-theme-card border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/40'
               }`}
             >
-              📝 To-Do & Catatan
+              To-Do & Catatan
             </button>
           </div>
 

@@ -7,7 +7,6 @@ import {
   Settings as SettingsIcon,
   Terminal,
   X,
-  Sparkles,
   Palette,
   Bot,
   Rocket,
@@ -28,7 +27,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
   const [providerMenuOpen, setProviderMenuOpen] = createSignal(true);
 
   const menuItems = () => [
-    { id: 'menu', label: 'Main Menu', icon: MenuIcon, badge: props.currentState.toUpperCase() },
+    { id: 'menu', label: 'Main Menu', icon: MenuIcon },
     { id: 'canvas', label: '2D Whiteboard', icon: Palette },
     { id: 'skills', label: 'Skill Commands', icon: Zap },
     { id: 'music', label: 'Music Player', icon: Music },
@@ -60,7 +59,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
                 RAGASUKMA
               </h1>
               <p class="text-xs text-theme-cyan font-semibold tracking-wider flex items-center gap-1.5 mt-1">
-                <Sparkles size={13} /> NATIVE AI DESKTOP
+                AI ASSISTANT
               </p>
             </div>
           </div>
@@ -88,12 +87,9 @@ export const Sidebar: Component<SidebarProps> = (props) => {
               }`} 
             />
             <span class="text-xs font-semibold text-theme-text tracking-wide">
-              {props.overlayConnected ? '3D Native Aktif' : 'Offline'}
+              {props.overlayConnected ? 'Avatar Aktif' : 'Offline'}
             </span>
           </div>
-          <span class="text-xs uppercase font-mono font-bold px-2 py-0.5 bg-theme-bg text-theme-cyan border border-theme-border">
-            WGPU 9:16
-          </span>
         </div>
 
         {/* Main Tabs Navigation */}
@@ -117,15 +113,6 @@ export const Sidebar: Component<SidebarProps> = (props) => {
                     <Icon size={18} class={isActive() ? 'stroke-[2.5]' : 'stroke-[2]'} />
                     <span class="tracking-wide">{item.label}</span>
                   </div>
-                  {item.badge && (
-                    <span class={`text-xs px-2 py-0.5 font-bold font-mono uppercase border ${
-                      isActive() 
-                        ? 'bg-theme-card/20 text-theme-card border-theme-card/30' 
-                        : 'bg-theme-rose/20 text-theme-rose border-theme-rose/40'
-                    }`}>
-                      {item.badge}
-                    </span>
-                  )}
                 </button>
               );
             }}
@@ -180,7 +167,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
       <div class="pt-4 border-t border-theme-border/70 text-xs text-theme-text/60 px-1 space-y-2">
         <div class="flex items-center justify-between">
           <span>Engine Status</span>
-          <span class="text-theme-cyan font-semibold text-xs">WGPU 1:1 Three-VRM</span>
+          <span class="text-theme-cyan font-semibold text-xs">Ready</span>
         </div>
         <div class="flex items-center justify-between text-xs">
           <span>Dashboard Port</span>

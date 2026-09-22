@@ -1,5 +1,5 @@
 import { Component, For } from 'solid-js';
-import { Brain, UserCheck, Sparkles } from 'lucide-solid';
+import { Brain, UserCheck, Cpu } from 'lucide-solid';
 import { ANTIGRAVITY_PRESET_MODELS } from '../../services';
 
 interface PersonaAiSectionProps {
@@ -19,8 +19,6 @@ interface PersonaAiSectionProps {
   setLlmModel: (val: string) => void;
   llmApiKey: string;
   setLlmApiKey: (val: string) => void;
-  groqApiKey: string;
-  setGroqApiKey: (val: string) => void;
 }
 
 
@@ -94,31 +92,28 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
             2. AI BRAIN (LLM PROVIDER)
           </h3>
           <span class="text-xs text-theme-text/50 font-mono">
-            {props.llmProvider === 'antigravity' ? '⚡ Native Antigravity Pool' : '🌐 External Custom Gateway'}
+            {props.llmProvider === 'local' ? '⚡ Ragasukma Local Engine' : '🌐 Custom AI Assistant'}
           </span>
         </div>
 
-        {/* Pilihan Provider (2 Card Bersih) */}
+        {/* Pilihan Provider (2 Card Bersih: Lokal vs Custom) */}
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => {
-              props.setLlmProvider('antigravity');
-              if (!props.llmModel.startsWith('ag/')) {
-                props.setLlmModel('ag/gemini-3.8-flash-high');
-              }
+              props.setLlmProvider('local');
             }}
             class={`p-3.5 border text-left transition-all ${
-              props.llmProvider === 'antigravity'
+              props.llmProvider === 'local'
                 ? 'bg-theme-cyan/10 border-theme-cyan text-theme-text shadow-sm'
                 : 'bg-theme-card border-theme-border text-theme-text/70 hover:border-theme-text/30'
             }`}
           >
             <div class="font-bold text-xs flex items-center gap-1.5 text-theme-cyan">
-              <span>🚀 Antigravity (Google OAuth)</span>
+              <span>⚡ Lokal (Ragasukma Engine)</span>
             </div>
             <div class="text-xs text-theme-text/60 mt-1 leading-relaxed">
-              Multi-akun gratis & tanpa API key langsung ke pool Google.
+              API & routing otomatis dikelola sistem (saat ini ditenagai Antigravity pool, siap berkembang). Tetap bebas memilih model AI Assistant.
             </div>
           </button>
 
@@ -126,94 +121,58 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
             type="button"
             onClick={() => {
               props.setLlmProvider('custom');
-              if (props.llmModel.startsWith('ag/')) {
-                props.setLlmModel('gpt-4o');
-              }
             }}
             class={`p-3.5 border text-left transition-all ${
-              props.llmProvider !== 'antigravity'
+              props.llmProvider === 'custom'
                 ? 'bg-theme-rose/10 border-theme-rose text-theme-text shadow-sm'
                 : 'bg-theme-card border-theme-border text-theme-text/70 hover:border-theme-text/30'
             }`}
           >
             <div class="font-bold text-xs flex items-center gap-1.5 text-theme-rose">
-              <span>🌐 Custom / OpenAI-Compatible</span>
+              <span>🌐 Custom / User AI Assistant</span>
             </div>
             <div class="text-xs text-theme-text/60 mt-1 leading-relaxed">
-              OpenAI, Groq, OpenRouter, DeepSeek, Ollama Lokal, dll.
+              Koneksikan ke server runtime sendiri (Ollama lokal, LM Studio, LocalAI) atau API eksternal (Groq, OpenRouter, OpenAI).
             </div>
           </button>
         </div>
 
         {/* Tampilan Konfigurasi Sesuai Provider */}
-        {props.llmProvider === 'antigravity' ? (
+        {props.llmProvider === 'local' ? (
           <div class="p-4 bg-theme-bg/60 border border-theme-border/80 space-y-3">
             <div class="space-y-1.5">
               <label class="text-xs font-semibold text-theme-text/80 flex items-center justify-between">
                 <span class="flex items-center gap-1.5 font-bold">
-                  <Sparkles size={14} class="text-theme-cyan" />
-                  Pilih Model Antigravity
+                  <Cpu size={14} class="text-theme-cyan" />
+                  Pilih Model AI Assistant (Engine Lokal)
                 </span>
                 <span class="text-xs text-theme-cyan font-mono bg-theme-cyan/10 px-2 py-0.5 border border-theme-cyan/20 font-bold">
-                  Trafik ag/* (Google Pool)
+                  Otomatis Routing Internal
                 </span>
               </label>
               <select
                 value={props.llmModel}
                 onChange={(e) => props.setLlmModel(e.currentTarget.value)}
-                class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text font-medium outline-none focus:border-theme-cyan transition-colors"
+                class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text font-medium outline-none focus:border-theme-cyan transition-colors"
               >
-                <optgroup label="✨ Gemini 3.8 (Generasi Terbaru & Cepat)">
-                  {ANTIGRAVITY_PRESET_MODELS.filter((m) => m.category === 'Gemini 3.8').map((m) => (
-                    <option value={m.id}>
-                      {m.name} {m.tag ? `[${m.tag}]` : ''} — {m.id}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="🧠 Claude (Coding & Thinking)">
-                  {ANTIGRAVITY_PRESET_MODELS.filter((m) => m.category === 'Claude').map((m) => (
-                    <option value={m.id}>
-                      {m.name} {m.tag ? `[${m.tag}]` : ''} — {m.id}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="⚡ Gemini 3.7 (Stabil & Populer)">
-                  {ANTIGRAVITY_PRESET_MODELS.filter((m) => m.category === 'Gemini 3.7').map((m) => (
-                    <option value={m.id}>
-                      {m.name} {m.tag ? `[${m.tag}]` : ''} — {m.id}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="📦 Gemini Pro & Legacy">
-                  {ANTIGRAVITY_PRESET_MODELS.filter((m) => m.category === 'Gemini Legacy & Pro').map((m) => (
-                    <option value={m.id}>
-                      {m.name} {m.tag ? `[${m.tag}]` : ''} — {m.id}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="🌐 Spesialis & Open Weights">
-                  {ANTIGRAVITY_PRESET_MODELS.filter((m) => m.category === 'Spesialis & Open Weights').map((m) => (
-                    <option value={m.id}>
-                      {m.name} {m.tag ? `[${m.tag}]` : ''} — {m.id}
-                    </option>
-                  ))}
-                </optgroup>
+                {ANTIGRAVITY_PRESET_MODELS.map((m) => (
+                  <option value={m.id}>
+                    {m.id}
+                  </option>
+                ))}
               </select>
             </div>
-            <p class="text-xs text-theme-text/50">
-              💡 Tidak perlu mengisi Base URL atau API Key. Kelola akun Google OAuth kamu di tab menu <b>Antigravity Pool</b>.
-            </p>
           </div>
         ) : (
           <div class="space-y-3">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1.5">
-                <label class="text-xs font-semibold text-theme-text/80">LLM Base URL</label>
+                <label class="text-xs font-semibold text-theme-text/80">LLM Base URL (Server Assistant)</label>
                 <input
                   type="text"
                   value={props.llmBaseUrl}
                   onInput={(e) => props.setLlmBaseUrl(e.currentTarget.value)}
-                  placeholder="https://api.openai.com/v1"
+                  placeholder="http://localhost:11434/v1 atau https://api.openai.com/v1"
                   class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan transition-colors"
                 />
               </div>
@@ -224,38 +183,22 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
                   type="text"
                   value={props.llmModel}
                   onInput={(e) => props.setLlmModel(e.currentTarget.value)}
-                  placeholder="gpt-4o, claude-3-5-sonnet, llama3, dll."
+                  placeholder="qwen2.5:7b, llama3.2, mistral, gpt-4o, dll."
                   class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
                 />
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="space-y-1.5">
-                <label class="text-xs font-semibold text-theme-text/80">LLM API Key</label>
-                <input
-                  type="password"
-                  value={props.llmApiKey}
-                  onInput={(e) => props.setLlmApiKey(e.currentTarget.value)}
-                  placeholder="sk-..."
-                  class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan transition-colors"
-                />
-              </div>
-
-              <div class="space-y-1.5">
-                <label class="text-xs font-semibold text-theme-text/80">Groq API Key (Fast Whisper STT)</label>
-                <input
-                  type="password"
-                  value={props.groqApiKey}
-                  onInput={(e) => props.setGroqApiKey(e.currentTarget.value)}
-                  placeholder="gsk_..."
-                  class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan transition-colors"
-                />
-              </div>
+            <div class="space-y-1.5">
+              <label class="text-xs font-semibold text-theme-text/80">LLM API Key (Opsional untuk Server Lokal)</label>
+              <input
+                type="password"
+                value={props.llmApiKey}
+                onInput={(e) => props.setLlmApiKey(e.currentTarget.value)}
+                placeholder="Kosongkan jika Ollama/LM Studio lokal tanpa auth"
+                class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan transition-colors"
+              />
             </div>
-            <p class="text-xs text-theme-text/50">
-              💡 Mendukung semua endpoint OpenAI-compatible termasuk <b>Ollama lokal</b> (<code class="text-theme-cyan">http://127.0.0.1:11434/v1</code>), OpenRouter, Groq, dan DeepSeek. Kosongkan API Key jika menggunakan Ollama lokal.
-            </p>
           </div>
         )}
       </div>

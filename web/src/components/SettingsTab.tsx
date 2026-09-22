@@ -3,7 +3,7 @@ import {
   Save, 
   Brain, 
   Mic, 
-  Sparkles, 
+  User, 
   Monitor 
 } from 'lucide-solid';
 import { api, UserConfig, AssetInfo } from '../api';
@@ -22,36 +22,36 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
   const [activeSubTab, setActiveSubTab] = createSignal<SettingsSubTab>('persona_ai');
 
   // Assistant Persona & Call
-  const [assistantName, setAssistantName] = createSignal('Laras');
-  const [userCallsign, setUserCallsign] = createSignal('Mas');
-  const [assistantGender, setAssistantGender] = createSignal('female');
-  const [personalityRole, setPersonalityRole] = createSignal('partner');
+  const [assistantName, setAssistantName] = createSignal('');
+  const [userCallsign, setUserCallsign] = createSignal('');
+  const [assistantGender, setAssistantGender] = createSignal('');
+  const [personalityRole, setPersonalityRole] = createSignal('');
 
   // AI LLM Provider
-  const [llmProvider, setLlmProvider] = createSignal('antigravity');
-  const [llmBaseUrl, setLlmBaseUrl] = createSignal('http://localhost:20128/v1');
-  const [llmModel, setLlmModel] = createSignal('ag/gemini-3.8-flash-low');
+  const [llmProvider, setLlmProvider] = createSignal('');
+  const [llmBaseUrl, setLlmBaseUrl] = createSignal('');
+  const [llmModel, setLlmModel] = createSignal('');
   const [llmApiKey, setLlmApiKey] = createSignal('');
   const [groqApiKey, setGroqApiKey] = createSignal('');
 
   // Audio & STT
-  const [sttEngine, setSttEngine] = createSignal('google');
-  const [voiceInterruption, setVoiceInterruption] = createSignal(true);
-  const [voiceMode, setVoiceMode] = createSignal('auto');
-  const [micSensitivity, setMicSensitivity] = createSignal('2');
-  const [vadSilenceLimit, setVadSilenceLimit] = createSignal('1');
+  const [sttEngine, setSttEngine] = createSignal('');
+  const [voiceInterruption, setVoiceInterruption] = createSignal(false);
+  const [voiceMode, setVoiceMode] = createSignal('');
+  const [micSensitivity, setMicSensitivity] = createSignal('');
+  const [vadSilenceLimit, setVadSilenceLimit] = createSignal('');
   const [noiseReduction, setNoiseReduction] = createSignal(0);
 
   // TTS Engine
-  const [ttsEngine, setTtsEngine] = createSignal('google');
-  const [ttsLang, setTtsLang] = createSignal('id');
-  const [ttsSpeed, setTtsSpeed] = createSignal(1.15);
+  const [ttsEngine, setTtsEngine] = createSignal('');
+  const [ttsLang, setTtsLang] = createSignal('');
+  const [ttsSpeed, setTtsSpeed] = createSignal(1.0);
   const [ttsElevenLabsKey, setTtsElevenLabsKey] = createSignal('');
   const [elevenLabsVoiceId, setElevenLabsVoiceId] = createSignal('');
 
   // Avatar & System
-  const [avatarType, setAvatarType] = createSignal('vrm');
-  const [alwaysOnTop, setAlwaysOnTop] = createSignal(true);
+  const [avatarType, setAvatarType] = createSignal('');
+  const [alwaysOnTop, setAlwaysOnTop] = createSignal(false);
   const [isSaving, setIsSaving] = createSignal(false);
   const [assetInfo, setAssetInfo] = createSignal<AssetInfo | null>(null);
   const [isUploadingVrm, setIsUploadingVrm] = createSignal(false);
@@ -80,32 +80,32 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
     const cfg = await api.getConfig();
     if (!isComponentMounted) return;
     if (cfg) {
-      setAssistantName(cfg.assistant_name || 'Laras');
-      setUserCallsign(cfg.user_callsign || 'Mas');
-      setAssistantGender(cfg.assistant_gender || 'female');
-      setPersonalityRole(cfg.personality_role || 'partner');
+      setAssistantName(cfg.assistant_name);
+      setUserCallsign(cfg.user_callsign);
+      setAssistantGender(cfg.assistant_gender);
+      setPersonalityRole(cfg.personality_role);
 
-      setLlmProvider(cfg.llm_provider || 'antigravity');
-      setLlmBaseUrl(cfg.llm_base_url || 'http://localhost:20128/v1');
-      setLlmModel(cfg.llm_model || 'ag/gemini-3.8-flash-low');
-      setLlmApiKey(cfg.llm_api_key || '');
-      setGroqApiKey(cfg.groq_api_key || '');
+      setLlmProvider(cfg.llm_provider);
+      setLlmBaseUrl(cfg.llm_base_url);
+      setLlmModel(cfg.llm_model);
+      setLlmApiKey(cfg.llm_api_key);
+      setGroqApiKey(cfg.groq_api_key);
 
-      setSttEngine(cfg.stt_engine || 'google');
-      setVoiceInterruption(cfg.voice_interruption !== undefined ? cfg.voice_interruption : true);
-      setVoiceMode(cfg.voice_mode || 'auto');
-      setMicSensitivity(cfg.mic_sensitivity || '2');
-      setVadSilenceLimit(cfg.vad_silence_limit || '1');
-      setNoiseReduction(cfg.noise_reduction_level || 0);
+      setSttEngine(cfg.stt_engine);
+      setVoiceInterruption(cfg.voice_interruption);
+      setVoiceMode(cfg.voice_mode);
+      setMicSensitivity(cfg.mic_sensitivity);
+      setVadSilenceLimit(cfg.vad_silence_limit);
+      setNoiseReduction(cfg.noise_reduction_level);
 
-      setTtsEngine(cfg.tts_engine || 'google');
-      setTtsLang(cfg.tts_lang || 'id');
-      setTtsSpeed(cfg.tts_speed || 1.15);
-      setTtsElevenLabsKey(cfg.tts_eleven_labs_key || '');
-      setElevenLabsVoiceId(cfg.elevenlabs_voice_id || '');
+      setTtsEngine(cfg.tts_engine);
+      setTtsLang(cfg.tts_lang);
+      setTtsSpeed(cfg.tts_speed);
+      setTtsElevenLabsKey(cfg.tts_eleven_labs_key);
+      setElevenLabsVoiceId(cfg.elevenlabs_voice_id);
 
-      setAvatarType(cfg.avatar_type || 'vrm');
-      setAlwaysOnTop(cfg.always_on_top !== undefined ? cfg.always_on_top : true);
+      setAvatarType(cfg.avatar_type);
+      setAlwaysOnTop(cfg.always_on_top);
     }
     if (isComponentMounted) {
       await loadAssetInfoData();
@@ -214,7 +214,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         <button
           type="submit"
           disabled={isSaving()}
-          class="w-full sm:w-auto px-6 py-3 font-bold text-sm bg-theme-cyan hover:bg-[#68cbdd] text-theme-card shadow-md anime-shadow-green flex items-center justify-center gap-2 transition-all shrink-0 font-semibold"
+          class="w-full sm:w-auto px-6 py-3 font-bold text-sm bg-theme-cyan hover:bg-[#68cbdd] text-theme-card shadow-md anime-shadow-green flex items-center justify-center gap-2 transition-all shrink-0"
         >
           <Save size={16} />
           <span>{isSaving() ? 'Menyimpan...' : 'Simpan Semua'}</span>
@@ -258,7 +258,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
               : 'text-theme-text/70 hover:text-theme-text hover:bg-theme-card/80 border border-transparent'
           }`}
         >
-          <Sparkles size={16} class={activeSubTab() === 'avatar_model' ? 'text-theme-card' : 'text-theme-cyan'} />
+          <User size={16} class={activeSubTab() === 'avatar_model' ? 'text-theme-card' : 'text-theme-cyan'} />
           <span class="truncate">Model & Avatar</span>
         </button>
 
@@ -295,8 +295,6 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           setLlmModel={setLlmModel}
           llmApiKey={llmApiKey()}
           setLlmApiKey={setLlmApiKey}
-          groqApiKey={groqApiKey()}
-          setGroqApiKey={setGroqApiKey}
         />
       )}
 
@@ -304,6 +302,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         <AudioTtsSection
           sttEngine={sttEngine()}
           setSttEngine={setSttEngine}
+          groqApiKey={groqApiKey()}
+          setGroqApiKey={setGroqApiKey}
           voiceInterruption={voiceInterruption()}
           setVoiceInterruption={setVoiceInterruption}
           micSensitivity={micSensitivity()}

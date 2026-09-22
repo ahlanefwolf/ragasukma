@@ -103,20 +103,6 @@ pub fn handle_v1_models(stream: &mut TcpStream) {
         "ag/gpt-4o",
         "ag/gpt-4o-mini",
         "ag/gpt-oss-120b-medium",
-        // Fallback names without ag/ prefix for flexible client compatibility
-        "claude-3-5-sonnet",
-        "claude-3-7-sonnet",
-        "claude-sonnet-4-6",
-        "claude-opus-4-6-thinking",
-        "gemini-3.8-flash-high",
-        "gemini-3.8-pro-high",
-        "gemini-3.7-flash-high",
-        "gemini-3.5-flash-high",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gpt-4o",
-        "gpt-4o-mini",
-        "gpt-oss-120b-medium",
     ];
 
     let data = model_names

@@ -10,7 +10,7 @@ import { SettingsTab } from './components/SettingsTab';
 import { AntigravityTab } from './components/AntigravityTab';
 import { BottomPlayer } from './components/BottomPlayer';
 import { initGlobalAudio, killGlobalAudio } from './playerStore';
-import { Sparkles, Menu as MenuIcon } from 'lucide-solid';
+import { Menu as MenuIcon } from 'lucide-solid';
 import { api, killCurrentSession } from './api';
 
 // Token unik per instance tab, dibuat saat module pertama kali dimuat
@@ -221,18 +221,13 @@ export const App: Component = () => {
                 <span class="text-xs font-mono font-bold px-2.5 py-1 bg-theme-rose/20 text-theme-rose border border-theme-rose/30 uppercase tracking-wider">
                   STATE: {currentState()}
                 </span>
-                <span class="hidden sm:inline text-xs text-theme-text/40">•</span>
-                <span class="hidden sm:flex text-xs text-theme-cyan font-semibold items-center gap-1.5">
-                  <Sparkles size={14} />
-                  WGPU MToon 1:1 Three-VRM
-                </span>
               </div>
             </div>
 
             <div class="flex items-center gap-3">
               <div class="flex items-center gap-2 px-3 py-1 bg-theme-card border border-theme-border text-xs font-semibold text-theme-text">
                 <span class="w-2 h-2 bg-theme-cyan shadow-[0_0_8px_#7BDFF2] animate-pulse" />
-                <span class="tracking-wide">Overlay 9:16</span>
+                <span class="tracking-wide">Avatar Overlay</span>
               </div>
             </div>
           </header>

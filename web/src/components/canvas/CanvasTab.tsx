@@ -1,5 +1,5 @@
 import { Component, onMount, onCleanup, Show, createSignal } from 'solid-js';
-import { Palette, Sparkles, Keyboard, Info, X, Image as ImageIcon } from 'lucide-solid';
+import { Palette, Keyboard, Info, X, Image as ImageIcon } from 'lucide-solid';
 import { CanvasToolbar } from './CanvasToolbar';
 import { LayersPanel } from './LayersPanel';
 import { ExportModal } from './ExportModal';
@@ -357,7 +357,7 @@ export const CanvasTab: Component<CanvasTabProps> = (props) => {
               <span>Shortcuts</span>
             </button>
             <div class="hidden sm:flex px-3 py-1.5 bg-theme-surface border border-theme-border text-xs font-mono font-bold text-theme-cyan items-center gap-2">
-              <Sparkles size={14} />
+              <Palette size={14} />
               <span>Fabric.js v7 + MCP Ready</span>
             </div>
           </div>

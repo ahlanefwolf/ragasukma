@@ -4,6 +4,8 @@ import { Mic, Volume2 } from 'lucide-solid';
 interface AudioTtsSectionProps {
   sttEngine: string;
   setSttEngine: (val: string) => void;
+  groqApiKey: string;
+  setGroqApiKey: (val: string) => void;
   voiceInterruption: boolean;
   setVoiceInterruption: (val: boolean) => void;
   micSensitivity: string;
@@ -89,24 +91,40 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
               <option value={2}>2 - Agresif (Deep Noise Gate)</option>
             </select>
           </div>
+        </div>
 
-          <div class="space-y-1.5 sm:col-span-2 md:col-span-4 p-3 bg-theme-card border border-theme-border flex items-center justify-between gap-4">
-            <div>
-              <label class="text-xs sm:text-sm font-semibold text-theme-text block">⚡ Interupsi Suara (Barge-in Voice Interrupt)</label>
-              <p class="text-xs text-theme-text/60 mt-0.5">
-                Mengizinkan kamu memotong pembicaraan asisten seketika hanya dengan berbicara langsung ke mikrofon.
-              </p>
-            </div>
-            <label class="relative inline-flex items-center cursor-pointer shrink-0">
-              <input
-                type="checkbox"
-                checked={props.voiceInterruption}
-                onChange={(e) => props.setVoiceInterruption(e.currentTarget.checked)}
-                class="sr-only peer"
-              />
-              <div class="w-11 h-6 bg-theme-border peer-focus:outline-none peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-theme-text after:h-5 after:w-5 after:transition-all peer-checked:bg-theme-cyan"></div>
+        {props.sttEngine === 'groq' && (
+          <div class="p-3.5 bg-theme-card border border-theme-cyan/30 space-y-1.5 animate-in fade-in duration-150">
+            <label class="text-xs font-semibold text-theme-cyan flex items-center justify-between">
+              <span>Groq API Key (Fast Whisper STT)</span>
+              <span class="text-[10px] text-theme-text/50 font-mono">Dibutuhkan untuk Whisper Cloud</span>
             </label>
+            <input
+              type="password"
+              value={props.groqApiKey}
+              onInput={(e) => props.setGroqApiKey(e.currentTarget.value)}
+              placeholder="gsk_..."
+              class="w-full bg-theme-bg border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan transition-colors"
+            />
           </div>
+        )}
+
+        <div class="p-3 bg-theme-card border border-theme-border flex items-center justify-between gap-4">
+          <div>
+            <label class="text-xs sm:text-sm font-semibold text-theme-text block">⚡ Interupsi Suara (Barge-in Voice Interrupt)</label>
+            <p class="text-xs text-theme-text/60 mt-0.5">
+              Mengizinkan kamu memotong pembicaraan asisten seketika hanya dengan berbicara langsung ke mikrofon.
+            </p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input
+              type="checkbox"
+              checked={props.voiceInterruption}
+              onChange={(e) => props.setVoiceInterruption(e.currentTarget.checked)}
+              class="sr-only peer"
+            />
+            <div class="w-11 h-6 bg-theme-border peer-focus:outline-none peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-theme-text after:h-5 after:w-5 after:transition-all peer-checked:bg-theme-cyan"></div>
+          </label>
         </div>
       </div>
 
@@ -117,7 +135,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
           4. SUARA KARAKTER (TEXT-TO-SPEECH)
         </h3>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
           <div class="space-y-1.5">
             <label class="text-xs font-semibold text-theme-text/80">TTS Engine</label>
             <select
@@ -131,19 +149,23 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
           </div>
 
           <div class="space-y-1.5">
-            <div class="flex justify-between text-xs font-semibold text-theme-text/80">
+            <div class="flex justify-between items-center text-xs font-semibold text-theme-text/80">
               <span>Kecepatan Bicara</span>
-              <span class="text-theme-cyan font-mono">{props.ttsSpeed.toFixed(2)}x</span>
+              <span class="text-xs font-mono font-bold text-theme-cyan bg-theme-card px-2 py-0.5 border border-theme-border">
+                {props.ttsSpeed.toFixed(2)}x
+              </span>
             </div>
-            <input
-              type="range"
-              min="0.8"
-              max="2.0"
-              step="0.05"
-              value={props.ttsSpeed}
-              onInput={(e) => props.setTtsSpeed(parseFloat(e.currentTarget.value))}
-              class="w-full h-2 bg-theme-card appearance-none cursor-pointer accent-theme-cyan mt-2"
-            />
+            <div class="h-[42px] px-3.5 bg-theme-card border border-theme-border flex items-center">
+              <input
+                type="range"
+                min="0.8"
+                max="2.0"
+                step="0.05"
+                value={props.ttsSpeed}
+                onInput={(e) => props.setTtsSpeed(parseFloat(e.currentTarget.value))}
+                class="w-full h-1.5 bg-theme-bg appearance-none cursor-pointer accent-theme-cyan"
+              />
+            </div>
           </div>
         </div>
 

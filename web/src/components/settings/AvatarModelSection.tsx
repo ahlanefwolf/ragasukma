@@ -1,5 +1,5 @@
 import { Component } from 'solid-js';
-import { Sparkles, RefreshCw, Upload, Image as ImageIcon, CheckCircle2 } from 'lucide-solid';
+import { User, RefreshCw, Upload, Image as ImageIcon, CheckCircle2 } from 'lucide-solid';
 import { AssetInfo } from '../../api';
 
 interface AvatarModelSectionProps {
@@ -21,7 +21,7 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-5">
         <div class="flex items-center justify-between">
           <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
-            <Sparkles size={18} />
+            <User size={18} />
             AVATAR & MODEL ASSETS (VRM / 2D)
           </h3>
 
@@ -44,7 +44,7 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
               onChange={(e) => props.setAvatarType(e.currentTarget.value)}
               class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
-              <option value="vrm">VRM 3D Model (Native WGPU GPU Shader)</option>
+              <option value="vrm">VRM 3D Model</option>
               <option value="2d">2D Image / Vector Avatar</option>
             </select>
           </div>
