@@ -119,7 +119,7 @@ export const ShortcutsModal: Component<ShortcutsModalProps> = (props) => {
             <button
               type="button"
               onClick={props.onClose}
-              class="px-5 py-2 text-xs font-bold bg-theme-cyan hover:bg-[#68cbdd] text-theme-card border border-theme-cyan shadow-sm anime-shadow-green ml-auto transition-all"
+              class="px-5 py-2 text-xs font-bold bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card border border-theme-cyan shadow-sm anime-shadow-green ml-auto transition-all"
             >
               Tutup
             </button>

@@ -39,7 +39,7 @@ export function getLineStrokeProps() {
 
   return {
     fill: '',
-    stroke: strokeColor() === 'transparent' ? '#7BDFF2' : strokeColor(),
+    stroke: strokeColor() === 'transparent' ? '#29483A' : strokeColor(),
     strokeWidth: strokeWidth() || 2,
     strokeDashArray: dashArray,
     strokeUniform: true,

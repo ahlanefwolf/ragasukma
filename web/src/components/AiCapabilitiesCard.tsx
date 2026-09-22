@@ -9,7 +9,8 @@ import {
   Wand2,
   ChevronDown,
   ChevronUp,
-  Command
+  Command,
+  Palette
 } from 'lucide-solid';
 
 interface CapabilityItem {
@@ -52,7 +53,7 @@ export const AiCapabilitiesCard: Component = () => {
         '"Ketik berita teknologi lalu tekan enter"',
         '"Scroll ke bawah"'
       ],
-      badgeColor: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30'
+      badgeColor: 'text-[#29483A] bg-[#29483A]/12 border-[#29483A]/30'
     },
     {
       icon: Music,
@@ -65,7 +66,7 @@ export const AiCapabilitiesCard: Component = () => {
         '"Jeda musik" / "Lanjutkan musik"',
         '"Lagu berikutnya" / "Matikan musik"'
       ],
-      badgeColor: 'text-theme-rose bg-theme-rose/15 border-theme-rose/30'
+      badgeColor: 'text-[#B08A4A] bg-[#B08A4A]/15 border-[#B08A4A]/30'
     },
     {
       icon: Terminal,
@@ -79,7 +80,7 @@ export const AiCapabilitiesCard: Component = () => {
         '"Buka kalkulator" / "Buka File Manager"',
         '"Naikkan volume suara" / "Mute audio"'
       ],
-      badgeColor: 'text-sky-400 bg-sky-500/15 border-sky-500/30'
+      badgeColor: 'text-[#876447] bg-[#876447]/15 border-[#876447]/30'
     },
     {
       icon: CheckSquare,
@@ -92,20 +93,20 @@ export const AiCapabilitiesCard: Component = () => {
         '"Catat beli perlengkapan kantor"',
         '"Tugas meeting jam 9 sudah selesai"'
       ],
-      badgeColor: 'text-purple-400 bg-purple-500/15 border-purple-500/30'
+      badgeColor: 'text-[#634936] bg-[#634936]/15 border-[#634936]/30'
     },
     {
-      icon: Zap,
-      title: 'Voice Barge-in & Respon Realtime',
-      category: 'voice',
-      description: 'Bebas memotong atau menyela pembicaraan AI kapan saja dengan VAD (Voice Activity Detection) realtime.',
-      canonicalCmd: 'Interupsi Suara Realtime',
+      icon: Palette,
+      title: 'Whiteboard 2D & Diagram Visual',
+      category: 'canvas',
+      description: 'Menginstruksikan AI untuk menggambar flowchart, mindmap, atau diagram visual secara interaktif di kanvas whiteboard.',
+      canonicalCmd: '[CMD:canvas:draw|diagram]',
       examples: [
-        '"Langsung bicara untuk memotong AI"',
-        '"Respon suara alami via Piper/Kokoro TTS"',
-        '"Deteksi emosi wajah 3D dinamis"'
+        '"Gambarkan flowchart alur login"',
+        '"Buat diagram arsitektur sistem"',
+        '"Gambarkan mindmap rencana proyek"'
       ],
-      badgeColor: 'text-amber-400 bg-amber-500/15 border-amber-500/30'
+      badgeColor: 'text-[#B08A4A] bg-[#B08A4A]/15 border-[#B08A4A]/30'
     }
   ];
 
@@ -198,6 +199,16 @@ export const AiCapabilitiesCard: Component = () => {
               }`}
             >
               To-Do & Catatan
+            </button>
+            <button
+              onClick={() => setSelectedCategory('canvas')}
+              class={`px-3.5 py-1.5 border transition-all shrink-0 ${
+                selectedCategory() === 'canvas'
+                  ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold shadow-sm'
+                  : 'bg-theme-card border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/40'
+              }`}
+            >
+              Whiteboard 2D
             </button>
           </div>
 

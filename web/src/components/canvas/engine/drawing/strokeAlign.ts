@@ -87,7 +87,7 @@ if (!(FabricObject.prototype as any).__strokeAlignPatched) {
         const leftY = lastPt.y - headLength * Math.sin(lastAngle - arrowSpread);
         const rightX = lastPt.x - headLength * Math.cos(lastAngle + arrowSpread);
         const rightY = lastPt.y - headLength * Math.sin(lastAngle + arrowSpread);
-        arrowsSvg += `<polygon points="${lastPt.x},${lastPt.y} ${leftX},${leftY} ${rightX},${rightY}" fill="${this.stroke || '#7BDFF2'}" />`;
+        arrowsSvg += `<polygon points="${lastPt.x},${lastPt.y} ${leftX},${leftY} ${rightX},${rightY}" fill="${this.stroke || '#596B45'}" />`;
       }
 
       if (hasArrowStart && localPoints.length >= 2) {
@@ -98,7 +98,7 @@ if (!(FabricObject.prototype as any).__strokeAlignPatched) {
         const leftY = firstPt.y - headLength * Math.sin(firstAngle - arrowSpread);
         const rightX = firstPt.x - headLength * Math.cos(firstAngle + arrowSpread);
         const rightY = firstPt.y - headLength * Math.sin(firstAngle + arrowSpread);
-        arrowsSvg += `<polygon points="${firstPt.x},${firstPt.y} ${leftX},${leftY} ${rightX},${rightY}" fill="${this.stroke || '#7BDFF2'}" />`;
+        arrowsSvg += `<polygon points="${firstPt.x},${firstPt.y} ${leftX},${leftY} ${rightX},${rightY}" fill="${this.stroke || '#596B45'}" />`;
       }
 
       // Menggunakan COMMON_PARTS bawaan Fabric (yang sudah memuat style="... fill: none; ...")
@@ -123,7 +123,7 @@ if (!(FabricObject.prototype as any).__strokeAlignPatched) {
         const leftY = p.y2 - headLength * Math.sin(angle - arrowSpread);
         const rightX = p.x2 - headLength * Math.cos(angle + arrowSpread);
         const rightY = p.y2 - headLength * Math.sin(angle + arrowSpread);
-        arrowsSvg += `<polygon points="${p.x2},${p.y2} ${leftX},${leftY} ${rightX},${rightY}" fill="${this.stroke || '#7BDFF2'}" />`;
+        arrowsSvg += `<polygon points="${p.x2},${p.y2} ${leftX},${leftY} ${rightX},${rightY}" fill="${this.stroke || '#596B45'}" />`;
       }
       if (hasArrowStart) {
         const revAngle = angle + Math.PI;
@@ -131,7 +131,7 @@ if (!(FabricObject.prototype as any).__strokeAlignPatched) {
         const leftY = p.y1 - headLength * Math.sin(revAngle - arrowSpread);
         const rightX = p.x1 - headLength * Math.cos(revAngle + arrowSpread);
         const rightY = p.y1 - headLength * Math.sin(revAngle + arrowSpread);
-        arrowsSvg += `<polygon points="${p.x1},${p.y1} ${leftX},${leftY} ${rightX},${rightY}" fill="${this.stroke || '#7BDFF2'}" />`;
+        arrowsSvg += `<polygon points="${p.x1},${p.y1} ${leftX},${leftY} ${rightX},${rightY}" fill="${this.stroke || '#596B45'}" />`;
       }
 
       const baseSvg = origLineToSVG.call(this, reviver);

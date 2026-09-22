@@ -183,11 +183,11 @@ class PipManager {
     // ── 1. BACKGROUND & AMBIENT GLOW ──
     ctx.clearRect(0, 0, w, h);
 
-    // Deep Dark Base Gradient
+    // Warm Cream / Light Earth Tone Base Gradient
     const bgGrad = ctx.createLinearGradient(0, 0, w, h);
-    bgGrad.addColorStop(0, '#161D24');
-    bgGrad.addColorStop(0.5, '#1D252E');
-    bgGrad.addColorStop(1, '#0F141C');
+    bgGrad.addColorStop(0, '#FAF7F2');
+    bgGrad.addColorStop(0.5, '#F5F0E6');
+    bgGrad.addColorStop(1, '#EBE4D5');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
@@ -199,21 +199,21 @@ class PipManager {
     // Dynamic Ambient Glow from Album
     if (this.currentCoverImage) {
       ctx.save();
-      ctx.globalAlpha = 0.18;
+      ctx.globalAlpha = 0.12;
       ctx.filter = 'blur(40px)';
       ctx.drawImage(this.currentCoverImage, -20, -20, 260, h + 40);
       ctx.restore();
     } else {
       const orb = ctx.createRadialGradient(90, h / 2, 10, 90, h / 2, 160);
-      orb.addColorStop(0, 'rgba(123, 223, 242, 0.18)');
-      orb.addColorStop(1, 'rgba(123, 223, 242, 0)');
+      orb.addColorStop(0, 'rgba(89, 107, 69, 0.15)');
+      orb.addColorStop(1, 'rgba(89, 107, 69, 0)');
       ctx.fillStyle = orb;
       ctx.fillRect(0, 0, w, h);
     }
 
     // Crisp Window Frame Border
     ctx.save();
-    ctx.strokeStyle = '#2F3B46';
+    ctx.strokeStyle = '#BDB094';
     ctx.lineWidth = 1;
     ctx.strokeRect(6, 6, w - 12, h - 12);
     ctx.restore();
@@ -225,11 +225,11 @@ class PipManager {
 
     // Drop shadow behind cover
     ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-    ctx.shadowBlur = 16;
+    ctx.shadowColor = 'rgba(41, 72, 58, 0.15)';
+    ctx.shadowBlur = 12;
     ctx.shadowOffsetX = 2;
-    ctx.shadowOffsetY = 6;
-    ctx.fillStyle = '#232D36';
+    ctx.shadowOffsetY = 4;
+    ctx.fillStyle = '#D8CEB5';
     ctx.fillRect(coverX, coverY, coverSize, coverSize);
     ctx.restore();
 
@@ -243,25 +243,25 @@ class PipManager {
       ctx.drawImage(this.currentCoverImage, coverX, coverY, coverSize, coverSize);
     } else {
       const cardGrad = ctx.createLinearGradient(coverX, coverY, coverX + coverSize, coverY + coverSize);
-      cardGrad.addColorStop(0, '#232D36');
-      cardGrad.addColorStop(1, '#161D24');
+      cardGrad.addColorStop(0, '#EBE4D5');
+      cardGrad.addColorStop(1, '#D8CEB5');
       ctx.fillStyle = cardGrad;
       ctx.fillRect(coverX, coverY, coverSize, coverSize);
 
-      ctx.fillStyle = '#7BDFF2';
+      ctx.fillStyle = '#596B45';
       ctx.font = 'bold 32px "IBM Plex Sans", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('🎵', coverX + coverSize / 2, coverY + coverSize / 2 - 12);
 
-      ctx.fillStyle = '#9AAAB7';
+      ctx.fillStyle = '#634936';
       ctx.font = '600 12px "IBM Plex Sans", sans-serif';
       ctx.fillText('Ragasukma', coverX + coverSize / 2, coverY + coverSize / 2 + 24);
     }
 
     // Sheen
     const sheen = ctx.createLinearGradient(coverX, coverY, coverX, coverY + 60);
-    sheen.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
+    sheen.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
     sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
     ctx.fillStyle = sheen;
     ctx.fillRect(coverX, coverY, coverSize, 60);
@@ -272,9 +272,9 @@ class PipManager {
       const eqH = 26;
       const eqX = coverX + coverSize - eqW - 6;
       const eqY = coverY + coverSize - eqH - 6;
-      ctx.fillStyle = 'rgba(29, 37, 46, 0.9)';
+      ctx.fillStyle = 'rgba(245, 240, 230, 0.92)';
       ctx.fillRect(eqX, eqY, eqW, eqH);
-      ctx.strokeStyle = '#2F3B46';
+      ctx.strokeStyle = '#BDB094';
       ctx.lineWidth = 1;
       ctx.strokeRect(eqX, eqY, eqW, eqH);
 
@@ -283,7 +283,7 @@ class PipManager {
         const barH = 4 + Math.abs(Math.sin(now * 5 + i * 1.3)) * 14;
         const bX = eqX + 6 + i * 9;
         const bY = eqY + eqH - 5 - barH;
-        ctx.fillStyle = i % 2 === 0 ? '#7BDFF2' : '#F2B5D4';
+        ctx.fillStyle = i % 2 === 0 ? '#596B45' : '#B08A4A';
         ctx.fillRect(bX, bY, 4, barH);
       }
     }
@@ -291,7 +291,7 @@ class PipManager {
 
     // Crisp Border Stroke on Cover
     ctx.save();
-    ctx.strokeStyle = isPlaying ? 'rgba(123, 223, 242, 0.5)' : '#2F3B46';
+    ctx.strokeStyle = isPlaying ? '#596B45' : '#BDB094';
     ctx.lineWidth = 1;
     ctx.strokeRect(coverX, coverY, coverSize, coverSize);
     ctx.restore();
@@ -306,20 +306,20 @@ class PipManager {
     const badgeH = 24;
     const badgeY = 22;
 
-    ctx.fillStyle = '#1D252E';
+    ctx.fillStyle = '#EBE4D5';
     ctx.fillRect(contentX, badgeY, badgeW, badgeH);
-    ctx.strokeStyle = isPlaying ? 'rgba(123, 223, 242, 0.4)' : '#2F3B46';
+    ctx.strokeStyle = isPlaying ? '#596B45' : '#BDB094';
     ctx.lineWidth = 1;
     ctx.strokeRect(contentX, badgeY, badgeW, badgeH);
 
     // Indicator Square
     const dotX = contentX + 10;
     const dotY = badgeY + badgeH / 2 - 3;
-    ctx.fillStyle = isPlaying ? '#7BDFF2' : '#F2B5D4';
+    ctx.fillStyle = isPlaying ? '#596B45' : '#B08A4A';
     ctx.fillRect(dotX, dotY, 6, 6);
 
     ctx.font = '600 11px "IBM Plex Sans", sans-serif';
-    ctx.fillStyle = isPlaying ? '#EFF7F6' : '#9AAAB7';
+    ctx.fillStyle = isPlaying ? '#29483A' : '#634936';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText(isPlaying ? 'SEDANG DIPUTAR' : 'PLAYBACK DIJEDA', contentX + 24, badgeY + badgeH / 2);
@@ -327,7 +327,7 @@ class PipManager {
     // Brand Watermark on Top-Right
     ctx.textAlign = 'right';
     ctx.font = '600 11px "IBM Plex Mono", monospace';
-    ctx.fillStyle = 'rgba(239, 247, 246, 0.35)';
+    ctx.fillStyle = 'rgba(41, 72, 58, 0.45)';
     ctx.fillText('RAGASUKMA • PIP', contentX + contentW, badgeY + badgeH / 2);
     ctx.restore();
 
@@ -337,20 +337,18 @@ class PipManager {
 
     // Title
     ctx.save();
-    ctx.fillStyle = '#EFF7F6';
+    ctx.fillStyle = '#29483A';
     ctx.font = 'bold 18px "IBM Plex Sans", sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-    ctx.shadowBlur = 6;
 
     const maxTitleLen = 38;
     const cleanTitle = title.length > maxTitleLen ? title.substring(0, maxTitleLen - 2) + '...' : title;
     ctx.fillText(cleanTitle, contentX, 72);
 
     // Artist
-    ctx.fillStyle = '#7BDFF2';
-    ctx.font = '500 13px "IBM Plex Sans", sans-serif';
+    ctx.fillStyle = '#876447';
+    ctx.font = '600 13px "IBM Plex Sans", sans-serif';
     const maxArtistLen = 44;
     const cleanArtist = artist.length > maxArtistLen ? artist.substring(0, maxArtistLen - 2) + '...' : artist;
     ctx.fillText(cleanArtist, contentX, 94);
@@ -367,18 +365,18 @@ class PipManager {
 
     // Background Bar
     ctx.save();
-    ctx.fillStyle = '#232D36';
+    ctx.fillStyle = '#D8CEB5';
     ctx.fillRect(barX, barY, barW, barH);
-    ctx.strokeStyle = '#2F3B46';
+    ctx.strokeStyle = '#BDB094';
     ctx.lineWidth = 1;
     ctx.strokeRect(barX, barY, barW, barH);
 
     // Filled Gradient Bar
     if (pct > 0) {
       const progGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-      progGrad.addColorStop(0, '#7BDFF2');
-      progGrad.addColorStop(0.7, '#9BE7F6');
-      progGrad.addColorStop(1, '#F2B5D4');
+      progGrad.addColorStop(0, '#596B45');
+      progGrad.addColorStop(0.5, '#876447');
+      progGrad.addColorStop(1, '#B08A4A');
 
       ctx.fillStyle = progGrad;
       ctx.fillRect(barX, barY, barW * pct, barH);
@@ -386,14 +384,14 @@ class PipManager {
       // Square Knob
       const knopX = barX + barW * pct - 3.5;
       const knopY = barY + barH / 2 - 3.5;
-      ctx.fillStyle = '#EFF7F6';
+      ctx.fillStyle = '#29483A';
       ctx.fillRect(knopX, knopY, 7, 7);
     }
     ctx.restore();
 
     // Time Indicators
     ctx.save();
-    ctx.fillStyle = '#9AAAB7';
+    ctx.fillStyle = '#634936';
     ctx.font = '600 12px "IBM Plex Mono", monospace';
     ctx.textBaseline = 'top';
 
@@ -409,7 +407,7 @@ class PipManager {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'bottom';
     ctx.font = '500 11px "IBM Plex Sans", sans-serif';
-    ctx.fillStyle = 'rgba(239, 247, 246, 0.28)';
+    ctx.fillStyle = 'rgba(41, 72, 58, 0.45)';
     ctx.fillText('Tekan Space / Gunakan Kontrol Media OS untuk Play & Pause', contentX, h - 18);
     ctx.restore();
 

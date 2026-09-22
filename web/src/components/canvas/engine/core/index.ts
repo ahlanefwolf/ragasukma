@@ -154,7 +154,7 @@ export class FabricCore {
           const hasStart = arrowHead() === 'both';
 
           obj.set({
-            stroke: hasBorder ? strokeColor() : '#7BDFF2',
+            stroke: hasBorder ? strokeColor() : '#29483A',
             strokeWidth: hasBorder ? strokeWidth() : 2,
             strokeDashArray: dash,
             strokeLineCap: 'round',

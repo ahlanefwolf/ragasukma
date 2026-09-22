@@ -226,7 +226,7 @@ export const App: Component = () => {
 
             <div class="flex items-center gap-3">
               <div class="flex items-center gap-2 px-3 py-1 bg-theme-card border border-theme-border text-xs font-semibold text-theme-text">
-                <span class="w-2 h-2 bg-theme-cyan shadow-[0_0_8px_#7BDFF2] animate-pulse" />
+                <span class="w-2 h-2 bg-theme-cyan shadow-[0_0_8px_var(--cyan)] animate-pulse" />
                 <span class="tracking-wide">Avatar Overlay</span>
               </div>
             </div>
@@ -278,7 +278,7 @@ export const App: Component = () => {
           toastVisible() ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
         }`}
       >
-        <span class="w-2 h-2 bg-theme-cyan shrink-0 shadow-[0_0_6px_#7BDFF2]" />
+        <span class="w-2 h-2 bg-theme-cyan shrink-0 shadow-[0_0_6px_var(--cyan)]" />
         <span class="truncate">{toastMessage()}</span>
       </div>
     </div>

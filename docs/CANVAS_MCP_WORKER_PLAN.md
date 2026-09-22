@@ -16,6 +16,51 @@ Frontend 2D Canvas dibangun menggunakan **Fabric.js v7** dan Solid.js dengan mod
 
 ---
 
+## 🛠️ 1.1 Evaluasi & Rencana Perampingan Toolbar (Ala Photoshop / Illustrator)
+
+Agar tampilan kanvas tetap lega (*workspace-centric*) dan tidak penuh sesak seperti software profesional:
+
+### Yang Perlu Ditingkatkan di Toolbar:
+1. **Tool Grouping / Nested Flyout Menu (Dropdown Tool)**:
+   - Mengelompokkan tool serupa di dalam 1 slot ikon dengan segitiga kecil di pojok (seperti *Flyout / Long-press* Photoshop/Illustrator):
+     - Slot Bentuk: Kotak, Lingkaran, Diamond, Silinder.
+     - Slot Garis: Garis Bebas, Panah 1 Ujung, Panah 2 Ujung, Konektor Relasi Siku.
+     - Slot Seleksi: Direct Select (Pointer), Hand Tool (Pan).
+2. **Quick Alignment & Distribution Bar**:
+   - Belum ada tombol perataan instan untuk multi-seleksi (Rata Kiri, Rata Tengah Horisontal/Vertikal, Rata Kanan, dan Distribusi Jarak Merata). Ini sangat krusial saat merapikan bagan/flowchart.
+3. **Pemisahan Toolbar Global vs Contextual Inspector**:
+   - Toolbar Atas fokus murni pada *Tool Selection* & Operasi Kanvas Global (Export, Undo/Redo, Clear, Toggle AI MCP, Toggle Layers).
+   - Seluruh properti objek (Color Picker, Stroke Width, Arrowheads, Opacity, Font Size, Group/Ungroup) dikunci tetap berada di Contextual Inspector/Floating Bar yang hanya muncul saat objek dipilih.
+
+---
+
+## 🎯 1.2 Solusi Agar AI Menggambar Tepat, Cepat, dan Presisi
+
+Saat AI mengeksekusi perintah menggambar (diagram, flowchart, hingga bentuk bebas seperti roket atau logo), terdapat potensi ketidaktepatan geometri. Berikut solusi arsitektur yang direncanakan:
+
+### 1. Normalisasi Origin Titik Koordinat (Top-Left vs Center)
+* **Masalah**: Fabric.js secara internal menghitung posisi dari titik tengah (`originX/originY: 'center'`), sementara LLM hampir selalu berasumsi $(x, y)$ adalah sudut kiri atas (*top-left*). Ini menyebabkan bentuk bergeser sejauh $\text{width}/2$ dan $\text{height}/2$.
+* **Solusi di MCP Engine**: Tambahkan fungsi sanitizer otomatis di `mcp.ts`:
+  $$\text{realX} = \text{inputX} + \frac{\text{width}}{2}, \quad \text{realY} = \text{inputY} + \frac{\text{height}}{2}$$
+  Jika LLM mengirim koordinat tanpa mendeklarasikan origin, engine otomatis mengonversi ke titik tengah yang presisi.
+
+### 2. Auto-Fit Bounding Box terhadap Panjang Teks (No Overflow)
+* **Masalah**: Ukuran kotak dari LLM bersifat statis. Jika label teks yang di-generate lebih panjang dari lebar kotak, teks akan keluar (*overflow*) dari batas kotak.
+* **Solusi**: Ukur estimasi dimensi teks sebelum membuat objek:
+  $$\text{minWidth} = (\text{charCount} \times \text{fontSize} \times 0.6) + \text{paddingHorisontal}$$
+  Jika `width` dari AI lebih kecil dari `minWidth`, engine otomatis memperbesar kotak secara proporsional.
+
+### 3. Grid-Snap Magnetik (Kelipatan 24px)
+* **Masalah**: AI sering menghasilkan koordinat pecahan/desimal tidak bulat (misal $x = 103.4, y = 217.8$) sehingga garis penghubung terlihat miring 1-2 pixel.
+* **Solusi**: Sebelum objek dimasukkan ke kanvas, lewati fungsi `snapToGrid(val, 24)` agar seluruh kotak, konektor, dan port snapping selalu sejajar sempurna di garis grid.
+
+### 4. Menggambar Objek Kompleks (Roket, Logo, Maskot)
+Untuk gambar yang bukan sekadar diagram flowchart (contoh: roket, logo, ikon custom):
+* **Metode A - Komposisi Geometri (Preset)**: Menggabungkan beberapa primitif dasar terkoordinasi (lingkaran bodi roket + 2 segitiga poligon sayap + garis api bawah) yang dieksekusi berurutan secara live.
+* **Metode B - SVG Path Data (`draw_path`)**: AI meng-output string path vektor SVG (misal `d="M 50,150 Q 50,50 100,20 Q 150,50 150,150 ... Z"`). Engine menggunakan `new Path(d)` Fabric.js untuk merender bentuk kurva bebas yang tajam dan akurat 100% tanpa distorsi.
+
+---
+
 ## 🧩 2. Daftar Tools MCP yang Belum Tersambung & Status Implementasi
 
 Berikut adalah inventaris lengkap status tool MCP antara **Frontend Engine (`types.ts` & `mcp.ts`)**, **Backend Worker**, dan **Voice Binding**:

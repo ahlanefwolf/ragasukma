@@ -327,7 +327,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
           class={`w-full flex items-center justify-center gap-3 py-3.5 px-4 font-bold text-sm sm:text-base transition-all shadow-md active:scale-[0.99] border ${
             isRunning()
               ? 'bg-theme-card hover:bg-theme-rose/20 text-theme-rose border-theme-rose/50 shadow-rose-900/20'
-              : 'bg-theme-cyan hover:bg-[#68cbdd] text-theme-card border-theme-cyan anime-shadow-green'
+              : 'bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card border-theme-cyan anime-shadow-green'
           }`}
         >
           {isRunning() ? (
@@ -374,7 +374,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             title={voiceInterruption() ? 'Fitur Interupsi Aktif: Kamu bisa langsung memotong saat AI berbicara' : 'Fitur Interupsi Nonaktif: AI akan menyelesaikan seluruh responnya'}
             class={`flex items-center justify-center gap-2.5 py-2.5 px-3 border text-xs sm:text-sm font-semibold transition-all ${
               voiceInterruption()
-                ? 'bg-theme-card border-theme-cyan/60 text-theme-cyan shadow-[0_0_10px_rgba(123,223,242,0.15)]'
+                ? 'bg-theme-card border-theme-cyan/60 text-theme-cyan shadow-[0_0_10px_rgba(89,107,69,0.2)]'
                 : 'bg-theme-bg border-theme-border text-theme-text/60 hover:text-theme-text'
             }`}
           >
@@ -420,11 +420,11 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                   micMuted()
                     ? 'var(--border)'
                     : height > 75
-                    ? 'var(--rose)'
+                    ? '#B08A4A' /* Ochre untuk sinyal kuat/tinggi */
                     : height > 35
-                    ? 'var(--cyan)'
-                    : '#4ECDC4',
-                'box-shadow': !micMuted() && height > 35 ? '0 0 8px rgba(123, 223, 242, 0.35)' : 'none',
+                    ? '#596B45' /* Moss untuk suara aktif */
+                    : '#876447', /* Earth Brown untuk ambient/rendah */
+                'box-shadow': !micMuted() && height > 35 ? '0 0 8px rgba(89, 107, 69, 0.4)' : 'none',
                 opacity: micMuted() ? '0.3' : '0.95',
               }}
             />
@@ -446,7 +446,11 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
               style={{
                 width: micMuted() ? '0%' : `${micLevel()}%`,
                 'background-color':
-                  micLevel() > 80 ? 'var(--rose)' : micLevel() > vadThresholdPercent() ? 'var(--cyan)' : '#4ECDC4',
+                  micLevel() > 80
+                    ? '#B08A4A'
+                    : micLevel() > vadThresholdPercent()
+                    ? '#596B45'
+                    : '#876447',
               }}
             >
               {micLevel() > 15 && !micMuted() && `${micLevel()}%`}

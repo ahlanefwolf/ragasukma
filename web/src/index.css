@@ -4,14 +4,14 @@
 
 /* ── Design Tokens ─────────────────────────────── */
 :root {
-  --bg:      #161D24;
-  --surface: #1D252E;
-  --card:    #232D36;
-  --border:  #2F3B46;
-  --text:    #EFF7F6;
-  --muted:   #9AAAB7;
-  --cyan:    #7BDFF2;
-  --rose:    #F2B5D4;
+  --bg:      #F5F0E6;
+  --surface: #EBE4D5;
+  --card:    #D8CEB5;
+  --border:  #BDB094;
+  --text:    #29483A;
+  --muted:   #634936;
+  --cyan:    #596B45;
+  --rose:    #B08A4A;
 }
 
 @layer base {

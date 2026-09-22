@@ -21,7 +21,7 @@ export function renderZoomAdaptiveCircle(
   ctx.fillStyle = '#FFFFFF';
   ctx.fill();
   ctx.lineWidth = 2;
-  ctx.strokeStyle = '#7BDFF2';
+  ctx.strokeStyle = '#596B45';
   ctx.stroke();
   ctx.restore();
 }

@@ -41,22 +41,22 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
   const getQuotaColor = (pct: number) => {
     if (pct >= 50) {
       return {
-        bar: 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]',
-        badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-        text: 'text-emerald-400',
+        bar: 'bg-theme-cyan shadow-[0_0_8px_rgba(89,107,69,0.35)]',
+        badge: 'bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/40',
+        text: 'text-theme-cyan',
       };
     }
     if (pct >= 20) {
       return {
-        bar: 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]',
-        badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-        text: 'text-amber-400',
+        bar: 'bg-theme-rose shadow-[0_0_8px_rgba(176,138,74,0.35)]',
+        badge: 'bg-theme-rose/15 text-theme-rose border border-theme-rose/40',
+        text: 'text-theme-rose',
       };
     }
     return {
-      bar: 'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]',
-      badge: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
-      text: 'text-rose-400',
+      bar: 'bg-[#A84B4B] shadow-[0_0_8px_rgba(168,75,75,0.35)]',
+      badge: 'bg-[#A84B4B]/15 text-[#A84B4B] border border-[#A84B4B]/40',
+      text: 'text-[#A84B4B]',
     };
   };
 

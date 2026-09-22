@@ -21,22 +21,22 @@ export const AntigravityStats: Component<AntigravityStatsProps> = (props) => {
       </div>
 
       <div class="p-4 bg-theme-card border border-theme-border flex items-center gap-3">
-        <div class="p-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        <div class="p-2.5 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30">
           <CheckCircle2 size={20} />
         </div>
         <div>
           <div class="text-xs text-theme-text/60 font-semibold">Akun Siap Pakai</div>
-          <div class="text-lg font-bold font-mono text-emerald-400">{props.activeCount}</div>
+          <div class="text-lg font-bold font-mono text-theme-cyan">{props.activeCount}</div>
         </div>
       </div>
 
       <div class="p-4 bg-theme-card border border-theme-border flex items-center gap-3">
-        <div class="p-2.5 bg-amber-500/10 text-amber-400 border border-amber-500/20">
+        <div class="p-2.5 bg-theme-rose/15 text-theme-rose border border-theme-rose/30">
           <AlertTriangle size={20} />
         </div>
         <div>
           <div class="text-xs text-theme-text/60 font-semibold">Cooldown (429)</div>
-          <div class="text-lg font-bold font-mono text-amber-400">{props.rateLimitedCount}</div>
+          <div class="text-lg font-bold font-mono text-theme-rose">{props.rateLimitedCount}</div>
         </div>
       </div>
     </div>

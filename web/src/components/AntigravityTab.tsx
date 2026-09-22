@@ -196,7 +196,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
       {/* Header Banner */}
       <div class="p-6 bg-theme-card border border-theme-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
         <div class="flex items-center gap-4">
-          <div class="w-14 h-14 bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/5">
+          <div class="w-14 h-14 bg-theme-rose/15 border border-theme-rose/40 flex items-center justify-center text-theme-rose shrink-0 shadow-sm">
             <Rocket size={28} />
           </div>
           <div>
@@ -204,7 +204,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
               <h2 class="text-xl font-carter tracking-wide text-theme-text">
                 ANTIGRAVITY POOL
               </h2>
-              <span class="text-xs font-mono px-2 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold uppercase">
+              <span class="text-xs font-mono px-2 py-0.5 bg-theme-rose/20 text-theme-rose border border-theme-rose/30 font-bold uppercase">
                 Google Multi-OAuth
               </span>
             </div>
@@ -277,7 +277,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
             when={accounts().length > 0}
             fallback={
               <div class="p-12 text-center bg-theme-card border border-theme-border/60 space-y-4">
-                <div class="w-14 h-14 mx-auto bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <div class="w-14 h-14 mx-auto bg-theme-rose/15 border border-theme-rose/30 flex items-center justify-center text-theme-rose">
                   <Rocket size={28} />
                 </div>
                 <div class="space-y-1">
@@ -328,7 +328,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
             <span class="p-1 bg-theme-cyan/10 text-theme-cyan font-mono text-xs font-extrabold uppercase tracking-wider border border-theme-cyan/30">OpenAI API</span>
             <span>Local Endpoint (OpenAI-Compatible)</span>
           </div>
-          <span class="text-xs font-mono px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <span class="text-xs font-mono px-2 py-0.5 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30">
             Port 42128 Ready
           </span>
         </div>

@@ -145,15 +145,15 @@ export const Sidebar: Component<SidebarProps> = (props) => {
                   onClick={() => handleSelectTab('provider-antigravity')}
                   class={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-all border ${
                     props.activeTab === 'provider-antigravity'
-                      ? 'bg-amber-500/20 text-amber-300 font-bold border-amber-500/40'
+                      ? 'bg-theme-rose/15 text-theme-rose font-bold border-theme-rose/40'
                       : 'bg-transparent border-transparent text-theme-text/70 hover:bg-theme-card hover:text-theme-text hover:border-theme-border'
                   }`}
                 >
                   <div class="flex items-center gap-2.5">
-                    <Rocket size={15} class={props.activeTab === 'provider-antigravity' ? 'text-amber-400' : 'text-theme-text/60'} />
+                    <Rocket size={15} class={props.activeTab === 'provider-antigravity' ? 'text-theme-rose' : 'text-theme-text/60'} />
                     <span>Antigravity</span>
                   </div>
-                  <span class="text-[10px] font-mono px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/30 uppercase font-bold">
+                  <span class="text-[10px] font-mono px-1.5 py-0.5 bg-theme-rose/20 text-theme-rose border border-theme-rose/40 uppercase font-bold">
                     OAuth
                   </span>
                 </button>

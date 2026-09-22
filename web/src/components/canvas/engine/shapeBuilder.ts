@@ -176,7 +176,7 @@ function createPolygonFromRing(
     top: minY,
     originX: 'left',
     originY: 'top',
-    fill: options.fill ?? '#7BDFF2',
+    fill: options.fill ?? '#596B45',
     stroke: hasBorder ? options.stroke : '',
     strokeWidth: hasBorder ? (options.strokeWidth ?? 2) : 0,
     strokeUniform: true,
@@ -246,8 +246,8 @@ export class ShapeBuilderEngine {
             if (!outerRing || outerRing.length < 3) return;
 
             const previewObj = createPolygonFromRing(outerRing, {
-              fill: 'rgba(245, 158, 11, 0.35)',
-              stroke: '#F59E0B',
+              fill: 'rgba(176, 138, 74, 0.35)',
+              stroke: '#B08A4A',
               strokeWidth: 1.5,
               name: 'Preview Irisan',
             });
@@ -299,7 +299,7 @@ export class ShapeBuilderEngine {
         items.push({
           geom: g,
           style: {
-            fill: (obj.fill && obj.fill !== 'transparent') ? obj.fill : (idx === 0 ? '#7BDFF2' : '#FF6B6B'),
+            fill: (obj.fill && obj.fill !== 'transparent') ? obj.fill : (idx === 0 ? '#596B45' : '#876447'),
             stroke: hasBorder ? obj.stroke : '',
             strokeWidth: hasBorder ? (obj.strokeWidth || 2) : 0,
             strokeAlign: obj.strokeAlign || 'center',
@@ -337,7 +337,7 @@ export class ShapeBuilderEngine {
             nextFragments.push({
               geom: inter,
               style: {
-                fill: '#F59E0B', // Aksen oranye untuk irisan pertemuan
+                fill: '#B08A4A', // Aksen ochre hangat untuk irisan pertemuan
                 stroke: existing.style.stroke || item.style.stroke,
                 strokeWidth: existing.style.strokeWidth || item.style.strokeWidth,
                 name: 'Irisan Pertemuan',
@@ -432,7 +432,7 @@ export class ShapeBuilderEngine {
       const firstObj = selected[0];
       const hasBorder = !!firstObj.stroke && firstObj.stroke !== 'transparent' && (firstObj.strokeWidth || 0) > 0;
       const style: ObjectStyle = {
-        fill: (firstObj.fill && firstObj.fill !== 'transparent') ? firstObj.fill : '#7BDFF2',
+        fill: (firstObj.fill && firstObj.fill !== 'transparent') ? firstObj.fill : '#596B45',
         stroke: hasBorder ? firstObj.stroke : '',
         strokeWidth: hasBorder ? (firstObj.strokeWidth || 2) : 0,
         strokeAlign: (firstObj as any).strokeAlign || 'center',

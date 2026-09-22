@@ -98,17 +98,17 @@ Line.prototype._render = function (ctx: CanvasRenderingContext2D) {
     } else {
       ctx.setLineDash([]);
     }
-    const strokeColorStr = typeof this.stroke === 'string' ? this.stroke : '#7BDFF2';
-    ctx.strokeStyle = strokeColorStr;
+    const strokeColor: string = typeof (this as any).stroke === 'string' && (this as any).stroke ? (this as any).stroke : '#29483A';
+    (ctx as any).strokeStyle = strokeColor;
     ctx.stroke();
     ctx.restore();
 
     if (hasArrowEnd) {
-      renderArrowHead(ctx, lastPt.x, lastPt.y, lastAngle, headLength, arrowSpread, strokeColorStr);
+      renderArrowHead(ctx, lastPt.x, lastPt.y, lastAngle, headLength, arrowSpread, strokeColor);
     }
 
     if (hasArrowStart) {
-      renderArrowHead(ctx, firstPt.x, firstPt.y, firstAngle + Math.PI, headLength, arrowSpread, strokeColorStr);
+      renderArrowHead(ctx, firstPt.x, firstPt.y, firstAngle + Math.PI, headLength, arrowSpread, strokeColor);
     }
     return;
   }
@@ -146,17 +146,17 @@ Line.prototype._render = function (ctx: CanvasRenderingContext2D) {
   } else {
     ctx.setLineDash([]);
   }
-  const strokeColorStr = typeof this.stroke === 'string' ? this.stroke : '#7BDFF2';
-  ctx.strokeStyle = strokeColorStr;
+  const strokeColor: string = typeof (this as any).stroke === 'string' && (this as any).stroke ? (this as any).stroke : '#29483A';
+  (ctx as any).strokeStyle = strokeColor;
   ctx.stroke();
   ctx.restore();
 
   if (hasArrowEnd) {
-    renderArrowHead(ctx, p.x2, p.y2, angle, headLength, arrowSpread, strokeColorStr);
+    renderArrowHead(ctx, p.x2, p.y2, angle, headLength, arrowSpread, strokeColor);
   }
 
   if (hasArrowStart) {
-    renderArrowHead(ctx, p.x1, p.y1, angle + Math.PI, headLength, arrowSpread, strokeColorStr);
+    renderArrowHead(ctx, p.x1, p.y1, angle + Math.PI, headLength, arrowSpread, strokeColor);
   }
 };
 
@@ -170,7 +170,7 @@ export function createArrowObject(
   label?: string
 ): FabricObject {
   const line = new Line([x1, y1, x2, y2], {
-    stroke: stroke || '#7BDFF2',
+    stroke: stroke || '#29483A',
     strokeWidth: strokeWidth || 3,
     strokeUniform: true,
     strokeLineCap: 'round',
@@ -191,7 +191,7 @@ export function createArrowObject(
       fill: stroke,
       originX: 'center',
       originY: 'center',
-      backgroundColor: 'rgba(16, 20, 29, 0.85)',
+      backgroundColor: 'rgba(245, 240, 230, 0.9)',
     });
     return new Group([line, text], { selectable: true });
   }

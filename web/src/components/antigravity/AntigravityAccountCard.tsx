@@ -33,7 +33,7 @@ export const AntigravityAccountCard: Component<AntigravityAccountCardProps> = (p
     <div class={`bg-theme-card border transition-all duration-200 overflow-hidden ${
       props.account.is_active 
         ? props.account.is_rate_limited 
-          ? 'border-amber-500/40 bg-amber-500/5' 
+          ? 'border-theme-rose/50 bg-theme-rose/10' 
           : 'border-theme-border hover:border-theme-cyan/50' 
         : 'border-theme-border/40 opacity-60 bg-theme-bg/40'
     }`}>
@@ -50,14 +50,14 @@ export const AntigravityAccountCard: Component<AntigravityAccountCardProps> = (p
               <Show 
                 when={props.account.is_rate_limited}
                 fallback={
-                  <span class="text-xs font-bold px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 bg-emerald-400 animate-pulse" />
+                  <span class="text-xs font-bold px-2 py-0.5 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/40 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 bg-theme-cyan animate-pulse" />
                     Siap / Aktif
                   </span>
                 }
               >
-                <span class="text-xs font-bold px-2 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 bg-amber-400" />
+                <span class="text-xs font-bold px-2 py-0.5 bg-theme-rose/20 text-theme-rose border border-theme-rose/40 flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 bg-theme-rose" />
                   Cooldown ({props.account.rate_limited_seconds_left}s)
                 </span>
               </Show>
@@ -115,8 +115,8 @@ export const AntigravityAccountCard: Component<AntigravityAccountCardProps> = (p
             disabled={isBusy()}
             class={`p-2 border text-xs font-semibold transition-all ${
               props.account.is_active
-                ? 'bg-theme-bg border-theme-border text-theme-text/70 hover:text-amber-400 hover:border-amber-400/50'
-                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                ? 'bg-theme-bg border-theme-border text-theme-text/70 hover:text-theme-rose hover:border-theme-rose/50'
+                : 'bg-theme-cyan/15 border border-theme-cyan/30 text-theme-cyan hover:bg-theme-cyan/25'
             }`}
             title={props.account.is_active ? 'Nonaktifkan Akun' : 'Aktifkan Akun'}
           >

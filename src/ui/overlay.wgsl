@@ -88,55 +88,58 @@ fn fs_overlay(in: VertexOutput) -> @location(0) vec4<f32> {
     let d_min_line = sdf_line(p_min, vec2<f32>(-4.2, 1.0), vec2<f32>(4.2, 1.0)) - 0.75;
     let aa_min = clamp(0.5 - d_min_line, 0.0, 1.0);
 
-    // Render Ikon (Solid White)
+    // Render Ikon (Forest Green saat default, Solid White saat hover)
     if (aa_close > 0.05) {
-        return vec4<f32>(1.0, 1.0, 1.0, aa_close * 1.0);
+        let icon_col = select(vec3<f32>(0.161, 0.282, 0.227), vec3<f32>(1.0, 1.0, 1.0), hover_close);
+        return vec4<f32>(icon_col, aa_close);
     }
     if (aa_max > 0.05) {
-        return vec4<f32>(1.0, 1.0, 1.0, aa_max * 1.0);
+        let icon_col = select(vec3<f32>(0.161, 0.282, 0.227), vec3<f32>(1.0, 1.0, 1.0), hover_max);
+        return vec4<f32>(icon_col, aa_max);
     }
     if (aa_min > 0.05) {
-        return vec4<f32>(1.0, 1.0, 1.0, aa_min * 1.0);
+        let icon_col = select(vec3<f32>(0.161, 0.282, 0.227), vec3<f32>(1.0, 1.0, 1.0), hover_min);
+        return vec4<f32>(icon_col, aa_min);
     }
 
-    // Background Tombol (Solid, Tidak Transparan, Kontras Jelas)
+    // Background Tombol (Solid, Kontras Jelas dengan Tema Earth Tone)
     let d_bg_close = sdf_rounded_box(p_close, vec2<f32>(11.0, 9.5), 3.5);
     if (d_bg_close < 0.0) {
         if (hover_close) {
-            return vec4<f32>(0.92, 0.20, 0.24, 1.0); // Solid Vibrant Red
+            return vec4<f32>(0.659, 0.294, 0.294, 1.0); // Solid Terracotta Earth Red (#A84B4B)
         }
-        return vec4<f32>(0.14, 0.18, 0.23, 1.0); // Solid Dark Panel
+        return vec4<f32>(0.847, 0.808, 0.710, 1.0); // Solid Warm Cream (#D8CEB5)
     }
 
     let d_bg_max = sdf_rounded_box(p_max, vec2<f32>(11.0, 9.5), 3.5);
     if (d_bg_max < 0.0) {
         if (hover_max) {
-            return vec4<f32>(0.20, 0.58, 0.95, 1.0); // Solid Neon Blue
+            return vec4<f32>(0.349, 0.420, 0.271, 1.0); // Solid Moss Accent (#596B45)
         }
-        return vec4<f32>(0.14, 0.18, 0.23, 1.0); // Solid Dark Panel
+        return vec4<f32>(0.847, 0.808, 0.710, 1.0); // Solid Warm Cream (#D8CEB5)
     }
 
     let d_bg_min = sdf_rounded_box(p_min, vec2<f32>(11.0, 9.5), 3.5);
     if (d_bg_min < 0.0) {
         if (hover_min) {
-            return vec4<f32>(0.20, 0.58, 0.95, 1.0); // Solid Neon Blue
+            return vec4<f32>(0.349, 0.420, 0.271, 1.0); // Solid Moss Accent (#596B45)
         }
-        return vec4<f32>(0.14, 0.18, 0.23, 1.0); // Solid Dark Panel
+        return vec4<f32>(0.847, 0.808, 0.710, 1.0); // Solid Warm Cream (#D8CEB5)
     }
 
-    // Header Bar Background (28px)
+    // Header Bar Background (28px) - Warm Surface (#EBE4D5) dengan Moss Divider
     if (is_header) {
         if (pixel_pos.y >= 27.0) {
-            return vec4<f32>(0.35, 0.65, 1.0, 0.65);
+            return vec4<f32>(0.349, 0.420, 0.271, 0.75); // Moss Divider Line
         }
-        return vec4<f32>(0.08, 0.11, 0.18, 0.75);
+        return vec4<f32>(0.922, 0.894, 0.835, 0.92); // Warm Surface Header (#EBE4D5)
     }
 
-    // Glowing window border
+    // Window frame border (Moss #596B45)
     let border_thickness = 1.5;
     let min_dist_edge = min(min(pixel_pos.x, w - pixel_pos.x), min(pixel_pos.y, h - pixel_pos.y));
     if (min_dist_edge < border_thickness) {
-        return vec4<f32>(0.35, 0.65, 1.0, 0.85);
+        return vec4<f32>(0.349, 0.420, 0.271, 0.85); // Moss Border
     }
 
     discard;

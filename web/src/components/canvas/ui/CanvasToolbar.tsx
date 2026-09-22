@@ -327,6 +327,21 @@ export const CanvasToolbar: Component<CanvasToolbarProps> = (props) => {
           </button>
         </div>
 
+        {/* Toggle AI MCP Drawer Button */}
+        <button
+          type="button"
+          onClick={() => setShowAiSimulator(!showAiSimulator())}
+          title={showAiSimulator() ? 'Tutup Panel AI MCP Drawer' : 'Buka Demo AI MCP Drawer'}
+          class={`px-2 py-1 text-xs font-bold transition-all flex items-center gap-1.5 border ${
+            showAiSimulator() || isAiDrawing()
+              ? 'bg-[#B08A4A] text-theme-card border-[#B08A4A] shadow-sm'
+              : 'bg-theme-surface text-[#876447] border-theme-border hover:bg-theme-card hover:text-[#B08A4A]'
+          }`}
+        >
+          <Bot size={14} class={isAiDrawing() ? 'animate-bounce' : ''} />
+          <span class="hidden sm:inline font-mono">AI MCP</span>
+        </button>
+
         {/* Clear Canvas */}
         <button
           type="button"
@@ -424,10 +439,23 @@ export const CanvasToolbar: Component<CanvasToolbarProps> = (props) => {
                   setShowSettingsMenu(false);
                   setShowAiSimulator(!showAiSimulator());
                 }}
-                class="w-full px-2.5 py-1.5 text-xs text-theme-text hover:text-amber-300 hover:bg-theme-surface flex items-center gap-2 transition-all text-left font-mono"
+                class={`w-full px-2.5 py-1.5 text-xs flex items-center justify-between transition-all text-left font-mono ${
+                  showAiSimulator()
+                    ? 'bg-[#B08A4A]/15 text-[#876447] font-bold'
+                    : 'text-theme-text hover:text-theme-cyan hover:bg-theme-surface'
+                }`}
               >
-                <Bot size={14} class="text-amber-400" />
-                <span>Demo AI MCP Drawer</span>
+                <div class="flex items-center gap-2">
+                  <Bot size={14} class="text-[#B08A4A]" />
+                  <span>Demo AI MCP Drawer</span>
+                </div>
+                <span class={`text-[10px] px-1.5 py-0.5 border ${
+                  showAiSimulator()
+                    ? 'bg-[#B08A4A] text-theme-card border-[#B08A4A] font-bold'
+                    : 'bg-theme-surface text-theme-text/60 border-theme-border'
+                }`}>
+                  {showAiSimulator() ? 'ON' : 'OFF'}
+                </span>
               </button>
 
               <Show when={props.onOpenShortcutsModal}>

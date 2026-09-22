@@ -89,7 +89,7 @@ export const InspectorToolbar: Component = () => {
   const handleStrokeWidthChange = (val: number) => {
     setStrokeWidth(val);
     if (val > 0 && strokeColor() === 'transparent') {
-      setStrokeColor('#7BDFF2');
+      setStrokeColor('#29483A');
     } else if (val === 0) {
       setStrokeColor('transparent');
     }

@@ -120,9 +120,9 @@ export const ExportModal: Component<ExportModalProps> = (props) => {
   ];
 
   const bgOptions = [
-    { id: 'transparent' as const, label: 'Transparan (Alpha)', preview: 'bg-[radial-gradient(#555_1px,transparent_1px)] [background-size:6px_6px] bg-[#1a1a1a]' },
-    { id: 'dark' as const, label: 'Tema Gelap (#10141D)', preview: 'bg-[#10141D] border border-theme-cyan/30' },
-    { id: 'white' as const, label: 'Putih Bersih (#FFFFFF)', preview: 'bg-white text-black' },
+    { id: 'transparent' as const, label: 'Transparan (Alpha)', preview: 'bg-[radial-gradient(#BDB094_1px,transparent_1px)] [background-size:6px_6px] bg-[#EBE4D5] border border-theme-border' },
+    { id: 'dark' as const, label: 'Warna Kanvas (#FAF7F2)', preview: 'bg-[#FAF7F2] border border-theme-border text-theme-text' },
+    { id: 'white' as const, label: 'Putih Bersih (#FFFFFF)', preview: 'bg-white border border-theme-border text-black' },
   ];
 
   const handleExport = () => {
@@ -499,7 +499,7 @@ export const ExportModal: Component<ExportModalProps> = (props) => {
               <button
                 type="button"
                 onClick={handleExport}
-                class="px-5 py-2 text-xs font-bold bg-theme-cyan hover:bg-[#68cbdd] text-theme-card border border-theme-cyan shadow-md anime-shadow-green flex items-center gap-2 transition-all"
+                class="px-5 py-2 text-xs font-bold bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card border border-theme-cyan shadow-md anime-shadow-green flex items-center gap-2 transition-all"
               >
                 <Download size={15} />
                 <span>Unduh ({targetWidth()}x{targetHeight()} px)</span>

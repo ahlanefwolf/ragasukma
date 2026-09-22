@@ -200,7 +200,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
   const installCommands = [
     { os: 'Windows', cmd: 'winget install yt-dlp.yt-dlp', color: 'var(--cyan)' },
     { os: 'macOS', cmd: 'brew install yt-dlp', color: 'var(--rose)' },
-    { os: 'Linux', cmd: 'pip install yt-dlp', color: '#A8D8A8' },
+    { os: 'Linux', cmd: 'pip install yt-dlp', color: 'var(--text)' },
   ];
 
   return (
@@ -253,16 +253,16 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
 
           <Show when={!checkingYtDlp() && ytDlpInfo()?.available}>
             <div class="flex items-center gap-2">
-              <span class="px-3 py-1 text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30">
+              <span class="px-3 py-1 text-xs font-bold bg-theme-cyan/20 text-[#29483A] border border-theme-cyan/40">
                 ✓ yt-dlp v{ytDlpInfo()!.version}
               </span>
-              <span class="text-xs text-theme-text/60">Siap digunakan</span>
+              <span class="text-xs text-theme-text/70">Siap digunakan</span>
             </div>
           </Show>
 
           <Show when={!checkingYtDlp() && !ytDlpInfo()?.available}>
             <div class="space-y-3">
-              <div class="flex items-center gap-2 text-xs text-theme-rose">
+              <div class="flex items-center gap-2 text-xs text-[#A84B4B]">
                 <AlertCircle size={14} />
                 <span class="font-semibold">yt-dlp tidak ditemukan.</span>
               </div>
@@ -270,7 +270,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
               <button
                 onClick={handleInstall}
                 disabled={installing()}
-                class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-theme-cyan/20 hover:bg-theme-cyan/30 border border-theme-cyan/40 text-theme-cyan font-semibold text-sm transition-all disabled:opacity-50"
+                class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-theme-cyan/20 hover:bg-theme-cyan/30 border border-theme-cyan/40 text-[#29483A] font-semibold text-sm transition-all disabled:opacity-50"
               >
                 <Show when={installing()} fallback={<Download size={16} />}>
                   <Loader size={16} class="animate-spin" />
@@ -278,15 +278,15 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
                 <span>{installing() ? 'Menginstall yt-dlp...' : 'Install Otomatis'}</span>
               </button>
               <Show when={installMsg()}>
-                <p class={`text-xs px-3 py-2 border ${
+                <p class={`text-xs px-3 py-2 border font-medium ${
                   installMsg()!.startsWith('Gagal')
-                    ? 'bg-red-500/10 border-red-500/30 text-red-400'
-                    : 'bg-green-500/10 border-green-500/30 text-green-400'
+                    ? 'bg-[#A84B4B]/10 border-[#A84B4B]/30 text-[#A84B4B]'
+                    : 'bg-theme-cyan/15 border-theme-cyan/35 text-[#29483A]'
                 }`}>{installMsg()}</p>
               </Show>
               {/* Fallback manual */}
               <details class="group">
-                <summary class="text-xs text-theme-text/50 hover:text-theme-text/80 cursor-pointer select-none">Install manual (klik untuk lihat perintah)</summary>
+                <summary class="text-xs text-theme-text/60 hover:text-theme-text cursor-pointer select-none">Install manual (klik untuk lihat perintah)</summary>
                 <div class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <For each={installCommands}>
                     {(item) => (
@@ -300,7 +300,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
                             title="Copy"
                           >
                             <Show when={copiedCmd() === item.cmd} fallback={<Copy size={13} />}>
-                              <Check size={13} class="text-green-400" />
+                              <Check size={13} class="text-theme-cyan" />
                             </Show>
                           </button>
                         </div>
@@ -353,8 +353,8 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
             <Show when={downloadResult() !== null && !downloading()}>
               <div class={`flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold border ${
                 downloadResult()!.success
-                  ? 'bg-green-500/10 border-green-500/30 text-green-400'
-                  : 'bg-theme-rose/10 border-theme-rose/30 text-theme-rose'
+                  ? 'bg-theme-cyan/15 border-theme-cyan/35 text-[#29483A]'
+                  : 'bg-[#A84B4B]/10 border-[#A84B4B]/30 text-[#A84B4B]'
               }`}>
                 <Show when={downloadResult()!.success} fallback={<AlertCircle size={15} />}>
                   <Check size={15} />
@@ -405,7 +405,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
               <div class="flex flex-col md:flex-row md:items-center justify-between gap-2">
                 <div class="min-w-0">
                   <div class="inline-flex items-center gap-2 px-2.5 py-0.5 bg-theme-card border border-theme-border text-xs font-bold uppercase tracking-wider mb-1">
-                    <span class={`w-2 h-2 shrink-0 ${globalStatus().is_playing ? 'bg-theme-cyan shadow-[0_0_8px_#7BDFF2] animate-pulse' : 'bg-theme-rose'}`} />
+                    <span class={`w-2 h-2 shrink-0 ${globalStatus().is_playing ? 'bg-theme-cyan shadow-[0_0_8px_var(--cyan)] animate-pulse' : 'bg-theme-rose'}`} />
                     <span class="text-theme-text/80">{globalStatus().is_paused ? 'Playback Dijeda' : 'Sedang Diputar'}</span>
                   </div>
                   <h3 class="text-base sm:text-lg font-bold text-theme-text truncate hover:text-theme-cyan transition-colors">
@@ -489,7 +489,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
                 <Show when={globalStatus().is_paused}>
                   <button
                     onClick={resumeMusic}
-                    class="h-9 px-4 bg-gradient-to-tr from-theme-cyan to-[#9BE7F6] hover:brightness-110 text-theme-bg font-bold text-xs transition-all flex items-center gap-2 active:scale-95 shadow-md shadow-theme-cyan/20 border border-theme-cyan"
+                    class="h-9 px-4 bg-theme-cyan hover:brightness-110 text-theme-bg font-bold text-xs transition-all flex items-center gap-2 active:scale-95 shadow-md shadow-theme-cyan/20 border border-theme-cyan"
                     title="Lanjutkan"
                     aria-label="Play"
                   >

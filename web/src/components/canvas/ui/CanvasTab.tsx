@@ -327,7 +327,7 @@ export const CanvasTab: Component<CanvasTabProps> = (props) => {
     <div
       class={
         isFullscreen()
-          ? 'fixed inset-0 z-[120] bg-[#0F1218] p-3 sm:p-4 flex flex-col gap-3 select-none'
+          ? 'fixed inset-0 z-[120] bg-theme-bg p-3 sm:p-4 flex flex-col gap-3 select-none'
           : 'space-y-4 flex flex-col h-full'
       }
     >
@@ -388,7 +388,7 @@ export const CanvasTab: Component<CanvasTabProps> = (props) => {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          class={`flex-1 w-full bg-[#10141D] relative overflow-hidden flex items-center justify-center select-none bg-[radial-gradient(rgba(123,223,242,0.28)_1.5px,transparent_1.5px)] [background-size:24px_24px] transition-colors ${
+          class={`flex-1 w-full bg-[#FAF7F2] relative overflow-hidden flex items-center justify-center select-none bg-[radial-gradient(rgba(89,107,69,0.3)_1.5px,transparent_1.5px)] [background-size:24px_24px] transition-colors ${
             isDragOver() ? 'border-2 border-theme-cyan bg-theme-cyan/5' : ''
           }`}
         >

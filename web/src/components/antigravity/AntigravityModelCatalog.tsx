@@ -60,7 +60,7 @@ export const AntigravityModelCatalog: Component<AntigravityModelCatalogProps> = 
                   </code>
                   <span class="text-theme-text/40 group-hover:text-theme-cyan transition-colors shrink-0">
                     <Show when={isCopied()} fallback={<Copy size={13} />}>
-                      <Check size={13} class="text-emerald-400" />
+                      <Check size={13} class="text-theme-cyan" />
                     </Show>
                   </span>
                 </div>

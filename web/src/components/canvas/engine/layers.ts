@@ -36,7 +36,7 @@ export class LayersEngine {
       let type = 'shape';
       let defaultName = 'Bentuk (Shape)';
       let fillColor = typeof obj.fill === 'string' ? obj.fill : 'transparent';
-      let strokeColor = typeof obj.stroke === 'string' ? obj.stroke : '#7BDFF2';
+      let strokeColor = typeof obj.stroke === 'string' ? obj.stroke : '#29483A';
       let details = '';
 
       if (obj instanceof Rect || obj.type === 'rect') {

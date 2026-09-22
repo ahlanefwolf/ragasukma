@@ -93,7 +93,7 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
               <span class={`inline-flex items-center gap-2 px-4 py-2.5 font-bold text-xs transition-all ${
                 props.isUploadingVrm
                   ? 'bg-theme-border text-theme-text/50 cursor-not-allowed'
-                  : 'bg-theme-cyan hover:bg-[#68cbdd] text-theme-card shadow anime-shadow-green cursor-pointer'
+                  : 'bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card shadow anime-shadow-green cursor-pointer'
               }`}>
                 <Upload size={14} />
                 <span>{props.isUploadingVrm ? 'Mengunggah & Memuat...' : 'Pilih File VRM (.vrm / .glb)'}</span>
@@ -159,7 +159,7 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
                 <span class={`inline-flex w-full items-center justify-center gap-2 px-4 py-2 font-bold text-xs transition-all ${
                   props.isUploadingAvatar
                     ? 'bg-theme-border text-theme-text/50 cursor-not-allowed'
-                    : 'bg-theme-rose hover:bg-[#e4a4c4] text-theme-card shadow cursor-pointer'
+                    : 'bg-theme-rose hover:bg-[#997539] text-theme-card shadow cursor-pointer'
                 }`}>
                   <Upload size={14} />
                   <span>{props.isUploadingAvatar ? 'Mengunggah...' : `Unggah PNG/JPG untuk '${props.selectedAvatarSlot}'`}</span>

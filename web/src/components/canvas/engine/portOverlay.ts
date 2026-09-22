@@ -39,10 +39,10 @@ export class PortOverlayEngine {
 
           ctx.beginPath();
           ctx.arc(p.x, p.y, isCurrentActive ? 6 : 4, 0, Math.PI * 2);
-          ctx.fillStyle = isCurrentActive ? '#7BDFF2' : 'rgba(123, 223, 242, 0.45)';
+          ctx.fillStyle = isCurrentActive ? '#596B45' : 'rgba(89, 107, 69, 0.45)';
           ctx.fill();
           ctx.lineWidth = isCurrentActive ? 2 : 1;
-          ctx.strokeStyle = isCurrentActive ? '#FFFFFF' : '#7BDFF2';
+          ctx.strokeStyle = isCurrentActive ? '#FFFFFF' : '#596B45';
           ctx.stroke();
         });
       });

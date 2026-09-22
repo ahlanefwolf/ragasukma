@@ -39,7 +39,7 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
         <div class="max-w-md w-full p-6 bg-theme-surface border border-theme-border shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
           <div class="flex items-center justify-between pb-3 border-b border-theme-border">
             <div class="flex items-center gap-2.5">
-              <div class="p-2 bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <div class="p-2 bg-theme-rose/15 text-theme-rose border border-theme-rose/30">
                 <Rocket size={18} />
               </div>
               <div>

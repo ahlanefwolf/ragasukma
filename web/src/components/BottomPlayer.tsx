@@ -59,7 +59,7 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
             seekMusic(pos * dur);
           }}>
             <div
-              class="h-full bg-gradient-to-r from-theme-cyan via-theme-rose to-theme-cyan transition-all duration-150 relative shadow-[0_0_8px_rgba(123,223,242,0.8)]"
+              class="h-full bg-gradient-to-r from-theme-cyan via-theme-rose to-theme-cyan transition-all duration-150 relative shadow-[0_0_8px_rgba(89,107,69,0.5)]"
               style={{ width: `${progressPercent()}%` }}
             >
               <span class="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-2 h-2 rounded-full bg-white shadow-[0_0_6px_#fff]" />
@@ -102,7 +102,7 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
 
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2">
-                  <span class={`w-2 h-2 shrink-0 ${isPlaying() ? 'bg-theme-cyan animate-pulse shadow-[0_0_8px_#7BDFF2]' : 'bg-theme-rose'}`} />
+                  <span class={`w-2 h-2 shrink-0 ${isPlaying() ? 'bg-theme-cyan animate-pulse shadow-[0_0_8px_var(--cyan)]' : 'bg-theme-rose'}`} />
                   <p class="text-sm font-bold text-theme-text truncate group-hover:text-theme-cyan transition-colors">
                     {currentTrack()?.title || 'Unknown Title'}
                   </p>
@@ -141,7 +141,7 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
                 <Show when={!isPlaying()}>
                   <button
                     onClick={resumeMusic}
-                    class="w-9 h-9 bg-gradient-to-tr from-theme-cyan to-[#9BE7F6] hover:brightness-110 text-theme-bg font-bold transition-all flex items-center justify-center active:scale-95 shadow-md shadow-theme-cyan/20"
+                    class="w-9 h-9 bg-theme-cyan hover:brightness-110 text-theme-bg font-bold transition-all flex items-center justify-center active:scale-95 shadow-md shadow-theme-cyan/20"
                     title="Lanjutkan"
                     aria-label="Play"
                   >

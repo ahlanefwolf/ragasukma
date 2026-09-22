@@ -9,7 +9,7 @@ export interface ParsedColor {
 
 export function parseColor(col: string): ParsedColor {
   if (!col || col === 'transparent') {
-    return { hex: '#7BDFF2', alpha: 0 };
+    return { hex: '#29483A', alpha: 0 };
   }
   if (col.startsWith('rgba')) {
     const match = col.match(
@@ -30,9 +30,9 @@ export function parseColor(col: string): ParsedColor {
       const a = Math.round((parseInt(col.slice(7, 9), 16) / 255) * 100);
       return { hex: base, alpha: a };
     }
-    return { hex: col.length === 7 ? col : '#7BDFF2', alpha: 100 };
+    return { hex: col.length === 7 ? col : '#29483A', alpha: 100 };
   }
-  return { hex: '#7BDFF2', alpha: 100 };
+  return { hex: '#29483A', alpha: 100 };
 }
 
 export function toColorString(hex: string, alphaPercent: number): string {

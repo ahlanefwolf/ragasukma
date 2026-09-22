@@ -205,7 +205,7 @@ export class ExportEngine {
     if (options.background === 'white') {
       bg = '#FFFFFF';
     } else if (options.background === 'dark') {
-      bg = '#10141D';
+      bg = '#FAF7F2';
     } else if (options.background === 'transparent') {
       bg = options.format === 'jpeg' ? '#FFFFFF' : '';
     }

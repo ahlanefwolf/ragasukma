@@ -106,7 +106,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
 
   const formatMessageStyle = (msg: string, level: string) => {
     if (level === 'error' || msg.includes('[ERROR]') || msg.includes('[STT Error]') || msg.includes('GAGAL')) {
-      return 'text-[#FF7B7B]';
+      return 'text-[#A84B4B] font-semibold';
     }
     if (msg.includes('[User]')) {
       return 'text-theme-cyan font-medium';
@@ -115,13 +115,13 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
       return 'text-theme-rose font-medium';
     }
     if (msg.includes('[SKILL BERHASIL') || msg.includes('[MEMPROSES SKILL]')) {
-      return 'text-[#FFE66D] font-medium';
+      return 'text-theme-cyan font-medium';
     }
     if (msg.includes('[DILANJUTKAN]') || msg.includes('✨') || msg.includes('▶️')) {
       return 'text-theme-cyan';
     }
     if (msg.includes('[DIJEDA]') || msg.includes('[SELESAI]')) {
-      return 'text-[#FFD166]';
+      return 'text-[#B08A4A]';
     }
     return 'text-theme-text/90';
   };
@@ -202,8 +202,8 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
                 onClick={() => setLevelFilter('error')}
                 class={`px-2.5 py-1 text-xs font-semibold transition-all ${
                   levelFilter() === 'error'
-                    ? 'bg-[#FF7B7B] text-theme-card font-bold shadow'
-                    : 'text-[#FF7B7B]/80 hover:text-[#FF7B7B]'
+                    ? 'bg-[#A84B4B] text-white font-bold shadow'
+                    : 'text-[#A84B4B] hover:text-[#8B3A3A]'
                 }`}
               >
                 Error
@@ -247,7 +247,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
             {/* Clear Logs */}
             <button
               onClick={handleClearLogs}
-              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-theme-card hover:bg-[#FF7B7B]/20 text-[#FF7B7B] border border-[#FF7B7B]/30 transition-all"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-theme-card hover:bg-[#A84B4B]/20 text-[#A84B4B] border border-[#A84B4B]/30 transition-all"
             >
               <Trash2 size={13} />
               <span>Bersihkan</span>
@@ -266,7 +266,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
           </div>
 
           <div class="flex items-center gap-2">
-            <span class="w-2 h-2 bg-theme-cyan shadow-[0_0_6px_#7BDFF2] animate-pulse" />
+            <span class="w-2 h-2 bg-theme-cyan shadow-[0_0_6px_var(--cyan)] animate-pulse" />
             <span class="text-xs font-mono text-theme-cyan font-semibold">STREAM ACTIVE</span>
           </div>
         </div>
@@ -298,7 +298,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
                   <span
                     class={`text-xs uppercase font-bold px-1.5 py-0.5 select-none shrink-0 ${
                       entry.level === 'error'
-                        ? 'bg-[#FF7B7B]/20 text-[#FF7B7B] border border-[#FF7B7B]/30'
+                        ? 'bg-[#A84B4B]/20 text-[#A84B4B] border border-[#A84B4B]/40'
                         : 'bg-theme-cyan/10 text-theme-cyan'
                     }`}
                   >

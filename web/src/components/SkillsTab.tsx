@@ -240,7 +240,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
                 props.showToast("Membuka folder ekstensi di File Manager...");
                 await api.runSkill("internal:open_extension_installer");
               }}
-              class="w-full sm:w-auto px-4 py-2.5 bg-theme-cyan hover:bg-[#68cbdd] text-theme-card font-bold text-xs flex items-center justify-center gap-2 shadow-md anime-shadow-green transition-all cursor-pointer border border-theme-cyan"
+              class="w-full sm:w-auto px-4 py-2.5 bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card font-bold text-xs flex items-center justify-center gap-2 shadow-md anime-shadow-green transition-all cursor-pointer border border-theme-cyan"
             >
               <Globe size={14} />
               <span>Buka Folder Ekstensi</span>
@@ -262,7 +262,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
               <div class="text-xs text-theme-text/80 mt-2 leading-relaxed">
                 1. Klik tombol <strong>Buka chrome://extensions</strong> di bawah.<br />
                 2. Aktifkan toggle <strong>Developer mode</strong> (kanan atas).<br />
-                3. Klik <strong>Load unpacked</strong> $\rightarrow$ paste folder yang disalin.
+                3. Klik <strong>Load unpacked</strong> → paste folder yang disalin.
               </div>
             </div>
 
@@ -303,7 +303,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
               </div>
               <div class="text-xs text-theme-text/80 mt-2 leading-relaxed">
                 1. Klik tombol <strong>Buka about:debugging</strong> di bawah.<br />
-                2. Pilih <strong>This Firefox</strong> $\rightarrow$ klik <strong>Load Temporary Add-on</strong>.<br />
+                2. Pilih <strong>This Firefox</strong> → klik <strong>Load Temporary Add-on</strong>.<br />
                 3. Pilih file <code>manifest.json</code> yang disalin.
               </div>
             </div>
