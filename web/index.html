@@ -6,13 +6,33 @@
     <title>RAGASUKMA - Konfigurasi & Dashboard AI</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     
-    <!-- Google Fonts: Syne (Brand/Display Organic), Plus Jakarta Sans (Body), JetBrains Mono -->
+    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Syne:wght@600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap"
       rel="stylesheet"
     />
+    <style>
+      /* 1. Definisi angka 0-9 menggunakan Plus Jakarta Sans agar sejajar rapi */
+      @font-face {
+        font-family: 'Playwrite NG Modern';
+        src: local('Plus Jakarta Sans SemiBold'), local('Plus Jakarta Sans'), local('PlusJakartaSans-SemiBold');
+        unicode-range: U+0030-0039; /* Khusus angka 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 */
+        font-weight: 100 900;
+        font-style: normal;
+        font-display: swap;
+      }
+      /* 2. Definisi huruf naskah Playwrite NG Modern (angka di-exclude) */
+      @font-face {
+        font-family: 'Playwrite NG Modern';
+        src: url('/PlaywriteNGModern-Regular.ttf') format('truetype');
+        unicode-range: U+0000-002F, U+003A-FFFF; /* Semua karakter KECUALI angka 0-9 */
+        font-weight: 100 900;
+        font-style: normal;
+        font-display: swap;
+      }
+    </style>
   </head>
   <body class="bg-theme-bg text-theme-text font-sans antialiased selection:bg-[#B08A4A] selection:text-[#F5F0E6] min-h-screen">
     <div id="root"></div>

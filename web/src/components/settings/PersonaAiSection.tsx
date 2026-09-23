@@ -29,7 +29,7 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
         <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2">
           <UserCheck size={18} />
-          1. PERSONA & IDENTITAS ASISTEN
+          1. Persona & Identitas Asisten
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -89,7 +89,7 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
         <div class="flex items-center justify-between flex-wrap gap-2">
           <h3 class="text-base sm:text-lg font-bold text-theme-rose flex items-center gap-2">
             <Brain size={18} />
-            2. AI BRAIN (LLM PROVIDER)
+            2. AI Brain (LLM Provider)
           </h3>
           <span class="text-xs text-theme-text/50 font-mono">
             {props.llmProvider === 'local' ? '⚡ Ragasukma Local Engine' : '🌐 Custom AI Assistant'}

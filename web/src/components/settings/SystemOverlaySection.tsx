@@ -12,7 +12,7 @@ export const SystemOverlaySection: Component<SystemOverlaySectionProps> = (props
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
         <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2">
           <Monitor size={18} />
-          DESKTOP OVERLAY & WINDOW PREFERENCES
+          Desktop Overlay & Window Preferences
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

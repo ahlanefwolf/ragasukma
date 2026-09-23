@@ -129,7 +129,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
   return (
     <div class="space-y-6">
       {/* Top Header Card */}
-      <div class="p-4 sm:p-6 bg-theme-surface border border-theme-border space-y-4 shadow-xl">
+      <div class="p-4 sm:p-6 bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg border border-theme-border space-y-4 shadow-sm">
         {/* 1. Header Banner */}
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="flex items-center gap-3">

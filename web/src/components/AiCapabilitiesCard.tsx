@@ -49,11 +49,11 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
     {
       id: 'dom',
       icon: MousePointerClick,
-      title: 'Interaksi Web (DOM Live Click & Type)',
+      title: 'Interaksi Web (Live Click & Type)',
       category: 'web',
       description: 'Mengklik tulisan/link yang tampil di layar, menekan tombol website, mengetik ke kolom form, dan scroll halaman.',
       examples: [
-        '"Klik tulisan HIGHLIGHTS" / "Klik judul video"',
+        '"Klik tulisan Highlights" / "Klik judul video"',
         '"Klik tombol Skip" / "Klik Beli Sekarang"',
         '"Ketik berita teknologi lalu tekan enter"',
         '"Scroll ke bawah"'
@@ -122,7 +122,7 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
   };
 
   return (
-    <div class="bg-theme-surface border border-theme-border p-5 space-y-4 shadow-sm">
+    <div class="p-5 bg-theme-surface border border-theme-border shadow-sm space-y-4">
       {/* Header Card */}
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="flex items-center gap-3">

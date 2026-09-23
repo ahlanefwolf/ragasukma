@@ -180,7 +180,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
       <div class="space-y-3">
         <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2 tracking-wide">
           <Terminal size={18} />
-          SKILL / OTOMASI KUSTOM ({skills().length})
+          Skill / Otomasi Kustom ({skills().length})
         </h3>
 
         {loading() ? (
@@ -310,7 +310,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
       <form onSubmit={handleAddSkill} class="p-5 bg-theme-surface border border-theme-border space-y-4">
         <h3 class="text-base sm:text-lg font-bold text-theme-rose flex items-center gap-2 tracking-wide">
           <Plus size={18} />
-          TAMBAH SCRIPT OTOMASI KUSTOM
+          Tambah Script Otomasi Kustom
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">

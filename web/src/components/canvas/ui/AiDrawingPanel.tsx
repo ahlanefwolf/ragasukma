@@ -62,9 +62,9 @@ export const AiDrawingPanel: Component<AiDrawingPanelProps> = (props) => {
           </div>
           <div>
             <h3 class="text-sm font-bold text-theme-text flex items-center gap-2">
-              AI MCP LIVE DRAWING ENGINE
+              AI MCP Live Drawing Engine
               <span class="text-[10px] font-mono px-2 py-0.5 bg-theme-cyan/20 text-[#29483A] border border-theme-cyan/40 font-bold">
-                PONDASI MCP
+                Pondasi MCP
               </span>
             </h3>
             <p class="text-xs text-theme-text/70">

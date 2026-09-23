@@ -58,9 +58,6 @@ export const Sidebar: Component<SidebarProps> = (props) => {
               <h1 class="text-2xl font-heading tracking-tight text-theme-text leading-none">
                 Ragasukma
               </h1>
-              <p class="text-xs text-theme-cyan font-semibold tracking-wider flex items-center gap-1.5 mt-1">
-                AI ASSISTANT
-              </p>
             </div>
           </div>
 

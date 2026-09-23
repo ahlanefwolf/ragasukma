@@ -22,7 +22,7 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
         <div class="flex items-center justify-between">
           <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2">
             <User size={18} />
-            AVATAR & MODEL ASSETS (VRM / 2D)
+            Avatar & Model Assets (VRM / 2D)
           </h3>
 
           <button

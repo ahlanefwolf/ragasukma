@@ -62,8 +62,8 @@ export const ShortcutsModal: Component<ShortcutsModalProps> = (props) => {
                 <Keyboard size={18} />
               </div>
               <div>
-                <h3 class="text-base font-bold text-theme-text uppercase tracking-wide">
-                  PANDUAN SHORTCUT KEYBOARD
+                <h3 class="text-base font-bold text-theme-text tracking-wide">
+                  Panduan Shortcut Keyboard
                 </h3>
                 <p class="text-xs text-theme-text/60">
                   Daftar tombol pintas untuk mempercepat pembuatan diagram dan whiteboard.

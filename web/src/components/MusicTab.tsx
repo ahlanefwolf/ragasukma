@@ -231,7 +231,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
       {/* yt-dlp Status Bar */}
       <div class="border border-theme-border bg-theme-surface overflow-hidden">
         <div class="px-4 py-3 border-b border-theme-border flex items-center justify-between">
-          <span class="text-xs font-bold text-theme-text/70 uppercase tracking-wider">Status yt-dlp</span>
+          <h3 class="text-sm font-bold text-theme-text/80">Status yt-dlp</h3>
           <Show when={!checkingYtDlp()}>
             <button
               onClick={() => checkYtDlp()}
@@ -318,7 +318,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
       <Show when={ytDlpInfo()?.available}>
         <div class="border border-theme-border bg-theme-surface overflow-hidden">
           <div class="px-4 py-3 border-b border-theme-border">
-            <span class="text-xs font-bold text-theme-text/70 uppercase tracking-wider">Search & Download</span>
+            <h3 class="text-sm font-bold text-theme-text/80">Search & Download</h3>
           </div>
           <div class="p-4 space-y-3">
             <div class="flex gap-2">
@@ -544,7 +544,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <span class="text-xs font-bold text-theme-text uppercase tracking-wider">Library Playlist</span>
+                <h3 class="text-sm font-bold text-theme-text">Library Playlist</h3>
                 <Show when={library().length > 0}>
                   <span class="px-2 py-0.5 text-xs font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
                     {library().length} Lagu

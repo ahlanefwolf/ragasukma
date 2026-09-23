@@ -66,7 +66,7 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
               </div>
               <div>
                 <h3 class="text-sm sm:text-base font-bold text-theme-text font-heading">
-                  PASANG EKSTENSI BROWSER RAGASUKMA
+                  Pasang Ekstensi Browser Ragasukma
                 </h3>
                 <p class="text-xs text-theme-text/70 mt-0.5">
                   Dibutuhkan agar AI bisa membaca tab browser aktif, scroll, klik DOM, dan mencari di web.

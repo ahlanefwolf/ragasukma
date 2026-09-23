@@ -25,12 +25,13 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
-  h1, h2, .font-heading {
-    @apply font-grotesk tracking-tight font-bold;
-  }
-
-  h3, h4, h5, h6 {
-    @apply font-sans font-bold tracking-normal;
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: 'Playwrite NG Modern', cursive, sans-serif !important;
+    text-transform: lowercase !important;
+    font-size: 1.2em !important;
+    letter-spacing: 0.02em;
+    -webkit-text-stroke: 0.4px currentColor;
+    text-shadow: 0 0 0.5px currentColor;
   }
 
   /* Clean 1px Focus Highlight without thick ring or outline */

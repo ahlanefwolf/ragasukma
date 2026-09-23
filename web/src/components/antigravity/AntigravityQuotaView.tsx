@@ -114,10 +114,10 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
         {/* Weekly Quota Cards */}
         <Show when={props.quotaData?.weekly && props.quotaData.weekly.length > 0}>
           <div class="space-y-1.5">
-            <div class="text-xs font-bold text-theme-text/60 uppercase tracking-wider flex items-center gap-1.5">
-              <Clock size={12} class="text-amber-400" />
+            <h3 class="text-sm font-bold text-theme-text/80 flex items-center gap-1.5">
+              <Clock size={14} class="text-amber-400" />
               <span>Kuota Mingguan (Weekly Cap)</span>
-            </div>
+            </h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <For each={props.quotaData!.weekly}>
                 {(item) => {
@@ -153,10 +153,10 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
         {/* Per-Model Quota Breakdown */}
         <Show when={props.quotaData?.models && props.quotaData.models.length > 0}>
           <div class="space-y-1.5 pt-1">
-            <div class="text-xs font-bold text-theme-text/60 uppercase tracking-wider flex items-center gap-1.5">
-              <Zap size={12} class="text-theme-cyan" />
+            <h3 class="text-sm font-bold text-theme-text/80 flex items-center gap-1.5">
+              <Zap size={14} class="text-theme-cyan" />
               <span>Kuota Model (Jendela 5 Jam)</span>
-            </div>
+            </h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               <For each={props.quotaData!.models}>
                 {(item) => {

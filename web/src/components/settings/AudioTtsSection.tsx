@@ -31,7 +31,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
         <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2">
           <Mic size={18} />
-          3. AUDIO & SPEECH-TO-TEXT (STT)
+          3. Audio & Speech-to-Text (STT)
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -132,7 +132,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
         <h3 class="text-base sm:text-lg font-bold text-theme-rose flex items-center gap-2">
           <Volume2 size={18} />
-          4. SUARA KARAKTER (TEXT-TO-SPEECH)
+          4. Suara Karakter (Text-to-Speech)
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">

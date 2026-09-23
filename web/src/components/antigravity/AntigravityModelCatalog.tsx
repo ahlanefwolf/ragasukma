@@ -17,7 +17,7 @@ export const AntigravityModelCatalog: Component<AntigravityModelCatalogProps> = 
           </div>
           <div>
             <h3 class="text-sm font-bold text-theme-text">
-              Katalog Model Antigravity (Trafik ag/*)
+              Katalog Model Antigravity
             </h3>
             <p class="text-xs text-theme-text/60">
               Klik kartu atau tombol salin pada model untuk menyalin ID model siap pakai ke editor / SDK Anda.

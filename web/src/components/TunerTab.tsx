@@ -268,7 +268,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
   return (
     <div class="space-y-6">
       {/* Top Tuner Control Bar */}
-      <div class="p-4 sm:p-6 bg-theme-surface border border-theme-border space-y-4">
+      <div class="p-4 sm:p-6 bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg border border-theme-border space-y-4 shadow-sm">
         {/* 1. Header Banner */}
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="flex items-center gap-3">
@@ -300,10 +300,10 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
         {/* 2. Navigasi Viewport & Gestur Kamera 3D Grid */}
         <div class="bg-theme-bg p-3 border border-theme-border space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold uppercase tracking-wider text-theme-cyan flex items-center gap-1.5">
-              <Compass size={13} />
+            <h3 class="text-sm font-bold text-theme-cyan flex items-center gap-1.5">
+              <Compass size={14} />
               Panduan Navigasi Layar Avatar
-            </span>
+            </h3>
             <span class="text-xs text-theme-text/50">Interaksi Mouse & Keyboard</span>
           </div>
 

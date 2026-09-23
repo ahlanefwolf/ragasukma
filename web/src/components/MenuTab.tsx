@@ -285,7 +285,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
   return (
     <div class="space-y-5">
       {/* 1. Hero Status & Master Control Card */}
-      <div class="bg-gradient-to-br from-theme-card via-theme-surface to-theme-bg p-5 sm:p-6 border border-theme-border shadow-sm space-y-4">
+      <div class="bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg p-5 sm:p-6 border border-theme-border flex flex-col gap-4 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div class="flex items-center gap-2">
@@ -298,7 +298,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                 ● {props.currentState}
               </span>
             </div>
-            <h2 class="text-xl sm:text-2xl font-heading tracking-tight text-theme-text mt-1.5">
+
+            <h2 class="text-xl sm:text-2xl font-heading text-theme-text mt-2">
               Voice Assistant Overlay
             </h2>
           </div>
@@ -389,12 +390,12 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
         </div>
       </div>
 
-      {/* 2. Realtime Input Mikrofon (VU Meter) */}
-      <div class="p-5 bg-theme-surface border border-theme-border space-y-4">
+      {/* 2. Realtime Input Mikrofon (VU Meter) Card */}
+      <div class="p-5 bg-theme-surface border border-theme-border shadow-sm space-y-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2.5">
-            <Mic size={18} class="text-theme-cyan" />
-            <span class="text-sm sm:text-base font-bold text-theme-text">Realtime Spectrum & VAD Input</span>
+            <Mic size={20} class="text-theme-cyan" />
+            <h3 class="text-base sm:text-lg font-bold text-theme-text">Realtime Spectrum & VAD Input</h3>
             <span class="text-xs text-theme-text/60 font-mono hidden sm:inline">({sensitivityLabel()})</span>
           </div>
 
@@ -504,7 +505,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                 </span>
                 <div>
                   <h3 class="text-lg font-bold text-theme-text tracking-wide">
-                    {updateInfo()!.hasUpdate ? '🎉 PEMBARUAN TERSEDIA!' : '✨ SISTEM UP-TO-DATE'}
+                    {updateInfo()!.hasUpdate ? '🎉 Pembaruan Tersedia!' : '✨ Sistem Up-to-Date'}
                   </h3>
                   <div class="flex items-center gap-2 text-xs text-theme-text/70 mt-0.5">
                     <span>Versi saat ini: <strong class="text-theme-text">{updateInfo()!.currentVersion}</strong></span>

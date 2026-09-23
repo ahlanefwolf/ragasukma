@@ -75,7 +75,7 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
               </div>
               <div>
                 <h3 class="text-sm sm:text-base font-bold text-theme-text font-heading flex items-center gap-2">
-                  <span>DAFTAR APLIKASI SISTEM (OS)</span>
+                  <span>Daftar Aplikasi Sistem (OS)</span>
                   <span class="text-xs font-mono px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan font-bold">
                     {apps().length} Terdeteksi
                   </span>
