@@ -29,7 +29,7 @@ pub fn is_valid_base64(s: &str) -> bool {
 
     let bytes = normalized.as_bytes();
     let len = bytes.len();
-    if len % 4 != 0 {
+    if !len.is_multiple_of(4) {
         return false;
     }
 

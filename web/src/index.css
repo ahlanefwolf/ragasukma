@@ -25,8 +25,12 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
-  h1, h2, h3, .font-heading {
+  h1, h2, .font-heading {
     @apply font-grotesk tracking-tight font-bold;
+  }
+
+  h3, h4, h5, h6 {
+    @apply font-sans font-bold tracking-normal;
   }
 
   /* Clean 1px Focus Highlight without thick ring or outline */

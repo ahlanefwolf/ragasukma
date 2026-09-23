@@ -29,6 +29,7 @@ export const api = {
   deleteSkill: skillsService.deleteSkill,
   runSkill: skillsService.runSkill,
   getSystemApps: skillsService.getSystemApps,
+  getExtensionPath: skillsService.getExtensionPath,
 
   // Logs Service
   getLogs: logsService.getLogs,

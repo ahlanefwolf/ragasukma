@@ -62,7 +62,7 @@ export const ShortcutsModal: Component<ShortcutsModalProps> = (props) => {
                 <Keyboard size={18} />
               </div>
               <div>
-                <h3 class="text-base font-bold text-theme-text font-heading uppercase tracking-wide">
+                <h3 class="text-base font-bold text-theme-text uppercase tracking-wide">
                   PANDUAN SHORTCUT KEYBOARD
                 </h3>
                 <p class="text-xs text-theme-text/60">

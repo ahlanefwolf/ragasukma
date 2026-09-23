@@ -214,6 +214,7 @@ pub fn handle_api_route(
 
         // Skills & Applications Service
         ("GET", "/api/system/apps") => handle_get_apps(&mut stream),
+        ("GET", "/api/system/extension-path") => handle_get_extension_path(&mut stream),
         ("GET", "/api/skills") => handle_get_skills(&mut stream),
         ("POST", "/api/skills") => handle_post_skills(body_str, &mut stream),
         ("POST", "/api/skills/delete") => handle_delete_skill(body_str, &mut stream),

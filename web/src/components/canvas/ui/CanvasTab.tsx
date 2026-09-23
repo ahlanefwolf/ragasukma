@@ -338,9 +338,9 @@ export const CanvasTab: Component<CanvasTabProps> = (props) => {
             <span class="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
               2D Whiteboard & MCP Drawing Engine
             </span>
-            <h2 class="text-2xl sm:text-3xl font-carter tracking-wide text-theme-text mt-1.5 flex items-center gap-2.5">
+            <h2 class="text-2xl sm:text-3xl font-heading tracking-tight text-theme-text mt-1.5 flex items-center gap-2.5">
               <Palette class="text-theme-cyan" size={28} />
-              PAPAN GAMBAR 2D
+              Papan Gambar 2D
             </h2>
             <p class="text-xs sm:text-sm text-theme-text/70 mt-1 max-w-xl">
               Whiteboard interaktif dengan pondasi tool-calling MCP sehingga AI dapat menggambar diagram dan flowchart secara langsung di depan pengguna.

@@ -1,0 +1,195 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Definitions & Palettes -->
+  <defs>
+    <!-- Skin Tone Gradient (Soft Warm Anime Peach) -->
+    <linearGradient id="skinGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFDF9"/>
+      <stop offset="60%" stop-color="#FDF2E4"/>
+      <stop offset="100%" stop-color="#F5E3D0"/>
+    </linearGradient>
+
+    <!-- Hair Tone Gradient (Deep Forest Jade / Charcoal Black-Green) -->
+    <linearGradient id="hairGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1B2F25"/>
+      <stop offset="50%" stop-color="#29483A"/>
+      <stop offset="100%" stop-color="#172820"/>
+    </linearGradient>
+
+    <!-- Ponytail Gradient (Smooth flow) -->
+    <linearGradient id="ponyGrad" x1="20%" y1="0%" x2="90%" y2="100%">
+      <stop offset="0%" stop-color="#2D4F3F"/>
+      <stop offset="40%" stop-color="#243F33"/>
+      <stop offset="100%" stop-color="#182A22"/>
+    </linearGradient>
+
+    <!-- Eye Iris Gradient (Moss & Forest) -->
+    <linearGradient id="eyeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#20382D"/>
+      <stop offset="50%" stop-color="#3A5844"/>
+      <stop offset="100%" stop-color="#596B45"/>
+    </linearGradient>
+
+    <!-- Headset Band Gradient -->
+    <linearGradient id="headbandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1B2F25"/>
+      <stop offset="50%" stop-color="#345B4A"/>
+      <stop offset="100%" stop-color="#1B2F25"/>
+    </linearGradient>
+
+    <!-- Ponytail Tie (Ochre Ribbon) -->
+    <linearGradient id="ribbonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C9A35F"/>
+      <stop offset="100%" stop-color="#9C773B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 1. PONYTAIL (Kuncir Kuda Lurus Panjang Menjuntai Anggun ke Sisi Kanan-Belakang) -->
+  <!-- Bayangan / Volume Ponytail Belakang -->
+  <path d="M 320 180 
+           C 390 170, 435 220, 420 300 
+           C 410 355, 375 425, 340 460 
+           C 350 420, 365 370, 370 330 
+           C 375 285, 355 240, 305 210 Z" 
+        fill="url(#ponyGrad)"/>
+
+  <!-- Ponytail Strands Lurus Halus Bertekstur -->
+  <path d="M 330 195 
+           C 385 190, 415 240, 405 310 
+           C 395 370, 360 435, 335 462 
+           C 348 425, 360 370, 360 330 
+           C 360 280, 340 235, 310 215 Z" 
+        fill="#29483A" opacity="0.8"/>
+
+  <!-- Kilau Highlight Rambut Kuncir Lurus -->
+  <path d="M 355 215 C 385 240, 395 285, 385 340" fill="none" stroke="#596B45" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- 2. IKAT RAMBUT KUNCIR KUDA (High Ponytail Tie / Scrunchie) -->
+  <ellipse cx="320" cy="190" rx="16" ry="22" transform="rotate(-25 320 190)" fill="url(#ribbonGrad)" stroke="#29483A" stroke-width="3.5"/>
+  <ellipse cx="320" cy="190" rx="9" ry="15" transform="rotate(-25 320 190)" fill="#B08A4A"/>
+  <!-- Pita Ikatan Kecil Menjuntai -->
+  <path d="M 326 205 C 340 225, 335 245, 328 260 C 324 245, 326 230, 320 212 Z" fill="#B08A4A" stroke="#29483A" stroke-width="2"/>
+
+  <!-- 3. RAMBUT DASAR BELAKANG KEPALA (Ramping & Pas di Belakang Kepala Bulat) -->
+  <path d="M 158 220 
+           C 154 158, 200 130, 256 130 
+           C 312 130, 354 158, 354 220 
+           C 354 265, 344 305, 320 326 
+           C 294 340, 218 340, 192 326 
+           C 168 305, 158 265, 158 220 Z" 
+        fill="url(#hairGrad)"/>
+
+  <!-- 4. KONTUR WAJAH CEWEK (Lebih Bulat & Imut, Tanpa Leher) -->
+  <path d="M 168 225 
+           C 168 295, 196 358, 256 358 
+           C 316 358, 344 295, 344 225 
+           C 344 175, 168 175, 168 225 Z" 
+        fill="url(#skinGrad)"/>
+
+  <!-- 6. HEADPHONE HEADBAND (Headset Ragasukma) -->
+  <path d="M 142 245 A 130 138 0 0 1 370 245" fill="none" stroke="url(#headbandGrad)" stroke-width="18" stroke-linecap="round"/>
+  <!-- Garis Aksen Emas / Ochre di Atas Bando -->
+  <path d="M 195 120 C 235 112, 277 112, 317 120" fill="none" stroke="#B08A4A" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- 6. HELAI RAMBUT DEPAN (Lurus Rapi Membingkai Pipi Bulat & Poni) -->
+  <!-- Helai Rambut Samping Kiri Lurus (Lebih ke Dalam Membingkai Pipi) -->
+  <path d="M 166 195 
+           C 158 255, 168 312, 186 338 
+           C 190 312, 182 262, 188 225 Z" 
+        fill="#213B2F"/>
+
+  <!-- Helai Rambut Samping Kanan Lurus (Lebih ke Dalam Membingkai Pipi) -->
+  <path d="M 346 195 
+           C 354 255, 344 312, 326 338 
+           C 322 312, 330 262, 324 225 Z" 
+        fill="#213B2F"/>
+
+  <!-- Poni Depan Lurus Rapi (Straight Anime Bangs) -->
+  <path d="M 164 190 
+           C 176 242, 214 262, 226 226 
+           C 238 262, 274 262, 286 222 
+           C 298 258, 336 250, 348 190 
+           C 334 145, 178 145, 164 190 Z" 
+        fill="url(#hairGrad)"/>
+
+  <!-- Kilau Halus Melintang di Poni (Angel Ring Highlight) -->
+  <path d="M 184 205 Q 205 212, 222 205" fill="none" stroke="#596B45" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 240 205 Q 256 210, 272 205" fill="none" stroke="#596B45" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 290 205 Q 310 212, 328 205" fill="none" stroke="#596B45" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Jepit Rambut Estetis (Hairpins Ochre & Moss) -->
+  <rect x="178" y="184" width="22" height="6.5" rx="3" transform="rotate(-15 178 184)" fill="#B08A4A"/>
+  <rect x="182" y="194" width="18" height="5.5" rx="2.5" transform="rotate(-15 182 194)" fill="#596B45"/>
+
+
+
+  <!-- 9. MATA IDLE (Mata Terbuka Jernih, Berbinar Ramah) -->
+  <!-- Mata Kiri -->
+  <g id="leftEye">
+    <!-- Bulu Mata Atas -->
+    <path d="M 188 250 C 200 238, 224 238, 234 251" fill="none" stroke="#213B2F" stroke-width="5.5" stroke-linecap="round"/>
+    <!-- Iris -->
+    <ellipse cx="212" cy="265" rx="16.5" ry="20.5" fill="url(#eyeGrad)"/>
+    <!-- Pupil -->
+    <ellipse cx="212" cy="265" rx="8.5" ry="11.5" fill="#15261E"/>
+    <!-- Kilau Mata (Sparkle Catchlights) -->
+    <circle cx="206" cy="257" r="5.5" fill="#FFFFFF"/>
+    <circle cx="218" cy="272" r="3" fill="#FFFFFF" opacity="0.85"/>
+    <ellipse cx="212" cy="281" rx="8" ry="3" fill="#A4C284" opacity="0.6"/>
+    <!-- Kelopak Mata Bawah -->
+    <path d="M 196 278 C 206 284, 218 284, 226 278" fill="none" stroke="#BDB094" stroke-width="2.2" stroke-linecap="round"/>
+  </g>
+
+  <!-- Mata Kanan -->
+  <g id="rightEye">
+    <!-- Bulu Mata Atas -->
+    <path d="M 324 250 C 312 238, 288 238, 278 251" fill="none" stroke="#213B2F" stroke-width="5.5" stroke-linecap="round"/>
+    <!-- Iris -->
+    <ellipse cx="300" cy="265" rx="16.5" ry="20.5" fill="url(#eyeGrad)"/>
+    <!-- Pupil -->
+    <ellipse cx="300" cy="265" rx="8.5" ry="11.5" fill="#15261E"/>
+    <!-- Kilau Mata -->
+    <circle cx="294" cy="257" r="5.5" fill="#FFFFFF"/>
+    <circle cx="306" cy="272" r="3" fill="#FFFFFF" opacity="0.85"/>
+    <ellipse cx="300" cy="281" rx="8" ry="3" fill="#A4C284" opacity="0.6"/>
+    <!-- Kelopak Mata Bawah -->
+    <path d="M 316 278 C 306 284, 294 284, 286 278" fill="none" stroke="#BDB094" stroke-width="2.2" stroke-linecap="round"/>
+  </g>
+
+  <!-- 10. HIDUNG KECIL IMUT -->
+  <path d="M 254 286 L 258 293 L 253 294" fill="none" stroke="#B08A4A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- 11. PIPI MERONA (Blush Warm Ochre-Peach - Tepat di Bawah Mata) -->
+  <ellipse cx="206" cy="296" rx="16" ry="7" fill="#E89B73" opacity="0.45"/>
+  <ellipse cx="306" cy="296" rx="16" ry="7" fill="#E89B73" opacity="0.45"/>
+  <line x1="198" y1="294" x2="206" y2="298" stroke="#D16E43" stroke-width="1.8" stroke-linecap="round" opacity="0.5"/>
+  <line x1="208" y1="294" x2="216" y2="298" stroke="#D16E43" stroke-width="1.8" stroke-linecap="round" opacity="0.5"/>
+  <line x1="296" y1="294" x2="304" y2="298" stroke="#D16E43" stroke-width="1.8" stroke-linecap="round" opacity="0.5"/>
+  <line x1="306" y1="294" x2="314" y2="298" stroke="#D16E43" stroke-width="1.8" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- 12. SENYUM MANIS RAMAH (Idle Expression) -->
+  <path d="M 243 322 Q 256 332, 269 322" fill="none" stroke="#A7553A" stroke-width="3.8" stroke-linecap="round"/>
+  <path d="M 252 334 Q 256 337, 260 334" fill="none" stroke="#D99B77" stroke-width="2.2" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- 13. HEADPHONE EARCUPS (Bantalan Telinga Kanan & Kiri) -->
+  <!-- Earcup Kiri -->
+  <g id="leftEarPad">
+    <rect x="132" y="215" width="30" height="70" rx="15" fill="#596B45" stroke="#29483A" stroke-width="3.5"/>
+    <rect x="142" y="226" width="9" height="48" rx="4.5" fill="#FAF7F2" opacity="0.25"/>
+    <!-- Engsel Sambungan Bando -->
+    <rect x="138" y="206" width="16" height="12" rx="3.5" fill="#B08A4A"/>
+  </g>
+
+  <!-- Earcup Kanan -->
+  <g id="rightEarPad">
+    <rect x="350" y="215" width="30" height="70" rx="15" fill="#596B45" stroke="#29483A" stroke-width="3.5"/>
+    <rect x="360" y="226" width="9" height="48" rx="4.5" fill="#FAF7F2" opacity="0.25"/>
+    <!-- Engsel Sambungan Bando -->
+    <rect x="358" y="206" width="16" height="12" rx="3.5" fill="#B08A4A"/>
+  </g>
+
+  <!-- 14. BOOM MICROPHONE (Melengkung Rapi ke Arah Mulut) -->
+  <path d="M 146 274 C 146 342, 188 364, 226 348" fill="none" stroke="#29483A" stroke-width="6.5" stroke-linecap="round"/>
+  <rect x="224" y="340" width="22" height="15" rx="5.5" fill="#B08A4A" stroke="#29483A" stroke-width="2.8"/>
+  <!-- Lampu Indikator Mic (Hijau Lumut Lembut - Siap Menerima Suara) -->
+  <circle cx="235" cy="347.5" r="2.5" fill="#A4C284"/>
+</svg>

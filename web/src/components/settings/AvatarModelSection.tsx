@@ -20,7 +20,7 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
     <div class="space-y-5 animate-in fade-in duration-200">
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-5">
         <div class="flex items-center justify-between">
-          <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
+          <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2">
             <User size={18} />
             AVATAR & MODEL ASSETS (VRM / 2D)
           </h3>

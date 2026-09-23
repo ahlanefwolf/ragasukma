@@ -13,6 +13,19 @@ pub fn handle_get_apps(stream: &mut TcpStream) {
     send_json_response(stream, 200, &json);
 }
 
+pub fn handle_get_extension_path(stream: &mut TcpStream) {
+    let dir = crate::assets::get_extension_dir();
+    let abs_str = dir.to_string_lossy().to_string();
+    let manifest_path = dir.join("manifest.json");
+    let manifest_str = manifest_path.to_string_lossy().to_string();
+
+    let json = serde_json::json!({
+        "folder": abs_str,
+        "manifest": manifest_str
+    });
+    send_json_response(stream, 200, &json.to_string());
+}
+
 pub fn handle_get_skills(stream: &mut TcpStream) {
     let skills = parse_skills_markdown();
     let json = serde_json::to_string(&skills).unwrap_or_default();

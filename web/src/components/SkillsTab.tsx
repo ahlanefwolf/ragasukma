@@ -8,13 +8,9 @@ import {
   Check,
   X,
   Zap,
-  Layers,
-  Search,
-  Globe,
-  Sliders,
   Loader,
 } from 'lucide-solid';
-import { api, SkillItem, InstalledApp } from '../api';
+import { api, SkillItem } from '../api';
 
 interface SkillsTabProps {
   showToast: (msg: string) => void;
@@ -22,18 +18,11 @@ interface SkillsTabProps {
 
 // Module-level persistent cache agar perpindahan antar tab instan 0ms tanpa re-loading
 const [cachedSkills, setCachedSkills] = createSignal<SkillItem[]>([]);
-const [cachedSystemApps, setCachedSystemApps] = createSignal<InstalledApp[]>([]);
 let isFirstSkillsMount = true;
 
 export const SkillsTab: Component<SkillsTabProps> = (props) => {
   const [skills, setSkills] = createSignal<SkillItem[]>(cachedSkills());
   const [loading, setLoading] = createSignal(cachedSkills().length === 0 && isFirstSkillsMount);
-
-  // System Apps State (Untuk preview informasi saja)
-  const [showAppsInfo, setShowAppsInfo] = createSignal(false);
-  const [systemApps, setSystemApps] = createSignal<InstalledApp[]>(cachedSystemApps());
-  const [loadingApps, setLoadingApps] = createSignal(false);
-  const [appSearch, setAppSearch] = createSignal('');
 
   // Form Tambah Skill Kustom Manual
   const [newName, setNewName] = createSignal('');
@@ -57,21 +46,6 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
       if (cachedSkills().length === 0) setSkills([]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadSystemApps = async () => {
-    if (systemApps().length > 0) return;
-    setLoadingApps(true);
-    try {
-      const apps = await api.getSystemApps();
-      const list = Array.isArray(apps) ? apps : [];
-      setSystemApps(list);
-      setCachedSystemApps(list);
-    } catch {
-      setSystemApps([]);
-    } finally {
-      setLoadingApps(false);
     }
   };
 
@@ -180,16 +154,6 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
     }
   };
 
-  const filteredApps = () => {
-    const q = appSearch().trim().toLowerCase();
-    if (!q) return systemApps();
-    return systemApps().filter(app => 
-      app.name.toLowerCase().includes(q) || 
-      (app.comment && app.comment.toLowerCase().includes(q)) ||
-      app.exec.toLowerCase().includes(q)
-    );
-  };
-
   return (
     <div class="space-y-6">
       {/* Header Banner */}
@@ -203,216 +167,18 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
               skill-command.md
             </span>
           </div>
-          <h2 class="text-2xl sm:text-3xl font-heading tracking-wide text-theme-text mt-2">
-            SKILL & AUTOMATION REGISTRY
+          <h2 class="text-2xl sm:text-3xl font-heading tracking-tight text-theme-text mt-2">
+            Skill Custom & Otomasi
           </h2>
           <p class="text-xs sm:text-sm text-theme-text/70 mt-1 max-w-xl">
-            Aplikasi sistem, kontrol audio, pencarian internet, dan pembukaan website sudah aktif otomatis. Di sini kamu bisa menambahkan script otomasi kustom tambahan.
+            Kelola perintah script otomasi kustom, integrasi API, dan alur kerja mandiri buatanmu sendiri di sini.
           </p>
         </div>
       </div>
 
-      {/* Browser AI Companion Extension Setup Banner */}
-      <div class="p-4 sm:p-5 bg-gradient-to-r from-theme-card/90 via-theme-surface to-theme-bg border border-theme-cyan/40 shadow-lg space-y-4">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div class="flex items-start sm:items-center gap-3.5">
-            <div class="p-2.5 bg-theme-cyan/10 border border-theme-cyan/30 text-theme-cyan shrink-0">
-              <Globe size={20} class="animate-pulse" />
-            </div>
-            <div class="space-y-1">
-              <div class="flex flex-wrap items-center gap-2">
-                <h3 class="text-sm sm:text-base font-bold text-theme-text font-heading tracking-wide">
-                  EKSTENSI BROWSER AI (CHROME / BRAVE / EDGE / FIREFOX)
-                </h3>
-                <span class="px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-theme-rose/20 text-theme-rose border border-theme-rose/30">
-                  DOM Learning & Snapshot
-                </span>
-              </div>
-              <p class="text-xs text-theme-text/70 leading-relaxed max-w-3xl">
-                Memungkinkan AI mengenali elemen halaman (YouTube, pencarian, tombol, form) dan menyimpannya ke <code class="text-theme-cyan font-mono px-1 py-0.5 bg-theme-card border border-theme-border text-[11px]">assets/active_tab_browser.json</code> secara realtime.
-              </p>
-            </div>
-          </div>
-
-          <div class="flex items-center shrink-0">
-            <button
-              onClick={async () => {
-                props.showToast("Membuka folder ekstensi di File Manager...");
-                await api.runSkill("internal:open_extension_installer");
-              }}
-              class="w-full sm:w-auto px-4 py-2.5 bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card font-bold text-xs flex items-center justify-center gap-2 shadow-md anime-shadow-green transition-all cursor-pointer border border-theme-cyan"
-            >
-              <Globe size={14} />
-              <span>Buka Folder Ekstensi</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 2 Kolom Pemasangan Cepat Browser */}
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
-          {/* Box 1: Chrome / Brave / Edge */}
-          <div class="p-4 bg-theme-bg border border-theme-cyan/30 hover:border-theme-cyan/60 transition-all flex flex-col justify-between gap-3">
-            <div>
-              <div class="flex items-center justify-between">
-                <span class="px-2.5 py-0.5 text-xs font-bold uppercase bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
-                  Chrome / Brave / Edge
-                </span>
-                <span class="text-xs text-theme-text/60 font-mono">chrome://extensions</span>
-              </div>
-              <div class="text-xs text-theme-text/80 mt-2 leading-relaxed">
-                1. Klik tombol <strong>Buka chrome://extensions</strong> di bawah.<br />
-                2. Aktifkan toggle <strong>Developer mode</strong> (kanan atas).<br />
-                3. Klik <strong>Load unpacked</strong> → paste folder yang disalin.
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText("chrome://extensions");
-                  window.open("chrome://extensions", "_blank");
-                  props.showToast("🌐 URL chrome://extensions disalin! Jika tab tidak terbuka otomatis, tempel di tab baru.");
-                }}
-                class="py-2.5 px-3 bg-theme-cyan/20 hover:bg-theme-cyan/30 text-theme-cyan border border-theme-cyan/40 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-              >
-                <Globe size={14} />
-                <span>Buka Extensions</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText("/home/headway/MyWork/project/node/ai-voice/extension");
-                  props.showToast("📁 Path folder ekstensi disalin!");
-                }}
-                class="py-2.5 px-3 bg-theme-cyan hover:bg-theme-cyan/90 text-theme-bg font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer border border-theme-cyan"
-              >
-                <Check size={14} />
-                <span>Salin Path Folder</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Box 2: Firefox */}
-          <div class="p-4 bg-theme-bg border border-theme-rose/30 hover:border-theme-rose/60 transition-all flex flex-col justify-between gap-3">
-            <div>
-              <div class="flex items-center justify-between">
-                <span class="px-2.5 py-0.5 text-xs font-bold uppercase bg-theme-rose/20 text-theme-rose border border-theme-rose/30">
-                  Firefox
-                </span>
-                <span class="text-xs text-theme-text/60 font-mono">about:debugging</span>
-              </div>
-              <div class="text-xs text-theme-text/80 mt-2 leading-relaxed">
-                1. Klik tombol <strong>Buka about:debugging</strong> di bawah.<br />
-                2. Pilih <strong>This Firefox</strong> → klik <strong>Load Temporary Add-on</strong>.<br />
-                3. Pilih file <code>manifest.json</code> yang disalin.
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText("about:debugging#/runtime/this-firefox");
-                  window.open("about:debugging#/runtime/this-firefox", "_blank");
-                  props.showToast("🦊 URL about:debugging disalin! Jika tab tidak terbuka otomatis, tempel di tab baru.");
-                }}
-                class="py-2.5 px-3 bg-theme-rose/20 hover:bg-theme-rose/30 text-theme-rose border border-theme-rose/40 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-              >
-                <Globe size={14} />
-                <span>Buka Debugging</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText("/home/headway/MyWork/project/node/ai-voice/extension/manifest.json");
-                  props.showToast("📁 Path manifest.json Firefox disalin!");
-                }}
-                class="py-2.5 px-3 bg-theme-rose hover:bg-theme-rose/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer border border-theme-rose"
-              >
-                <Check size={14} />
-                <span>Salin Path Manifest</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Built-in Features Smart Info Bar */}
-      <div class="p-4 bg-theme-surface border border-theme-cyan/25 space-y-3">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div class="flex items-center gap-2 text-xs text-theme-cyan font-bold tracking-wide">
-            <Zap size={16} class="text-theme-rose" />
-            <span>Kemampuan Bawaan AI (Selalu Aktif Otomatis):</span>
-          </div>
-          <div class="flex items-center gap-2 self-start sm:self-auto">
-            <button
-              onClick={() => {
-                const next = !showAppsInfo();
-                setShowAppsInfo(next);
-                if (next) loadSystemApps();
-              }}
-              class="text-xs px-3 py-1 bg-theme-card hover:bg-theme-border text-theme-text/80 hover:text-theme-cyan border border-theme-border transition-all flex items-center gap-1.5 font-semibold"
-            >
-              <Layers size={13} />
-              <span>{showAppsInfo() ? 'Tutup Aplikasi OS' : 'Aplikasi OS'}</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-theme-text/80">
-          <div class="flex items-center gap-2 p-2.5 bg-theme-bg border border-theme-border/60">
-            <Sliders size={15} class="text-theme-cyan shrink-0" />
-            <span><strong>Kontrol OS:</strong> Volume, Mute, Screenshot, Kunci Layar</span>
-          </div>
-          <div class="flex items-center gap-2 p-2.5 bg-theme-bg border border-theme-border/60">
-            <Globe size={15} class="text-theme-rose shrink-0" />
-            <span><strong>Web & Tab:</strong> Multi-Tab, Klik Judul/Tombol, Ketik & Scroll</span>
-          </div>
-          <div class="flex items-center gap-2 p-2.5 bg-theme-bg border border-theme-border/60">
-            <Layers size={15} class="text-theme-cyan shrink-0" />
-            <span><strong>Aplikasi & Musik:</strong> Buka App & Putar Musik Otomatis</span>
-          </div>
-        </div>
-
-        {/* Dropdown Viewer Aplikasi OS */}
-        <Show when={showAppsInfo()}>
-          <div class="mt-3 pt-3 border-t border-theme-border space-y-2">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-xs text-theme-text/70">
-                AI mengenali {systemApps().length} aplikasi yang terpasang di sistemmu:
-              </span>
-              <div class="relative w-52">
-                <Search size={13} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-theme-text/40" />
-                <input
-                  type="text"
-                  placeholder="Cari aplikasi..."
-                  value={appSearch()}
-                  onInput={(e) => setAppSearch(e.currentTarget.value)}
-                  class="w-full pl-8 pr-2.5 py-1 bg-theme-bg border border-theme-border text-xs text-theme-text outline-none focus:border-theme-cyan"
-                />
-              </div>
-            </div>
-
-            {loadingApps() ? (
-              <div class="p-4 text-center text-xs text-theme-text/50">Memindai aplikasi sistem...</div>
-            ) : (
-              <div class="max-h-48 overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                <For each={filteredApps()}>
-                  {(app) => (
-                    <div class="p-2.5 bg-theme-bg border border-theme-border text-xs">
-                      <div class="font-bold text-theme-text truncate">{app.name}</div>
-                      <div class="text-xs text-theme-text/50 font-mono truncate mt-0.5">{app.exec}</div>
-                    </div>
-                  )}
-                </For>
-              </div>
-            )}
-          </div>
-        </Show>
-      </div>
-
       {/* Skills List Container */}
       <div class="space-y-3">
-        <h3 class="text-base sm:text-lg font-heading text-theme-cyan flex items-center gap-2 tracking-wide">
+        <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2 tracking-wide">
           <Terminal size={18} />
           SKILL / OTOMASI KUSTOM ({skills().length})
         </h3>
@@ -542,7 +308,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
 
       {/* Add New Custom Automation Form */}
       <form onSubmit={handleAddSkill} class="p-5 bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-heading text-theme-rose flex items-center gap-2 tracking-wide">
+        <h3 class="text-base sm:text-lg font-bold text-theme-rose flex items-center gap-2 tracking-wide">
           <Plus size={18} />
           TAMBAH SCRIPT OTOMASI KUSTOM
         </h3>

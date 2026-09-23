@@ -61,7 +61,7 @@ export const AiDrawingPanel: Component<AiDrawingPanelProps> = (props) => {
             <Bot size={18} />
           </div>
           <div>
-            <h3 class="text-sm font-bold text-theme-text font-heading flex items-center gap-2">
+            <h3 class="text-sm font-bold text-theme-text flex items-center gap-2">
               AI MCP LIVE DRAWING ENGINE
               <span class="text-[10px] font-mono px-2 py-0.5 bg-theme-cyan/20 text-[#29483A] border border-theme-cyan/40 font-bold">
                 PONDASI MCP

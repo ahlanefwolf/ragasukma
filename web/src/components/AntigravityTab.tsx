@@ -201,8 +201,8 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h2 class="text-xl font-carter tracking-wide text-theme-text">
-                ANTIGRAVITY POOL
+              <h2 class="text-xl font-heading tracking-tight text-theme-text">
+                Antigravity Pool
               </h2>
               <span class="text-xs font-mono px-2 py-0.5 bg-theme-rose/20 text-theme-rose border border-theme-rose/30 font-bold uppercase">
                 Google Multi-OAuth

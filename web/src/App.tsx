@@ -170,7 +170,7 @@ export const App: Component = () => {
                 ✕
               </div>
               <div class="space-y-2">
-                <h3 class="text-lg font-bold text-theme-text font-heading">
+                <h3 class="text-lg font-bold text-theme-text">
                   {deadReason() === 'shutdown' ? 'Aplikasi Ragasukma Ditutup' : 'Tab Dinonaktifkan'}
                 </h3>
                 <p class="text-sm text-theme-text/70 leading-relaxed">
@@ -239,6 +239,7 @@ export const App: Component = () => {
                 currentState={currentState()}
                 setCurrentState={setCurrentState}
                 showToast={showToast}
+                onNavigateTab={handleTabChange}
               />
             </Show>
             <Show when={activeTab() === 'canvas'}>
@@ -274,7 +275,7 @@ export const App: Component = () => {
 
       {/* Toast */}
       <div
-        class={`fixed bottom-6 right-4 sm:right-8 px-5 py-3.5 bg-theme-card border border-theme-cyan text-sm font-semibold text-theme-text shadow-2xl transition-all duration-300 pointer-events-none z-50 flex items-center gap-3 max-w-[90vw] ${
+        class={`fixed bottom-6 right-4 sm:right-8 px-5 py-3.5 bg-theme-card border border-theme-cyan text-sm font-semibold text-theme-text shadow-2xl transition-all duration-300 pointer-events-none z-[999] flex items-center gap-3 max-w-[90vw] ${
           toastVisible() ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
         }`}
       >

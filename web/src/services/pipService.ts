@@ -249,13 +249,13 @@ class PipManager {
       ctx.fillRect(coverX, coverY, coverSize, coverSize);
 
       ctx.fillStyle = '#596B45';
-      ctx.font = 'bold 32px "IBM Plex Sans", sans-serif';
+      ctx.font = 'bold 32px "Plus Jakarta Sans", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('🎵', coverX + coverSize / 2, coverY + coverSize / 2 - 12);
 
       ctx.fillStyle = '#634936';
-      ctx.font = '600 12px "IBM Plex Sans", sans-serif';
+      ctx.font = '600 12px "Plus Jakarta Sans", sans-serif';
       ctx.fillText('Ragasukma', coverX + coverSize / 2, coverY + coverSize / 2 + 24);
     }
 
@@ -302,33 +302,42 @@ class PipManager {
 
     // Top Header: Status Badge & Brand Watermark
     ctx.save();
-    const badgeW = 145;
-    const badgeH = 24;
+    const badgeH = 26;
     const badgeY = 22;
+    const statusText = isPlaying ? 'SEDANG DIPUTAR' : 'PLAYBACK DIJEDA';
 
-    ctx.fillStyle = '#EBE4D5';
+    ctx.font = '700 11px "Plus Jakarta Sans", sans-serif';
+    const textMetrics = ctx.measureText(statusText);
+    const badgePaddingX = 12;
+    const dotSize = 6;
+    const dotGap = 8;
+    const badgeW = badgePaddingX + dotSize + dotGap + Math.ceil(textMetrics.width) + badgePaddingX;
+
+    // Badge Card Background & Clean Border
+    ctx.fillStyle = isPlaying ? 'rgba(89, 107, 69, 0.12)' : 'rgba(176, 138, 74, 0.12)';
     ctx.fillRect(contentX, badgeY, badgeW, badgeH);
-    ctx.strokeStyle = isPlaying ? '#596B45' : '#BDB094';
+    ctx.strokeStyle = isPlaying ? '#596B45' : '#B08A4A';
     ctx.lineWidth = 1;
     ctx.strokeRect(contentX, badgeY, badgeW, badgeH);
 
-    // Indicator Square
-    const dotX = contentX + 10;
-    const dotY = badgeY + badgeH / 2 - 3;
+    // Indicator Dot (Centered Vertically)
+    const dotX = contentX + badgePaddingX;
+    const dotY = Math.round(badgeY + (badgeH - dotSize) / 2);
     ctx.fillStyle = isPlaying ? '#596B45' : '#B08A4A';
-    ctx.fillRect(dotX, dotY, 6, 6);
+    ctx.fillRect(dotX, dotY, dotSize, dotSize);
 
-    ctx.font = '600 11px "IBM Plex Sans", sans-serif';
+    // Status Text (Crisp Math Baseline)
     ctx.fillStyle = isPlaying ? '#29483A' : '#634936';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(isPlaying ? 'SEDANG DIPUTAR' : 'PLAYBACK DIJEDA', contentX + 24, badgeY + badgeH / 2);
+    ctx.fillText(statusText, dotX + dotSize + dotGap, Math.round(badgeY + badgeH / 2) + 0.5);
 
     // Brand Watermark on Top-Right
     ctx.textAlign = 'right';
-    ctx.font = '600 11px "IBM Plex Mono", monospace';
-    ctx.fillStyle = 'rgba(41, 72, 58, 0.45)';
-    ctx.fillText('RAGASUKMA • PIP', contentX + contentW, badgeY + badgeH / 2);
+    ctx.textBaseline = 'middle';
+    ctx.font = '600 11px "JetBrains Mono", monospace';
+    ctx.fillStyle = 'rgba(41, 72, 58, 0.5)';
+    ctx.fillText('RAGASUKMA • PIP', contentX + contentW, Math.round(badgeY + badgeH / 2));
     ctx.restore();
 
     // Track Metadata (Title & Artist)
@@ -338,7 +347,7 @@ class PipManager {
     // Title
     ctx.save();
     ctx.fillStyle = '#29483A';
-    ctx.font = 'bold 18px "IBM Plex Sans", sans-serif';
+    ctx.font = 'bold 18px "Plus Jakarta Sans", sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
 
@@ -348,7 +357,7 @@ class PipManager {
 
     // Artist
     ctx.fillStyle = '#876447';
-    ctx.font = '600 13px "IBM Plex Sans", sans-serif';
+    ctx.font = '600 13px "Plus Jakarta Sans", sans-serif';
     const maxArtistLen = 44;
     const cleanArtist = artist.length > maxArtistLen ? artist.substring(0, maxArtistLen - 2) + '...' : artist;
     ctx.fillText(cleanArtist, contentX, 94);
@@ -392,7 +401,7 @@ class PipManager {
     // Time Indicators
     ctx.save();
     ctx.fillStyle = '#634936';
-    ctx.font = '600 12px "IBM Plex Mono", monospace';
+    ctx.font = '600 12px "JetBrains Mono", monospace';
     ctx.textBaseline = 'top';
 
     ctx.textAlign = 'left';
@@ -406,7 +415,7 @@ class PipManager {
     ctx.save();
     ctx.textAlign = 'left';
     ctx.textBaseline = 'bottom';
-    ctx.font = '500 11px "IBM Plex Sans", sans-serif';
+    ctx.font = '500 11px "Plus Jakarta Sans", sans-serif';
     ctx.fillStyle = 'rgba(41, 72, 58, 0.45)';
     ctx.fillText('Tekan Space / Gunakan Kontrol Media OS untuk Play & Pause', contentX, h - 18);
     ctx.restore();

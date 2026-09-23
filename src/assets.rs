@@ -85,6 +85,27 @@ pub fn find_file_in_candidates(filename: &str) -> PathBuf {
     PathBuf::from(filename)
 }
 
+pub fn get_extension_dir() -> PathBuf {
+    let mut candidates = Vec::new();
+    if let Ok(cur) = std::env::current_dir() {
+        candidates.push(cur.join("extension"));
+    }
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.join("extension"));
+            candidates.push(exe_dir.join("../Resources/extension"));
+        }
+    }
+    candidates.push(PathBuf::from("extension"));
+
+    for candidate in candidates {
+        if candidate.exists() {
+            return std::fs::canonicalize(&candidate).unwrap_or(candidate);
+        }
+    }
+    PathBuf::from("extension")
+}
+
 pub fn load_config() -> UserConfig {
     crate::config::load_user_config()
 }
@@ -201,7 +222,7 @@ pub fn open_browser(url: &str) {
                 let mut cmd = std::process::Command::new(browser);
                 cmd.arg(&url);
 
-                if let Ok(_) = cmd.spawn() {
+                if cmd.spawn().is_ok() {
                     opened = true;
                     break;
                 }
@@ -238,7 +259,7 @@ pub fn open_browser(url: &str) {
                 cmd.env_remove("LD_LIBRARY_PATH");
                 cmd.env_remove("LD_PRELOAD");
 
-                if let Ok(_) = cmd.spawn() {
+                if cmd.spawn().is_ok() {
                     println!("🌐 [Browser Tab] Membuka tab baru via {}", bin);
                     opened = true;
                     break;

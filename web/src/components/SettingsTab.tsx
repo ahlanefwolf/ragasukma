@@ -203,8 +203,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           <span class="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
             System & Engine Preferences
           </span>
-          <h2 class="text-2xl sm:text-3xl font-carter tracking-wide text-theme-text mt-2">
-            PENGATURAN SISTEM
+          <h2 class="text-2xl sm:text-3xl font-heading tracking-tight text-theme-text mt-2">
+            Pengaturan Sistem
           </h2>
           <p class="text-xs sm:text-sm text-theme-text/70 mt-1 max-w-xl">
             Kelola persona AI, sensitivitas audio, model VRM 3D/2D, serta preferensi jendela overlay.

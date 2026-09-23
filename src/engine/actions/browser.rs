@@ -162,30 +162,50 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
             Some((format!("Tutup Tab: {q}"), format!("Menutup tab '{q}'")))
         }
 
-        "install_ext" => {
-            let ext_dir = std::path::PathBuf::from("extension");
-            let abs_dir = std::fs::canonicalize(&ext_dir).unwrap_or(ext_dir);
-            let abs_str = abs_dir.to_string_lossy().to_string();
+        "install_ext" | "open_ext_folder" => {
+            let ext_dir = crate::assets::get_extension_dir();
+            let abs_str = ext_dir.to_string_lossy().to_string();
 
             #[cfg(target_os = "windows")]
             {
-                let _ = std::process::Command::new("explorer").arg(&abs_str).spawn();
-                let _ = std::process::Command::new("cmd").args(["/C", "start", "chrome://extensions"]).spawn();
+                let mut cmd = std::process::Command::new("explorer");
+                cmd.arg(&abs_str);
+                crate::engine::skills::configure_subprocess(&mut cmd);
+                let _ = cmd.spawn();
+
+                if action == "install_ext" {
+                    let mut b_cmd = std::process::Command::new("cmd");
+                    b_cmd.args(["/C", "start", "chrome://extensions"]);
+                    crate::engine::skills::configure_subprocess(&mut b_cmd);
+                    let _ = b_cmd.spawn();
+                }
             }
 
             #[cfg(target_os = "macos")]
             {
-                let _ = std::process::Command::new("open").arg(&abs_str).spawn();
-                let _ = std::process::Command::new("open").arg("chrome://extensions").spawn();
+                let mut cmd = std::process::Command::new("open");
+                cmd.arg(&abs_str);
+                crate::engine::skills::configure_subprocess(&mut cmd);
+                let _ = cmd.spawn();
+
+                if action == "install_ext" {
+                    let mut b_cmd = std::process::Command::new("open");
+                    b_cmd.arg("chrome://extensions");
+                    crate::engine::skills::configure_subprocess(&mut b_cmd);
+                    let _ = b_cmd.spawn();
+                }
             }
 
             #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
             {
-                let _ = std::process::Command::new("xdg-open").arg(&abs_str).spawn();
+                let mut cmd = std::process::Command::new("xdg-open");
+                cmd.arg(&abs_str);
+                crate::engine::skills::configure_subprocess(&mut cmd);
+                let _ = cmd.spawn();
             }
 
             Some((
-                "Pasang Ekstensi Browser".to_string(),
+                "Buka Folder Ekstensi".to_string(),
                 format!("Membuka folder ekstensi ({abs_str})"),
             ))
         }

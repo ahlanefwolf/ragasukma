@@ -138,8 +138,8 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <h2 class="text-xl sm:text-2xl font-carter tracking-wide text-theme-text leading-none">
-                  LIVE CONSOLE & SYSTEM LOGS
+                <h2 class="text-xl sm:text-2xl font-heading tracking-tight text-theme-text leading-none">
+                  Live Console & System Logs
                 </h2>
                 <span class="text-xs px-2 py-0.5 font-mono font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
                   {filteredLogs().length} baris

@@ -29,7 +29,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
     <div class="space-y-5 animate-in fade-in duration-200">
       {/* 3. Audio & Speech-to-Text (STT) */}
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-carter text-theme-cyan flex items-center gap-2">
+        <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2">
           <Mic size={18} />
           3. AUDIO & SPEECH-TO-TEXT (STT)
         </h3>
@@ -130,7 +130,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
 
       {/* 4. Text-to-Speech (TTS) Voice */}
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-carter text-theme-rose flex items-center gap-2">
+        <h3 class="text-base sm:text-lg font-bold text-theme-rose flex items-center gap-2">
           <Volume2 size={18} />
           4. SUARA KARAKTER (TEXT-TO-SPEECH)
         </h3>

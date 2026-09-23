@@ -19,11 +19,14 @@ import {
 } from 'lucide-solid';
 import { api, AppStatePayload } from '../api';
 import { AiCapabilitiesCard } from './AiCapabilitiesCard';
+import { BrowserExtensionModal } from './BrowserExtensionModal';
+import { SystemAppsModal } from './SystemAppsModal';
 
 interface MenuTabProps {
   currentState: string;
   setCurrentState: (s: string) => void;
   showToast: (msg: string) => void;
+  onNavigateTab?: (tab: string) => void;
 }
 
 export const MenuTab: Component<MenuTabProps> = (props) => {
@@ -41,6 +44,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
   const [micSensitivity, setMicSensitivity] = createSignal('');
   const [noiseReductionLevel, setNoiseReductionLevel] = createSignal(0);
   const [updateModalOpen, setUpdateModalOpen] = createSignal(false);
+  const [extensionModalOpen, setExtensionModalOpen] = createSignal(false);
+  const [appsModalOpen, setAppsModalOpen] = createSignal(false);
   const [updateInfo, setUpdateInfo] = createSignal<{
     hasUpdate: boolean;
     currentVersion: string;
@@ -293,8 +298,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                 ● {props.currentState}
               </span>
             </div>
-            <h2 class="text-xl sm:text-2xl font-heading tracking-wide text-theme-text mt-1.5">
-              VOICE ASSISTANT OVERLAY
+            <h2 class="text-xl sm:text-2xl font-heading tracking-tight text-theme-text mt-1.5">
+              Voice Assistant Overlay
             </h2>
           </div>
 
@@ -468,7 +473,24 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       </div>
 
       {/* 3. Kartu Kapabilitas & Panduan Perintah AI */}
-      <AiCapabilitiesCard />
+      <AiCapabilitiesCard 
+        onOpenExtensionModal={() => setExtensionModalOpen(true)}
+        onOpenAppsModal={() => setAppsModalOpen(true)}
+      />
+
+      {/* Modal Dialog Pasang Ekstensi Browser */}
+      <BrowserExtensionModal
+        isOpen={extensionModalOpen()}
+        onClose={() => setExtensionModalOpen(false)}
+        showToast={props.showToast}
+      />
+
+      {/* Modal Dialog Daftar Aplikasi OS */}
+      <SystemAppsModal
+        isOpen={appsModalOpen()}
+        onClose={() => setAppsModalOpen(false)}
+        showToast={props.showToast}
+      />
 
       {/* Modal Dialog Cek Pembaruan & Release Notes */}
       {updateModalOpen() && updateInfo() && (
@@ -481,7 +503,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                   {updateInfo()!.hasUpdate ? <Download size={20} /> : <RefreshCw size={20} />}
                 </span>
                 <div>
-                  <h3 class="font-heading text-lg text-theme-text tracking-wide">
+                  <h3 class="text-lg font-bold text-theme-text tracking-wide">
                     {updateInfo()!.hasUpdate ? '🎉 PEMBARUAN TERSEDIA!' : '✨ SISTEM UP-TO-DATE'}
                   </h3>
                   <div class="flex items-center gap-2 text-xs text-theme-text/70 mt-0.5">

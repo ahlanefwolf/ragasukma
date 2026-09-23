@@ -1,39 +1,44 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, Show } from 'solid-js';
 import { 
   Globe, 
   Music, 
-  Zap, 
   Terminal, 
   CheckSquare, 
   MousePointerClick, 
   Wand2,
   ChevronDown,
   ChevronUp,
-  Command,
-  Palette
+  Palette,
+  Puzzle,
+  Layers
 } from 'lucide-solid';
 
 interface CapabilityItem {
+  id: string;
   icon: typeof Globe;
   title: string;
   category: string;
   description: string;
-  canonicalCmd: string;
   examples: string[];
   badgeColor: string;
 }
 
-export const AiCapabilitiesCard: Component = () => {
+interface AiCapabilitiesCardProps {
+  onOpenExtensionModal?: () => void;
+  onOpenAppsModal?: () => void;
+}
+
+export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) => {
   const [isExpanded, setIsExpanded] = createSignal(true);
   const [selectedCategory, setSelectedCategory] = createSignal<string>('all');
 
   const capabilities: CapabilityItem[] = [
     {
+      id: 'browser',
       icon: Globe,
       title: 'Navigasi Browser & Multi-Tab',
       category: 'web',
       description: 'Membuka website, berpindah antar tab yang sedang aktif, dan mencari kata kunci langsung di situs apa pun.',
-      canonicalCmd: '[CMD:browser:open|url] / [CMD:browser:switch|tab]',
       examples: [
         '"Buka tab YouTube" / "Buka Tokopedia"',
         '"Pindah ke tab YouTube" / "Tutup tab Google"',
@@ -42,11 +47,11 @@ export const AiCapabilitiesCard: Component = () => {
       badgeColor: 'text-theme-cyan bg-theme-cyan/15 border-theme-cyan/30'
     },
     {
+      id: 'dom',
       icon: MousePointerClick,
       title: 'Interaksi Web (DOM Live Click & Type)',
       category: 'web',
       description: 'Mengklik tulisan/link yang tampil di layar, menekan tombol website, mengetik ke kolom form, dan scroll halaman.',
-      canonicalCmd: '[CMD:browser:click_text|teks] / [CMD:browser:type|teks]',
       examples: [
         '"Klik tulisan HIGHLIGHTS" / "Klik judul video"',
         '"Klik tombol Skip" / "Klik Beli Sekarang"',
@@ -56,11 +61,11 @@ export const AiCapabilitiesCard: Component = () => {
       badgeColor: 'text-[#29483A] bg-[#29483A]/12 border-[#29483A]/30'
     },
     {
+      id: 'media',
       icon: Music,
       title: 'Pemutar Musik & Audio Background',
       category: 'media',
       description: 'Memutar musik offline atau mengunduh otomatis dari YouTube di background worker tanpa freeze.',
-      canonicalCmd: '[CMD:media:play|judul] / [CMD:media:pause]',
       examples: [
         '"Putar lagu Denny Caknan Sugeng Dalu"',
         '"Jeda musik" / "Lanjutkan musik"',
@@ -69,11 +74,11 @@ export const AiCapabilitiesCard: Component = () => {
       badgeColor: 'text-[#B08A4A] bg-[#B08A4A]/15 border-[#B08A4A]/30'
     },
     {
+      id: 'system',
       icon: Terminal,
       title: 'Kontrol Sistem & Aplikasi Desktop',
       category: 'system',
       description: 'Membuka aplikasi OS secara langsung, kontrol volume audio komputer, screenshot, dan kunci layar.',
-      canonicalCmd: '[CMD:app:open|NamaApp] / [CMD:os:volume_up]',
       examples: [
         '"Buka Steam" / "Buka Spotify"',
         '"Buka terminal" / "Buka VS Code"',
@@ -83,11 +88,11 @@ export const AiCapabilitiesCard: Component = () => {
       badgeColor: 'text-[#876447] bg-[#876447]/15 border-[#876447]/30'
     },
     {
+      id: 'todo',
       icon: CheckSquare,
       title: 'Catatan & To-Do List Cerdas',
       category: 'tools',
       description: 'Mencatat agenda baru ke daftar to-do dan menandai tugas yang sudah selesai secara otomatis.',
-      canonicalCmd: '[CMD:todo:add|tugas] / [CMD:todo:done|tugas]',
       examples: [
         '"Catat tugas besok meeting jam 9"',
         '"Catat beli perlengkapan kantor"',
@@ -96,11 +101,11 @@ export const AiCapabilitiesCard: Component = () => {
       badgeColor: 'text-[#634936] bg-[#634936]/15 border-[#634936]/30'
     },
     {
+      id: 'canvas',
       icon: Palette,
       title: 'Whiteboard 2D & Diagram Visual',
       category: 'canvas',
       description: 'Menginstruksikan AI untuk menggambar flowchart, mindmap, atau diagram visual secara interaktif di kanvas whiteboard.',
-      canonicalCmd: '[CMD:canvas:draw|diagram]',
       examples: [
         '"Gambarkan flowchart alur login"',
         '"Buat diagram arsitektur sistem"',
@@ -119,7 +124,7 @@ export const AiCapabilitiesCard: Component = () => {
   return (
     <div class="bg-theme-surface border border-theme-border p-5 space-y-4 shadow-sm">
       {/* Header Card */}
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="flex items-center gap-3">
           <div class="p-2.5 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30">
             <Wand2 size={18} />
@@ -132,18 +137,40 @@ export const AiCapabilitiesCard: Component = () => {
               </span>
             </h3>
             <p class="text-xs text-theme-text/70 mt-0.5">
-              Contoh kalimat perintah suara dan tag eksekusi canonical yang didukung
+              Contoh kalimat perintah suara yang didukung
             </p>
           </div>
         </div>
 
-        <button
-          onClick={() => setIsExpanded(!isExpanded())}
-          class="p-2 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan transition-all"
-          title={isExpanded() ? 'Sembunyikan Panduan' : 'Tampilkan Panduan'}
-        >
-          {isExpanded() ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </button>
+        <div class="flex items-center gap-2 self-end sm:self-center">
+          <button
+            type="button"
+            onClick={() => props.onOpenAppsModal?.()}
+            class="px-3 py-1.5 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+            title="Buka Daftar Aplikasi OS yang Terdeteksi"
+          >
+            <Layers size={14} class="text-theme-cyan" />
+            <span>Aplikasi OS</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => props.onOpenExtensionModal?.()}
+            class="px-3 py-1.5 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+            title="Buka Petunjuk Pasang Ekstensi Browser"
+          >
+            <Puzzle size={14} class="text-[#B08A4A]" />
+            <span>Pasang Ekstensi Web</span>
+          </button>
+
+          <button
+            onClick={() => setIsExpanded(!isExpanded())}
+            class="p-1.5 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan transition-all"
+            title={isExpanded() ? 'Sembunyikan Panduan' : 'Tampilkan Panduan'}
+          >
+            {isExpanded() ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+        </div>
       </div>
 
       {isExpanded() && (
@@ -224,13 +251,18 @@ export const AiCapabilitiesCard: Component = () => {
                         <span class={`p-2 border ${cap.badgeColor}`}>
                           <IconComponent size={16} />
                         </span>
-                        <h4 class="text-sm font-bold text-theme-text">
-                          {cap.title}
-                        </h4>
+                        <div class="flex flex-col">
+                          <h4 class="text-sm font-bold text-theme-text">
+                            {cap.title}
+                          </h4>
+                          {cap.category === 'web' && (
+                            <span class="text-[10px] font-mono text-[#876447] font-semibold mt-0.5 flex items-center gap-1">
+                              <Puzzle size={11} class="text-[#B08A4A]" />
+                              Perlu Ekstensi Browser
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <span class="text-xs font-mono text-theme-cyan flex items-center gap-1 opacity-90">
-                        <Command size={12} /> {cap.canonicalCmd.split(' ')[0]}
-                      </span>
                     </div>
                     <p class="text-xs text-theme-text/75 leading-relaxed">
                       {cap.description}
@@ -239,9 +271,11 @@ export const AiCapabilitiesCard: Component = () => {
 
                   {/* Example Phrases */}
                   <div class="space-y-1.5 pt-2 border-t border-theme-border/60">
-                    <span class="text-xs font-mono uppercase tracking-wider text-theme-text/60 font-bold">
-                      Contoh Ucapan:
-                    </span>
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-mono uppercase tracking-wider text-theme-text/60 font-bold">
+                        Contoh Ucapan:
+                      </span>
+                    </div>
                     <div class="flex flex-wrap gap-1.5">
                       {cap.examples.map((ex) => (
                         <span class="text-xs px-2.5 py-1 bg-theme-card border border-theme-border text-theme-text/90 font-mono">
@@ -249,6 +283,28 @@ export const AiCapabilitiesCard: Component = () => {
                         </span>
                       ))}
                     </div>
+
+                    {cap.category === 'web' && (
+                      <button
+                        type="button"
+                        onClick={() => props.onOpenExtensionModal?.()}
+                        class="w-full mt-2.5 py-2 px-3 bg-theme-card hover:bg-[#876447] hover:text-[#FAF7F2] text-[#876447] hover:border-[#876447] border border-[#B08A4A]/40 flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-sm cursor-pointer"
+                      >
+                        <Puzzle size={14} class="text-[#B08A4A]" />
+                        <span>Cara Pasang Ekstensi Browser</span>
+                      </button>
+                    )}
+
+                    {cap.id === 'system' && (
+                      <button
+                        type="button"
+                        onClick={() => props.onOpenAppsModal?.()}
+                        class="w-full mt-2.5 py-2 px-3 bg-theme-card hover:bg-[#29483A] hover:text-[#FAF7F2] text-theme-cyan border border-theme-cyan/40 flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-sm cursor-pointer"
+                      >
+                        <Layers size={14} />
+                        <span>Buka Daftar Aplikasi OS (Terdeteksi)</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               );

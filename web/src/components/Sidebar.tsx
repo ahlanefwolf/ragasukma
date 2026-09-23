@@ -29,7 +29,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
   const menuItems = () => [
     { id: 'menu', label: 'Main Menu', icon: MenuIcon },
     { id: 'canvas', label: '2D Whiteboard', icon: Palette },
-    { id: 'skills', label: 'Skill Commands', icon: Zap },
+    { id: 'skills', label: 'Skill Custom', icon: Zap },
     { id: 'music', label: 'Music Player', icon: Music },
     { id: 'tuner', label: 'Pose Tuner', icon: Sliders },
     { id: 'logs', label: 'Console Logs', icon: Terminal },
@@ -51,12 +51,12 @@ export const Sidebar: Component<SidebarProps> = (props) => {
         {/* Brand Header */}
         <div class="flex items-center justify-between mb-6 px-1">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 overflow-hidden shadow-lg anime-shadow-green shrink-0 flex items-center justify-center border border-theme-border">
+            <div class="w-10 h-10 shrink-0 flex items-center justify-center">
               <BrandLogo size={40} />
             </div>
             <div>
-              <h1 class="text-2xl font-heading tracking-wide text-theme-text leading-none">
-                RAGASUKMA
+              <h1 class="text-2xl font-heading tracking-tight text-theme-text leading-none">
+                Ragasukma
               </h1>
               <p class="text-xs text-theme-cyan font-semibold tracking-wider flex items-center gap-1.5 mt-1">
                 AI ASSISTANT

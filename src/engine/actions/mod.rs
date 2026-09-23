@@ -37,6 +37,7 @@ pub fn execute_skill_by_identifier(identifier: &str) -> Option<(String, String)>
         ("todo", act) => todo_actions::execute_todo_action(act, payload),
         ("app", "open") => os_apps::execute_app_action(payload),
         ("os", act) => os_apps::execute_os_action(act),
+        ("internal", "open_extension_installer") => browser::execute_browser_action("open_ext_folder", ""),
         _ => {
             // Cek Custom Skills di skill-command.md
             let skills = parse_skills_markdown();
