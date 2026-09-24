@@ -19,6 +19,41 @@ use config::AppConfig;
 use engine::AppSession;
 
 fn main() -> Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--scan-window") {
+        println!("🔍 Menjalankan native OS accessibility scan...");
+        match engine::window_scanner::scan_active_window_sync() {
+            Ok(snapshot) => {
+                println!("✅ Scan Berhasil!");
+                println!("  App Name     : {}", snapshot.app_name);
+                println!("  Window Title : {}", snapshot.window_title);
+                println!("  Window ID    : {}", snapshot.window_id);
+                println!("  Tombol       : {} item", snapshot.buttons.len());
+                for b in snapshot.buttons.iter().take(5) {
+                    println!("    - [Button #{}] {}", b.id, b.label);
+                }
+                println!("  Input Form   : {} item", snapshot.inputs.len());
+                for inp in snapshot.inputs.iter().take(5) {
+                    println!("    - [Input #{}] {}", inp.id, inp.label);
+                }
+                println!("  Label Teks   : {} item", snapshot.texts.len());
+                for t in snapshot.texts.iter().take(5) {
+                    println!("    - {}", t);
+                }
+
+                if let Err(e) = snapshot.save_to_file() {
+                    eprintln!("❌ Gagal simpan ke file: {e}");
+                } else {
+                    println!("📁 File tersimpan di assets/active_window_app.json");
+                }
+            }
+            Err(e) => {
+                eprintln!("❌ Error saat scan: {e}");
+            }
+        }
+        return Ok(());
+    }
+
     // 🔒 Single Instance Check: Verifikasi port dan handshake identitas aplikasi
     let server_port = 42128;
     let single_instance_check = match std::net::TcpListener::bind(("127.0.0.1", server_port)) {
@@ -72,6 +107,9 @@ fn main() -> Result<()> {
 
     // Inisialisasi dedicated BrowserSessionWorker untuk sinkronisasi non-blocking active_tab_browser.json
     crate::services::browser_session_service::init_browser_session_worker();
+
+    // Inisialisasi native OS active window watcher (reaktif) untuk active_window_app.json
+    crate::engine::window_scanner::start_window_watcher();
 
     // Inisialisasi dedicated background task worker thread
     crate::engine::init_background_task_worker();
