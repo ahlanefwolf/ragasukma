@@ -1,7 +1,7 @@
 {
   "idle": {
     "pose_a": {
-      "hips": [0.0, 0.02, 0.0],
+      "hips": [0.03, 0.04, -0.02],
       "spine": [0.06, 0.03, -0.02],
       "chest": [0.05, 0.02, -0.02],
       "head": [0.04, 0.06, 0.03],
@@ -13,15 +13,15 @@
       "rightUpperArm": [0.42, -0.22, 0.98],
       "rightLowerArm": [0.16, 1.15, 0.42],
       "rightHand": [0.2, 0.25, -0.15],
-      "leftUpperLeg": [0.12, -0.04, 0.06],
-      "leftLowerLeg": [0.32, 0.0, 0.0],
-      "leftFoot": [0.22, 0.0, 0.0],
-      "rightUpperLeg": [0.04, 0.04, -0.06],
-      "rightLowerLeg": [0.46, 0.0, 0.0],
-      "rightFoot": [0.36, 0.0, 0.0]
+      "leftUpperLeg": [0.32, -0.06, 0.08],
+      "leftLowerLeg": [0.48, 0.0, 0.0],
+      "leftFoot": [0.35, 0.0, 0.0],
+      "rightUpperLeg": [-0.12, 0.06, -0.08],
+      "rightLowerLeg": [0.82, 0.0, 0.0],
+      "rightFoot": [0.45, 0.0, 0.0]
     },
     "pose_b": {
-      "hips": [0.0, -0.02, 0.0],
+      "hips": [-0.03, -0.04, 0.02],
       "spine": [0.02, -0.03, 0.02],
       "chest": [0.04, -0.02, 0.02],
       "head": [-0.03, -0.05, -0.04],
@@ -33,18 +33,18 @@
       "rightUpperArm": [0.28, -0.1, 1.12],
       "rightLowerArm": [0.1, 0.85, 0.28],
       "rightHand": [0.12, 0.15, -0.06],
-      "leftUpperLeg": [0.04, -0.04, 0.06],
-      "leftLowerLeg": [0.46, 0.0, 0.0],
-      "leftFoot": [0.36, 0.0, 0.0],
-      "rightUpperLeg": [0.12, 0.04, -0.06],
-      "rightLowerLeg": [0.32, 0.0, 0.0],
-      "rightFoot": [0.22, 0.0, 0.0]
+      "leftUpperLeg": [-0.12, -0.06, 0.08],
+      "leftLowerLeg": [0.82, 0.0, 0.0],
+      "leftFoot": [0.45, 0.0, 0.0],
+      "rightUpperLeg": [0.32, 0.06, -0.08],
+      "rightLowerLeg": [0.48, 0.0, 0.0],
+      "rightFoot": [0.35, 0.0, 0.0]
     },
     "speed": 0.85
   },
   "listening": {
     "pose_a": {
-      "hips": [0.0, 0.0, 0.0],
+      "hips": [0.02, 0.03, -0.01],
       "spine": [0.09, 0.02, 0.0],
       "chest": [0.06, 0.02, 0.0],
       "head": [0.1, 0.08, 0.05],
@@ -56,15 +56,15 @@
       "rightUpperArm": [0.48, -0.38, 0.9],
       "rightLowerArm": [0.32, 1.45, 0.6],
       "rightHand": [0.25, 0.35, -0.3],
-      "leftUpperLeg": [0.1, -0.03, 0.05],
-      "leftLowerLeg": [0.32, 0.0, 0.0],
-      "leftFoot": [0.22, 0.0, 0.0],
-      "rightUpperLeg": [0.04, 0.03, -0.05],
-      "rightLowerLeg": [0.46, 0.0, 0.0],
-      "rightFoot": [0.36, 0.0, 0.0]
+      "leftUpperLeg": [0.3, -0.05, 0.06],
+      "leftLowerLeg": [0.52, 0.0, 0.0],
+      "leftFoot": [0.32, 0.0, 0.0],
+      "rightUpperLeg": [-0.1, 0.05, -0.06],
+      "rightLowerLeg": [0.78, 0.0, 0.0],
+      "rightFoot": [0.42, 0.0, 0.0]
     },
     "pose_b": {
-      "hips": [0.0, 0.0, 0.0],
+      "hips": [-0.02, -0.03, 0.01],
       "spine": [0.03, -0.02, 0.0],
       "chest": [0.02, -0.01, 0.0],
       "head": [0.01, -0.04, -0.03],
@@ -76,18 +76,18 @@
       "rightUpperArm": [0.36, -0.22, 1.02],
       "rightLowerArm": [0.18, 1.12, 0.42],
       "rightHand": [0.14, 0.2, -0.14],
-      "leftUpperLeg": [0.04, -0.03, 0.05],
-      "leftLowerLeg": [0.46, 0.0, 0.0],
-      "leftFoot": [0.36, 0.0, 0.0],
-      "rightUpperLeg": [0.1, 0.03, -0.05],
-      "rightLowerLeg": [0.32, 0.0, 0.0],
-      "rightFoot": [0.22, 0.0, 0.0]
+      "leftUpperLeg": [-0.1, -0.05, 0.06],
+      "leftLowerLeg": [0.78, 0.0, 0.0],
+      "leftFoot": [0.42, 0.0, 0.0],
+      "rightUpperLeg": [0.3, 0.05, -0.06],
+      "rightLowerLeg": [0.52, 0.0, 0.0],
+      "rightFoot": [0.32, 0.0, 0.0]
     },
     "speed": 1.15
   },
   "thinking": {
     "pose_a": {
-      "hips": [0.0, -0.02, 0.0],
+      "hips": [0.02, 0.04, -0.02],
       "spine": [0.06, 0.04, -0.02],
       "chest": [0.04, 0.03, -0.02],
       "head": [-0.14, -0.18, 0.16],
@@ -99,15 +99,15 @@
       "rightUpperArm": [0.72, -0.48, 0.8],
       "rightLowerArm": [-0.28, 2.25, 0.72],
       "rightHand": [0.18, 0.38, -0.48],
-      "leftUpperLeg": [0.11, -0.05, 0.08],
-      "leftLowerLeg": [0.44, 0.0, 0.0],
-      "leftFoot": [0.32, 0.0, 0.0],
-      "rightUpperLeg": [0.05, 0.05, -0.04],
-      "rightLowerLeg": [0.3, 0.0, 0.0],
-      "rightFoot": [0.22, 0.0, 0.0]
+      "leftUpperLeg": [0.34, -0.08, 0.1],
+      "leftLowerLeg": [0.58, 0.0, 0.0],
+      "leftFoot": [0.38, 0.0, 0.0],
+      "rightUpperLeg": [-0.14, 0.08, -0.08],
+      "rightLowerLeg": [0.86, 0.0, 0.0],
+      "rightFoot": [0.46, 0.0, 0.0]
     },
     "pose_b": {
-      "hips": [0.0, 0.01, 0.0],
+      "hips": [-0.02, -0.04, 0.02],
       "spine": [0.04, -0.02, 0.02],
       "chest": [0.02, -0.01, 0.02],
       "head": [-0.02, -0.08, 0.06],
@@ -119,18 +119,18 @@
       "rightUpperArm": [0.52, -0.32, 0.94],
       "rightLowerArm": [0.05, 1.75, 0.52],
       "rightHand": [0.12, 0.24, -0.25],
-      "leftUpperLeg": [0.05, -0.05, 0.08],
-      "leftLowerLeg": [0.3, 0.0, 0.0],
-      "leftFoot": [0.22, 0.0, 0.0],
-      "rightUpperLeg": [0.11, 0.05, -0.04],
-      "rightLowerLeg": [0.44, 0.0, 0.0],
-      "rightFoot": [0.32, 0.0, 0.0]
+      "leftUpperLeg": [-0.14, -0.08, 0.1],
+      "leftLowerLeg": [0.86, 0.0, 0.0],
+      "leftFoot": [0.46, 0.0, 0.0],
+      "rightUpperLeg": [0.34, 0.08, -0.08],
+      "rightLowerLeg": [0.58, 0.0, 0.0],
+      "rightFoot": [0.38, 0.0, 0.0]
     },
     "speed": 0.95
   },
   "speaking": {
     "pose_a": {
-      "hips": [0.0, 0.03, 0.0],
+      "hips": [0.04, 0.05, -0.02],
       "spine": [0.05, 0.04, -0.02],
       "chest": [0.06, 0.03, -0.02],
       "head": [0.04, 0.06, 0.03],
@@ -142,15 +142,15 @@
       "rightUpperArm": [0.62, -0.34, 0.76],
       "rightLowerArm": [0.32, 1.55, 0.65],
       "rightHand": [0.28, 0.4, -0.35],
-      "leftUpperLeg": [0.1, -0.04, 0.06],
-      "leftLowerLeg": [0.32, 0.0, 0.0],
-      "leftFoot": [0.24, 0.0, 0.0],
-      "rightUpperLeg": [0.04, 0.04, -0.06],
-      "rightLowerLeg": [0.46, 0.0, 0.0],
-      "rightFoot": [0.36, 0.0, 0.0]
+      "leftUpperLeg": [0.36, -0.06, 0.08],
+      "leftLowerLeg": [0.52, 0.0, 0.0],
+      "leftFoot": [0.38, 0.0, 0.0],
+      "rightUpperLeg": [-0.12, 0.06, -0.08],
+      "rightLowerLeg": [0.85, 0.0, 0.0],
+      "rightFoot": [0.48, 0.0, 0.0]
     },
     "pose_b": {
-      "hips": [0.0, -0.03, 0.0],
+      "hips": [-0.04, -0.05, 0.02],
       "spine": [0.04, -0.04, 0.02],
       "chest": [0.06, -0.03, 0.02],
       "head": [-0.03, -0.05, -0.03],
@@ -162,12 +162,12 @@
       "rightUpperArm": [0.35, -0.16, 1.02],
       "rightLowerArm": [0.14, 0.95, 0.36],
       "rightHand": [0.14, 0.18, -0.12],
-      "leftUpperLeg": [0.04, -0.04, 0.06],
-      "leftLowerLeg": [0.46, 0.0, 0.0],
-      "leftFoot": [0.36, 0.0, 0.0],
-      "rightUpperLeg": [0.1, 0.04, -0.06],
-      "rightLowerLeg": [0.32, 0.0, 0.0],
-      "rightFoot": [0.24, 0.0, 0.0]
+      "leftUpperLeg": [-0.12, -0.06, 0.08],
+      "leftLowerLeg": [0.85, 0.0, 0.0],
+      "leftFoot": [0.48, 0.0, 0.0],
+      "rightUpperLeg": [0.36, 0.06, -0.08],
+      "rightLowerLeg": [0.52, 0.0, 0.0],
+      "rightFoot": [0.38, 0.0, 0.0]
     },
     "speed": 2.1
   }
