@@ -73,7 +73,7 @@ export const skillsService = {
     }
   },
 
-  async getExtensionPath(): Promise<{ folder: string; manifest: string } | null> {
+  async getExtensionPath(): Promise<{ folder: string; crx: string } | null> {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/system/extension-path`);
       if (!res.ok) return null;

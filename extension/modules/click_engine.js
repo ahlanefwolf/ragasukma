@@ -73,8 +73,13 @@
     // Khusus mencari tombol / button / elemen aksi
     findButton(query) {
       if (!query) return null;
-      let clean = query.toLowerCase().replace(/^(tombol|button|btn)\s+/i, "").trim();
-      if (!clean) clean = query.trim();
+      let clean = query
+        .replace(/^["'`“‘]+|["'`”’]+$/g, "")
+        .toLowerCase()
+        .replace(/^(tombol|button|btn)\s+/i, "")
+        .trim();
+      if (!clean) clean = query.replace(/^["'`“‘]+|["'`”’]+$/g, "").trim();
+      if (!clean) return null;
 
       const btns = queryAllDeep("button, [role='button'], input[type='button'], input[type='submit'], a.btn, a.button, [role='tab'], [role='menuitem']")
         .filter(el => isElementVisible(el));
@@ -95,8 +100,13 @@
     // Khusus mencari teks / tulisan / link / judul di layar
     findText(query) {
       if (!query) return null;
-      let cleanQuery = query.toLowerCase().replace(/^(tulisan|teks|judul|kata|link)\s+/i, "").trim();
-      if (!cleanQuery) cleanQuery = query.trim();
+      // Bersihkan tanda kutip pembungkus ("...", '...') dan prefix bahasa natural
+      let cleanQuery = query
+        .replace(/^["'`“‘]+|["'`”’]+$/g, "")
+        .toLowerCase()
+        .replace(/^(tulisan|teks|judul|kata|link)\s+/i, "")
+        .trim();
+      if (!cleanQuery) cleanQuery = query.replace(/^["'`“‘]+|["'`”’]+$/g, "").trim();
       if (!cleanQuery) return null;
 
       // Cari semua elemen teks visual di layar (termasuk button, link, heading, item)

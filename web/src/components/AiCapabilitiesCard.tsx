@@ -36,9 +36,9 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
     {
       id: 'browser',
       icon: Globe,
-      title: 'Navigasi Browser & Multi-Tab',
+      title: 'Navigasi Browser & Multi-Tab (Chromium)',
       category: 'web',
-      description: 'Membuka website, berpindah antar tab yang sedang aktif, dan mencari kata kunci langsung di situs apa pun.',
+      description: 'Membuka website, berpindah antar tab yang sedang aktif, dan mencari kata kunci langsung di browser Chromium / Chrome.',
       examples: [
         '"Buka tab YouTube" / "Buka Tokopedia"',
         '"Pindah ke tab YouTube" / "Tutup tab Google"',
@@ -51,7 +51,7 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
       icon: MousePointerClick,
       title: 'Interaksi Web (Live Click & Type)',
       category: 'web',
-      description: 'Mengklik tulisan/link yang tampil di layar, menekan tombol website, mengetik ke kolom form, dan scroll halaman.',
+      description: 'Mengklik tulisan/link yang tampil di layar, menekan tombol website, mengetik form, dan scroll halaman via ekstensi (.crx).',
       examples: [
         '"Klik tulisan Highlights" / "Klik judul video"',
         '"Klik tombol Skip" / "Klik Beli Sekarang"',
@@ -157,10 +157,10 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
             type="button"
             onClick={() => props.onOpenExtensionModal?.()}
             class="px-3 py-1.5 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-            title="Buka Petunjuk Pasang Ekstensi Browser"
+            title="Buka Petunjuk Pasang Ekstensi Browser (.CRX)"
           >
             <Puzzle size={14} class="text-[#B08A4A]" />
-            <span>Pasang Ekstensi Web</span>
+            <span>Pasang Ekstensi (.CRX)</span>
           </button>
 
           <button
@@ -195,7 +195,7 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
                   : 'bg-theme-card border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/40'
               }`}
             >
-              Web & Browser
+              Chromium & Browser
             </button>
             <button
               onClick={() => setSelectedCategory('media')}
@@ -258,7 +258,7 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
                           {cap.category === 'web' && (
                             <span class="text-[10px] font-mono text-[#876447] font-semibold mt-0.5 flex items-center gap-1">
                               <Puzzle size={11} class="text-[#B08A4A]" />
-                              Perlu Ekstensi Browser
+                              Perlu Ekstensi (.crx)
                             </span>
                           )}
                         </div>
@@ -291,7 +291,7 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
                         class="w-full mt-2.5 py-2 px-3 bg-theme-card hover:bg-[#876447] hover:text-[#FAF7F2] text-[#876447] hover:border-[#876447] border border-[#B08A4A]/40 flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-sm cursor-pointer"
                       >
                         <Puzzle size={14} class="text-[#B08A4A]" />
-                        <span>Cara Pasang Ekstensi Browser</span>
+                        <span>Cara Pasang File Ekstensi (.CRX)</span>
                       </button>
                     )}
 

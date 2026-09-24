@@ -14,14 +14,14 @@ pub fn handle_get_apps(stream: &mut TcpStream) {
 }
 
 pub fn handle_get_extension_path(stream: &mut TcpStream) {
-    let dir = crate::assets::get_extension_dir();
-    let abs_str = dir.to_string_lossy().to_string();
-    let manifest_path = dir.join("manifest.json");
-    let manifest_str = manifest_path.to_string_lossy().to_string();
+    let assets_dir = crate::assets::get_assets_dir();
+    let crx_file = crate::assets::find_file_in_candidates("ragasukma-companion.crx");
+    let crx_str = crx_file.to_string_lossy().to_string();
+    let assets_str = assets_dir.to_string_lossy().to_string();
 
     let json = serde_json::json!({
-        "folder": abs_str,
-        "manifest": manifest_str
+        "folder": assets_str,
+        "crx": crx_str
     });
     send_json_response(stream, 200, &json.to_string());
 }

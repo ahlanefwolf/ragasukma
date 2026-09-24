@@ -163,8 +163,8 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
         }
 
         "install_ext" | "open_ext_folder" => {
-            let ext_dir = crate::assets::get_extension_dir();
-            let abs_str = ext_dir.to_string_lossy().to_string();
+            let assets_dir = crate::assets::get_assets_dir();
+            let abs_str = assets_dir.to_string_lossy().to_string();
 
             #[cfg(target_os = "windows")]
             {

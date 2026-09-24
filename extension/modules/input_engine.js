@@ -98,23 +98,56 @@
 
     triggerEnterSubmit(input) {
       if (!input) return;
+      try { input.focus(); } catch (_) {}
+
+      // 1. Cari tombol SEND / KIRIM / SUBMIT di container terdekat (ChatGPT, Gemini, Claude, WhatsApp, forms)
+      const container = input.closest("form, [role='region'], main, div") || document;
+      const sendBtnSelectors = [
+        "[data-testid*='send-button' i]",
+        "[data-testid*='send' i]",
+        "button[aria-label*='Send' i]",
+        "button[aria-label*='Kirim' i]",
+        "button[title*='Send' i]",
+        "button[title*='Kirim' i]",
+        "button[aria-label*='Prompt submit' i]",
+        "button#send-button",
+        "button[type='submit']",
+        "input[type='submit']",
+        "button#search-icon-legacy" // Khusus YouTube search submit
+      ];
+
+      let submitBtn = null;
+      for (const sel of sendBtnSelectors) {
+        try {
+          const btn = container.querySelector(sel);
+          if (btn && window.RagasukmaClick && window.RagasukmaClick.isElementVisible(btn)) {
+            // Hindari tombol sidebar/search history yang kebetulan match
+            const aria = (btn.getAttribute("aria-label") || "").toLowerCase();
+            if (!aria.includes("search history") && !aria.includes("search chat")) {
+              submitBtn = btn;
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Jika tombol kirim/submit eksplisit ditemukan, klik tombol tersebut langsung
+      if (submitBtn && typeof submitBtn.click === "function") {
+        if (window.RagasukmaClick && typeof window.RagasukmaClick.triggerClick === "function") {
+          window.RagasukmaClick.triggerClick(submitBtn);
+        } else {
+          submitBtn.click();
+        }
+        return;
+      }
+
+      // 2. Jika tidak ada tombol send visual, kirim event Enter langsung dan terisolasi pada input
       const enterInit = { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true, view: window };
       input.dispatchEvent(new KeyboardEvent("keydown", enterInit));
       input.dispatchEvent(new KeyboardEvent("keypress", enterInit));
       input.dispatchEvent(new KeyboardEvent("keyup", enterInit));
 
-      // Cari tombol submit/search di container terdekat atau document
-      const container = input.closest("form, [role='search'], ytd-searchbox, header, nav, div") || document;
-      const searchBtn = container.querySelector("button[type='submit'], input[type='submit'], button#search-icon-legacy, [aria-label*='Search' i], [aria-label*='Cari' i], [title*='Search' i], [title*='Cari' i], [data-testid*='send-button' i]") ||
-                        document.querySelector("button[type='submit'], input[type='submit'], button#search-icon-legacy, [aria-label*='Search' i], [aria-label*='Cari' i], [data-testid*='send-button' i]");
-      
-      if (searchBtn && typeof searchBtn.click === "function") {
-        if (window.RagasukmaClick && typeof window.RagasukmaClick.triggerClick === "function") {
-          window.RagasukmaClick.triggerClick(searchBtn);
-        } else {
-          searchBtn.click();
-        }
-      } else if (input.form && typeof input.form.submit === "function") {
+      if (input.form && typeof input.form.submit === "function") {
         try { input.form.submit(); } catch (_) {}
       }
     },

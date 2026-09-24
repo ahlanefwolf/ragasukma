@@ -17,12 +17,6 @@
     "http://127.0.0.1/*",
     "http://localhost/*"
   ],
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "ragasukma-companion@local",
-      "strict_min_version": "109.0"
-    }
-  },
   "background": {
     "service_worker": "background.js"
   },

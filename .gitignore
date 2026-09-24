@@ -60,3 +60,4 @@ Thumbs.db
 .zed/
 9router
 fine-tuning
+*.pem

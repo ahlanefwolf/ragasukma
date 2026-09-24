@@ -234,7 +234,9 @@
         // 3. Click Engine (Klik Tulisan vs Klik Tombol vs Universal)
         else if (cmd.action === "CLICK_TEXT") {
           const rawSel = (cmd.selector || "").trim();
-          const target = window.RagasukmaClick.findText(rawSel);
+          const target = window.RagasukmaClick.findText(rawSel) || 
+                         window.RagasukmaClick.findButton(rawSel) || 
+                         window.RagasukmaClick.findSmartElement(rawSel);
 
           if (target) {
             window.RagasukmaClick.triggerClick(target);
@@ -249,7 +251,9 @@
         }
         else if (cmd.action === "CLICK_BUTTON") {
           const rawSel = (cmd.selector || "").trim();
-          const target = window.RagasukmaClick.findButton(rawSel) || window.RagasukmaClick.findSmartElement(rawSel);
+          const target = window.RagasukmaClick.findButton(rawSel) || 
+                         window.RagasukmaClick.findText(rawSel) || 
+                         window.RagasukmaClick.findSmartElement(rawSel);
 
           if (target) {
             window.RagasukmaClick.triggerClick(target);
@@ -264,7 +268,9 @@
         }
         else if (cmd.action === "CLICK_ELEMENT") {
           const rawSel = (cmd.selector || "").trim();
-          const target = window.RagasukmaClick.findSmartElement(rawSel);
+          const target = window.RagasukmaClick.findSmartElement(rawSel) || 
+                         window.RagasukmaClick.findText(rawSel) || 
+                         window.RagasukmaClick.findButton(rawSel);
 
           if (target) {
             window.RagasukmaClick.triggerClick(target);
@@ -291,18 +297,15 @@
         else if (cmd.action === "PRESS_ENTER") {
           const activeEl = document.activeElement;
           const searchInput = window.RagasukmaInput.findBestSearchInput();
-          const targetEl = (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.isContentEditable)) ? activeEl : searchInput;
+          const targetEl = (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.isContentEditable || activeEl.getAttribute("role") === "textbox")) ? activeEl : searchInput;
 
           if (targetEl) {
             window.RagasukmaInput.triggerEnterSubmit(targetEl);
-            console.log("⌨️ [Ragasukma Key] Berhasil tekan Enter pada:", targetEl);
+            console.log("⌨️ [Ragasukma Key] Berhasil kirim pesan/Enter pada:", targetEl);
             setTimeout(() => sendSnapshot(true), 150);
             setTimeout(() => sendSnapshot(true), 500);
           } else {
-            // Dispatch window keydown fallback
-            const evt = new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true });
-            document.dispatchEvent(evt);
-            setTimeout(() => sendSnapshot(true), 150);
+            console.warn("⚠️ [Ragasukma Key] Tidak ada input aktif untuk Enter.");
           }
           sendResponse({ status: "ok", action: "PRESS_ENTER" });
         }
