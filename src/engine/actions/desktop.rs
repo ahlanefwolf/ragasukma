@@ -63,12 +63,12 @@ pub fn execute_desktop_action(action: &str, payload: &str) -> Option<(String, St
                 Some(("Tutup Jendela".to_string(), format!("Gagal menutup jendela '{target}'")))
             }
         }
-        "click_button" => {
+        "click_button" | "click_text" => {
             let target = payload.trim();
             if click_desktop_button(target) {
-                Some(("Klik Tombol Desktop".to_string(), format!("Tombol '{target}' berhasil diklik")))
+                Some(("Klik Elemen Desktop".to_string(), format!("Elemen/teks '{target}' berhasil diklik")))
             } else {
-                Some(("Klik Tombol Desktop".to_string(), format!("Tombol '{target}' tidak ditemukan di layar")))
+                Some(("Klik Elemen Desktop".to_string(), format!("Elemen/teks '{target}' tidak ditemukan di layar")))
             }
         }
         "click_at" => {
@@ -176,11 +176,87 @@ pub fn focus_window(target: &str) -> bool {
         if target.is_empty() {
             return false;
         }
+
+        let sway_target = target.trim();
+        // 1. Coba Sway IPC (swaymsg) jika berada di lingkungan Sway Wayland
+        if let Some(id_str) = sway_target.strip_prefix("sway:") {
+            if std::process::Command::new("swaymsg")
+                .args([&format!("[con_id=\"{}\"] focus", id_str)])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+            {
+                return true;
+            }
+        }
+
+        let sway_crit = format!("[app_id=\"(?i).*{sway_target}.*\"] focus");
+        if std::process::Command::new("swaymsg")
+            .arg(&sway_crit)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+        {
+            return true;
+        }
+
+        let sway_title_crit = format!("[title=\"(?i).*{sway_target}.*\"] focus");
+        if std::process::Command::new("swaymsg")
+            .arg(&sway_title_crit)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+        {
+            return true;
+        }
+
+        let sway_class_crit = format!("[class=\"(?i).*{sway_target}.*\"] focus");
+        if std::process::Command::new("swaymsg")
+            .arg(&sway_class_crit)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+        {
+            return true;
+        }
+
+        // 2. Coba Hyprland IPC (hyprctl) jika berada di lingkungan Hyprland
+        if std::process::Command::new("hyprctl")
+            .args(["dispatch", "focuswindow", sway_target])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+        {
+            return true;
+        }
+        if std::process::Command::new("hyprctl")
+            .args(["dispatch", "focuswindow", &format!("class:{}", sway_target)])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+        {
+            return true;
+        }
+        if std::process::Command::new("hyprctl")
+            .args(["dispatch", "focuswindow", &format!("title:{}", sway_target)])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+        {
+            return true;
+        }
+
+        // 3. Coba wmctrl (X11 / XWayland)
         if std::process::Command::new("wmctrl").args(["-a", target]).status().map(|s| s.success()).unwrap_or(false) {
             return true;
         }
-        let _ = std::process::Command::new("xdotool").args(["search", "--name", target, "windowactivate"]).status();
-        true
+
+        // 4. Coba xdotool (X11 / XWayland)
+        if std::process::Command::new("xdotool").args(["search", "--name", target, "windowactivate"]).status().map(|s| s.success()).unwrap_or(false) {
+            return true;
+        }
+
+        false
     }
 
     #[cfg(target_os = "macos")]
@@ -199,6 +275,7 @@ pub fn focus_window(target: &str) -> bool {
 }
 
 pub fn minimize_window(target: &str) -> bool {
+    let _ = target;
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_MINIMIZE, GetForegroundWindow};
@@ -236,6 +313,7 @@ pub fn minimize_window(target: &str) -> bool {
 }
 
 pub fn maximize_window(target: &str) -> bool {
+    let _ = target;
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_MAXIMIZE, GetForegroundWindow};
@@ -256,6 +334,17 @@ pub fn maximize_window(target: &str) -> bool {
 
     #[cfg(target_os = "linux")]
     {
+        // 1. Coba Sway fullscreen toggle (Sway wayland)
+        if std::process::Command::new("swaymsg").args(["fullscreen", "toggle"]).status().map(|s| s.success()).unwrap_or(false) {
+            return true;
+        }
+
+        // 2. Coba Hyprland fullscreen toggle
+        if std::process::Command::new("hyprctl").args(["dispatch", "fullscreen", "1"]).status().map(|s| s.success()).unwrap_or(false) {
+            return true;
+        }
+
+        // 3. Coba wmctrl (X11)
         let _ = std::process::Command::new("wmctrl").args(["-r", ":ACTIVE:", "-b", "toggle,maximized_vert,maximized_horz"]).status();
         true
     }
@@ -295,8 +384,22 @@ pub fn close_window(target: &str) -> bool {
     #[cfg(target_os = "linux")]
     {
         if !target.is_empty() {
+            let sway_target = target.trim();
+            if let Some(id_str) = sway_target.strip_prefix("sway:") {
+                let _ = std::process::Command::new("swaymsg")
+                    .args([&format!("[con_id=\"{}\"] kill", id_str)])
+                    .status();
+            } else {
+                let _ = std::process::Command::new("swaymsg")
+                    .args([&format!("[app_id=\"(?i).*{sway_target}.*\"] kill")])
+                    .status();
+            }
+            // Hyprland close window by class/regex
+            let _ = std::process::Command::new("hyprctl").args(["dispatch", "closewindow", sway_target]).status();
             let _ = std::process::Command::new("wmctrl").args(["-c", target]).status();
         } else {
+            let _ = std::process::Command::new("swaymsg").arg("kill").status();
+            let _ = std::process::Command::new("hyprctl").args(["dispatch", "killactive"]).status();
             let _ = std::process::Command::new("xdotool").args(["getactivewindow", "windowclose"]).status();
         }
         true
@@ -472,15 +575,40 @@ pub fn click_at_coordinates(x: i32, y: i32) -> bool {
 
     #[cfg(target_os = "linux")]
     {
-        // 1. Coba xdotool (Standar X11 & XWayland)
-        let status = std::process::Command::new("xdotool")
-            .args(["mousemove", &x.to_string(), &y.to_string(), "click", "1"])
+        // 1. Jika di Sway Wayland: set koordinat cursor via swaymsg seat
+        let _ = std::process::Command::new("swaymsg")
+            .args(["seat", "*", "cursor", "set", &x.to_string(), &y.to_string()])
             .status();
-        if status.map(|s| s.success()).unwrap_or(false) {
+
+        // 2. Jika di Hyprland: set cursor via hyprctl movecursor
+        let _ = std::process::Command::new("hyprctl")
+            .args(["dispatch", "movecursor", &x.to_string(), &y.to_string()])
+            .status();
+
+        // 3. Eksekusi klik via wlrctl (standar Wayland wlroots / Sway / Hyprland)
+        let wlr_click = std::process::Command::new("wlrctl")
+            .args(["pointer", "click", "left"])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if wlr_click {
             return true;
         }
 
-        // 2. Fallback: ydotool (Native Wayland via uinput daemon)
+        // 4. Fallback klik via swaymsg seat cursor press/release
+        let sway_press = std::process::Command::new("swaymsg")
+            .args(["seat", "*", "cursor", "press", "button1"])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if sway_press {
+            let _ = std::process::Command::new("swaymsg")
+                .args(["seat", "*", "cursor", "release", "button1"])
+                .status();
+            return true;
+        }
+
+        // 5. Fallback: ydotool (Wayland uinput daemon - bekerja di GNOME, KDE, Hyprland, Sway)
         let move_ok = std::process::Command::new("ydotool")
             .args(["mousemove", "-a", &x.to_string(), &y.to_string()])
             .status()
@@ -490,6 +618,16 @@ pub fn click_at_coordinates(x: i32, y: i32) -> bool {
             let _ = std::process::Command::new("ydotool").args(["click", "0xC0"]).status();
             return true;
         }
+
+        // 6. Fallback: xdotool (Standar X11 & XWayland)
+        let status = std::process::Command::new("xdotool")
+            .args(["mousemove", &x.to_string(), &y.to_string(), "click", "1"])
+            .status();
+        if status.map(|s| s.success()).unwrap_or(false) {
+            return true;
+        }
+
+        crate::term_err!("❌ [Desktop Click] Gagal simulasi klik mouse di Linux.");
         false
     }
 
@@ -616,6 +754,17 @@ pub fn type_text(text: &str) -> bool {
 
     #[cfg(target_os = "linux")]
     {
+        // 1. Coba wlrctl (Wayland wlroots / Sway)
+        if std::process::Command::new("wlrctl").args(["keyboard", "type", text]).status().map(|s| s.success()).unwrap_or(false) {
+            return true;
+        }
+
+        // 2. Coba ydotool (Wayland uinput)
+        if std::process::Command::new("ydotool").args(["type", text]).status().map(|s| s.success()).unwrap_or(false) {
+            return true;
+        }
+
+        // 3. Coba xdotool (X11)
         let status = std::process::Command::new("xdotool")
             .args(["type", "--delay", "20", text])
             .status();

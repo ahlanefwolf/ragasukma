@@ -8,9 +8,10 @@ import {
   Wand2,
   ChevronDown,
   ChevronUp,
-  Palette,
   Puzzle,
-  Layers
+  Layers,
+  ScanEye,
+  AppWindow
 } from 'lucide-solid';
 
 interface CapabilityItem {
@@ -19,6 +20,7 @@ interface CapabilityItem {
   title: string;
   category: string;
   description: string;
+  linuxDeps?: string;
   examples: string[];
   badgeColor: string;
 }
@@ -34,6 +36,35 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
 
   const capabilities: CapabilityItem[] = [
     {
+      id: 'vision',
+      icon: ScanEye,
+      title: 'Pindai Layar & OCR Visual (PP-OCR + OmniParser)',
+      category: 'desktop',
+      description: 'Menganalisis tampilan layar menggunakan model ONNX PP-OCRv4 dan OmniParser untuk mendeteksi seluruh teks, label, dan ikon tombol secara presisi.',
+      examples: [
+        '"Pindai layar" / "Scan visual"',
+        '"Ada tombol apa aja di layar?"',
+        '"Lihat apakah ada tombol Pengaturan"',
+        '"Pindai dan klik tombol Search"'
+      ],
+      badgeColor: 'text-theme-cyan bg-theme-cyan/15 border-theme-cyan/30'
+    },
+    {
+      id: 'desktop_window',
+      icon: AppWindow,
+      title: 'Kontrol Jendela & Interaksi Desktop (Linux / Windows / macOS)',
+      category: 'desktop',
+      description: 'Beralih fokus jendela aplikasi, klik tombol/tulisan di desktop, minimize, maksimalkan, atau tutup jendela langsung via IPC native.',
+      linuxDeps: 'wlrctl (Sway/Wayland) • ydotool (GNOME/KDE) • wmctrl/xdotool (X11)',
+      examples: [
+        '"Pindah ke window Zed" / "Fokus Google Chrome"',
+        '"Klik tulisan active_window_app.json"',
+        '"Klik tombol Pengaturan di desktop"',
+        '"Tutup jendela" / "Maksimalkan jendela"'
+      ],
+      badgeColor: 'text-[#29483A] bg-[#29483A]/15 border-[#29483A]/30'
+    },
+    {
       id: 'browser',
       icon: Globe,
       title: 'Navigasi Browser & Multi-Tab (Chromium)',
@@ -41,7 +72,7 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
       description: 'Membuka website, berpindah antar tab yang sedang aktif, dan mencari kata kunci langsung di browser Chromium / Chrome.',
       examples: [
         '"Buka tab YouTube" / "Buka Tokopedia"',
-        '"Pindah ke tab YouTube" / "Tutup tab Google"',
+        '"Pindah ke tab 9Router" / "Tutup tab Google"',
         '"Cari video tutorial Rust di YouTube"'
       ],
       badgeColor: 'text-theme-cyan bg-theme-cyan/15 border-theme-cyan/30'
@@ -51,9 +82,9 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
       icon: MousePointerClick,
       title: 'Interaksi Web (Live Click & Type)',
       category: 'web',
-      description: 'Mengklik tulisan/link yang tampil di layar, menekan tombol website, mengetik form, dan scroll halaman via ekstensi (.crx).',
+      description: 'Mengklik tulisan/link yang tampil di browser, menekan tombol website, mengetik form, dan scroll halaman via ekstensi (.zip).',
       examples: [
-        '"Klik tulisan Highlights" / "Klik judul video"',
+        '"Klik tulisan Sign In" / "Klik judul video"',
         '"Klik tombol Skip" / "Klik Beli Sekarang"',
         '"Ketik berita teknologi lalu tekan enter"',
         '"Scroll ke bawah"'
@@ -65,7 +96,7 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
       icon: Music,
       title: 'Pemutar Musik & Audio Background',
       category: 'media',
-      description: 'Memutar musik offline atau mengunduh otomatis dari YouTube di background worker tanpa freeze.',
+      description: 'Memutar musik lokal atau mengunduh otomatis dari YouTube di background worker tanpa freeze.',
       examples: [
         '"Putar lagu Denny Caknan Sugeng Dalu"',
         '"Jeda musik" / "Lanjutkan musik"',
@@ -99,19 +130,6 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
         '"Tugas meeting jam 9 sudah selesai"'
       ],
       badgeColor: 'text-[#634936] bg-[#634936]/15 border-[#634936]/30'
-    },
-    {
-      id: 'canvas',
-      icon: Palette,
-      title: 'Whiteboard 2D & Diagram Visual',
-      category: 'canvas',
-      description: 'Menginstruksikan AI untuk menggambar flowchart, mindmap, atau diagram visual secara interaktif di kanvas whiteboard.',
-      examples: [
-        '"Gambarkan flowchart alur login"',
-        '"Buat diagram arsitektur sistem"',
-        '"Gambarkan mindmap rencana proyek"'
-      ],
-      badgeColor: 'text-[#B08A4A] bg-[#B08A4A]/15 border-[#B08A4A]/30'
     }
   ];
 
@@ -157,10 +175,10 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
             type="button"
             onClick={() => props.onOpenExtensionModal?.()}
             class="px-3 py-1.5 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-            title="Buka Petunjuk Pasang Ekstensi Browser (.CRX)"
+            title="Buka Petunjuk Pasang Ekstensi Browser (.ZIP)"
           >
             <Puzzle size={14} class="text-[#B08A4A]" />
-            <span>Pasang Ekstensi (.CRX)</span>
+            <span>Pasang Ekstensi (.ZIP)</span>
           </button>
 
           <button
@@ -186,6 +204,16 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
               }`}
             >
               Semua ({capabilities.length})
+            </button>
+            <button
+              onClick={() => setSelectedCategory('desktop')}
+              class={`px-3.5 py-1.5 border transition-all shrink-0 ${
+                selectedCategory() === 'desktop'
+                  ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold shadow-sm'
+                  : 'bg-theme-card border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/40'
+              }`}
+            >
+              Desktop & Layar
             </button>
             <button
               onClick={() => setSelectedCategory('web')}
@@ -227,16 +255,6 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
             >
               To-Do & Catatan
             </button>
-            <button
-              onClick={() => setSelectedCategory('canvas')}
-              class={`px-3.5 py-1.5 border transition-all shrink-0 ${
-                selectedCategory() === 'canvas'
-                  ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold shadow-sm'
-                  : 'bg-theme-card border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/40'
-              }`}
-            >
-              Whiteboard 2D
-            </button>
           </div>
 
           {/* Capabilities Grid */}
@@ -255,10 +273,16 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
                           <h4 class="text-sm font-bold text-theme-text">
                             {cap.title}
                           </h4>
+                          {cap.linuxDeps && (
+                            <span class="text-[10px] font-mono text-theme-cyan font-semibold mt-0.5 flex items-center gap-1">
+                              <Terminal size={11} />
+                              Linux: {cap.linuxDeps}
+                            </span>
+                          )}
                           {cap.category === 'web' && (
                             <span class="text-[10px] font-mono text-[#876447] font-semibold mt-0.5 flex items-center gap-1">
                               <Puzzle size={11} class="text-[#B08A4A]" />
-                              Perlu Ekstensi (.crx)
+                              Perlu Ekstensi (.zip)
                             </span>
                           )}
                         </div>
@@ -291,7 +315,7 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
                         class="w-full mt-2.5 py-2 px-3 bg-theme-card hover:bg-[#876447] hover:text-[#FAF7F2] text-[#876447] hover:border-[#876447] border border-[#B08A4A]/40 flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-sm cursor-pointer"
                       >
                         <Puzzle size={14} class="text-[#B08A4A]" />
-                        <span>Cara Pasang File Ekstensi (.CRX)</span>
+                        <span>Cara Pasang File Ekstensi (.ZIP)</span>
                       </button>
                     )}
 

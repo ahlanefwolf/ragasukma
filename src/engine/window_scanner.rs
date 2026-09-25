@@ -410,10 +410,10 @@ async fn scan_active_window_linux() -> Result<ActiveWindowSnapshot, String> {
                                         });
                                         element_id_counter += 1;
                                     }
-                                    Role::Label | Role::Static | Role::Heading => {
-                                        if !snapshot.texts.contains(&name) {
-                                            snapshot.texts.push(name.clone());
-                                        }
+                                    Role::Label | Role::Static | Role::Heading
+                                        if !snapshot.texts.contains(&name) =>
+                                    {
+                                        snapshot.texts.push(name.clone());
                                     }
                                     _ => {}
                                 }

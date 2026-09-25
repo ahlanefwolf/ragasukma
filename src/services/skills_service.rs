@@ -15,13 +15,13 @@ pub fn handle_get_apps(stream: &mut TcpStream) {
 
 pub fn handle_get_extension_path(stream: &mut TcpStream) {
     let assets_dir = crate::assets::get_assets_dir();
-    let crx_file = crate::assets::find_file_in_candidates("ragasukma-companion.crx");
-    let crx_str = crx_file.to_string_lossy().to_string();
+    let zip_file = crate::assets::find_file_in_candidates("ragasukma-companion.zip");
+    let zip_str = zip_file.to_string_lossy().to_string();
     let assets_str = assets_dir.to_string_lossy().to_string();
 
     let json = serde_json::json!({
         "folder": assets_str,
-        "crx": crx_str
+        "zip": zip_str
     });
     send_json_response(stream, 200, &json.to_string());
 }

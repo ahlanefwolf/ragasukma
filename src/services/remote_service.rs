@@ -20,9 +20,10 @@ pub fn handle_tunnel_status(stream: &mut TcpStream) {
 pub fn handle_tunnel_start(stream: &mut TcpStream) {
     match start_cloudflared_tunnel(42128) {
         Ok((url, auth_key)) => {
+            let status = if url.is_empty() { "starting" } else { "running" };
             let resp = json!({
-                "status": "running",
-                "url": url,
+                "status": status,
+                "url": if url.is_empty() { None } else { Some(url) },
                 "auth_key": auth_key
             })
             .to_string();

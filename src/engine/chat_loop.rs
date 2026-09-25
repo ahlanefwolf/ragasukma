@@ -389,9 +389,36 @@ impl AppSession {
                             // Two-Step Agentic Loop: Jika aksi investigasi / fokus berhasil,
                             // kumpulkan observasi tombol/elemen dari jendela yang baru aktif untuk dieksekusi pada Step 2!
                             let id_lower = id.to_lowercase();
-                            if id_lower.starts_with("desktop:focus")
+                            if id_lower.starts_with("desktop:scan_visual")
+                                || id_lower.starts_with("vision:scan")
+                                || id_lower.starts_with("desktop:ocr")
+                            {
+                                if let Ok(snap) = crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file() {
+                                    let btns: Vec<String> = snap
+                                        .buttons
+                                        .iter()
+                                        .take(35)
+                                        .map(|b| {
+                                            if let Some(c) = b.center {
+                                                format!("#{}: \"{}\" [center: {},{}]", b.id, b.label, c[0], c[1])
+                                            } else {
+                                                format!("#{}: \"{}\"", b.id, b.label)
+                                            }
+                                        })
+                                        .collect();
+                                    let texts: Vec<String> = snap.texts.iter().take(25).cloned().collect();
+                                    follow_up_prompt = Some(format!(
+                                        "[OBSERVASI SISTEM: Hasil pindai visual layar: {} tombol/ikon terdeteksi: [{}]. Teks di layar: [{}]. Lanjutkan perintah pengguna: '{}']",
+                                        snap.buttons.len(),
+                                        btns.join(", "),
+                                        texts.join(", "),
+                                        effective_input
+                                    ));
+                                }
+                            } else if id_lower.starts_with("desktop:focus")
                                 || id_lower.starts_with("app:open")
-                                || id_lower.starts_with("desktop:scan")
+                                || id_lower == "desktop:scan"
+                                || id_lower.starts_with("desktop:scan|")
                             {
                                 std::thread::sleep(std::time::Duration::from_millis(350));
                                 if let Ok(snap) = crate::engine::window_scanner::scan_active_window_sync() {
@@ -416,27 +443,6 @@ impl AppSession {
                                     follow_up_prompt = Some(format!(
                                         "[OBSERVASI SISTEM: Jendela '{}' ({}) sekarang aktif di depan. Tombol tersedia: {}. Lanjutkan perintah pengguna: '{}']",
                                         snap.app_name, snap.window_title, btn_str, effective_input
-                                    ));
-                                }
-                            } else if id_lower.starts_with("desktop:scan_visual") {
-                                if let Ok(snap) = crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file() {
-                                    let btns: Vec<String> = snap
-                                        .buttons
-                                        .iter()
-                                        .take(35)
-                                        .map(|b| {
-                                            if let Some(c) = b.center {
-                                                format!("#{}: \"{}\" [{},{}]", b.id, b.label, c[0], c[1])
-                                            } else {
-                                                format!("#{}: \"{}\"", b.id, b.label)
-                                            }
-                                        })
-                                        .collect();
-                                    follow_up_prompt = Some(format!(
-                                        "[OBSERVASI SISTEM: Hasil pindai visual layar: {} tombol terdeteksi: {}. Lanjutkan perintah pengguna: '{}']",
-                                        snap.buttons.len(),
-                                        btns.join(", "),
-                                        effective_input
                                     ));
                                 }
                             } else if id_lower.starts_with("browser:open")

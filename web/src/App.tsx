@@ -1,7 +1,7 @@
 import { Component, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { Sidebar } from './components/Sidebar';
 import { MenuTab } from './components/MenuTab';
-import { CanvasTab } from './components/canvas';
+
 import { SkillsTab } from './components/SkillsTab';
 import { MusicTab } from './components/MusicTab';
 import { TunerTab } from './components/TunerTab';
@@ -24,10 +24,7 @@ const TAB_HASH_ALIASES: Record<string, string> = {
   '': 'menu',
   '#': 'menu',
   '#menu': 'menu',
-  '#canvas': 'canvas',
-  '#2d': 'canvas',
-  '#whiteboard': 'canvas',
-  '#draw': 'canvas',
+
   '#skills': 'skills',
   '#music': 'music',
   '#tuner': 'tuner',
@@ -294,9 +291,7 @@ export const App: Component = () => {
                     onNavigateTab={handleTabChange}
                   />
                 </Show>
-                <Show when={activeTab() === 'canvas'}>
-                  <CanvasTab showToast={showToast} />
-                </Show>
+
                 <Show when={activeTab() === 'skills'}>
                   <SkillsTab showToast={showToast} />
                 </Show>

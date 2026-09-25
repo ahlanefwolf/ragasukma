@@ -46,6 +46,7 @@ assets/music/
 *.log
 nohup.out
 *.tmp
+*.pem
 ai_voice_cmd.json
 ai_voice_state.json
 overlay_pos.json

@@ -29,7 +29,6 @@ export const Sidebar: Component<SidebarProps> = (props) => {
 
   const menuItems = () => [
     { id: 'menu', label: 'Main Menu', icon: MenuIcon },
-    { id: 'canvas', label: '2D Whiteboard', icon: Palette },
     { id: 'skills', label: 'Skill Custom', icon: Zap },
     { id: 'music', label: 'Music Player', icon: Music },
     { id: 'tuner', label: 'Pose Tuner', icon: Sliders },

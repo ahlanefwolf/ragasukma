@@ -67,12 +67,12 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
         pollTimer = null;
         setLoading(false);
         props.showToast('Cloudflared tunnel berhasil aktif!');
-      } else if (attempts > 20 || st.status === 'stopped') {
+      } else if (attempts > 40 || st.status === 'stopped') {
         clearInterval(pollTimer);
         pollTimer = null;
         setLoading(false);
         if (!st.url) {
-          props.showToast('Tunnel berjalan di background, cek log console.');
+          props.showToast(st.status === 'stopped' ? 'Cloudflared berhenti atau gagal terkoneksi.' : 'Tunnel berjalan di background, cek log console.');
         }
       }
     }, 1000);

@@ -258,9 +258,9 @@ pub fn get_coordinate_scale_divisor() -> f32 {
         let mut inputs = Vec::new();
 
         for el in &visual_elements {
-            if el.role == "button" || el.role == "icon" {
-                buttons.push(el.clone());
-            } else if el.role == "input" {
+            // Semua elemen visual (tombol, ikon, dan teks terdeteksi) dapat diinteraksikan/diklik
+            buttons.push(el.clone());
+            if el.role == "input" {
                 inputs.push(el.clone());
             }
         }
@@ -631,24 +631,89 @@ fn is_button_like_text(text: &str) -> bool {
     false
 }
 
-/// Capture screenshot of the primary display or target window
-pub fn capture_screen_image() -> Result<DynamicImage, String> {
-    let monitors = Monitor::all().map_err(|e| format!("Failed to list monitors: {e}"))?;
-    if monitors.is_empty() {
-        return Err("No monitor found".to_string());
+#[cfg(target_os = "linux")]
+fn capture_screen_image_linux_fallback() -> Result<DynamicImage, String> {
+    // 1. Coba grim (standar emas Wayland: Sway, Hyprland, wlroots)
+    if let Ok(output) = std::process::Command::new("grim").arg("-").output() {
+        if output.status.success() && !output.stdout.is_empty() {
+            if let Ok(img) = image::load_from_memory(&output.stdout) {
+                return Ok(img);
+            }
+        }
     }
 
-    let primary = monitors.into_iter().find(|m| m.is_primary()).unwrap_or_else(|| {
-        Monitor::all().unwrap().remove(0)
-    });
+    // 2. Coba wayshot (Wayland alternatif)
+    if let Ok(output) = std::process::Command::new("wayshot").args(["--stdout"]).output() {
+        if output.status.success() && !output.stdout.is_empty() {
+            if let Ok(img) = image::load_from_memory(&output.stdout) {
+                return Ok(img);
+            }
+        }
+    }
 
-    let _scale: f32 = primary.scale_factor();
+    // 3. Coba maim (X11 modern)
+    if let Ok(output) = std::process::Command::new("maim").output() {
+        if output.status.success() && !output.stdout.is_empty() {
+            if let Ok(img) = image::load_from_memory(&output.stdout) {
+                return Ok(img);
+            }
+        }
+    }
 
-    let frame = primary.capture_image().map_err(|e| format!("Monitor capture error: {e}"))?;
-    let img_buf = RgbaImage::from_raw(frame.width(), frame.height(), frame.into_raw())
-        .ok_or_else(|| "Failed to construct ImageBuffer from frame".to_string())?;
+    // 4. Coba scrot (X11 standar)
+    if let Ok(output) = std::process::Command::new("scrot").args(["-z", "-o", "-"]).output() {
+        if output.status.success() && !output.stdout.is_empty() {
+            if let Ok(img) = image::load_from_memory(&output.stdout) {
+                return Ok(img);
+            }
+        }
+    }
 
-    Ok(DynamicImage::ImageRgba8(img_buf))
+    // 5. Coba ImageMagick import
+    if let Ok(output) = std::process::Command::new("import").args(["-window", "root", "png:-"]).output() {
+        if output.status.success() && !output.stdout.is_empty() {
+            if let Ok(img) = image::load_from_memory(&output.stdout) {
+                return Ok(img);
+            }
+        }
+    }
+
+    Err("Tidak dapat mengambil screenshot di Linux: xcap gagal dan tool fallback (grim/wayshot/maim/scrot/import) tidak berhasil.".to_string())
+}
+
+/// Capture screenshot of the primary display or target window
+pub fn capture_screen_image() -> Result<DynamicImage, String> {
+    let xcap_res = (|| -> Result<DynamicImage, String> {
+        let monitors = Monitor::all().map_err(|e| format!("Failed to list monitors: {e}"))?;
+        if monitors.is_empty() {
+            return Err("No monitor found".to_string());
+        }
+
+        let primary = monitors.into_iter().find(|m| m.is_primary()).unwrap_or_else(|| {
+            Monitor::all().unwrap().remove(0)
+        });
+
+        let frame = primary.capture_image().map_err(|e| format!("Monitor capture error: {e}"))?;
+        let img_buf = RgbaImage::from_raw(frame.width(), frame.height(), frame.into_raw())
+            .ok_or_else(|| "Failed to construct ImageBuffer from frame".to_string())?;
+
+        Ok(DynamicImage::ImageRgba8(img_buf))
+    })();
+
+    match xcap_res {
+        Ok(img) => Ok(img),
+        Err(err) => {
+            #[cfg(target_os = "linux")]
+            {
+                crate::term_log!("⚠️ [Perception] xcap gagal ({}). Menggunakan Linux capture fallback...", err);
+                capture_screen_image_linux_fallback()
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                Err(err)
+            }
+        }
+    }
 }
 
 /// Capture specific active window image
@@ -812,7 +877,15 @@ pub fn apply_perception_to_snapshot(res: &PerceptionResult) {
         snap.source = "vision_perception".to_string();
         snap.timestamp = crate::engine::window_scanner::current_epoch_ms();
 
-        if !res.buttons.is_empty() {
+        if !res.elements.is_empty() {
+            snap.buttons = res.elements.iter().map(|b| crate::engine::window_scanner::DesktopElement {
+                id: b.id,
+                label: b.label.clone(),
+                role: b.role.clone(),
+                center: Some(b.center),
+                bbox: Some(b.bbox),
+            }).collect();
+        } else if !res.buttons.is_empty() {
             snap.buttons = res.buttons.iter().map(|b| crate::engine::window_scanner::DesktopElement {
                 id: b.id,
                 label: b.label.clone(),

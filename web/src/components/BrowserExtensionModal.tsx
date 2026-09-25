@@ -9,25 +9,25 @@ interface BrowserExtensionModalProps {
 }
 
 export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (props) => {
-  const [copiedType, setCopiedType] = createSignal<'crx' | null>(null);
-  const [crxPath, setCrxPath] = createSignal<string>('assets/ragasukma-companion.crx');
+  const [copiedType, setCopiedType] = createSignal<'zip' | null>(null);
+  const [zipPath, setZipPath] = createSignal<string>('assets/ragasukma-companion.zip');
 
   createEffect(() => {
     if (props.isOpen) {
       api.getExtensionPath().then((data) => {
-        if (data?.crx) {
-          setCrxPath(data.crx);
+        if (data?.zip) {
+          setZipPath(data.zip);
         } else if (data?.folder) {
-          setCrxPath(`${data.folder}/ragasukma-companion.crx`);
+          setZipPath(`${data.folder}/ragasukma-companion.zip`);
         }
       });
     }
   });
 
-  const copyCrx = () => {
-    navigator.clipboard.writeText(crxPath());
-    setCopiedType('crx');
-    props.showToast('📁 Path file ragasukma-companion.crx disalin!');
+  const copyZip = () => {
+    navigator.clipboard.writeText(zipPath());
+    setCopiedType('zip');
+    props.showToast('📁 Path file ragasukma-companion.zip disalin!');
     setTimeout(() => setCopiedType(null), 2500);
   };
 
@@ -59,13 +59,13 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
               </div>
               <div>
                 <h3 class="text-base sm:text-lg font-bold text-theme-text flex items-center gap-2 m-0 leading-tight">
-                  Pasang Ekstensi Browser (.CRX)
+                  Pasang Ekstensi Browser (.ZIP)
                   <span class="text-[10px] font-mono font-bold px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan">
-                    Single File Packaged
+                    Cross-Platform
                   </span>
                 </h3>
                 <p class="text-xs text-theme-text/70 mt-0.5">
-                  Ekstensi paket Chromium untuk kontrol penuh tab, YouTube & musik
+                  Ekstensi paket Chromium untuk kontrol penuh tab, YouTube & musik (Windows & Linux)
                 </p>
               </div>
             </div>
@@ -80,29 +80,29 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
 
           {/* Modal Body */}
           <div class="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs select-text">
-            {/* File .CRX Banner */}
+            {/* File .ZIP Banner */}
             <div class="p-4 bg-theme-card border border-theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
               <div class="space-y-1">
                 <div class="font-bold text-theme-text flex items-center gap-2">
                   <Puzzle size={16} class="text-theme-cyan" />
-                  <span class="text-xs uppercase tracking-wider font-mono">File Paket Ekstensi (.CRX):</span>
+                  <span class="text-xs uppercase tracking-wider font-mono">File Paket Ekstensi (.ZIP):</span>
                 </div>
                 <code class="text-[11px] font-mono text-theme-cyan block select-all bg-theme-bg px-2.5 py-1.5 border border-theme-border font-medium">
-                  {crxPath()}
+                  {zipPath()}
                 </code>
               </div>
 
               <div class="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={copyCrx}
+                  onClick={copyZip}
                   class="px-3.5 py-2 bg-theme-bg hover:bg-theme-surface border border-theme-border text-theme-text font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
-                  title="Salin path file .crx"
+                  title="Salin path file .zip"
                 >
-                  <Show when={copiedType() === 'crx'} fallback={<Check size={14} class="opacity-40" />}>
+                  <Show when={copiedType() === 'zip'} fallback={<Check size={14} class="opacity-40" />}>
                     <Check size={14} class="text-theme-cyan" />
                   </Show>
-                  <span>{copiedType() === 'crx' ? 'Disalin!' : 'Salin Path CRX'}</span>
+                  <span>{copiedType() === 'zip' ? 'Disalin!' : 'Salin Path ZIP'}</span>
                 </button>
 
                 <button
@@ -132,14 +132,14 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
                     <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-[#29483A] font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
                       1
                     </span>
-                    <span>Buka tab baru dan ketik alamat <code class="px-1.5 py-0.5 bg-theme-card border border-theme-border font-mono text-xs font-bold text-theme-cyan">chrome://extensions</code> di browser Chromium.</span>
+                    <span>Ekstrak file <code class="px-1.5 py-0.5 bg-theme-card border border-theme-border font-mono text-xs font-bold text-theme-cyan">ragasukma-companion.zip</code> ke folder pilihan kamu (misal folder <code>extension</code>).</span>
                   </div>
 
                   <div class="flex items-start gap-2.5">
                     <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-[#29483A] font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
                       2
                     </span>
-                    <span>Aktifkan toggle <strong>Developer mode</strong> di pojok kanan atas jendela browser.</span>
+                    <span>Buka tab baru dan ketik alamat <code class="px-1.5 py-0.5 bg-theme-card border border-theme-border font-mono text-xs font-bold text-theme-cyan">chrome://extensions</code> di browser Chromium, lalu aktifkan toggle <strong>Developer mode</strong> di pojok kanan atas.</span>
                   </div>
 
                   <div class="flex items-start gap-2.5">
@@ -147,10 +147,7 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
                       3
                     </span>
                     <div>
-                      <span><strong>Drag & Drop</strong> (seret dan lepas) file <code class="px-1 py-0.5 bg-theme-card border border-theme-border font-mono text-[11px] text-theme-cyan">ragasukma-companion.crx</code> langsung ke halaman extension browser, lalu klik <strong>Add extension</strong>.</span>
-                      <p class="text-[11px] text-theme-text/60 mt-1 italic">
-                        *Jika muncul label "Chrome can't verify where this extension comes from", ini 100% normal untuk file CRX lokal dan ekstensi tetap aktif berjalan (status On).
-                      </p>
+                      <span>Klik tombol <strong>Load unpacked</strong> (Muat belum dibongkar) lalu pilih folder hasil ekstrak tadi. Ekstensi langsung aktif dan siap digunakan!</span>
                     </div>
                   </div>
                 </div>

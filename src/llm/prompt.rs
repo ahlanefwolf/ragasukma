@@ -64,6 +64,7 @@ PANDUAN PEMILIHAN AKSI:
    - Pindai visual layar (ONNX OCR & Ikon): `[CMD:desktop:scan_visual]` (Gunakan jika elemen desktop kosong atau butuh membaca teks visual layar!)
    - Kontrol jendela: `[CMD:desktop:minimize]`, `[CMD:desktop:maximize]`, `[CMD:desktop:close]`
    - Klik tombol desktop: `[CMD:desktop:click_button|nama_atau_id_tombol]` (Cocokkan PERSIS dengan label atau ID di Ground of Truth desktop! Misal jika tertulis #15: \"Seven\", gunakan `[CMD:desktop:click_button|Seven]` atau `[CMD:desktop:click_button|15]`)
+   - Klik teks/tulisan desktop: `[CMD:desktop:click_text|tulisan_di_layar]` (Cocokkan dengan teks yang ada di Ground of Truth desktop!)
    - Klik koordinat pixel layar: `[CMD:desktop:click_at|x|y]` (misal: `[CMD:desktop:click_at|1829|15]`)
    - Ketik di aplikasi desktop: `[CMD:desktop:type|teks]`
    - Tekan tombol khusus desktop: `[CMD:desktop:key|enter]`, `[CMD:desktop:key|tab]`, `[CMD:desktop:key|esc]`
@@ -107,17 +108,38 @@ pub fn load_todo_summary() -> String {
     String::new()
 }
 
-fn extract_search_keywords(query: Option<&str>) -> Vec<&str> {
+fn extract_search_keywords(query: Option<&str>) -> Vec<String> {
     if let Some(q) = query {
         let stop_words = [
-            "buka", "bukakan", "tolong", "coba", "klik", "pencet", "tekan", "cari", "search",
+            "buka", "bukakan", "tolong", "coba", "klik", "pencet", "tekan",
             "video", "tulisan", "teks", "dong", "ya", "sih", "lah", "nya", "ke", "di", "dan",
             "yang", "ini", "itu", "pada", "tab", "web", "browser", "halaman", "situs",
         ];
-        q.split_whitespace()
-            .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()))
-            .filter(|w| w.len() >= 2 && !stop_words.contains(&w.to_lowercase().as_str()))
-            .collect()
+        let mut results = Vec::new();
+        let mut seen = HashSet::new();
+
+        for raw_w in q.split_whitespace() {
+            let clean = raw_w.trim_matches(|c: char| !c.is_alphanumeric());
+            if clean.len() >= 2 && !stop_words.contains(&clean.to_lowercase().as_str()) {
+                let clean_lower = clean.to_lowercase();
+                if seen.insert(clean_lower.clone()) {
+                    results.push(clean_lower);
+                }
+            }
+
+            // Pecah juga sub-token pemisah seperti underscore, dash, atau dot (misal: active_window_app.json)
+            for sub in raw_w.split(['_', '-', '.', '/']) {
+                let clean_sub = sub.trim_matches(|c: char| !c.is_alphanumeric());
+                if clean_sub.len() >= 2 && !stop_words.contains(&clean_sub.to_lowercase().as_str()) {
+                    let sub_lower = clean_sub.to_lowercase();
+                    if seen.insert(sub_lower.clone()) {
+                        results.push(sub_lower);
+                    }
+                }
+            }
+        }
+
+        results
     } else {
         Vec::new()
     }
@@ -181,7 +203,7 @@ pub fn load_active_browser_summary_indexed(query: Option<&str>) -> String {
                     }
                     let txt_lower = txt.to_lowercase();
                     let mut score = 0;
-                    for &kw in &keywords {
+                    for kw in &keywords {
                         let kw_lower = kw.to_lowercase();
                         if txt_lower == kw_lower {
                             score += 15;
@@ -241,7 +263,7 @@ pub fn load_active_browser_summary_indexed(query: Option<&str>) -> String {
                     .map(|t| {
                         let t_lower = t.to_lowercase();
                         let mut score = 0;
-                        for &kw in &keywords {
+                        for kw in &keywords {
                             let kw_lower = kw.to_lowercase();
                             if t_lower == kw_lower {
                                 score += 20;
@@ -313,6 +335,7 @@ pub fn load_active_window_summary_indexed(query: Option<&str>) -> String {
 
         let keywords = extract_search_keywords(query);
 
+        // 4. Scoring & Filtering Tombol / Elemen Desktop (Fuzzy Relevance)
         if !snapshot.buttons.is_empty() {
             let btns: Vec<String> = if !keywords.is_empty() {
                 let mut scored_btns: Vec<(&crate::engine::window_scanner::DesktopElement, usize)> = snapshot
@@ -321,14 +344,14 @@ pub fn load_active_window_summary_indexed(query: Option<&str>) -> String {
                     .map(|b| {
                         let lbl_lower = b.label.to_lowercase();
                         let mut score = 0;
-                        for &kw in &keywords {
+                        for kw in &keywords {
                             let kw_lower = kw.to_lowercase();
                             if lbl_lower == kw_lower {
-                                score += 20;
+                                score += 30;
                             } else if lbl_lower.starts_with(&kw_lower) {
-                                score += 10;
+                                score += 15;
                             } else if lbl_lower.contains(&kw_lower) {
-                                score += 5;
+                                score += 8;
                             }
                         }
                         (b, score)
@@ -339,7 +362,7 @@ pub fn load_active_window_summary_indexed(query: Option<&str>) -> String {
                 let matches: Vec<String> = scored_btns
                     .into_iter()
                     .filter(|(_, s)| *s > 0)
-                    .take(15)
+                    .take(20)
                     .map(|(b, _)| {
                         if let Some(c) = b.center {
                             format!("#{}: \"{}\" [center: {},{}]", b.id, b.label, c[0], c[1])
@@ -352,7 +375,7 @@ pub fn load_active_window_summary_indexed(query: Option<&str>) -> String {
                 if !matches.is_empty() {
                     matches
                 } else {
-                    snapshot.buttons.iter().take(20).map(|b| {
+                    snapshot.buttons.iter().take(30).map(|b| {
                         if let Some(c) = b.center {
                             format!("#{}: \"{}\" [center: {},{}]", b.id, b.label, c[0], c[1])
                         } else {
@@ -361,7 +384,7 @@ pub fn load_active_window_summary_indexed(query: Option<&str>) -> String {
                     }).collect()
                 }
             } else {
-                snapshot.buttons.iter().take(25).map(|b| {
+                snapshot.buttons.iter().take(35).map(|b| {
                     if let Some(c) = b.center {
                         format!("#{}: \"{}\" [center: {},{}]", b.id, b.label, c[0], c[1])
                     } else {
@@ -383,9 +406,47 @@ pub fn load_active_window_summary_indexed(query: Option<&str>) -> String {
             summary.push_str(&format!("* **Kolom Input:** {}\n", inps.join(", ")));
         }
 
+        // 5. Scoring & Filtering Konten Teks di Layar (Relevance-based Text Retrieval)
         if !snapshot.texts.is_empty() {
-            let texts_str: Vec<String> = snapshot.texts.iter().take(10).cloned().collect();
-            summary.push_str(&format!("* **Konten Teks di Layar:** {}\n", texts_str.join(" • ")));
+            let texts_to_show: Vec<String> = if !keywords.is_empty() {
+                let mut scored_texts: Vec<(&String, usize)> = snapshot
+                    .texts
+                    .iter()
+                    .map(|t| {
+                        let t_lower = t.to_lowercase();
+                        let mut score = 0;
+                        for kw in &keywords {
+                            let kw_lower = kw.to_lowercase();
+                            if t_lower == kw_lower {
+                                score += 30;
+                            } else if t_lower.starts_with(&kw_lower) {
+                                score += 15;
+                            } else if t_lower.contains(&kw_lower) {
+                                score += 8;
+                            }
+                        }
+                        (t, score)
+                    })
+                    .collect();
+
+                scored_texts.sort_by_key(|a| std::cmp::Reverse(a.1));
+                let matches: Vec<String> = scored_texts
+                    .into_iter()
+                    .filter(|(_, s)| *s > 0)
+                    .take(25)
+                    .map(|(t, _)| t.clone())
+                    .collect();
+
+                if !matches.is_empty() {
+                    matches
+                } else {
+                    snapshot.texts.iter().take(25).cloned().collect()
+                }
+            } else {
+                snapshot.texts.iter().take(30).cloned().collect()
+            };
+
+            summary.push_str(&format!("* **Konten Teks di Layar:** {}\n", texts_to_show.join(" • ")));
         }
 
         return summary;
@@ -395,102 +456,6 @@ pub fn load_active_window_summary_indexed(query: Option<&str>) -> String {
 
 pub fn load_installed_apps_indexed(query: Option<&str>) -> String {
     crate::engine::app_scanner::format_installed_apps_indexed(query)
-}
-
-/// Struktur keputusan prompt indexing (Intent-based Context Routing)
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PromptIndexDecision {
-    pub inject_music: bool,
-    pub inject_todo: bool,
-    pub inject_apps: bool,
-    pub inject_browser: bool,
-    pub inject_desktop: bool,
-}
-
-/// Router cerdas untuk menentukan pilar Ground of Truth mana yang relevan dengan ucapan pengguna
-pub fn route_prompt_indexes(user_input: Option<&str>) -> PromptIndexDecision {
-    let raw = match user_input {
-        Some(s) if !s.trim().is_empty() => s.trim().to_lowercase(),
-        _ => {
-            // Mode inisialisasi awal (tanpa input user): muat konteks desktop & browser aktif sebagai baseline
-            return PromptIndexDecision {
-                inject_music: false,
-                inject_todo: true,
-                inject_apps: false,
-                inject_browser: true,
-                inject_desktop: true,
-            };
-        }
-    };
-
-    let mut decision = PromptIndexDecision::default();
-
-    // 1. Music Intent Index
-    let music_keywords = [
-        "musik", "lagu", "play", "putar", "putarkan", "setel", "mainkan",
-        "pause", "jeda", "lanjutkan", "resume", "stop", "hentikan",
-        "next", "prev", "audio", "mp3", "sound", "nyanyi",
-    ];
-    if music_keywords.iter().any(|k| raw.contains(k)) {
-        decision.inject_music = true;
-    }
-
-    // 2. To-Do & Task Intent Index
-    let todo_keywords = [
-        "todo", "to-do", "tugas", "catat", "catatan", "agenda", "jadwal",
-        "ingatkan", "remind", "list", "selesai", "tambahkan tugas",
-    ];
-    if todo_keywords.iter().any(|k| raw.contains(k)) {
-        decision.inject_todo = true;
-    }
-
-    // 3. Application Launcher Intent Index
-    let app_keywords = [
-        "buka", "bukakan", "jalankan", "start", "open", "launch", "nyalakan",
-        "tutup", "close", "aplikasi", "program", "app",
-    ];
-    if app_keywords.iter().any(|k| raw.contains(k)) {
-        decision.inject_apps = true;
-    }
-
-    // Periksa status jendela aktif saat ini untuk context-aware routing
-    let (is_browser_active, has_active_window) = if let Ok(snap) =
-        crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file()
-    {
-        let name = snap.app_name.to_lowercase();
-        let is_browser = name.contains("chrome")
-            || name.contains("brave")
-            || name.contains("edge")
-            || name.contains("msedge")
-            || name.contains("firefox")
-            || name.contains("opera");
-        (is_browser, !name.is_empty())
-    } else {
-        (false, false)
-    };
-
-    // 4. Browser Context Intent Index
-    let browser_keywords = [
-        "browser", "web", "tab", "situs", "website", "cari", "search",
-        "youtube", "google", "link", "url", "scroll", "halaman", "klik link",
-    ];
-    if is_browser_active || browser_keywords.iter().any(|k| raw.contains(k)) {
-        decision.inject_browser = true;
-    }
-
-    // 5. Desktop & Window Management Intent Index
-    let desktop_keywords = [
-        "jendela", "window", "desktop", "fokus", "focus", "minimize", "maximize",
-        "pindah", "pindahkan", "beralih", "switch", "tampilkan", "aktifkan",
-        "kalkulator", "calc", "notepad", "layar", "screen", "tombol", "button",
-        "scan", "pindai", "lihat", "klik", "pencet", "tekan", "angka", "ketik",
-        "hitung", "tambah", "kurang", "kali", "bagi", "sama dengan",
-    ];
-    if (!is_browser_active && has_active_window) || desktop_keywords.iter().any(|k| raw.contains(k)) {
-        decision.inject_desktop = true;
-    }
-
-    decision
 }
 
 pub fn build_system_prompt() -> String {
@@ -506,39 +471,12 @@ pub fn build_system_prompt_indexed(user_input: Option<&str>) -> String {
     let is_male =
         gender == "male" || gender == "cowok" || gender == "pria" || gender == "laki-laki";
 
-    // Dynamic Prompt Indexing: hanya muat pilar Ground of Truth yang relevan dengan ucapan user!
-    let route = route_prompt_indexes(user_input);
-
-    let music_prompt = if route.inject_music {
-        load_local_music_summary()
-    } else {
-        String::new()
-    };
-
-    let todo_prompt = if route.inject_todo {
-        load_todo_summary()
-    } else {
-        String::new()
-    };
-
-    let apps_prompt = if route.inject_apps {
-        load_installed_apps_indexed(user_input)
-    } else {
-        String::new()
-    };
-
-    let browser_prompt = if route.inject_browser {
-        load_active_browser_summary_indexed(user_input)
-    } else {
-        String::new()
-    };
-
-    let window_prompt = if route.inject_desktop {
-        load_active_window_summary_indexed(user_input)
-    } else {
-        String::new()
-    };
-
+    // Living State: Selalu hadirkan pemahaman holistik status komputer ke LLM tanpa array kata kunci kaku
+    let music_prompt = load_local_music_summary();
+    let todo_prompt = load_todo_summary();
+    let browser_prompt = load_active_browser_summary_indexed(user_input);
+    let window_prompt = load_active_window_summary_indexed(user_input);
+    let apps_prompt = load_installed_apps_indexed(user_input);
     let skills_prompt = load_skills_summary();
 
     // Persona & Dinamika Karakter

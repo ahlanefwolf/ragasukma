@@ -43,7 +43,17 @@ pub fn get_tunnel_status() -> (String, Option<String>, String) {
     if lock.is_none() {
         *lock = Some(CloudflaredTunnelManager::new());
     }
-    let mgr = lock.as_ref().unwrap();
+    let mgr = lock.as_mut().unwrap();
+
+    // Check if child exited
+    if let Some(ref mut child) = mgr.child {
+        if let Ok(Some(_status)) = child.try_wait() {
+            mgr.child = None;
+            mgr.status = "stopped".to_string();
+            mgr.public_url = None;
+        }
+    }
+
     (mgr.status.clone(), mgr.public_url.clone(), mgr.auth_key.clone())
 }
 
@@ -54,6 +64,33 @@ pub fn is_auth_key_valid(key: &str) -> bool {
     }
     let mgr = lock.as_ref().unwrap();
     mgr.auth_key == key
+}
+
+fn resolve_cloudflared_bin() -> std::path::PathBuf {
+    if let Ok(path_var) = std::env::var("PATH") {
+        for dir in std::env::split_paths(&path_var) {
+            let candidate = dir.join(if cfg!(windows) { "cloudflared.exe" } else { "cloudflared" });
+            if candidate.is_file() {
+                return candidate;
+            }
+        }
+    }
+
+    let candidates = [
+        "/usr/local/bin/cloudflared",
+        "/usr/bin/cloudflared",
+        "/bin/cloudflared",
+        "/opt/homebrew/bin/cloudflared",
+    ];
+
+    for c in &candidates {
+        let p = std::path::PathBuf::from(c);
+        if p.is_file() {
+            return p;
+        }
+    }
+
+    std::path::PathBuf::from(if cfg!(windows) { "cloudflared.exe" } else { "cloudflared" })
 }
 
 pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), String> {
@@ -76,7 +113,8 @@ pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), Str
     mgr.public_url = None;
 
     // Check cloudflared binary
-    let mut cmd = Command::new("cloudflared");
+    let bin_path = resolve_cloudflared_bin();
+    let mut cmd = Command::new(bin_path);
     cmd.args(["tunnel", "--url", &format!("http://127.0.0.1:{}", local_port), "--no-autoupdate"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -115,7 +153,6 @@ pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), Str
                         crate::term_log!("🌐 [Cloudflared Tunnel Ready] {}", found_url);
                     }
                 }
-                break;
             }
         }
     });
@@ -136,7 +173,6 @@ pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), Str
                         crate::term_log!("🌐 [Cloudflared Tunnel Ready] {}", found_url);
                     }
                 }
-                break;
             }
         }
     });
@@ -150,6 +186,7 @@ pub fn stop_cloudflared_tunnel() -> Result<(), String> {
     let mut lock = TUNNEL_MANAGER.lock().unwrap();
     if let Some(ref mut mgr) = *lock {
         if let Some(mut child) = mgr.child.take() {
+            #[allow(unused_variables)]
             let pid = child.id();
             let _ = child.kill();
             let _ = child.wait();
@@ -173,6 +210,7 @@ pub fn stop_cloudflared_tunnel() -> Result<(), String> {
 impl Drop for CloudflaredTunnelManager {
     fn drop(&mut self) {
         if let Some(mut child) = self.child.take() {
+            #[allow(unused_variables)]
             let pid = child.id();
             let _ = child.kill();
             let _ = child.wait();
