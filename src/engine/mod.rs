@@ -8,6 +8,8 @@ pub mod tasks;
 pub mod todo;
 pub mod window_scanner;
 pub mod ytdlp;
+pub mod cloudflared;
+pub mod remote_text;
 
 pub use actions::*;
 pub use app_scanner::*;
@@ -17,3 +19,5 @@ pub use skills::*;
 pub use tasks::*;
 pub use todo::*;
 pub use window_scanner::*;
+pub use cloudflared::*;
+pub use remote_text::*;

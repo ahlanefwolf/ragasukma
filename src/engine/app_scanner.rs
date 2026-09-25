@@ -28,11 +28,6 @@ pub fn get_installed_applications_cached() -> Vec<InstalledApp> {
     get_installed_applications()
 }
 
-/// Format daftar aplikasi terpasang sebagai Ground of Truth untuk prompt LLM
-pub fn format_installed_apps_for_llm() -> String {
-    format_installed_apps_indexed(None)
-}
-
 /// Format daftar aplikasi terpasang dengan filtering terindeks sesuai konteks input pengguna
 pub fn format_installed_apps_indexed(query: Option<&str>) -> String {
     let apps = get_installed_applications_cached();

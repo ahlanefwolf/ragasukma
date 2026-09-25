@@ -291,7 +291,7 @@ pub fn update_browser_tabs(tabs: Vec<BrowserTabInfo>) {
 
     // Fallback synchronous jika worker belum diinisialisasi
     if let Ok(mut lock) = GLOBAL_BROWSER_TABS.lock() {
-        *lock = tabs.clone();
+        *lock = tabs;
     }
 }
 

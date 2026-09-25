@@ -21,6 +21,8 @@ impl AppSession {
         let mut is_paused = false;
 
         let (turn_tx, turn_rx) = std::sync::mpsc::channel::<Vec<f32>>();
+        let (text_tx, text_rx) = std::sync::mpsc::channel::<String>();
+        crate::engine::remote_text::set_remote_text_sender(text_tx);
         let stop_worker = Arc::new(AtomicBool::new(false));
         let pause_worker = Arc::new(AtomicBool::new(false));
 
@@ -103,8 +105,9 @@ impl AppSession {
             let mut should_exit = false;
             let mut should_pause = false;
             let mut audio_data = Vec::new();
+            let mut direct_text: Option<String> = None;
 
-            // Cek antrean audio dari continuous audio worker tanpa blocking
+            // Cek antrean audio dari continuous audio worker & direct text dari Mobile Web STT tanpa blocking
             let mut last_audio_check = Instant::now();
             loop {
                 if last_audio_check.elapsed() >= std::time::Duration::from_millis(500) {
@@ -124,6 +127,14 @@ impl AppSession {
                         crate::term_log!(
                             "🔄 [Reset Session] Riwayat memori obrolan AI berhasil di-reset!"
                         );
+                    }
+                }
+
+                if let Ok(incoming_text) = text_rx.try_recv() {
+                    let trimmed = incoming_text.trim();
+                    if !trimmed.is_empty() {
+                        direct_text = Some(trimmed.to_string());
+                        break;
                     }
                 }
 
@@ -148,38 +159,44 @@ impl AppSession {
                 continue;
             }
 
-            if audio_data.is_empty() || audio_data.len() < (TARGET_SAMPLE_RATE as usize * 4 / 10) {
-                // Audio < 0.4 detik lewati tanpa panggil API
-                continue;
-            }
+            let (clean_raw, stt_elapsed) = if let Some(txt) = direct_text {
+                // Input teks langsung dari Web Speech API smartphone (0 KB audio upload, < 50ms)
+                // Bersihkan buffer recorder desktop agar mic PC tidak menangkap suara gema dari speaker/ruangan
+                self.recorder.clear_buffer();
+                let elapsed = std::time::Duration::from_millis(5);
+                (txt, elapsed)
+            } else {
+                if audio_data.is_empty() || audio_data.len() < (TARGET_SAMPLE_RATE as usize * 4 / 10) {
+                    // Audio < 0.4 detik lewati tanpa panggil API
+                    continue;
+                }
 
-            // Hitung energi RMS keseluruhan audio
-            let sum_sq: f32 = audio_data.iter().map(|&x| x * x).sum();
-            let audio_rms = (sum_sq / audio_data.len() as f32).sqrt();
+                // Hitung energi RMS keseluruhan audio
+                let sum_sq: f32 = audio_data.iter().map(|&x| x * x).sum();
+                let audio_rms = (sum_sq / audio_data.len() as f32).sqrt();
 
-            // Jika energi audio sangat rendah (< 0.006), ini hanya desis / noise background
-            // Langsung lewati agar TIDAK buang-buang kuota atau kena rate limit Google/Groq STT
-            if audio_rms < 0.006 {
-                TrayState::update(AssistantState::Idle, "Standby Siap");
-                continue;
-            }
-
-            TrayState::update(AssistantState::Thinking, "Transkripsi Audio...");
-            crate::term_log!("⏹️  Selesai mendengar. Memproses...");
-
-            // 1. Transkrip Whisper STT
-            let stt_start = Instant::now();
-            let raw_transcript = match self.stt.transcribe(&audio_data) {
-                Ok(t) => t,
-                Err(e) => {
-                    crate::term_err!("⚠️ [STT Error]: {e}");
+                // Jika energi audio sangat rendah (< 0.006), ini hanya desis / noise background
+                if audio_rms < 0.006 {
                     TrayState::update(AssistantState::Idle, "Standby Siap");
                     continue;
                 }
-            };
-            let stt_elapsed = stt_start.elapsed();
 
-            let clean_raw = raw_transcript.trim();
+                TrayState::update(AssistantState::Thinking, "Transkripsi Audio...");
+                crate::term_log!("⏹️  Selesai mendengar. Memproses...");
+
+                // 1. Transkrip Whisper STT
+                let stt_start = Instant::now();
+                let raw_transcript = match self.stt.transcribe(&audio_data) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        crate::term_err!("⚠️ [STT Error]: {e}");
+                        TrayState::update(AssistantState::Idle, "Standby Siap");
+                        continue;
+                    }
+                };
+                let stt_elapsed = stt_start.elapsed();
+                (raw_transcript.trim().to_string(), stt_elapsed)
+            };
 
             // Cek apakah ada request stop_chat / pause saat STT sedang berjalan
             if let Some(cmd) = check_and_consume_cmd() {
@@ -342,10 +359,15 @@ impl AppSession {
                     });
                 let mut found_skill = false;
                 let mut follow_up_prompt = None;
+                let mut executed_skill_ids = std::collections::HashSet::new();
                 for cap in RE_SKILL.captures_iter(full_reply) {
                     if let Some(matched_id) = cap.get(1) {
-                        found_skill = true;
                         let id = matched_id.as_str().trim();
+                        // Cegah eksekusi ganda untuk skill ID yang sama dalam satu giliran respon
+                        if !executed_skill_ids.insert(id.to_string()) {
+                            continue;
+                        }
+                        found_skill = true;
                         crate::term_log!("\n[MEMPROSES SKILL]: Memanggil ID '{}'...", id);
                         if let Some((skill_name, output)) = execute_skill_by_identifier(id) {
                             crate::term_log!(

@@ -1,6 +1,10 @@
 import { createSignal } from 'solid-js';
 
-export const API_BASE = 'http://127.0.0.1:42128';
+// Di smartphone / remote tunnel, window.location.origin adalah https://xxx.trycloudflare.com
+// Jangan hardcode http://127.0.0.1:42128 karena HP tidak bisa menjangkau localhost laptop secara langsung!
+export const API_BASE = typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('127.0.0.1') && !window.location.origin.includes('localhost')
+  ? window.location.origin
+  : 'http://127.0.0.1:42128';
 
 export const [isSessionKilled, setIsSessionKilled] = createSignal(false);
 

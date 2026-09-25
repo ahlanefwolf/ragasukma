@@ -11,6 +11,7 @@ pub mod poses_service;
 pub mod session_service;
 pub mod skills_service;
 pub mod tray_service;
+pub mod remote_service;
 
 pub use tray_service::{AssistantState, TrayState};
 
@@ -26,3 +27,4 @@ pub use openai_v1_service::*;
 pub use poses_service::*;
 pub use session_service::*;
 pub use skills_service::*;
+pub use remote_service::*;

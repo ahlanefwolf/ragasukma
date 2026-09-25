@@ -123,11 +123,6 @@ fn extract_search_keywords(query: Option<&str>) -> Vec<&str> {
     }
 }
 
-#[allow(dead_code)]
-pub fn load_active_browser_summary() -> String {
-    load_active_browser_summary_indexed(None)
-}
-
 pub fn load_active_browser_summary_indexed(query: Option<&str>) -> String {
     let mut parts = Vec::new();
 
@@ -285,11 +280,6 @@ pub fn load_active_browser_summary_indexed(query: Option<&str>) -> String {
     parts.join("\n")
 }
 
-#[allow(dead_code)]
-pub fn load_active_window_summary() -> String {
-    load_active_window_summary_indexed(None)
-}
-
 pub fn load_active_window_summary_indexed(query: Option<&str>) -> String {
     if let Ok(snapshot) = crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file() {
         if snapshot.app_name.is_empty() && snapshot.window_title.is_empty() {
@@ -401,11 +391,6 @@ pub fn load_active_window_summary_indexed(query: Option<&str>) -> String {
         return summary;
     }
     String::new()
-}
-
-#[allow(dead_code)]
-pub fn load_installed_apps_summary() -> String {
-    crate::engine::app_scanner::format_installed_apps_for_llm()
 }
 
 pub fn load_installed_apps_indexed(query: Option<&str>) -> String {

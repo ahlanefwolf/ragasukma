@@ -182,6 +182,7 @@ fn main() -> Result<()> {
     ui::run_native_overlay();
 
     // Kirim perintah quit ke session thread agar shutdown secara rapi (graceful shutdown)
+    let _ = engine::cloudflared::stop_cloudflared_tunnel();
     tray::TrayState::push_command("quit".to_string());
     let _ = session_thread.join();
     std::process::exit(0);

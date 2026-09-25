@@ -220,6 +220,14 @@ pub fn handle_api_route(
         ("POST", "/api/skills/delete") => handle_delete_skill(body_str, &mut stream),
         ("POST", "/api/skills/run") => handle_run_skill(body_str, &mut stream),
 
+        // Cloudflared Remote Tunnel & Mobile Voice
+        ("GET", "/api/remote/tunnel/status") => handle_tunnel_status(&mut stream),
+        ("POST", "/api/remote/tunnel/start") => handle_tunnel_start(&mut stream),
+        ("POST", "/api/remote/tunnel/stop") => handle_tunnel_stop(&mut stream),
+        ("POST", path) if path.starts_with("/api/remote/text") => {
+            handle_remote_text(full_url, body_str, &mut stream);
+        }
+
         // Session & Single-Tab Control
         // Session Claim Service (1x saat tab dibuka)
         ("POST", "/api/session/claim") => handle_session_claim(body_str, &mut stream, &shared),

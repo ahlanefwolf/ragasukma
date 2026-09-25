@@ -16,6 +16,10 @@ graph TD
     B2 -->|Kirim Perintah Aksi| W1[Task Worker: yt-dlp / I/O]
     B2 -->|Minta Scan Visual| W2[Vision Worker: ONNX PP-OCR & YOLO]
     
+    W6[Cloudflared Worker: CloudflaredTunnelManager] -->|Public HTTPS Tunnel| W6a[Mobile Web Remote & QR Code]
+    W6a -->|POST /api/remote/text| B3[Remote Text Injector: remote_text.rs]
+    B3 -->|text_tx| B
+    
     Ext[Browser Companion Extension] -->|HTTP / SSE Events| W3[Browser Worker: BrowserSessionWorker]
     W3 -->|Tulis Ground of Truth| F1[assets/active_tab_browser.json]
     
@@ -96,7 +100,22 @@ graph TD
 
 ---
 
-### 6. 🎙️ Voice Session Worker (`ragasukma-session`)
+### 6. 📱 Cloudflare Tunnel Worker (`CloudflaredTunnelManager`) & Remote Text Injector
+* **File Sumber:** `src/engine/cloudflared.rs`, `src/engine/remote_text.rs`, & `src/services/remote_service.rs`
+* **Lifecycle:** Dijalankan on-demand / otomatis dari Remote Tab desktop dan dipantau via background child process watchdog.
+* **Mekanisme:**
+  * Menjalankan binary `cloudflared` tanpa registrasi akun (`trycloudflare.com`) yang memetakan port internal `42128` ke HTTPS publik yang aman.
+  * Memparsing URL publik secara asinkron dari output stream stdout/stderr process.
+  * Menyediakan token autentikasi acak (`auth_key`) yang tersemat pada QR Code untuk otorisasi akses HP.
+* **Tanggung Jawab:**
+  * Memberikan akses kontrol jarak jauh untuk smartphone tanpa perlu port forwarding atau konfigurasi router.
+  * Menerima payload teks perintah dari antarmuka Web HP (`POST /api/remote/text?key=...`).
+  * Menyuntikkan teks langsung ke antrean `text_rx` pada percakapan aktif (`REMOTE_TEXT_INJECTOR`), mengosongkan buffer mic PC agar tidak feedback, atau otomatis memicu `start_chat` jika sesi asisten sedang standby.
+  * Mengisolasi kill tree proses subprocess (`taskkill /F /T` di Windows) saat aplikasi ditutup agar tidak meninggalkan proses zombie di background.
+
+---
+
+### 7. 🎙️ Voice Session Worker (`ragasukma-session`)
 * **File Sumber:** `src/main.rs` & `src/engine/session.rs`
 * **Lifecycle:** Berjalan di thread terpisah dengan kapasitas stack besar (**16 MB stack size**) untuk kestabilan inferensi lintas platform.
 * **Tanggung Jawab:**
@@ -106,7 +125,7 @@ graph TD
 
 ---
 
-### 7. 🖥️ OS Main Render Thread (Thread 0)
+### 8. 🖥️ OS Main Render Thread (Thread 0)
 * **File Sumber:** `src/ui/mod.rs` & `src/main.rs`
 * **Lifecycle:** Berjalan di Thread 0 sistem operasi (kebutuhan wajib driver grafis Windows / macOS Cocoa / Linux X11/Wayland).
 * **Tanggung Jawab:**

@@ -10,7 +10,8 @@ import {
   Palette,
   Bot,
   Rocket,
-  ChevronDown
+  ChevronDown,
+  Radio
 } from 'lucide-solid';
 import { BrandLogo } from './BrandLogo';
 
@@ -32,6 +33,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
     { id: 'skills', label: 'Skill Custom', icon: Zap },
     { id: 'music', label: 'Music Player', icon: Music },
     { id: 'tuner', label: 'Pose Tuner', icon: Sliders },
+    { id: 'remote', label: 'Mobile Remote', icon: Radio },
     { id: 'logs', label: 'Console Logs', icon: Terminal },
     { id: 'settings', label: 'Pengaturan', icon: SettingsIcon },
   ];

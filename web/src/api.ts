@@ -8,6 +8,7 @@ import {
   posesService,
   skillsService,
   antigravityService,
+  remoteService,
 } from './services';
 
 export * from './services';
@@ -70,4 +71,10 @@ export const api = {
   refreshAntigravityAccount: antigravityService.refreshAccount,
   toggleAntigravityAccount: antigravityService.toggleAccount,
   getAntigravityAccountQuota: antigravityService.getAccountQuota,
+
+  // Remote Tunnel & Text Injection Service
+  getTunnelStatus: remoteService.getTunnelStatus,
+  startTunnel: remoteService.startTunnel,
+  stopTunnel: remoteService.stopTunnel,
+  sendRemoteText: remoteService.sendText,
 };

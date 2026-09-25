@@ -186,6 +186,7 @@ impl AppSession {
                         }));
                     }
                     "quit" => {
+                        let _ = crate::engine::cloudflared::stop_cloudflared_tunnel();
                         stop_standby.store(true, Ordering::SeqCst);
                         if let Some(handle) = standby_handle.take() {
                             let _ = handle.join();

@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssistantState {
@@ -12,8 +11,6 @@ pub enum AssistantState {
 
 static COMMAND_QUEUE: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
 static CURRENT_STATE: Mutex<Option<serde_json::Value>> = Mutex::new(None);
-#[allow(dead_code)]
-static QUIT_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 pub struct TrayState;
 
@@ -52,7 +49,7 @@ impl TrayState {
         });
 
         if let Ok(mut lock) = CURRENT_STATE.lock() {
-            *lock = Some(json.clone());
+            *lock = Some(json);
         }
 
         let visual_state = match state {
@@ -91,10 +88,10 @@ impl TrayState {
     pub fn emit_event(_event_name: &str, _payload: serde_json::Value) {}
 
     pub fn push_command(cmd: String) {
-        if cmd == "quit" {
-            QUIT_REQUESTED.store(true, Ordering::SeqCst);
-        }
         if let Ok(mut queue) = COMMAND_QUEUE.lock() {
+            if queue.len() >= 50 {
+                queue.pop_front();
+            }
             queue.push_back(cmd);
         }
     }

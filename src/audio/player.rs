@@ -41,16 +41,6 @@ pub fn stop() {
     crate::term_log!("⏹️ [Music Controller] Musik dihentikan.");
 }
 
-#[allow(dead_code)]
-pub fn is_playing() -> bool {
-    IS_PLAYING.load(Ordering::SeqCst)
-}
-
-#[allow(dead_code)]
-pub fn is_paused() -> bool {
-    IS_PAUSED.load(Ordering::SeqCst)
-}
-
 pub fn get_current_title() -> Option<String> {
     if let Ok(lock) = CURRENT_TITLE.lock() {
         lock.clone()

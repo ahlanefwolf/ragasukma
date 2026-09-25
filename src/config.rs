@@ -348,9 +348,4 @@ impl AppConfig {
             voice_interruption: u.voice_interruption,
         }
     }
-
-    #[allow(dead_code)]
-    pub fn is_auto_mode(&self) -> bool {
-        self.voice_mode.eq_ignore_ascii_case("auto")
-    }
 }

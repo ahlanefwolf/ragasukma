@@ -225,11 +225,6 @@ impl TextToSpeech {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn speak(&self, text: &str) -> Result<()> {
-        self.speak_with_emotion(text, "neutral", "Asisten")
-    }
-
     pub fn speak_with_emotion(&self, text: &str, emotion: &str, asst_name: &str) -> Result<()> {
         let clean_text = clean_text_for_speech(text);
         if clean_text.trim().is_empty() {

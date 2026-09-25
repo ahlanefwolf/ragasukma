@@ -283,16 +283,6 @@ impl AntigravityProvider {
             .collect()
     }
 
-    #[allow(dead_code)]
-    pub fn refresh_account_token(&self, account: &mut AntigravityAccount) -> Result<String> {
-        refresh_account_token(&self.client, account)
-    }
-
-    #[allow(dead_code)]
-    pub fn ensure_project_id(&self, account: &mut AntigravityAccount) -> Result<String> {
-        ensure_project_id(&self.client, account)
-    }
-
     pub fn refresh_account_by_id(&mut self, id: &str) -> Result<String> {
         let client = self.client.clone();
         if let Some(account) = self.accounts.iter_mut().find(|a| a.id == id) {

@@ -8,6 +8,8 @@ import { TunerTab } from './components/TunerTab';
 import { LogsTab } from './components/LogsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { AntigravityTab } from './components/AntigravityTab';
+import { RemoteTab } from './components/RemoteTab';
+import { MobileClientView } from './components/MobileClientView';
 import { BottomPlayer } from './components/BottomPlayer';
 import { initGlobalAudio, killGlobalAudio } from './playerStore';
 import { Menu as MenuIcon } from 'lucide-solid';
@@ -31,6 +33,7 @@ const TAB_HASH_ALIASES: Record<string, string> = {
   '#tuner': 'tuner',
   '#logs': 'logs',
   '#settings': 'settings',
+  '#remote': 'remote',
   '#provider-antigravity': 'provider-antigravity',
   '#antigravity': 'provider-antigravity',
 };
@@ -41,7 +44,10 @@ const getInitialTabFromHash = (): string => {
     if (TAB_HASH_ALIASES[hash]) {
       return TAB_HASH_ALIASES[hash];
     }
-    const clean = hash.replace(/^#/, '');
+    const clean = hash.replace(/^#/, '').split('?')[0];
+    if (TAB_HASH_ALIASES[`#${clean}`]) {
+      return TAB_HASH_ALIASES[`#${clean}`];
+    }
     if (clean) return clean;
   } catch {}
   return 'menu';
@@ -56,6 +62,43 @@ export const App: Component = () => {
   const [toastVisible, setToastVisible] = createSignal(false);
   const [mobileMenuOpen, setMobileMenuOpen] = createSignal(false);
 
+  // Deteksi apakah tab saat ini adalah Remote Client HP (dibuka lewat scan QR / key auth)
+  const isMobileClient = () => {
+    try {
+      const hash = window.location.hash.toLowerCase();
+      const origin = window.location.origin.toLowerCase();
+      const search = window.location.search;
+      return (
+        hash.includes('remote') ||
+        origin.includes('trycloudflare.com') ||
+        search.includes('key=')
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  const getMobileAuthKey = () => {
+    try {
+      // 1. Cek query parameter standar (?key=...)
+      const params = new URLSearchParams(window.location.search);
+      const qKey = params.get('key');
+      if (qKey) return qKey;
+
+      // 2. Cek query parameter di dalam hash jika URL berupa #remote?key=...
+      const hash = window.location.hash;
+      if (hash.includes('?')) {
+        const hashQuery = hash.split('?')[1];
+        const hashParams = new URLSearchParams(hashQuery);
+        const hKey = hashParams.get('key');
+        if (hKey) return hKey;
+      }
+      return '';
+    } catch {
+      return '';
+    }
+  };
+
   const killThisTab = (reason: 'duplicate' | 'shutdown' = 'duplicate') => {
     if (isDead()) return;
     setDeadReason(reason);
@@ -68,6 +111,12 @@ export const App: Component = () => {
   };
 
   onMount(() => {
+    // Mode Remote Client dari smartphone: bypass single-tab kill agar tidak mematikan tab utama di desktop
+    if (isMobileClient()) {
+      console.log('[Session] Remote client detected, skipping single-tab exclusive claim');
+      return;
+    }
+
     console.log('[Session] Tab mount, MY_TOKEN =', MY_TOKEN);
 
     // ── 1. BroadcastChannel: siap dengar SEBELUM kita claim ──
@@ -161,116 +210,130 @@ export const App: Component = () => {
   return (
     <div class="flex h-screen w-screen overflow-hidden bg-theme-bg text-theme-text font-sans selection:bg-theme-rose selection:text-theme-card">
       <Show
-        when={!isDead()}
+        when={isMobileClient()}
         fallback={
-          /* Modal Tab Mati / Aplikasi Ditutup — DOM ringan, 0 background resource */
-          <div class="fixed inset-0 z-[200] bg-theme-bg/95 backdrop-blur-md flex items-center justify-center p-4 select-none">
-            <div class="max-w-md w-full p-8 bg-theme-surface border border-theme-rose/50 shadow-2xl text-center space-y-5 animate-in fade-in duration-200">
-              <div class="w-14 h-14 mx-auto bg-theme-rose/20 text-theme-rose border border-theme-rose/40 flex items-center justify-center text-2xl font-bold shadow-lg shadow-theme-rose/10">
-                ✕
-              </div>
-              <div class="space-y-2">
-                <h3 class="text-lg font-bold text-theme-text">
-                  {deadReason() === 'shutdown' ? 'Aplikasi Ragasukma Ditutup' : 'Tab Dinonaktifkan'}
-                </h3>
-                <p class="text-sm text-theme-text/70 leading-relaxed">
-                  {deadReason() === 'shutdown'
-                    ? 'Jendela overlay dan server utama telah ditutup. Seluruh pemutar audio, background stream, dan memori browser telah dibersihkan secara tuntas.'
-                    : 'Dashboard telah dibuka di tab browser lain. Semua koneksi audio, event stream, dan resource di tab ini sudah dinonaktifkan.'}
-                </p>
-              </div>
-              <Show when={deadReason() === 'duplicate'}>
-                <button
-                  onClick={() => window.location.reload()}
-                  class="w-full px-5 py-3 bg-theme-card hover:bg-theme-border text-theme-cyan text-sm font-bold border border-theme-border hover:border-theme-cyan/50 transition-all shadow-sm active:scale-[0.98]"
-                >
-                  Gunakan Tab Ini Kembali
-                </button>
-              </Show>
-              <Show when={deadReason() === 'shutdown'}>
-                <div class="text-xs font-mono text-theme-text/50 pt-1">
-                  Kamu dapat menutup tab browser ini.
+          <Show
+            when={!isDead()}
+            fallback={
+              /* Modal Tab Mati / Aplikasi Ditutup — DOM ringan, 0 background resource */
+              <div class="fixed inset-0 z-[200] bg-theme-bg/95 backdrop-blur-md flex items-center justify-center p-4 select-none">
+                <div class="max-w-md w-full p-8 bg-theme-surface border border-theme-rose/50 shadow-2xl text-center space-y-5 animate-in fade-in duration-200">
+                  <div class="w-14 h-14 mx-auto bg-theme-rose/20 text-theme-rose border border-theme-rose/40 flex items-center justify-center text-2xl font-bold shadow-lg shadow-theme-rose/10">
+                    ✕
+                  </div>
+                  <div class="space-y-2">
+                    <h3 class="text-lg font-bold text-theme-text">
+                      {deadReason() === 'shutdown' ? 'Aplikasi Ragasukma Ditutup' : 'Tab Dinonaktifkan'}
+                    </h3>
+                    <p class="text-sm text-theme-text/70 leading-relaxed">
+                      {deadReason() === 'shutdown'
+                        ? 'Jendela overlay dan server utama telah ditutup. Seluruh pemutar audio, background stream, dan memori browser telah dibersihkan secara tuntas.'
+                        : 'Dashboard telah dibuka di tab browser lain. Semua koneksi audio, event stream, dan resource di tab ini sudah dinonaktifkan.'}
+                    </p>
+                  </div>
+                  <Show when={deadReason() === 'duplicate'}>
+                    <button
+                      onClick={() => window.location.reload()}
+                      class="w-full px-5 py-3 bg-theme-card hover:bg-theme-border text-theme-cyan text-sm font-bold border border-theme-border hover:border-theme-cyan/50 transition-all shadow-sm active:scale-[0.98]"
+                    >
+                      Gunakan Tab Ini Kembali
+                    </button>
+                  </Show>
+                  <Show when={deadReason() === 'shutdown'}>
+                    <div class="text-xs font-mono text-theme-text/50 pt-1">
+                      Kamu dapat menutup tab browser ini.
+                    </div>
+                  </Show>
                 </div>
-              </Show>
-            </div>
-          </div>
+              </div>
+            }
+          >
+            <Sidebar
+              activeTab={activeTab()}
+              setActiveTab={handleTabChange}
+              overlayConnected={true}
+              currentState={currentState()}
+              isMobileOpen={mobileMenuOpen()}
+              onCloseMobile={() => setMobileMenuOpen(false)}
+            />
+
+            <main class="flex-1 flex flex-col h-full overflow-hidden bg-theme-surface">
+              {/* Top Header */}
+              <header class="h-14 px-4 sm:px-6 md:px-8 border-b border-theme-border flex items-center justify-between shrink-0 bg-theme-bg/90 backdrop-blur-xl select-none">
+                <div class="flex items-center gap-3">
+                  <button
+                    onClick={() => setMobileMenuOpen(true)}
+                    class="p-2 bg-theme-card text-theme-text border border-theme-border hover:border-theme-cyan/50 md:hidden transition-colors"
+                    aria-label="Buka Menu"
+                  >
+                    <MenuIcon size={18} />
+                  </button>
+
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-mono font-bold px-2.5 py-1 bg-theme-rose/20 text-theme-rose border border-theme-rose/30 uppercase tracking-wider">
+                      STATE: {currentState()}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                  <div class="flex items-center gap-2 px-3 py-1 bg-theme-card border border-theme-border text-xs font-semibold text-theme-text">
+                    <span class="w-2 h-2 bg-theme-cyan shadow-[0_0_8px_var(--cyan)] animate-pulse" />
+                    <span class="tracking-wide">Avatar Overlay</span>
+                  </div>
+                </div>
+              </header>
+
+              {/* Scrollable View Content */}
+              <div class="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 max-w-5xl w-full mx-auto pb-12">
+                <Show when={activeTab() === 'menu'}>
+                  <MenuTab
+                    currentState={currentState()}
+                    setCurrentState={setCurrentState}
+                    showToast={showToast}
+                    onNavigateTab={handleTabChange}
+                  />
+                </Show>
+                <Show when={activeTab() === 'canvas'}>
+                  <CanvasTab showToast={showToast} />
+                </Show>
+                <Show when={activeTab() === 'skills'}>
+                  <SkillsTab showToast={showToast} />
+                </Show>
+                <Show when={activeTab() === 'music'}>
+                  <MusicTab showToast={showToast} />
+                </Show>
+                <Show when={activeTab() === 'tuner'}>
+                  <TunerTab showToast={showToast} />
+                </Show>
+                <Show when={activeTab() === 'logs'}>
+                  <LogsTab showToast={showToast} />
+                </Show>
+                <Show when={activeTab() === 'remote'}>
+                  <RemoteTab showToast={showToast} />
+                </Show>
+                <Show when={activeTab() === 'settings'}>
+                  <SettingsTab showToast={showToast} />
+                </Show>
+                <Show when={activeTab() === 'provider-antigravity'}>
+                  <AntigravityTab showToast={showToast} />
+                </Show>
+              </div>
+
+              <BottomPlayer
+                onOpenMusicTab={() => setActiveTab('music')}
+                activeTab={activeTab()}
+              />
+              <audio ref={(el) => initGlobalAudio(el)} preload="auto" />
+            </main>
+          </Show>
         }
       >
-        <Sidebar
-          activeTab={activeTab()}
-          setActiveTab={handleTabChange}
-          overlayConnected={true}
-          currentState={currentState()}
-          isMobileOpen={mobileMenuOpen()}
-          onCloseMobile={() => setMobileMenuOpen(false)}
+        {/* TAMPILAN KHUSUS SMARTPHONE (HANYA MIC PTT + CONSOLE LOGS REAL-TIME) */}
+        <MobileClientView
+          authKey={getMobileAuthKey()}
+          showToast={showToast}
         />
-
-        <main class="flex-1 flex flex-col h-full overflow-hidden bg-theme-surface">
-          {/* Top Header */}
-          <header class="h-14 px-4 sm:px-6 md:px-8 border-b border-theme-border flex items-center justify-between shrink-0 bg-theme-bg/90 backdrop-blur-xl select-none">
-            <div class="flex items-center gap-3">
-              <button
-                onClick={() => setMobileMenuOpen(true)}
-                class="p-2 bg-theme-card text-theme-text border border-theme-border hover:border-theme-cyan/50 md:hidden transition-colors"
-                aria-label="Buka Menu"
-              >
-                <MenuIcon size={18} />
-              </button>
-
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-mono font-bold px-2.5 py-1 bg-theme-rose/20 text-theme-rose border border-theme-rose/30 uppercase tracking-wider">
-                  STATE: {currentState()}
-                </span>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-3">
-              <div class="flex items-center gap-2 px-3 py-1 bg-theme-card border border-theme-border text-xs font-semibold text-theme-text">
-                <span class="w-2 h-2 bg-theme-cyan shadow-[0_0_8px_var(--cyan)] animate-pulse" />
-                <span class="tracking-wide">Avatar Overlay</span>
-              </div>
-            </div>
-          </header>
-
-          {/* Scrollable View Content */}
-          <div class="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 max-w-5xl w-full mx-auto pb-12">
-            <Show when={activeTab() === 'menu'}>
-              <MenuTab
-                currentState={currentState()}
-                setCurrentState={setCurrentState}
-                showToast={showToast}
-                onNavigateTab={handleTabChange}
-              />
-            </Show>
-            <Show when={activeTab() === 'canvas'}>
-              <CanvasTab showToast={showToast} />
-            </Show>
-            <Show when={activeTab() === 'skills'}>
-              <SkillsTab showToast={showToast} />
-            </Show>
-            <Show when={activeTab() === 'music'}>
-              <MusicTab showToast={showToast} />
-            </Show>
-            <Show when={activeTab() === 'tuner'}>
-              <TunerTab showToast={showToast} />
-            </Show>
-            <Show when={activeTab() === 'logs'}>
-              <LogsTab showToast={showToast} />
-            </Show>
-            <Show when={activeTab() === 'settings'}>
-              <SettingsTab showToast={showToast} />
-            </Show>
-            <Show when={activeTab() === 'provider-antigravity'}>
-              <AntigravityTab showToast={showToast} />
-            </Show>
-          </div>
-
-          <BottomPlayer
-            onOpenMusicTab={() => setActiveTab('music')}
-            activeTab={activeTab()}
-          />
-          <audio ref={(el) => initGlobalAudio(el)} preload="auto" />
-        </main>
       </Show>
 
       {/* Toast */}

@@ -177,6 +177,7 @@ pub fn is_paused() -> bool {
 }
 
 pub fn trigger_app_shutdown() {
+    let _ = crate::engine::cloudflared::stop_cloudflared_tunnel();
     if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
         if let Some(shared) = lock.as_ref() {
             if let Ok(mut s) = shared.lock() {
