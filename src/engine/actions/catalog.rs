@@ -6,11 +6,6 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
     {
         vec![
             SkillItem {
-                name: "Buka File Manager".to_string(),
-                description: "Membuka File Explorer Windows".to_string(),
-                command: "explorer".to_string(),
-            },
-            SkillItem {
                 name: "Naikkan Volume".to_string(),
                 description: "Menaikkan volume suara komputer".to_string(),
                 command:
@@ -37,14 +32,9 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
                 command: "rundll32.exe user32.dll,LockWorkStation".to_string(),
             },
             SkillItem {
-                name: "Buka Kalkulator".to_string(),
-                description: "Membuka aplikasi kalkulator sistem".to_string(),
-                command: "calc.exe".to_string(),
-            },
-            SkillItem {
-                name: "Buka Notepad".to_string(),
-                description: "Membuka aplikasi catatan Notepad".to_string(),
-                command: "notepad.exe".to_string(),
+                name: "Pindai Visual Layar".to_string(),
+                description: "Membaca teks dan tombol/ikon di layar via ONNX OCR & Vision".to_string(),
+                command: "desktop:scan_visual".to_string(),
             },
         ]
     }
@@ -52,11 +42,6 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
     #[cfg(target_os = "macos")]
     {
         vec![
-            SkillItem {
-                name: "Buka File Manager".to_string(),
-                description: "Membuka Finder macOS".to_string(),
-                command: "open ~".to_string(),
-            },
             SkillItem {
                 name: "Naikkan Volume".to_string(),
                 description: "Menaikkan volume audio macOS (+10%)".to_string(),
@@ -83,14 +68,9 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
                 command: "pmset displaysleepnow".to_string(),
             },
             SkillItem {
-                name: "Buka Terminal".to_string(),
-                description: "Membuka aplikasi Terminal macOS".to_string(),
-                command: "open -a Terminal".to_string(),
-            },
-            SkillItem {
-                name: "Buka Kalkulator".to_string(),
-                description: "Membuka aplikasi Calculator macOS".to_string(),
-                command: "open -a Calculator".to_string(),
+                name: "Pindai Visual Layar".to_string(),
+                description: "Membaca teks dan tombol/ikon di layar via ONNX OCR & Vision".to_string(),
+                command: "desktop:scan_visual".to_string(),
             },
         ]
     }
@@ -98,11 +78,6 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         vec![
-            SkillItem {
-                name: "Buka File Manager".to_string(),
-                description: "Membuka pengelola berkas / file manager utama".to_string(),
-                command: "xdg-open ~ || nautilus ~ || thunar ~ || dolphin ~".to_string(),
-            },
             SkillItem {
                 name: "Naikkan Volume".to_string(),
                 description: "Menaikkan volume suara laptop/komputer (+10%)".to_string(),
@@ -135,15 +110,9 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
                         .to_string(),
             },
             SkillItem {
-                name: "Buka Terminal".to_string(),
-                description: "Membuka aplikasi terminal/konsol sistem".to_string(),
-                command: "x-terminal-emulator || gnome-terminal || konsole || alacritty || xterm"
-                    .to_string(),
-            },
-            SkillItem {
-                name: "Buka Kalkulator".to_string(),
-                description: "Membuka aplikasi kalkulator sistem".to_string(),
-                command: "gnome-calculator || kcalc || galculator || xcalc".to_string(),
+                name: "Pindai Visual Layar".to_string(),
+                description: "Membaca teks dan tombol/ikon di layar via ONNX OCR & Vision".to_string(),
+                command: "desktop:scan_visual".to_string(),
             },
         ]
     }

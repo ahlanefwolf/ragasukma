@@ -1,13 +1,15 @@
 pub mod browser;
 pub mod catalog;
+pub mod desktop;
 pub mod media;
 pub mod os_apps;
 pub mod todo_actions;
 
 pub use browser::execute_browser_action;
 pub use catalog::{get_builtin_system_skills, open_url_by_os};
+pub use desktop::execute_desktop_action;
 pub use media::execute_media_action;
-pub use os_apps::{execute_app_action, execute_os_action};
+pub use os_apps::{execute_app_action, execute_os_action, execute_os_or_app_action};
 pub use todo_actions::execute_todo_action;
 
 use crate::engine::skills::{execute_command_by_os, parse_skills_markdown};
@@ -35,25 +37,8 @@ pub fn execute_skill_by_identifier(identifier: &str) -> Option<(String, String)>
         ("browser", act) => browser::execute_browser_action(act, payload),
         ("media", act) => media::execute_media_action(act, payload),
         ("todo", act) => todo_actions::execute_todo_action(act, payload),
-        ("app", "open") => os_apps::execute_app_action(payload),
-        ("os", act) => os_apps::execute_os_action(act),
-        ("desktop", "scan") => {
-            match crate::engine::window_scanner::scan_active_window_sync() {
-                Ok(snap) => {
-                    let _ = snap.save_to_file();
-                    Some((
-                        format!("Pindai Jendela {}", snap.app_name),
-                        format!(
-                            "Terdeteksi aplikasi {} ({}) dengan {} tombol",
-                            snap.app_name,
-                            snap.window_title,
-                            snap.buttons.len()
-                        ),
-                    ))
-                }
-                Err(e) => Some(("Pindai Jendela".to_string(), format!("Gagal memindai jendela: {e}"))),
-            }
-        }
+        ("desktop" | "vision", act) => desktop::execute_desktop_action(act, payload),
+        ("os" | "app", act) => os_apps::execute_os_or_app_action(namespace.as_str(), act, payload),
         ("internal", "open_extension_installer") => browser::execute_browser_action("open_ext_folder", ""),
         _ => {
             // Cek Custom Skills di skill-command.md

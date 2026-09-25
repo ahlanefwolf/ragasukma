@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::Instant;
+
+static APPS_CACHE: Mutex<Option<(Instant, Vec<InstalledApp>)>> = Mutex::new(None);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct InstalledApp {
@@ -7,6 +11,73 @@ pub struct InstalledApp {
     pub exec: String,
     pub icon: Option<String>,
     pub comment: Option<String>,
+}
+
+/// Mengambil daftar aplikasi terpasang dengan cache memori 60 detik agar tidak membebani I/O disk
+pub fn get_installed_applications_cached() -> Vec<InstalledApp> {
+    if let Ok(mut guard) = APPS_CACHE.lock() {
+        if let Some((instant, ref apps)) = *guard {
+            if instant.elapsed().as_secs() < 60 {
+                return apps.clone();
+            }
+        }
+        let fresh_apps = get_installed_applications();
+        *guard = Some((Instant::now(), fresh_apps.clone()));
+        return fresh_apps;
+    }
+    get_installed_applications()
+}
+
+/// Format daftar aplikasi terpasang sebagai Ground of Truth untuk prompt LLM
+pub fn format_installed_apps_for_llm() -> String {
+    format_installed_apps_indexed(None)
+}
+
+/// Format daftar aplikasi terpasang dengan filtering terindeks sesuai konteks input pengguna
+pub fn format_installed_apps_indexed(query: Option<&str>) -> String {
+    let apps = get_installed_applications_cached();
+    if apps.is_empty() {
+        return String::new();
+    }
+
+    let q_clean = query.unwrap_or("").trim().to_lowercase();
+    let words: Vec<&str> = q_clean.split_whitespace().collect();
+
+    // Jika ada query spesifik, cari yang cocok dengan salah satu kata dalam ucapan pengguna
+    let matched_apps: Vec<&str> = if !words.is_empty() {
+        let stop_words = ["buka", "bukakan", "tolong", "coba", "jalankan", "start", "open", "launch", "nyalakan", "aplikasi", "dong", "ya", "sih", "lah", "nya", "ke", "di"];
+        let target_keywords: Vec<&str> = words.into_iter().filter(|w| !stop_words.contains(w) && w.len() >= 2).collect();
+
+        if !target_keywords.is_empty() {
+            apps.iter()
+                .filter(|a| {
+                    let name_lower = a.name.to_lowercase();
+                    target_keywords.iter().any(|k| name_lower.contains(k))
+                })
+                .map(|a| a.name.as_str())
+                .collect()
+        } else {
+            apps.iter().take(30).map(|a| a.name.as_str()).collect()
+        }
+    } else {
+        apps.iter().take(30).map(|a| a.name.as_str()).collect()
+    };
+
+    if matched_apps.is_empty() {
+        // Fallback: tampilkan sebagian aplikasi umum
+        let sample: Vec<&str> = apps.iter().take(20).map(|a| a.name.as_str()).collect();
+        return format!(
+            "\n### 📦 APLIKASI TERPASANG DI SISTEM (GROUND OF TRUTH):\n\
+            * Bisa langsung dibuka dengan `[CMD:app:open|NamaApp]`:\n  {}\n",
+            sample.join(", ")
+        );
+    }
+
+    format!(
+        "\n### 📦 APLIKASI TERPASANG DI SISTEM (GROUND OF TRUTH):\n\
+        * Bisa langsung dibuka dengan `[CMD:app:open|NamaApp]`:\n  {}\n",
+        matched_apps.join(", ")
+    )
 }
 
 pub fn get_installed_applications() -> Vec<InstalledApp> {
@@ -59,6 +130,34 @@ pub fn get_installed_applications() -> Vec<InstalledApp> {
         use std::collections::HashSet;
         let mut seen_names = HashSet::new();
 
+        // Aplikasi bawaan Windows esensial (sebagai jaminan selalu ada & bisa dibuka langsung)
+        let default_windows_apps = [
+            ("Calculator", "calc.exe", "Windows Calculator"),
+            ("Kalkulator", "calc.exe", "Kalkulator Windows"),
+            ("Notepad", "notepad.exe", "Aplikasi Catatan Notepad"),
+            ("Paint", "mspaint.exe", "Aplikasi Gambar Paint"),
+            ("Task Manager", "taskmgr.exe", "Windows Task Manager"),
+            ("Settings", "explorer.exe ms-settings:", "Windows Settings"),
+            ("Pengaturan", "explorer.exe ms-settings:", "Pengaturan Windows"),
+            ("File Explorer", "explorer.exe", "Windows File Explorer"),
+            ("Command Prompt", "cmd.exe", "Windows Command Prompt"),
+            ("PowerShell", "powershell.exe", "Windows PowerShell"),
+            ("Microsoft Edge", "explorer.exe microsoft-edge:", "Browser Microsoft Edge"),
+        ];
+
+        for (name, exec, desc) in default_windows_apps {
+            let key = name.to_lowercase();
+            if !seen_names.contains(&key) {
+                seen_names.insert(key);
+                apps.push(InstalledApp {
+                    name: name.to_string(),
+                    exec: exec.to_string(),
+                    icon: None,
+                    comment: Some(desc.to_string()),
+                });
+            }
+        }
+
         // Scan shortcuts (.lnk dan .url) dari folder Start Menu
         let mut start_menu_dirs: Vec<PathBuf> = Vec::new();
 
@@ -83,32 +182,6 @@ pub fn get_installed_applications() -> Vec<InstalledApp> {
 
         for dir in &start_menu_dirs {
             scan_lnk_dir(dir, &mut apps, &mut seen_names);
-        }
-
-        // Aplikasi bawaan Windows esensial (sebagai jaminan selalu ada & bisa dibuka)
-        let default_windows_apps = [
-            ("Notepad", "notepad.exe", "Aplikasi Catatan Notepad"),
-            ("Kalkulator", "calc.exe", "Kalkulator Windows"),
-            ("Paint", "mspaint.exe", "Aplikasi Gambar Paint"),
-            ("Task Manager", "taskmgr.exe", "Windows Task Manager"),
-            ("Pengaturan", "start ms-settings:", "Windows Settings"),
-            ("File Explorer", "explorer.exe", "Windows File Explorer"),
-            ("Command Prompt", "cmd.exe", "Windows Command Prompt"),
-            ("PowerShell", "powershell.exe", "Windows PowerShell"),
-            ("Microsoft Edge", "start msedge:", "Browser Microsoft Edge"),
-        ];
-
-        for (name, exec, desc) in default_windows_apps {
-            let key = name.to_lowercase();
-            if !seen_names.contains(&key) {
-                seen_names.insert(key);
-                apps.push(InstalledApp {
-                    name: name.to_string(),
-                    exec: exec.to_string(),
-                    icon: None,
-                    comment: Some(desc.to_string()),
-                });
-            }
         }
 
         apps.sort_by_key(|a| a.name.to_lowercase());
@@ -210,7 +283,7 @@ fn scan_lnk_dir(
                         continue;
                     }
                     seen_names.insert(key);
-                    let exec = format!("start \"\" \"{}\"", path.display());
+                    let exec = format!("explorer.exe \"{}\"", path.display());
                     apps.push(InstalledApp {
                         name,
                         exec,

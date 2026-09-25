@@ -8,6 +8,10 @@ pub struct DesktopElement {
     pub id: usize,
     pub label: String,
     pub role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub center: Option<[i32; 2]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bbox: Option<[i32; 4]>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -19,17 +23,40 @@ pub struct WindowItem {
     pub window_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+fn default_source() -> String {
+    "native_accessibility".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveWindowSnapshot {
     pub app_name: String,
     pub window_title: String,
     pub window_id: String,
+    #[serde(default = "default_source")]
+    pub source: String,
     pub timestamp: u64,
     pub windows: Vec<WindowItem>,
     pub buttons: Vec<DesktopElement>,
     pub inputs: Vec<DesktopElement>,
     pub texts: Vec<String>,
     pub text_summary: String,
+}
+
+impl Default for ActiveWindowSnapshot {
+    fn default() -> Self {
+        Self {
+            app_name: String::new(),
+            window_title: String::new(),
+            window_id: String::new(),
+            source: default_source(),
+            timestamp: 0,
+            windows: Vec::new(),
+            buttons: Vec::new(),
+            inputs: Vec::new(),
+            texts: Vec::new(),
+            text_summary: String::new(),
+        }
+    }
 }
 
 impl ActiveWindowSnapshot {
@@ -370,6 +397,7 @@ async fn scan_active_window_linux() -> Result<ActiveWindowSnapshot, String> {
                                             id: element_id_counter,
                                             label: name.clone(),
                                             role: format!("{:?}", role).to_lowercase(),
+                                            ..Default::default()
                                         });
                                         element_id_counter += 1;
                                     }
@@ -378,6 +406,7 @@ async fn scan_active_window_linux() -> Result<ActiveWindowSnapshot, String> {
                                             id: element_id_counter,
                                             label: name.clone(),
                                             role: "input".to_string(),
+                                            ..Default::default()
                                         });
                                         element_id_counter += 1;
                                     }
@@ -630,13 +659,26 @@ fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
                     if let Ok(condition) = automation.CreateTrueCondition() {
                         if let Ok(elements) = root_elem.FindAll(TreeScope_Descendants, &condition) {
                             if let Ok(count) = elements.Length() {
-                                let max_items = count.min(80); // Batasi maks 80 elemen agar performa instan
-                                for i in 0..max_items {
+                                for i in 0..count {
                                     if let Ok(elem) = elements.GetElement(i) {
                                         let name: String = elem.CurrentName().map(|b| b.to_string()).unwrap_or_default().trim().to_string();
                                         let control_type = elem.CurrentControlType().unwrap_or(UIA_CONTROLTYPE_ID(0));
 
                                         if !name.is_empty() {
+                                            let (center, bbox) = if let Ok(rect) = elem.CurrentBoundingRectangle() {
+                                                let w = rect.right - rect.left;
+                                                let h = rect.bottom - rect.top;
+                                                if w > 0 && h > 0 {
+                                                    let cx = rect.left + w / 2;
+                                                    let cy = rect.top + h / 2;
+                                                    (Some([cx, cy]), Some([rect.left, rect.top, w, h]))
+                                                } else {
+                                                    (None, None)
+                                                }
+                                            } else {
+                                                (None, None)
+                                            };
+
                                             #[allow(non_upper_case_globals)]
                                             match control_type {
                                                 UIA_ButtonControlTypeId
@@ -648,6 +690,8 @@ fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
                                                         id: element_id,
                                                         label: name,
                                                         role: "button".to_string(),
+                                                        center,
+                                                        bbox,
                                                     });
                                                     element_id += 1;
                                                 }
@@ -656,6 +700,8 @@ fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
                                                         id: element_id,
                                                         label: name,
                                                         role: "input".to_string(),
+                                                        center,
+                                                        bbox,
                                                     });
                                                     element_id += 1;
                                                 }
@@ -684,12 +730,109 @@ fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
 
 #[cfg(target_os = "macos")]
 async fn scan_active_window_macos() -> Result<ActiveWindowSnapshot, String> {
-    // Stub macOS Accessibility yang aman dan teruji
-    let snapshot = ActiveWindowSnapshot {
+    let script = r#"
+    set jsonOut to "{\"app\":\"\",\"title\":\"\",\"windows\":[],\"buttons\":[]}"
+    try
+        tell application "System Events"
+            set frontProc to first process whose frontmost is true
+            set procName to name of frontProc
+            set winTitle to ""
+            set winList to {}
+            set btnList to {}
+
+            -- Daftar seluruh proses ber-jendela (open windows)
+            set allProcs to every process whose background only is false
+            repeat with p in allProcs
+                try
+                    set pName to name of p
+                    repeat with w in windows of p
+                        set wTitle to name of w
+                        if wTitle is not "" then
+                            set end of winList to "{\"app\":\"" & pName & "\",\"title\":\"" & wTitle & "\",\"active\":" & ((frontmost of p) as string) & "}"
+                        end if
+                    end repeat
+                end try
+            end repeat
+
+            -- Detail tombol jendela aktif
+            if (count of windows of frontProc) > 0 then
+                set targetWin to front window of frontProc
+                set winTitle to name of targetWin
+                set btnIdx to 1
+                try
+                    repeat with b in (every button of targetWin)
+                        set bName to name of b
+                        if bName is not "" then
+                            set {bx, by} to position of b
+                            set {bw, bh} to size of b
+                            set cx to (bx + (bw / 2)) as integer
+                            set cy to (by + (bh / 2)) as integer
+                            set end of btnList to "{\"id\":" & btnIdx & ",\"label\":\"" & bName & "\",\"role\":\"button\",\"center\":[" & cx & "," & cy & "]}"
+                            set btnIdx to btnIdx + 1
+                        end if
+                    end repeat
+                end try
+            end if
+
+            -- Format output sederhana
+            return procName & "|||" & winTitle & "|||[" & (my joinList(winList, ",")) & "]|||[" & (my joinList(btnList, ",")) & "]"
+        end tell
+    on error errMsg
+        return "||||||[]|||[]"
+    end try
+
+    on joinList(lst, sep)
+        set oldTID to AppleScript's text item delimiters
+        set AppleScript's text item delimiters to sep
+        set str to lst as string
+        set AppleScript's text item delimiters to oldTID
+        return str
+    end joinList
+    "#;
+
+    let output = std::process::Command::new("osascript")
+        .args(["-e", script])
+        .output()
+        .map_err(|e| format!("Gagal memanggil osascript: {e}"))?;
+
+    let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let parts: Vec<&str> = raw.split("|||").collect();
+
+    let mut snapshot = ActiveWindowSnapshot {
         timestamp: current_epoch_ms(),
-        text_summary: "Scanner macOS siap (AXUIElement stub)".to_string(),
+        source: default_source(),
         ..Default::default()
     };
+
+    if parts.len() >= 4 {
+        snapshot.app_name = parts[0].trim().to_string();
+        snapshot.window_title = parts[1].trim().to_string();
+        snapshot.window_id = format!("macos:{}", snapshot.app_name);
+
+        if let Ok(wins) = serde_json::from_str::<Vec<serde_json::Value>>(parts[2]) {
+            let mut counter = 1;
+            for w in wins {
+                let app = w.get("app").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let title = w.get("title").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let active = w.get("active").and_then(|v| v.as_bool()).unwrap_or(false);
+                if !app.is_empty() {
+                    snapshot.windows.push(WindowItem {
+                        id: counter,
+                        app_name: app.clone(),
+                        title,
+                        active,
+                        window_id: format!("macos:{}", app),
+                    });
+                    counter += 1;
+                }
+            }
+        }
+
+        if let Ok(btns) = serde_json::from_str::<Vec<DesktopElement>>(parts[3]) {
+            snapshot.buttons = btns;
+        }
+    }
+
     let _ = snapshot.save_to_file();
     Ok(snapshot)
 }

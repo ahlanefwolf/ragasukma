@@ -42,6 +42,11 @@ pollster = "0.3"
 glam = { version = "0.25", features = ["bytemuck"] }
 rust-embed = "8.5"
 
+# Local Perception Engine (ONNX Runtime, Vision, OCR & Icon Detection)
+ort = { version = "2.0.0-rc.13", features = ["download-binaries", "copy-dylibs", "ndarray"] }
+ndarray = "0.17"
+xcap = "0.0.14"
+
 # OS Accessibility Tree Scanner (Cross-Platform Native)
 [target.'cfg(target_os = "linux")'.dependencies]
 atspi = { version = "0.30", features = ["zbus"] }
@@ -54,7 +59,9 @@ windows = { version = "0.58", features = [
     "Win32_System_Threading",
     "Win32_System_ProcessStatus",
     "Win32_System_Com",
-    "Win32_UI_Accessibility"
+    "Win32_UI_Accessibility",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_HiDpi"
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]

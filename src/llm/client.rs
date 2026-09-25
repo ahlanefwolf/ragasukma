@@ -1,5 +1,5 @@
 use super::cleaner::clean_ai_text;
-use super::prompt::build_system_prompt;
+use super::prompt::{build_system_prompt, build_system_prompt_indexed};
 use super::providers::antigravity::AntigravityProvider;
 use super::types::{ChatMessage, ChatRequest, OllamaChatRequest, OllamaChatResponse};
 use anyhow::{Context, Result};
@@ -76,8 +76,8 @@ impl LlmClient {
             return Ok(String::new());
         }
 
-        // Selalu update System Prompt pesan pertama agar tab browser & skill selalu fresh
-        let current_sys_prompt = build_system_prompt();
+        // Dynamic Prompt Indexing: suntikkan hanya Ground of Truth yang relevan dengan ucapan user!
+        let current_sys_prompt = build_system_prompt_indexed(Some(user_input));
         if let Some(first_msg) = self.history.first_mut() {
             if first_msg.role == "system" {
                 first_msg.content = current_sys_prompt;

@@ -48,30 +48,48 @@ PANDUAN PEMILIHAN AKSI:
    - Ketik teks: `[CMD:browser:type|teks]`
    - Ketik lalu enter: `[CMD:browser:type|teks] [CMD:browser:enter]`
    - Tekan enter saja: `[CMD:browser:enter]`
-2. NAVIGASI TAB & SEARCH:
+2. NAVIGASI TAB & SEARCH BROWSER:
    - Buka tab situs baru: `[CMD:browser:open|url/domain]` (misal: `[CMD:browser:open|youtube.com]`)
    - Cari di tab saat ini: `[CMD:browser:search|kata_kunci]`
    - Cari di situs tertentu: `[CMD:browser:search|nama_situs|kata_kunci]` (misal: `[CMD:browser:search|youtube.com|arsenal vs brighton]`)
    - Pindah tab: `[CMD:browser:switch|nama_tab]`
    - Tutup tab: `[CMD:browser:close|nama_tab]`
-   - Scroll layar: `[CMD:browser:scroll|400]` (bawah) atau `-400` (atas)
-3. INTERAKSI ELEMEN LAYAR (GROUND OF TRUTH):
+   - Scroll layar web: `[CMD:browser:scroll|400]` (bawah) atau `-400` (atas)
+3. INTERAKSI WEB (GROUND OF TRUTH):
    - Klik judul/link/teks: `[CMD:browser:click_text|teks_di_layar]` (Cocokkan persis dengan snapshot web!)
    - Klik tombol: `[CMD:browser:click_button|nama_tombol]`
-4. APLIKASI & OS:
-   - Buka aplikasi: `[CMD:app:open|NamaApp]` (misal: `[CMD:app:open|Steam]`, `[CMD:app:open|Spotify]`)
-   - Volume & utilitas: `[CMD:os:volume_up]`, `[CMD:os:volume_down]`, `[CMD:os:mute]`, `[CMD:os:lock]`, `[CMD:os:screenshot]`, `[CMD:os:terminal]`, `[CMD:os:calculator]`, `[CMD:os:file_manager]`
-5. MUSIK:
+4. DESKTOP & WINDOW MANAGEMENT (GROUND OF TRUTH):
+   - Beralih ke jendela yang sudah terbuka: `[CMD:desktop:focus|nama_app_atau_judul]` (misal: `[CMD:desktop:focus|Calculator]`, `[CMD:desktop:focus|Chrome]`)
+   - Pindai jendela aktif (OS Tree): `[CMD:desktop:scan]`
+   - Pindai visual layar (ONNX OCR & Ikon): `[CMD:desktop:scan_visual]` (Gunakan jika elemen desktop kosong atau butuh membaca teks visual layar!)
+   - Kontrol jendela: `[CMD:desktop:minimize]`, `[CMD:desktop:maximize]`, `[CMD:desktop:close]`
+   - Klik tombol desktop: `[CMD:desktop:click_button|nama_atau_id_tombol]` (Cocokkan PERSIS dengan label atau ID di Ground of Truth desktop! Misal jika tertulis #15: \"Seven\", gunakan `[CMD:desktop:click_button|Seven]` atau `[CMD:desktop:click_button|15]`)
+   - Klik koordinat pixel layar: `[CMD:desktop:click_at|x|y]` (misal: `[CMD:desktop:click_at|1829|15]`)
+   - Ketik di aplikasi desktop: `[CMD:desktop:type|teks]`
+   - Tekan tombol khusus desktop: `[CMD:desktop:key|enter]`, `[CMD:desktop:key|tab]`, `[CMD:desktop:key|esc]`
+5. APLIKASI & OS:
+   - Buka aplikasi baru (jika belum terbuka di OS): `[CMD:app:open|NamaApp]` (misal: `[CMD:app:open|Calculator]`, `[CMD:app:open|Notepad]`, `[CMD:app:open|Spotify]`, `[CMD:app:open|Steam]`)
+   - Kontrol suara & sistem: `[CMD:os:volume_up]`, `[CMD:os:volume_down]`, `[CMD:os:mute]`, `[CMD:os:lock]`, `[CMD:os:screenshot]`
+6. MUSIK:
    - Putar lagu: `[CMD:media:play|judul]`
    - Kontrol: `[CMD:media:pause]`, `[CMD:media:resume]`, `[CMD:media:next]`, `[CMD:media:prev]`, `[CMD:media:stop]`
-6. CATATAN / AGENDA:
+7. CATATAN / AGENDA:
    - Tambah tugas: `[CMD:todo:add|tugas]`
    - Tugas selesai: `[CMD:todo:done|tugas]`
 
 Custom Skills Terdaftar:
 {}
 
-ATURAN RESPO DAN TTS:
+ATURAN ELEMEN GROUND OF TRUTH (DILARANG MENEBAK / HALUSINASI):
+- BERALIH JENDELA: Target `[CMD:desktop:focus|nama_app_atau_judul]` WAJIB merujuk pada nama proses (misal: `Zed.exe`, `Calculator`, `chrome.exe`) atau judul yang ada di 'Daftar Jendela Terbuka di OS'. Cocokkan dengan jendela terdekat (misal jika user bilang 'Z editor' atau 'Zed', gunakan `[CMD:desktop:focus|Zed]`).
+- Di BROWSER: Target `[CMD:browser:click_text]` atau `[CMD:browser:click_button]` WAJIB sama persis dengan yang ada di KONTEKS HALAMAN BROWSER AKTIF.
+- MERANGKUM / MEMBACA HALAMAN WEB: Jika user meminta merangkum, membaca, atau bertanya isi web yang sedang aktif, BACA LANGSUNG dari 'Konten Teks / Link Pilihan' di browser yang sudah tersedia di prompt! DILARANG memanggil `[CMD:desktop:scan_visual]` jika jendela aktif adalah browser yang sudah memiliki data teks!
+- Di DESKTOP OS: Target `[CMD:desktop:click_button]` WAJIB sama persis dengan nama label atau #ID yang ada di daftar 'Tombol / Kontrol Desktop' pada KONTEKS JENDELA DESKTOP AKTIF. DILARANG MENEBAK SIMBOL ATAU NAMA TOMBOL SENDIRI!
+- Jika tombol yang diinginkan user tidak terlihat di daftar tombol jendela aktif:
+  1. Cek apakah jendelanya belum fokus di 'Daftar Jendela Terbuka di OS' -> Panggil `[CMD:desktop:focus|NamaJendela]` terlebih dahulu!
+  2. Atau panggil `[CMD:desktop:scan_visual]` HANYA jika elemen desktop kosong atau aplikasi desktop non-browser yang tidak memiliki accessibility tree.
+
+ATURAN RESPON DAN TTS:
 - Tag `[CMD:...]` atau `[SKILL:...]` otomatis dieksekusi di background dan TIDAK dibaca oleh TTS.
 - Jika obrolan biasa tanpa aksi, DILARANG menyertakan tag perintah.",
         custom_skills_text
@@ -89,7 +107,28 @@ pub fn load_todo_summary() -> String {
     String::new()
 }
 
+fn extract_search_keywords(query: Option<&str>) -> Vec<&str> {
+    if let Some(q) = query {
+        let stop_words = [
+            "buka", "bukakan", "tolong", "coba", "klik", "pencet", "tekan", "cari", "search",
+            "video", "tulisan", "teks", "dong", "ya", "sih", "lah", "nya", "ke", "di", "dan",
+            "yang", "ini", "itu", "pada", "tab", "web", "browser", "halaman", "situs",
+        ];
+        q.split_whitespace()
+            .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()))
+            .filter(|w| w.len() >= 2 && !stop_words.contains(&w.to_lowercase().as_str()))
+            .collect()
+    } else {
+        Vec::new()
+    }
+}
+
+#[allow(dead_code)]
 pub fn load_active_browser_summary() -> String {
+    load_active_browser_summary_indexed(None)
+}
+
+pub fn load_active_browser_summary_indexed(query: Option<&str>) -> String {
     let mut parts = Vec::new();
 
     // 1. Daftar seluruh tab yang sedang terbuka
@@ -98,7 +137,7 @@ pub fn load_active_browser_summary() -> String {
         parts.push(open_tabs);
     }
 
-    // 2. Snapshot DOM halaman web yang sedang aktif
+    // 2. Snapshot DOM halaman web yang sedang aktif dengan Fuzzy Relevance Retrieval
     if let Some(snapshot) = crate::services::get_latest_snapshot() {
         let mut summary = format!(
             "\n### 🌐 KONTEKS HALAMAN BROWSER AKTIF (GROUND OF TRUTH):\n\
@@ -112,65 +151,129 @@ pub fn load_active_browser_summary() -> String {
             let inputs_str: Vec<String> = snapshot
                 .inputs
                 .iter()
+                .take(4)
                 .map(|i| {
-                    let id_or_sel = i.selector.as_deref().or(i.id.as_deref()).unwrap_or("");
                     let placeholder = i
                         .placeholder
                         .as_deref()
                         .or(i.aria_label.as_deref())
-                        .unwrap_or("");
-                    let cur_val = i.text.as_deref().unwrap_or("");
+                        .unwrap_or("")
+                        .trim();
+                    let cur_val = i.text.as_deref().unwrap_or("").trim();
                     if !cur_val.is_empty() {
-                        format!(
-                            "`{}` (placeholder: \"{}\", nilai: \"{}\", selector: `{}`)",
-                            i.tag, placeholder, cur_val, id_or_sel
-                        )
+                        format!("`{}` (placeholder: \"{}\", nilai: \"{}\")", i.tag, placeholder, cur_val)
+                    } else if !placeholder.is_empty() {
+                        format!("`{}` (placeholder: \"{}\")", i.tag, placeholder)
                     } else {
-                        format!(
-                            "`{}` (placeholder: \"{}\", selector: `{}`)",
-                            i.tag, placeholder, id_or_sel
-                        )
+                        format!("`{}`", i.tag)
                     }
                 })
                 .collect();
-            summary.push_str(&format!("* **Kolom Form / Input:**\n  - {}\n", inputs_str.join("\n  - ")));
+            summary.push_str(&format!("* **Kolom Form / Input:** {}\n", inputs_str.join(", ")));
         }
 
+        let keywords = extract_search_keywords(query);
+
+        // Smart Fuzzy Relevance Filter untuk Tombol Web (Hemat Token)
         if !snapshot.buttons.is_empty() {
-            let btns_str: Vec<String> = snapshot
+            let mut scored_btns: Vec<(&str, usize)> = snapshot
                 .buttons
                 .iter()
                 .filter_map(|b| {
-                    let txt = b
-                        .text
-                        .as_deref()
-                        .or(b.aria_label.as_deref())
-                        .unwrap_or("")
-                        .trim();
-                    let sel = b.selector.as_deref().unwrap_or("").trim();
-                    if txt.is_empty() && sel.is_empty() {
-                        None
-                    } else {
-                        Some(format!("\"{}\" (selector: `{}`)", txt, sel))
+                    let txt = b.text.as_deref().or(b.aria_label.as_deref()).unwrap_or("").trim();
+                    if txt.is_empty() {
+                        return None;
                     }
+                    let txt_lower = txt.to_lowercase();
+                    let mut score = 0;
+                    for &kw in &keywords {
+                        let kw_lower = kw.to_lowercase();
+                        if txt_lower == kw_lower {
+                            score += 15;
+                        } else if txt_lower.starts_with(&kw_lower) {
+                            score += 8;
+                        } else if txt_lower.contains(&kw_lower) {
+                            score += 4;
+                        }
+                    }
+                    Some((txt, score))
                 })
                 .collect();
-            summary.push_str(&format!("* **Tombol Interaktif:**\n  - {}\n", btns_str.join(", ")));
+
+            let final_btns: Vec<&str> = if !keywords.is_empty() && scored_btns.iter().any(|(_, s)| *s > 0) {
+                scored_btns.sort_by_key(|a| std::cmp::Reverse(a.1));
+                scored_btns.into_iter().filter(|(_, s)| *s > 0).take(8).map(|(t, _)| t).collect()
+            } else {
+                let mut seen = HashSet::new();
+                scored_btns.into_iter().filter_map(|(t, _)| {
+                    if seen.insert(t.to_lowercase()) {
+                        Some(t)
+                    } else {
+                        None
+                    }
+                }).take(10).collect()
+            };
+
+            if !final_btns.is_empty() {
+                let formatted_btns: Vec<String> = final_btns.into_iter().map(|b| format!("\"{}\"", b)).collect();
+                summary.push_str(&format!("* **Tombol di Layar:** {}\n", formatted_btns.join(", ")));
+            }
         }
 
+        // Smart Fuzzy Relevance Filter untuk Teks & Link Web (Hemat 95%+ Token!)
+        let is_reading_summary = query.is_some_and(|q| {
+            let q_lower = q.to_lowercase();
+            q_lower.contains("rangkum") || q_lower.contains("ringkas") || q_lower.contains("baca isi") || q_lower.contains("apa isi") || q_lower.contains("jelaskan")
+        });
+
+        // Konten Teks DOM Halaman Web
         if !snapshot.texts.is_empty() {
-            // Bersihkan dan masukkan seluruh teks konten DOM dari halaman web
-            let mut cleaned_texts = Vec::new();
-            let mut last_line = "";
-            for t in snapshot.texts.iter().map(|s| s.trim()).filter(|s| !s.is_empty()) {
-                if t != last_line {
-                    cleaned_texts.push(t);
-                    last_line = t;
+            let mut unique_texts = Vec::new();
+            let mut seen_texts = HashSet::new();
+            for t in snapshot.texts.iter().map(|s| s.trim()).filter(|s| s.len() >= 3) {
+                let t_lower = t.to_lowercase();
+                if seen_texts.insert(t_lower) {
+                    unique_texts.push(t);
                 }
             }
+
+            let final_texts: Vec<&str> = if is_reading_summary {
+                // Saat user minta rangkuman/baca halaman, ambil artikel/paragraf teks dominan (hingga 25 teks)
+                unique_texts.into_iter().take(25).collect()
+            } else if !keywords.is_empty() {
+                let mut scored_texts: Vec<(&str, usize)> = unique_texts
+                    .into_iter()
+                    .map(|t| {
+                        let t_lower = t.to_lowercase();
+                        let mut score = 0;
+                        for &kw in &keywords {
+                            let kw_lower = kw.to_lowercase();
+                            if t_lower == kw_lower {
+                                score += 20;
+                            } else if t_lower.starts_with(&kw_lower) {
+                                score += 10;
+                            } else if t_lower.contains(&kw_lower) {
+                                score += 5;
+                            }
+                        }
+                        (t, score)
+                    })
+                    .collect();
+
+                scored_texts.sort_by_key(|a| std::cmp::Reverse(a.1));
+                let matches: Vec<&str> = scored_texts.into_iter().filter(|(_, s)| *s > 0).take(8).map(|(t, _)| t).collect();
+                if !matches.is_empty() {
+                    matches
+                } else {
+                    snapshot.texts.iter().take(10).map(|s| s.as_str()).collect()
+                }
+            } else {
+                unique_texts.into_iter().take(12).collect()
+            };
+
             summary.push_str(&format!(
-                "* **Konten Teks Lengkap di Halaman:**\n{}\n",
-                cleaned_texts.join(" • ")
+                "* **Konten Teks / Link Pilihan (Ground of Truth):**\n  - {}\n",
+                final_texts.join("\n  - ")
             ));
         } else if !snapshot.text_summary.is_empty() {
             summary.push_str(&format!("* **Ringkasan Teks:**\n{}\n", snapshot.text_summary));
@@ -182,7 +285,234 @@ pub fn load_active_browser_summary() -> String {
     parts.join("\n")
 }
 
+#[allow(dead_code)]
+pub fn load_active_window_summary() -> String {
+    load_active_window_summary_indexed(None)
+}
+
+pub fn load_active_window_summary_indexed(query: Option<&str>) -> String {
+    if let Ok(snapshot) = crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file() {
+        if snapshot.app_name.is_empty() && snapshot.window_title.is_empty() {
+            return String::new();
+        }
+
+        let mut summary = format!(
+            "\n### 🖥️ KONTEKS JENDELA DESKTOP AKTIF (GROUND OF TRUTH):\n\
+            * **Jendela Aktif Saat Ini:** {} ({})\n\
+            * **Sumber Data:** {}\n",
+            snapshot.app_name, snapshot.window_title, snapshot.source
+        );
+
+        if !snapshot.windows.is_empty() {
+            let win_list: Vec<String> = snapshot
+                .windows
+                .iter()
+                .filter(|w| !w.title.is_empty() && w.title != "Program Manager")
+                .map(|w| {
+                    if w.active {
+                        format!("\"{}\" ({}) [AKTIF]", w.title, w.app_name)
+                    } else {
+                        format!("\"{}\" ({})", w.title, w.app_name)
+                    }
+                })
+                .collect();
+            if !win_list.is_empty() {
+                summary.push_str(&format!("* **Daftar Jendela Terbuka di OS:** {}\n", win_list.join(", ")));
+            }
+        }
+
+        let keywords = extract_search_keywords(query);
+
+        if !snapshot.buttons.is_empty() {
+            let btns: Vec<String> = if !keywords.is_empty() {
+                let mut scored_btns: Vec<(&crate::engine::window_scanner::DesktopElement, usize)> = snapshot
+                    .buttons
+                    .iter()
+                    .map(|b| {
+                        let lbl_lower = b.label.to_lowercase();
+                        let mut score = 0;
+                        for &kw in &keywords {
+                            let kw_lower = kw.to_lowercase();
+                            if lbl_lower == kw_lower {
+                                score += 20;
+                            } else if lbl_lower.starts_with(&kw_lower) {
+                                score += 10;
+                            } else if lbl_lower.contains(&kw_lower) {
+                                score += 5;
+                            }
+                        }
+                        (b, score)
+                    })
+                    .collect();
+
+                scored_btns.sort_by_key(|a| std::cmp::Reverse(a.1));
+                let matches: Vec<String> = scored_btns
+                    .into_iter()
+                    .filter(|(_, s)| *s > 0)
+                    .take(15)
+                    .map(|(b, _)| {
+                        if let Some(c) = b.center {
+                            format!("#{}: \"{}\" [center: {},{}]", b.id, b.label, c[0], c[1])
+                        } else {
+                            format!("#{}: \"{}\"", b.id, b.label)
+                        }
+                    })
+                    .collect();
+
+                if !matches.is_empty() {
+                    matches
+                } else {
+                    snapshot.buttons.iter().take(20).map(|b| {
+                        if let Some(c) = b.center {
+                            format!("#{}: \"{}\" [center: {},{}]", b.id, b.label, c[0], c[1])
+                        } else {
+                            format!("#{}: \"{}\"", b.id, b.label)
+                        }
+                    }).collect()
+                }
+            } else {
+                snapshot.buttons.iter().take(25).map(|b| {
+                    if let Some(c) = b.center {
+                        format!("#{}: \"{}\" [center: {},{}]", b.id, b.label, c[0], c[1])
+                    } else {
+                        format!("#{}: \"{}\"", b.id, b.label)
+                    }
+                }).collect()
+            };
+
+            summary.push_str(&format!("* **Tombol / Kontrol Desktop:** {}\n", btns.join(", ")));
+        }
+
+        if !snapshot.inputs.is_empty() {
+            let inps: Vec<String> = snapshot
+                .inputs
+                .iter()
+                .take(5)
+                .map(|inp| format!("\"{}\"", inp.label))
+                .collect();
+            summary.push_str(&format!("* **Kolom Input:** {}\n", inps.join(", ")));
+        }
+
+        if !snapshot.texts.is_empty() {
+            let texts_str: Vec<String> = snapshot.texts.iter().take(10).cloned().collect();
+            summary.push_str(&format!("* **Konten Teks di Layar:** {}\n", texts_str.join(" • ")));
+        }
+
+        return summary;
+    }
+    String::new()
+}
+
+#[allow(dead_code)]
+pub fn load_installed_apps_summary() -> String {
+    crate::engine::app_scanner::format_installed_apps_for_llm()
+}
+
+pub fn load_installed_apps_indexed(query: Option<&str>) -> String {
+    crate::engine::app_scanner::format_installed_apps_indexed(query)
+}
+
+/// Struktur keputusan prompt indexing (Intent-based Context Routing)
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PromptIndexDecision {
+    pub inject_music: bool,
+    pub inject_todo: bool,
+    pub inject_apps: bool,
+    pub inject_browser: bool,
+    pub inject_desktop: bool,
+}
+
+/// Router cerdas untuk menentukan pilar Ground of Truth mana yang relevan dengan ucapan pengguna
+pub fn route_prompt_indexes(user_input: Option<&str>) -> PromptIndexDecision {
+    let raw = match user_input {
+        Some(s) if !s.trim().is_empty() => s.trim().to_lowercase(),
+        _ => {
+            // Mode inisialisasi awal (tanpa input user): muat konteks desktop & browser aktif sebagai baseline
+            return PromptIndexDecision {
+                inject_music: false,
+                inject_todo: true,
+                inject_apps: false,
+                inject_browser: true,
+                inject_desktop: true,
+            };
+        }
+    };
+
+    let mut decision = PromptIndexDecision::default();
+
+    // 1. Music Intent Index
+    let music_keywords = [
+        "musik", "lagu", "play", "putar", "putarkan", "setel", "mainkan",
+        "pause", "jeda", "lanjutkan", "resume", "stop", "hentikan",
+        "next", "prev", "audio", "mp3", "sound", "nyanyi",
+    ];
+    if music_keywords.iter().any(|k| raw.contains(k)) {
+        decision.inject_music = true;
+    }
+
+    // 2. To-Do & Task Intent Index
+    let todo_keywords = [
+        "todo", "to-do", "tugas", "catat", "catatan", "agenda", "jadwal",
+        "ingatkan", "remind", "list", "selesai", "tambahkan tugas",
+    ];
+    if todo_keywords.iter().any(|k| raw.contains(k)) {
+        decision.inject_todo = true;
+    }
+
+    // 3. Application Launcher Intent Index
+    let app_keywords = [
+        "buka", "bukakan", "jalankan", "start", "open", "launch", "nyalakan",
+        "tutup", "close", "aplikasi", "program", "app",
+    ];
+    if app_keywords.iter().any(|k| raw.contains(k)) {
+        decision.inject_apps = true;
+    }
+
+    // Periksa status jendela aktif saat ini untuk context-aware routing
+    let (is_browser_active, has_active_window) = if let Ok(snap) =
+        crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file()
+    {
+        let name = snap.app_name.to_lowercase();
+        let is_browser = name.contains("chrome")
+            || name.contains("brave")
+            || name.contains("edge")
+            || name.contains("msedge")
+            || name.contains("firefox")
+            || name.contains("opera");
+        (is_browser, !name.is_empty())
+    } else {
+        (false, false)
+    };
+
+    // 4. Browser Context Intent Index
+    let browser_keywords = [
+        "browser", "web", "tab", "situs", "website", "cari", "search",
+        "youtube", "google", "link", "url", "scroll", "halaman", "klik link",
+    ];
+    if is_browser_active || browser_keywords.iter().any(|k| raw.contains(k)) {
+        decision.inject_browser = true;
+    }
+
+    // 5. Desktop & Window Management Intent Index
+    let desktop_keywords = [
+        "jendela", "window", "desktop", "fokus", "focus", "minimize", "maximize",
+        "pindah", "pindahkan", "beralih", "switch", "tampilkan", "aktifkan",
+        "kalkulator", "calc", "notepad", "layar", "screen", "tombol", "button",
+        "scan", "pindai", "lihat", "klik", "pencet", "tekan", "angka", "ketik",
+        "hitung", "tambah", "kurang", "kali", "bagi", "sama dengan",
+    ];
+    if (!is_browser_active && has_active_window) || desktop_keywords.iter().any(|k| raw.contains(k)) {
+        decision.inject_desktop = true;
+    }
+
+    decision
+}
+
 pub fn build_system_prompt() -> String {
+    build_system_prompt_indexed(None)
+}
+
+pub fn build_system_prompt_indexed(user_input: Option<&str>) -> String {
     let u = crate::config::load_user_config();
     let assistant_name = u.assistant_name;
     let callsign = u.user_callsign;
@@ -191,9 +521,39 @@ pub fn build_system_prompt() -> String {
     let is_male =
         gender == "male" || gender == "cowok" || gender == "pria" || gender == "laki-laki";
 
-    let music_prompt = load_local_music_summary();
-    let todo_prompt = load_todo_summary();
-    let browser_prompt = load_active_browser_summary();
+    // Dynamic Prompt Indexing: hanya muat pilar Ground of Truth yang relevan dengan ucapan user!
+    let route = route_prompt_indexes(user_input);
+
+    let music_prompt = if route.inject_music {
+        load_local_music_summary()
+    } else {
+        String::new()
+    };
+
+    let todo_prompt = if route.inject_todo {
+        load_todo_summary()
+    } else {
+        String::new()
+    };
+
+    let apps_prompt = if route.inject_apps {
+        load_installed_apps_indexed(user_input)
+    } else {
+        String::new()
+    };
+
+    let browser_prompt = if route.inject_browser {
+        load_active_browser_summary_indexed(user_input)
+    } else {
+        String::new()
+    };
+
+    let window_prompt = if route.inject_desktop {
+        load_active_window_summary_indexed(user_input)
+    } else {
+        String::new()
+    };
+
     let skills_prompt = load_skills_summary();
 
     // Persona & Dinamika Karakter
@@ -251,9 +611,11 @@ pub fn build_system_prompt() -> String {
 
     format!(
         "Namamu adalah {assistant_name}. Kamu adalah AI bergender {gender_tag}. {persona_desc}{task_context}\n\
-{music_prompt}\
-{todo_prompt}\
-{browser_prompt}\n\
+	{music_prompt}\
+	{todo_prompt}\
+	{apps_prompt}\
+	{browser_prompt}\
+	{window_prompt}\n\
 ATURAN FORMAT UCAPAN TEXT-TO-SPEECH (TTS):
 1. Format Natural:
    - Gunakan kalimat lisan natural, ramah, dan enak didengar.
@@ -271,6 +633,10 @@ ATURAN FORMAT UCAPAN TEXT-TO-SPEECH (TTS):
      * Ketik lalu enter: '*senang* Oke langsung kuketik dan cari! [CMD:browser:type|berita teknologi] [CMD:browser:enter]'
      * Tekan enter: '*semangat* Siap, tombol enter ditekan! [CMD:browser:enter]'
      * Klik di web: '*senang* Siap, kuklik sekarang! [CMD:browser:click_text|Play]'
+     * Pindai visual layar: '*semangat* Siap, kupindai layar sekarang! [CMD:desktop:scan_visual]'
+     * Beralih jendela: '*senang* Siap, membuka jendela tersebut! [CMD:desktop:focus|Spotify]'
+     * Klik tombol desktop: '*senang* Siap, tombolnya kuklik! [CMD:desktop:click_button|Simpan]'
+     * Klik koordinat layar: '*senang* Siap, kuklik pada koordinat tersebut! [CMD:desktop:click_at|1829|15]'
    - JIKA OBROLAN SANTAI: Responmu cukup 1 kalimat santai dan ramah.{skills_prompt}"
     )
 }

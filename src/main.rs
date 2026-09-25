@@ -18,8 +18,42 @@ use anyhow::Result;
 use config::AppConfig;
 use engine::AppSession;
 
+fn init_dpi_awareness() {
+    #[cfg(target_os = "windows")]
+    unsafe {
+        use windows::Win32::UI::HiDpi::{
+            SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
+        };
+        // Mengatur proses menjadi Per-Monitor V2 DPI Aware agar koordinat
+        // mouse (SetCursorPos), UI Automation (CurrentBoundingRectangle),
+        // dan screenshot monitor sinkron 1:1 tanpa offset akibat display scaling (125%, 150%, dst).
+        let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    }
+}
+
 fn main() -> Result<()> {
+    init_dpi_awareness();
     let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--scan-vision") {
+        println!("👁️ Menjalankan local perception scan via dedicated Vision Worker (PP-OCR + OmniParser Icon Detection)...");
+        let result = engine::perception::request_vision_scan_sync();
+        println!("✅ Vision Scan Berhasil!");
+        println!("  Total Elemen  : {} item", result.elements.len());
+        println!("  Tombol / Ikon : {} item", result.buttons.len());
+        for b in result.buttons.iter().take(8) {
+            println!("    - [{}] \"{}\" pada center {:?}", b.role, b.label, b.center);
+        }
+        println!("  Input Fields  : {} item", result.inputs.len());
+        for inp in result.inputs.iter().take(5) {
+            println!("    - [{}] \"{}\" pada center {:?}", inp.role, inp.label, inp.center);
+        }
+        println!("  Teks Terbaca  : {} item", result.texts.len());
+        for t in result.texts.iter().take(10) {
+            println!("    - \"{}\"", t);
+        }
+        println!("📁 File tersimpan di assets/active_window_app.json (source: vision_perception)");
+        return Ok(());
+    }
     if args.iter().any(|a| a == "--scan-window") {
         println!("🔍 Menjalankan native OS accessibility scan...");
         match engine::window_scanner::scan_active_window_sync() {
@@ -110,6 +144,9 @@ fn main() -> Result<()> {
 
     // Inisialisasi native OS active window watcher (reaktif) untuk active_window_app.json
     crate::engine::window_scanner::start_window_watcher();
+
+    // Inisialisasi standby dedicated vision worker thread (0% CPU idle)
+    crate::engine::perception::start_vision_worker();
 
     // Inisialisasi dedicated background task worker thread
     crate::engine::init_background_task_worker();

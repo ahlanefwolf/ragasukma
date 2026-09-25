@@ -95,8 +95,27 @@ pub fn configure_subprocess(cmd: &mut std::process::Command) {
 pub fn execute_command_by_os(cmd: &str) -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
     {
+        let trimmed = cmd.trim();
+        // Jika perintah adalah executable langsung atau file (misal calc.exe, notepad.exe, explorer.exe)
+        // dan tidak mengandung shell pipe/redirect, jalankan langsung tanpa cmd /C
+        if !trimmed.contains('|') && !trimmed.contains('&') && !trimmed.contains('>') && !trimmed.contains('<') {
+            if let Some((prog, args)) = trimmed.split_once(' ') {
+                let clean_prog = prog.trim_matches('"');
+                let clean_args = args.trim_matches('"');
+                if std::process::Command::new(clean_prog).arg(clean_args).spawn().is_ok() {
+                    return Ok(());
+                }
+            } else {
+                let clean_prog = trimmed.trim_matches('"');
+                if std::process::Command::new(clean_prog).spawn().is_ok() {
+                    return Ok(());
+                }
+            }
+        }
+
         let mut command = std::process::Command::new("cmd");
-        command.args(["/C", cmd]);
+        // Menggunakan /S /C "<cmd>" agar parser cmd.exe tidak memotong tanda kutip ganda internal
+        command.args(["/S", "/C", &format!("\"{trimmed}\"")]);
         configure_subprocess(&mut command);
         command.spawn()?;
     }

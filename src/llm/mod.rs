@@ -11,7 +11,7 @@ pub mod v1_engine;
 pub use cleaner::clean_ai_text;
 pub use client::LlmClient;
 #[allow(unused_imports)]
-pub use prompt::{build_system_prompt, load_skills_summary};
+pub use prompt::{build_system_prompt, build_system_prompt_indexed, load_skills_summary};
 #[allow(unused_imports)]
 pub use providers::{AntigravityAccount, AntigravityAccountInfo, AntigravityProvider};
 #[allow(unused_imports)]

@@ -41,20 +41,37 @@
     if (!txt) return "";
     return txt
       .toLowerCase()
-      .replace(/[^\w\s\d]/g, " ") // Hapus tanda baca seperti tanda seru, koma, titik dua, dsb
+      // Pertahankan simbol tombol penting (+, -, *, /, =, %, dll)
+      .replace(/[^\w\s\d\+\-\*\/\=\%]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
   }
 
   function wordsMatchScore(targetText, queryText) {
     if (!targetText || !queryText) return 0;
+    const rawTarget = targetText.trim().toLowerCase();
+    const rawQuery = queryText.trim().toLowerCase();
+    if (!rawTarget || !rawQuery) return 0;
+
+    // Prioritas Mutlak 1: Exact Match murni sebelum normalisasi
+    if (rawTarget === rawQuery) return 100;
+
     const targetNorm = normalizeText(targetText);
     const queryNorm = normalizeText(queryText);
     if (!targetNorm || !queryNorm) return 0;
 
+    // Prioritas Mutlak 2: Exact Match setelah normalisasi
     if (targetNorm === queryNorm) return 100;
-    if (targetNorm.includes(queryNorm)) return 95;
-    if (queryNorm.includes(targetNorm) && targetNorm.length > 2) return 90;
+
+    // Jika pencarian hanya 1 karakter (seperti "c", "+", "-"),
+    // DILARANG mencocokkan substring agar tidak salah klik kata lain (misal "ce", "plus", dll)
+    if (rawQuery.length <= 1) {
+      return 0;
+    }
+
+    if (targetNorm.startsWith(queryNorm)) return 96;
+    if (targetNorm.includes(queryNorm)) return 92;
+    if (queryNorm.includes(targetNorm) && targetNorm.length > 2) return 88;
 
     const queryWords = queryNorm.split(" ").filter(w => w.length > 0);
     if (queryWords.length === 0) return 0;
