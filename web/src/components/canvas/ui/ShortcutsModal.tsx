@@ -53,7 +53,7 @@ export const ShortcutsModal: Component<ShortcutsModalProps> = (props) => {
 
   return (
     <Show when={props.isOpen}>
-      <div class="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+      <div class="fixed inset-0 z-[150] !mt-0 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150">
         <div class="bg-theme-card border border-theme-cyan/50 w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
           {/* Modal Header */}
           <div class="bg-gradient-to-r from-theme-surface to-theme-bg p-4 border-b border-theme-border flex items-center justify-between">
@@ -62,7 +62,7 @@ export const ShortcutsModal: Component<ShortcutsModalProps> = (props) => {
                 <Keyboard size={18} />
               </div>
               <div>
-                <h3 class="text-base font-bold text-theme-text tracking-wide">
+                <h3 class="text-base font-bold text-theme-text tracking-wide m-0 leading-tight">
                   Panduan Shortcut Keyboard
                 </h3>
                 <p class="text-xs text-theme-text/60">

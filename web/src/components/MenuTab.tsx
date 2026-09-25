@@ -495,7 +495,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
 
       {/* Modal Dialog Cek Pembaruan & Release Notes */}
       {updateModalOpen() && updateInfo() && (
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
+        <div class="fixed inset-0 z-50 !mt-0 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
           <div class="bg-theme-surface border border-theme-border w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             {/* Header Modal */}
             <div class="flex items-center justify-between p-4 border-b border-theme-border bg-theme-bg">
@@ -504,7 +504,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                   {updateInfo()!.hasUpdate ? <Download size={20} /> : <RefreshCw size={20} />}
                 </span>
                 <div>
-                  <h3 class="text-lg font-bold text-theme-text tracking-wide">
+                  <h3 class="text-lg font-bold text-theme-text tracking-wide m-0 leading-tight">
                     {updateInfo()!.hasUpdate ? '🎉 Pembaruan Tersedia!' : '✨ Sistem Up-to-Date'}
                   </h3>
                   <div class="flex items-center gap-2 text-xs text-theme-text/70 mt-0.5">

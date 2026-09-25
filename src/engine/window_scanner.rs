@@ -428,7 +428,7 @@ pub fn get_focused_window_quick_info() -> Option<(String, String)> {
         unsafe {
             use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW};
             let hwnd = GetForegroundWindow();
-            if hwnd.0 != 0 {
+            if !hwnd.0.is_null() {
                 let len = GetWindowTextLengthW(hwnd);
                 let mut buf = vec![0u16; (len + 1) as usize];
                 let copied = GetWindowTextW(hwnd, &mut buf);
@@ -496,7 +496,6 @@ pub fn start_window_watcher() {
 #[cfg(target_os = "windows")]
 fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
     use std::path::Path;
-    use windows::core::{Interface, BSTR};
     use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
     use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
     use windows::Win32::System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION};
@@ -504,6 +503,7 @@ fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
         CUIAutomation, IUIAutomation, TreeScope_Descendants,
         UIA_ButtonControlTypeId, UIA_CheckBoxControlTypeId, UIA_EditControlTypeId,
         UIA_HyperlinkControlTypeId, UIA_MenuItemControlTypeId, UIA_RadioButtonControlTypeId,
+        UIA_CONTROLTYPE_ID,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW,
@@ -525,7 +525,7 @@ fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
             if len > 0 {
                 snapshot.window_title = String::from_utf16_lossy(&title_buf[..len as usize]);
             }
-            snapshot.window_id = format!("{:?}", fg_hwnd.0);
+            snapshot.window_id = format!("win:0x{:x}", fg_hwnd.0 as usize);
 
             let mut pid = 0u32;
             GetWindowThreadProcessId(fg_hwnd, Some(&mut pid));
@@ -558,53 +558,55 @@ fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
         }
 
         unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
-            let ctx = &mut *(lparam.0 as *mut EnumContext);
+            unsafe {
+                let ctx = &mut *(lparam.0 as *mut EnumContext);
 
-            if IsWindowVisible(hwnd).as_bool() {
-                let len = GetWindowTextLengthW(hwnd);
-                if len > 0 {
-                    let mut title_buf = vec![0u16; (len + 1) as usize];
-                    let read_len = GetWindowTextW(hwnd, &mut title_buf);
-                    if read_len > 0 {
-                        let title = String::from_utf16_lossy(&title_buf[..read_len as usize]);
+                if IsWindowVisible(hwnd).as_bool() {
+                    let len = GetWindowTextLengthW(hwnd);
+                    if len > 0 {
+                        let mut title_buf = vec![0u16; (len + 1) as usize];
+                        let read_len = GetWindowTextW(hwnd, &mut title_buf);
+                        if read_len > 0 {
+                            let title = String::from_utf16_lossy(&title_buf[..read_len as usize]);
 
-                        let mut pid = 0u32;
-                        GetWindowThreadProcessId(hwnd, Some(&mut pid));
-                        let mut app_name = String::new();
-                        if pid != 0 {
-                            if let Ok(proc) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
-                                let mut path_buf = [0u16; 512];
-                                let mut path_len = path_buf.len() as u32;
-                                if QueryFullProcessImageNameW(
-                                    proc,
-                                    PROCESS_NAME_FORMAT(0),
-                                    windows::core::PWSTR(path_buf.as_mut_ptr()),
-                                    &mut path_len,
-                                ).is_ok() && path_len > 0 {
-                                    let full = String::from_utf16_lossy(&path_buf[..path_len as usize]);
-                                    app_name = Path::new(&full)
-                                        .file_name()
-                                        .and_then(|n| n.to_str())
-                                        .unwrap_or("")
-                                        .to_string();
+                            let mut pid = 0u32;
+                            GetWindowThreadProcessId(hwnd, Some(&mut pid));
+                            let mut app_name = String::new();
+                            if pid != 0 {
+                                if let Ok(proc) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+                                    let mut path_buf = [0u16; 512];
+                                    let mut path_len = path_buf.len() as u32;
+                                    if QueryFullProcessImageNameW(
+                                        proc,
+                                        PROCESS_NAME_FORMAT(0),
+                                        windows::core::PWSTR(path_buf.as_mut_ptr()),
+                                        &mut path_len,
+                                    ).is_ok() && path_len > 0 {
+                                        let full = String::from_utf16_lossy(&path_buf[..path_len as usize]);
+                                        app_name = Path::new(&full)
+                                            .file_name()
+                                            .and_then(|n| n.to_str())
+                                            .unwrap_or("")
+                                            .to_string();
+                                    }
                                 }
                             }
-                        }
 
-                        let is_active = hwnd == ctx.fg;
-                        ctx.windows.push(WindowItem {
-                            id: ctx.counter,
-                            app_name,
-                            title,
-                            active: is_active,
-                            window_id: format!("{:?}", hwnd.0),
-                        });
-                        ctx.counter += 1;
+                            let is_active = hwnd == ctx.fg;
+                            ctx.windows.push(WindowItem {
+                                id: ctx.counter,
+                                app_name,
+                                title,
+                                active: is_active,
+                                window_id: format!("win:0x{:x}", hwnd.0 as usize),
+                            });
+                            ctx.counter += 1;
+                        }
                     }
                 }
-            }
 
-            BOOL(1)
+                BOOL(1)
+            }
         }
 
         let mut enum_ctx = EnumContext {
@@ -632,9 +634,10 @@ fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
                                 for i in 0..max_items {
                                     if let Ok(elem) = elements.GetElement(i) {
                                         let name: String = elem.CurrentName().map(|b| b.to_string()).unwrap_or_default().trim().to_string();
-                                        let control_type = elem.CurrentControlType().unwrap_or(windows::Win32::UI::Accessibility::UIA_CONTROLTYPEID(0));
+                                        let control_type = elem.CurrentControlType().unwrap_or(UIA_CONTROLTYPE_ID(0));
 
                                         if !name.is_empty() {
+                                            #[allow(non_upper_case_globals)]
                                             match control_type {
                                                 UIA_ButtonControlTypeId
                                                 | UIA_CheckBoxControlTypeId

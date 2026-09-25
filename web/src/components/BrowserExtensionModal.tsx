@@ -44,7 +44,7 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
   return (
     <Show when={props.isOpen}>
       <div 
-        class="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fade-in select-none"
+        class="fixed inset-0 z-[150] !mt-0 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fade-in select-none"
         onClick={props.onClose}
       >
         <div 
@@ -58,7 +58,7 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
                 <Puzzle size={20} />
               </div>
               <div>
-                <h3 class="text-base sm:text-lg font-bold text-theme-text flex items-center gap-2">
+                <h3 class="text-base sm:text-lg font-bold text-theme-text flex items-center gap-2 m-0 leading-tight">
                   Pasang Ekstensi Browser (.CRX)
                   <span class="text-[10px] font-mono font-bold px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan">
                     Single File Packaged

@@ -32,6 +32,7 @@
     letter-spacing: 0.02em;
     -webkit-text-stroke: 0.4px currentColor;
     text-shadow: 0 0 0.5px currentColor;
+    margin: 0;
   }
 
   /* Clean 1px Focus Highlight without thick ring or outline */

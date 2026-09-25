@@ -60,7 +60,7 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
   return (
     <Show when={props.isOpen}>
       <div
-        class="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fade-in select-none"
+        class="fixed inset-0 z-[150] !mt-0 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fade-in select-none"
         onClick={props.onClose}
       >
         <div
@@ -74,7 +74,7 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
                 <Layers size={20} />
               </div>
               <div>
-                <h3 class="text-sm sm:text-base font-bold text-theme-text font-heading flex items-center gap-2">
+                <h3 class="text-sm sm:text-base font-bold text-theme-text font-heading flex items-center gap-2 m-0 leading-tight">
                   <span>Daftar Aplikasi Sistem (OS)</span>
                   <span class="text-xs font-mono px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan font-bold">
                     {apps().length} Terdeteksi

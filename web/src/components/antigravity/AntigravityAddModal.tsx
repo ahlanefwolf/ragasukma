@@ -35,7 +35,7 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
 
   return (
     <Show when={props.isOpen}>
-      <div class="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in select-none">
+      <div class="fixed inset-0 z-[100] !mt-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in select-none">
         <div class="max-w-md w-full p-6 bg-theme-surface border border-theme-border shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
           <div class="flex items-center justify-between pb-3 border-b border-theme-border">
             <div class="flex items-center gap-2.5">
@@ -43,7 +43,7 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
                 <Rocket size={18} />
               </div>
               <div>
-                <h3 class="text-base font-bold text-theme-text">Input Token Antigravity Manual</h3>
+                <h3 class="text-base font-bold text-theme-text m-0 leading-tight">Input Token Antigravity Manual</h3>
                 <p class="text-xs text-theme-text/50">Google OAuth Refresh Token</p>
               </div>
             </div>
