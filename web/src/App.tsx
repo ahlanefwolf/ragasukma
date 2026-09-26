@@ -14,6 +14,8 @@ import { BottomPlayer } from './components/BottomPlayer';
 import { initGlobalAudio, killGlobalAudio } from './playerStore';
 import { Menu as MenuIcon } from 'lucide-solid';
 import { api, killCurrentSession } from './api';
+import { configService } from './services/configService';
+import { API_BASE } from './services/base';
 
 // Token unik per instance tab, dibuat saat module pertama kali dimuat
 const MY_TOKEN = 'sess_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
@@ -96,12 +98,47 @@ export const App: Component = () => {
     }
   };
 
+  let activeRecognition: any = null;
+  let activeBc: BroadcastChannel | null = null;
+  let unsubStateFn: (() => void) | null = null;
+  let unsubActionsFn: (() => void) | null = null;
+
   const killThisTab = (reason: 'duplicate' | 'shutdown' = 'duplicate') => {
     if (isDead()) return;
     setDeadReason(reason);
     setIsDead(true);
+
+    // 1. Matikan Chrome Speech Synthesis seketika
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
+    }
+
+    // 2. Putus mikrofon Chrome STT seketika tanpa restart
+    if (activeRecognition) {
+      try {
+        activeRecognition.onend = null;
+        activeRecognition.onerror = null;
+        activeRecognition.onresult = null;
+        activeRecognition.onspeechstart = null;
+        activeRecognition.abort();
+      } catch {}
+      activeRecognition = null;
+    }
+
+    // 3. Putus stream SSE & batalkan listener agar tab mati tidak lagi menerima / memproses respon LLM
+    try {
+      unsubStateFn?.();
+      unsubActionsFn?.();
+      api.forceCloseSSE();
+    } catch {}
+
+    // 4. Tutup session, global audio, dan BroadcastChannel
     killCurrentSession();
     killGlobalAudio();
+    try { activeBc?.close(); } catch {}
+
     if (document.pictureInPictureElement) {
       document.exitPictureInPicture().catch(() => {});
     }
@@ -120,6 +157,7 @@ export const App: Component = () => {
     let bc: BroadcastChannel | null = null;
     try {
       bc = new BroadcastChannel(BC_NAME);
+      activeBc = bc;
       bc.onmessage = (e) => {
         console.log('[Session] BroadcastChannel msg:', e.data, 'MY_TOKEN =', MY_TOKEN);
         if (e.data?.type === 'CLAIM' && e.data.token !== MY_TOKEN) {
@@ -149,21 +187,328 @@ export const App: Component = () => {
     // ── 4. SSE: untuk update state UI & deteksi shutdown / token klaim ──
     const unsubState = api.subscribeState(
       (st) => {
+        if (isDead()) return;
         if (st?.state === 'shutdown') {
           console.log('[Session] Backend signaled SHUTDOWN');
           killThisTab('shutdown');
           return;
         }
         if (st?.state) setCurrentState(st.state);
+
+        // Sinkronkan state Mute langsung dari State SSE
+        const nextVoiceMuted = Boolean(st?.voice_muted);
+        const nextMicMuted = Boolean(st?.mic_muted);
+
+        if (isVoiceMuted !== nextVoiceMuted) {
+          isVoiceMuted = nextVoiceMuted;
+          if (isVoiceMuted && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+          }
+        }
+
+        if (isMicMuted !== nextMicMuted) {
+          isMicMuted = nextMicMuted;
+          if (isMicMuted) {
+            try { recognition?.abort(); } catch {}
+          } else if (!isTtsSpeaking && !isDead()) {
+            try { recognition?.start(); } catch {}
+          }
+        }
       }
     );
+    unsubStateFn = unsubState;
+
+    // Cache konfigurasi lokal untuk reaktivitas instan tanpa fetch berulang
+    let runtimeConfig: any = null;
+    configService.getConfig().then((cfg) => {
+      runtimeConfig = cfg;
+    });
+
+    // 🎙️ Google Chrome Speech Recognition (STT) - Dengar suara dari browser dan kirim transkrip ke backend
+    let recognition: any = null;
+    let isTtsSpeaking = false;
+    let isVoiceMuted = false;
+    let isMicMuted = false;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    const applyRecognitionLang = (lang: string) => {
+      if (!recognition) return;
+      if (recognition.lang !== lang) {
+        recognition.lang = lang;
+        console.log('[Chrome Web STT] Reaktif ganti bahasa STT ke:', lang);
+        try {
+          recognition.stop();
+        } catch {}
+      }
+    };
+
+
+
+    try {
+      if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        activeRecognition = recognition;
+        recognition.continuous = true;
+        recognition.interimResults = false;
+
+        configService.getConfig().then((cfg) => {
+          if (recognition) {
+            recognition.lang = cfg?.stt_lang || 'id-ID';
+          }
+        });
+
+        recognition.onspeechstart = () => {
+          // ⚡ Voice Interruption (Barge-in): Begitu pengguna mulai bersuara, potong TTS seketika!
+          if (isTtsSpeaking && runtimeConfig?.voice_interruption) {
+            console.log('⚡ [Barge-in: onspeechstart] Suara terdeteksi, memotong suara asisten seketika!');
+            if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+              window.speechSynthesis.cancel();
+            }
+            isTtsSpeaking = false;
+            fetch(`${API_BASE}/api/tts/state`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ speaking: false, emotion: 'neutral' }),
+            }).catch(() => {});
+          }
+        };
+
+        recognition.onresult = (event: any) => {
+          if (isMicMuted) return;
+
+          // ⚡ Voice Interruption (Barge-in): Potong TTS seketika saat user bicara
+          if (isTtsSpeaking) {
+            if (runtimeConfig?.voice_interruption) {
+              console.log('⚡ [Barge-in: onresult] Suara user memotong pembicaraan asisten!');
+              if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+              }
+              isTtsSpeaking = false;
+              fetch(`${API_BASE}/api/tts/state`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ speaking: false, emotion: 'neutral' }),
+              }).catch(() => {});
+            } else {
+              // Jika interupsi nonaktif, abaikan suara selama TTS bersuara
+              return;
+            }
+          }
+
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              const transcript = event.results[i][0].transcript?.trim();
+              if (transcript) {
+                // Filter self-echo jika mikrofon menangkap gema suara asisten sendiri
+                const spokenClean = (lastSpokenText || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const transcriptClean = transcript.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (
+                  spokenClean.length > 6 &&
+                  transcriptClean.length > 5 &&
+                  spokenClean.includes(transcriptClean)
+                ) {
+                  console.warn('[Barge-in] Self-echo suara asisten diabaikan:', transcript);
+                  continue;
+                }
+
+                console.log('[Chrome Web STT] Sending transcript:', transcript);
+                fetch(`${API_BASE}/api/stt/transcript`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ text: transcript }),
+                }).catch((err) => console.error('[Chrome Web STT] Failed to send transcript:', err));
+              }
+            }
+          }
+        };
+
+        recognition.onerror = (e: any) => {
+          console.warn('[Chrome Web STT] Error:', e.error);
+        };
+
+        recognition.onend = () => {
+          const shouldListen =
+            !isDead() && !isMicMuted && (runtimeConfig?.voice_interruption || !isTtsSpeaking);
+          if (shouldListen) {
+            try { recognition.start(); } catch {}
+          }
+        };
+
+        // Mulai listen di background jika tidak muted
+        if (!isMicMuted) {
+          try { recognition.start(); } catch {}
+        }
+      }
+    } catch (e) {
+      console.warn('[Chrome Web STT] SpeechRecognition init failed:', e);
+    }
+
+    // Listener custom event untuk reaktivitas instan HANYA saat user klik "Simpan" di SettingsTab (1 Pintu)
+    const handleConfigUpdated = (e: CustomEvent) => {
+      const cfg = e.detail;
+      runtimeConfig = cfg;
+      if (cfg?.stt_lang) {
+        applyRecognitionLang(cfg.stt_lang);
+      }
+      console.log('[Runtime Config] Diperbarui 1 pintu setelah Simpan:', cfg);
+    };
+    window.addEventListener('ragasukma:config_updated' as any, handleConfigUpdated);
+
+    let lastSpokenText = '';
+    let lastSpokenTime = 0;
+    let lastHandledActionId = -1;
 
     const unsubActions = api.subscribeActions((act) => {
+      if (isDead()) return;
+
       if (act.action === 'session:claimed' && act.payload && act.payload !== MY_TOKEN) {
         console.log('[Session] Backend signaled another tab claimed ownership -> killThisTab');
         killThisTab('duplicate');
+        return;
+      }
+
+      // Deduplikasi action SSE via ID unik incremental dari backend
+      if (act.id !== undefined) {
+        if (act.id <= lastHandledActionId) {
+          return;
+        }
+        lastHandledActionId = act.id;
+      }
+
+      // 🔊 Google Chrome Speech Synthesis (TTS) - Mainkan respon suara LLM langsung dari browser
+      if (act.action === 'assistant:speak' && act.payload) {
+        let textToSpeak = '';
+        let emotion = 'neutral';
+        try {
+          const parsed = typeof act.payload === 'string' ? JSON.parse(act.payload) : act.payload;
+          textToSpeak = parsed.text || '';
+          emotion = parsed.emotion || 'neutral';
+        } catch {
+          textToSpeak = typeof act.payload === 'string' ? act.payload : '';
+        }
+
+        if (isVoiceMuted) {
+          console.log('[TTS] Suara TTS sedang dimute, pembicaraan dilewati.');
+          return;
+        }
+
+        const now = Date.now();
+        // Cegah duplikasi kalimat identik yang ditembak berulang dalam jeda < 1.5 detik
+        if (textToSpeak === lastSpokenText && now - lastSpokenTime < 1500) {
+          console.warn('[TTS] Duplicate speak action suppressed:', textToSpeak);
+          return;
+        }
+        lastSpokenText = textToSpeak;
+        lastSpokenTime = now;
+
+        if (textToSpeak && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+          // Matikan antrean suara lama agar tidak pernah tumpuk/dobel
+          window.speechSynthesis.cancel();
+
+          // Chrome bug guard: teks panjang (>200 karakter) di Chrome speechSynthesis bisa macet di tengah jalan.
+          // Kita pecah per kalimat pendek secara rapi.
+          const splitSentences = (txt: string): string[] => {
+            const matches = txt.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g);
+            return matches ? matches.map((s) => s.trim()).filter(Boolean) : [txt.trim()];
+          };
+
+          const sentences = splitSentences(textToSpeak);
+          if (sentences.length === 0) return;
+
+          const cfg = runtimeConfig;
+          const voices = window.speechSynthesis.getVoices();
+          const matchedVoice = cfg?.tts_voice_name ? voices.find((v) => v.name === cfg.tts_voice_name) : null;
+
+          let currentIndex = 0;
+          let keepAliveTimer: any = null;
+
+          const finishAll = () => {
+            if (keepAliveTimer) {
+              clearInterval(keepAliveTimer);
+              keepAliveTimer = null;
+            }
+            isTtsSpeaking = false;
+            fetch(`${API_BASE}/api/tts/state`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ speaking: false }),
+            }).catch(() => {});
+
+            // Jeda 350ms hening setelah suara selesai sebelum mic menyala lagi
+            setTimeout(() => {
+              if (!isDead() && !isTtsSpeaking) {
+                try { recognition?.start(); } catch {}
+              }
+            }, 350);
+          };
+
+          const speakNextSentence = () => {
+            if (currentIndex >= sentences.length) {
+              finishAll();
+              return;
+            }
+
+            const sentenceText = sentences[currentIndex];
+            currentIndex++;
+
+            const utter = new SpeechSynthesisUtterance(sentenceText);
+            if (matchedVoice) {
+              utter.voice = matchedVoice;
+              utter.lang = matchedVoice.lang;
+            } else if (cfg?.stt_lang) {
+              utter.lang = cfg.stt_lang;
+            }
+
+            if (cfg?.tts_speed) utter.rate = cfg.tts_speed;
+            if (cfg?.tts_pitch) utter.pitch = cfg.tts_pitch;
+
+            if (currentIndex === 1) {
+              // Kalimat pertama dimulai
+              isTtsSpeaking = true;
+              // Hanya matikan mic jika pengguna menonaktifkan voice interruption
+              if (!runtimeConfig?.voice_interruption) {
+                try { recognition?.stop(); } catch {}
+              }
+              fetch(`${API_BASE}/api/tts/state`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ speaking: true, emotion }),
+              }).catch(() => {});
+
+              // Chrome Workaround: Chrome speechSynthesis pauses silently after ~15 seconds of speech
+              if (keepAliveTimer) clearInterval(keepAliveTimer);
+              keepAliveTimer = setInterval(() => {
+                if (window.speechSynthesis.speaking) {
+                  window.speechSynthesis.pause();
+                  window.speechSynthesis.resume();
+                } else {
+                  clearInterval(keepAliveTimer);
+                  keepAliveTimer = null;
+                }
+              }, 10000);
+            }
+
+            utter.onend = () => {
+              speakNextSentence();
+            };
+
+            utter.onerror = (e: any) => {
+              if (e?.error === 'canceled' || e?.error === 'interrupted') {
+                finishAll();
+                return;
+              }
+              console.warn('[TTS] Utterance error on chunk:', e);
+              speakNextSentence();
+            };
+
+            window.speechSynthesis.speak(utter);
+          };
+
+          speakNextSentence();
+        }
       }
     });
+    unsubActionsFn = unsubActions;
 
     // ── 5. Hash change listener (Back/Forward / Manual URL edit) ──
     const handleHashChange = () => {
@@ -176,8 +521,11 @@ export const App: Component = () => {
 
     onCleanup(() => {
       try { bc?.close(); } catch {}
+      try { recognition?.stop(); } catch {}
+      try { window.speechSynthesis?.cancel(); } catch {}
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('ragasukma:config_updated' as any, handleConfigUpdated);
       unsubState();
       unsubActions();
     });
@@ -190,9 +538,7 @@ export const App: Component = () => {
   };
 
   const handleTabChange = (tab: string) => {
-    if (activeTab() === 'menu' && tab !== 'menu') {
-      api.closeMenuSSE();
-    }
+    if (tab === activeTab()) return;
     setActiveTab(tab);
     // Sinkronisasi URL Hash tanpa reload
     try {

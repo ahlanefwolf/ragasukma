@@ -307,10 +307,9 @@ pub fn load_2d_avatar_textures(
         (
             AssistantVisualState::Speaking,
             vec![
-                "char-avatar-talking.png",
-                "char-avatar-talking.jpg",
-                "char-avatar-talking.svg",
                 "char-avatar-speaking.png",
+                "char-avatar-speaking.jpg",
+                "char-avatar-speaking.svg",
             ],
         ),
         (

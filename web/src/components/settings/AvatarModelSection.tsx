@@ -127,7 +127,7 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
             <ul class="list-disc list-inside space-y-0.5 text-xs text-theme-text/70">
               <li><strong class="text-theme-text">PNG Transparan (Disarankan)</strong> agar karakter tampil tanpa kotak background.</li>
               <li>Mendukung file <strong class="text-theme-text">.png</strong>, <strong class="text-theme-text">.jpg</strong>, <strong class="text-theme-text">.jpeg</strong> (Resolusi disarankan min 512x512 px).</li>
-              <li>Setiap slot ekspresi (<code class="font-mono text-theme-cyan">idle</code>, <code class="font-mono text-theme-cyan">listening</code>, <code class="font-mono text-theme-cyan">talking</code>, <code class="font-mono text-theme-cyan">thinking</code>) dapat memiliki gambar tersendiri.</li>
+              <li>Setiap slot ekspresi (<code class="font-mono text-theme-cyan">idle</code>, <code class="font-mono text-theme-cyan">listening</code>, <code class="font-mono text-theme-cyan">speaking</code>, <code class="font-mono text-theme-cyan">thinking</code>) dapat memiliki gambar tersendiri.</li>
             </ul>
           </div>
 
@@ -141,7 +141,7 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
               >
                 <option value="idle">Idle (Diam / Normal)</option>
                 <option value="listening">Listening (Mendengarkan)</option>
-                <option value="talking">Talking / Speaking (Bicara)</option>
+                <option value="speaking">Speaking (Bicara)</option>
                 <option value="thinking">Thinking (Berpikir)</option>
               </select>
             </div>

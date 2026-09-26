@@ -85,7 +85,6 @@ pub fn handle_get_state(stream: &mut TcpStream, shared: &Arc<Mutex<ServerSharedS
             is_paused: lock.is_paused,
             voice_muted: lock.voice_muted,
             mic_muted: lock.mic_muted,
-            mic_level: lock.mic_level,
             active_session_token: active_token,
         };
         let json = serde_json::to_string(&payload).unwrap_or_default();

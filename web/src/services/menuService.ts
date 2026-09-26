@@ -7,7 +7,6 @@ export interface AppStatePayload {
   is_paused: boolean;
   voice_muted: boolean;
   mic_muted: boolean;
-  mic_level?: number;
   active_session_token?: string;
   music_state?: MusicStatus;
 }

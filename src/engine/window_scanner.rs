@@ -168,9 +168,9 @@ async fn get_or_init_atspi_conn() -> Option<atspi::connection::AccessibilityConn
             }
             Some(conn)
         }
-        Err(e) => {
+        Err(_e) => {
             #[cfg(debug_assertions)]
-            eprintln!("⚠️  [Desktop Scanner] AT-SPI D-Bus init error: {e}");
+            eprintln!("⚠️  [Desktop Scanner] AT-SPI D-Bus init error: {_e}");
             None
         }
     }
@@ -510,9 +510,9 @@ pub fn start_window_watcher() {
                             let _ = snap.save_to_file();
                         }
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         #[cfg(debug_assertions)]
-                        eprintln!("⚠️  [Desktop Worker] Warning scan window: {e}");
+                        eprintln!("⚠️  [Desktop Worker] Warning scan window: {_e}");
                     }
                 }
 

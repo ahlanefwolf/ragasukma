@@ -8,15 +8,33 @@ export interface AssetInfo {
   images: string[];
 }
 
+let cachedAssetInfo: AssetInfo | null = null;
+let inflightAssetRequest: Promise<AssetInfo | null> | null = null;
+
 export const assetsService = {
-  async getAssetsInfo(): Promise<AssetInfo | null> {
-    try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/assets/info`);
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
+  async getAssetsInfo(forceRefresh = false): Promise<AssetInfo | null> {
+    if (!forceRefresh && cachedAssetInfo) {
+      return cachedAssetInfo;
     }
+    if (inflightAssetRequest) {
+      return inflightAssetRequest;
+    }
+
+    inflightAssetRequest = (async () => {
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/api/assets/info`);
+        if (!res.ok) return cachedAssetInfo;
+        const data = await res.json();
+        cachedAssetInfo = data;
+        return data;
+      } catch {
+        return cachedAssetInfo;
+      } finally {
+        inflightAssetRequest = null;
+      }
+    })();
+
+    return inflightAssetRequest;
   },
 
   async uploadVrm(file: File): Promise<{ ok: boolean; message?: string }> {
@@ -30,6 +48,7 @@ export const assetsService = {
         body: buffer,
       });
       if (res.ok) {
+        cachedAssetInfo = null; // Invalidate cache agar data ter-refresh
         const data = await res.json().catch(() => ({}));
         return { ok: true, message: data.message };
       }
@@ -49,6 +68,9 @@ export const assetsService = {
         },
         body: buffer,
       });
+      if (res.ok) {
+        cachedAssetInfo = null; // Invalidate cache
+      }
       return res.ok;
     } catch {
       return false;

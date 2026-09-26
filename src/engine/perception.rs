@@ -474,13 +474,25 @@ fn run_detect_icons(session: &mut Session, image: &DynamicImage) -> Result<Vec<(
     Ok(final_boxes)
 }
 
-/// Helper untuk mencari lokasi folder models yang valid
+/// Helper untuk mencari lokasi folder models yang valid (terpisah dari binary/assets)
 fn find_models_dir() -> PathBuf {
-    let candidates = [
+    let mut candidates = vec![
+        PathBuf::from("models"),
+        PathBuf::from("../models"),
         PathBuf::from("assets/models"),
         PathBuf::from("../assets/models"),
-        dirs_fallback().join("ragasukma").join("assets").join("models"),
     ];
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.join("models"));
+            candidates.push(exe_dir.join("assets/models"));
+            candidates.push(exe_dir.join("../Resources/models"));
+        }
+    }
+
+    candidates.push(crate::config::get_app_config_dir().join("models"));
+    candidates.push(crate::config::get_app_config_dir().join("assets").join("models"));
 
     for path in &candidates {
         if path.exists() {
@@ -488,11 +500,7 @@ fn find_models_dir() -> PathBuf {
         }
     }
 
-    PathBuf::from("assets/models")
-}
-
-fn dirs_fallback() -> PathBuf {
-    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+    PathBuf::from("models")
 }
 
 /// Ekstrak bounding box dari prob map DBNet

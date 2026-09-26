@@ -29,6 +29,39 @@ interface MenuTabProps {
   onNavigateTab?: (tab: string) => void;
 }
 
+// Module-level persistent audio visualizer context
+let sharedAudioCtx: AudioContext | null = null;
+let sharedAnalyser: AnalyserNode | null = null;
+let sharedMicStream: MediaStream | null = null;
+let isAudioInitializing = false;
+
+async function getOrCreateWebAudioAnalyser(): Promise<AnalyserNode | null> {
+  if (sharedAnalyser && sharedAudioCtx && sharedAudioCtx.state !== 'closed') {
+    if (sharedAudioCtx.state === 'suspended') {
+      try { await sharedAudioCtx.resume(); } catch {}
+    }
+    return sharedAnalyser;
+  }
+  if (isAudioInitializing) return null;
+  isAudioInitializing = true;
+  try {
+    if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) return null;
+    sharedMicStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    sharedAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const source = sharedAudioCtx.createMediaStreamSource(sharedMicStream);
+    sharedAnalyser = sharedAudioCtx.createAnalyser();
+    sharedAnalyser.fftSize = 64;
+    sharedAnalyser.smoothingTimeConstant = 0.65;
+    source.connect(sharedAnalyser);
+    return sharedAnalyser;
+  } catch (e) {
+    console.warn('Native Web Audio mic analyser tidak aktif / izin ditolak:', e);
+    return null;
+  } finally {
+    isAudioInitializing = false;
+  }
+}
+
 export const MenuTab: Component<MenuTabProps> = (props) => {
   const [isRunning, setIsRunning] = createSignal(false);
   const [isPaused, setIsPaused] = createSignal(false);
@@ -41,74 +74,50 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
   const [micLevel, setMicLevel] = createSignal(0);
   const [micBars, setMicBars] = createSignal<number[]>(new Array(24).fill(0));
   const [micActive, setMicActive] = createSignal(true);
-  const [micSensitivity, setMicSensitivity] = createSignal('');
-  const [noiseReductionLevel, setNoiseReductionLevel] = createSignal(0);
   const [updateModalOpen, setUpdateModalOpen] = createSignal(false);
+  const [updateInfo, setUpdateInfo] = createSignal({
+    hasUpdate: false,
+    currentVersion: 'v0.2.0',
+    latestVersion: 'v0.2.0',
+    releaseName: '',
+    releaseNotes: '',
+    releaseUrl: '',
+  });
   const [extensionModalOpen, setExtensionModalOpen] = createSignal(false);
   const [appsModalOpen, setAppsModalOpen] = createSignal(false);
-  const [updateInfo, setUpdateInfo] = createSignal<{
-    hasUpdate: boolean;
-    currentVersion: string;
-    latestVersion: string;
-    releaseName: string;
-    releaseNotes: string;
-    releaseUrl: string;
-  } | null>(null);
-
-  const vadThresholdPercent = () => {
-    switch (micSensitivity().trim()) {
-      case '0': return 45; // Ekstra Kebal (Ruangan Ramai)
-      case '1': return 32; // Sangat Rendah
-      case '2': return 22; // Rendah
-      case '3': return 15; // Normal (Standar)
-      case '4': return 9;  // Tinggi (Responsif)
-      case '5': return 5;  // Sangat Tinggi
-      case '6': return 3;  // Ultra Sensitif (Bisikan)
-      default: return 15;
-    }
-  };
-
-  const sensitivityLabel = () => {
-    switch (micSensitivity().trim()) {
-      case '0': return 'Level 0 (Ekstra Kebal)';
-      case '1': return 'Level 1 (Sangat Rendah)';
-      case '2': return 'Level 2 (Rendah)';
-      case '3': return 'Level 3 (Normal)';
-      case '4': return 'Level 4 (Tinggi)';
-      case '5': return 'Level 5 (Sangat Tinggi)';
-      case '6': return 'Level 6 (Ultra Sensitif)';
-      default: return `Level ${micSensitivity()}`;
-    }
-  };
 
   onMount(async () => {
     const cfg = await api.getConfig();
     if (cfg) {
       setAssistantName(cfg.assistant_name);
       setTtsEngineName(
-        cfg.tts_engine ? `${cfg.tts_engine.toUpperCase()} (${cfg.tts_lang})` : ''
+        cfg.tts_voice_name
+          ? `${cfg.tts_voice_name} (${cfg.tts_lang || 'id-ID'})`
+          : `Web Speech API (${cfg.tts_lang || 'id-ID'})`
       );
-      setMicSensitivity(cfg.mic_sensitivity);
-      setNoiseReductionLevel(cfg.noise_reduction_level);
       setVoiceInterruption(Boolean(cfg.voice_interruption));
     }
 
     // Ambil initial state kontrol 1x via GET /api/state
-    const initState = await api.getState();
-    if (initState) {
-      setIsRunning(initState.is_running);
-      setIsPaused(initState.is_paused);
-      setVoiceMuted(initState.voice_muted);
-      setMicMuted(initState.mic_muted);
-      if (initState.state) {
-        props.setCurrentState(initState.state);
+    api.getState().then((initState) => {
+      if (initState) {
+        setIsRunning(initState.is_running);
+        setIsPaused(initState.is_paused);
+        setVoiceMuted(initState.voice_muted);
+        setMicMuted(initState.mic_muted);
+        if (initState.state) {
+          props.setCurrentState(initState.state);
+        }
       }
-    }
+    });
 
     const barsBuffer = new Array<number>(24).fill(0);
-    let targetMicLevel = 0;
-    let currentLerpLevel = 0;
     let rafId: number | null = null;
+    let localAnalyser: AnalyserNode | null = null;
+
+    getOrCreateWebAudioAnalyser().then((analyser) => {
+      localAnalyser = analyser;
+    });
 
     // 1. Global AI State Stream
     const unsubscribeState = api.subscribeState((payload) => {
@@ -117,38 +126,28 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       }
     });
 
-    // 2. Realtime Mic Spectrum Level Stream (~16 FPS update dari backend)
-    const unsubscribeMic = api.subscribeMicLevel((lvl) => {
-      targetMicLevel = micMuted() ? 0 : lvl;
-    });
+    const freqData = new Uint8Array(32);
 
-    // 3. 60 FPS RequestAnimationFrame Loop (Lerp / Interpolasi Mulus)
+    // 2. 60 FPS RequestAnimationFrame Loop Langsung dari Web Audio API
     const renderLoop = () => {
-      if (micMuted()) {
-        targetMicLevel = 0;
-        currentLerpLevel = 0;
+      const activeAnalyser = localAnalyser || sharedAnalyser;
+      if (micMuted() || !activeAnalyser) {
         setMicLevel(0);
         barsBuffer.fill(0);
         setMicBars([...barsBuffer]);
       } else {
-        // Attack / Decay Lerp: naik cepat (attack ~0.35), turun halus (decay ~0.18)
-        const lerpFactor = targetMicLevel > currentLerpLevel ? 0.35 : 0.18;
-        currentLerpLevel += (targetMicLevel - currentLerpLevel) * lerpFactor;
-        if (Math.abs(targetMicLevel - currentLerpLevel) < 0.2) {
-          currentLerpLevel = targetMicLevel;
-        }
+        activeAnalyser.getByteFrequencyData(freqData);
 
-        const displayLevel = Math.round(currentLerpLevel);
-        setMicLevel(displayLevel);
-
-        // Dynamic 60 FPS organic spectrum bars
-        const now = Date.now();
+        // Hitung RMS & Peak level langsung dari byte frequency data
+        let sum = 0;
         for (let i = 0; i < 24; i++) {
-          const bell = Math.sin((i / 23) * Math.PI);
-          const noise = (Math.sin(i * 3.7 + now / 120) + 1) * 0.5;
-          const barH = Math.min(100, Math.round(currentLerpLevel * (0.4 + 0.6 * bell * (0.7 + 0.3 * noise))));
-          barsBuffer[i] = barH;
+          const val = freqData[i] || 0;
+          sum += val;
+          // Normalisasi 0 - 100%
+          barsBuffer[i] = Math.round((val / 255) * 100);
         }
+        const avg = Math.round((sum / (24 * 255)) * 100 * 1.5);
+        setMicLevel(Math.min(100, avg));
         setMicBars([...barsBuffer]);
       }
 
@@ -164,8 +163,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       }
       try {
         unsubscribeState();
-        unsubscribeMic();
-      } catch {}
+      } catch (_) {}
     });
   });
 
@@ -395,19 +393,18 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2.5">
             <Mic size={20} class="text-theme-cyan" />
-            <h3 class="text-base sm:text-lg font-bold text-theme-text">Realtime Spectrum & VAD Input</h3>
-            <span class="text-xs text-theme-text/60 font-mono hidden sm:inline">({sensitivityLabel()})</span>
+            <h3 class="text-base sm:text-lg font-bold text-theme-text">Realtime Spectrum & Audio Monitor</h3>
           </div>
 
           <div class="flex items-center gap-2">
             <span class={`text-xs px-2.5 py-0.5 font-bold uppercase font-mono border ${
               micMuted()
                 ? 'bg-theme-rose/20 text-theme-rose border-theme-rose/40'
-                : micLevel() > vadThresholdPercent()
+                : micLevel() > 15
                 ? 'bg-theme-cyan/20 text-theme-cyan border-theme-cyan/40'
                 : 'bg-theme-text/10 text-theme-text/50 border-theme-border'
             }`}>
-              {micMuted() ? 'MUTED' : micLevel() > vadThresholdPercent() ? 'VOICE DETECTED' : 'STANDBY'}
+              {micMuted() ? 'MUTED' : micLevel() > 15 ? 'AUDIO DETECTED' : 'STANDBY'}
             </span>
             <span class="text-sm font-mono font-bold text-theme-text min-w-[40px] text-right">
               {micMuted() ? '0%' : `${micLevel()}%`}
@@ -437,15 +434,9 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
           ))}
         </div>
 
-        {/* Progress Bar with Peak & Dynamic VAD Marker */}
+        {/* Progress Bar with Peak */}
         <div class="space-y-2 pt-1">
           <div class="relative h-6 w-full bg-theme-bg overflow-hidden border border-theme-border p-0.5 shadow-inner">
-            {/* Dynamic VAD Threshold Marker */}
-            <div
-              class="absolute top-0 bottom-0 w-1 bg-theme-text shadow-[0_0_8px_var(--text)] z-10"
-              style={{ left: `${vadThresholdPercent()}%` }}
-              title={`Batas Trigger VAD (${vadThresholdPercent()}%)`}
-            />
             {/* Active Level Fill Bar */}
             <div
               class="h-full transition-all duration-75 flex items-center justify-end pr-2 text-xs font-mono font-bold text-theme-card"
@@ -454,7 +445,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                 'background-color':
                   micLevel() > 80
                     ? '#B08A4A'
-                    : micLevel() > vadThresholdPercent()
+                    : micLevel() > 15
                     ? '#596B45'
                     : '#876447',
               }}
@@ -466,7 +457,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
           <div class="flex items-center justify-between text-xs font-mono text-theme-text/70 px-0.5">
             <span class="font-bold">0%</span>
             <span class="px-2.5 py-0.5 bg-theme-card border border-theme-border font-bold text-theme-cyan">
-              Batas Trigger VAD: {vadThresholdPercent()} %
+              Microphone Active Level
             </span>
             <span class="font-bold">100%</span>
           </div>

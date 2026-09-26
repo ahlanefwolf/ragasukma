@@ -74,7 +74,10 @@ if (browserAPI && browserAPI.runtime) {
 }
 setTimeout(injectContentScriptsToAllTabs, 500);
 
-function syncTabs() {
+let syncTabsTimer = null;
+let lastSyncedTabsPayload = "";
+
+function executeSyncTabs() {
   if (!browserAPI || !browserAPI.tabs) return;
   if (isBackendInCooldown()) return;
 
@@ -101,15 +104,25 @@ function syncTabs() {
           window_id: t.windowId
         }));
 
+        const payloadStr = JSON.stringify({ tabs: currentTabsList });
+        // Cegah redundant POST jika data tabs persis sama
+        if (payloadStr === lastSyncedTabsPayload) {
+          return;
+        }
+
         fetch("http://127.0.0.1:42128/api/browser/tabs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tabs: currentTabsList }),
+          body: payloadStr,
           keepalive: true
         })
           .then(res => {
-            if (res.ok) markBackendSuccess();
-            else markBackendFailure();
+            if (res.ok) {
+              lastSyncedTabsPayload = payloadStr;
+              markBackendSuccess();
+            } else {
+              markBackendFailure();
+            }
           })
           .catch(() => {
             markBackendFailure();
@@ -117,6 +130,21 @@ function syncTabs() {
       });
     });
   } catch (_) {}
+}
+
+function syncTabs(immediate = false) {
+  if (syncTabsTimer) {
+    clearTimeout(syncTabsTimer);
+    syncTabsTimer = null;
+  }
+  if (immediate) {
+    executeSyncTabs();
+    return;
+  }
+  syncTabsTimer = setTimeout(() => {
+    syncTabsTimer = null;
+    executeSyncTabs();
+  }, 150);
 }
 
 // Tangani Perintah Tab dari Backend (Switch, Navigate, Close, Focus, Interaksi)
@@ -288,6 +316,7 @@ function handleBrowserCommand(cmd) {
 let isPolling = false;
 async function pollBrowserCommands() {
   if (isPolling) return;
+  if (isBackendInCooldown()) return;
   isPolling = true;
 
   try {

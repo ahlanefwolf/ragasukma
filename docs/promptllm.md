@@ -14,7 +14,7 @@ Agar LLM tidak boros token dan waktu inferensi tetap secepat kilat (< 1.5 detik)
 | Index Pilar | Kondisi Aktivasi / Kata Kunci Ucapan Pengguna | Yang Disuntikkan |
 | :--- | :--- | :--- |
 | **`app_index`** | Mengandung kata: `buka`, `bukakan`, `jalankan`, `start`, `open`, `launch`, `nyalakan`, `tutup`, `aplikasi`, `program`, `app` | **Fuzzy-Filtered Apps**: Hanya aplikasi yang cocok dengan kata kunci user (bukan 150+ app sekaligus!). |
-| **`browser_index`** | Jendela aktif adalah Browser (Chrome/Brave/Edge/Firefox) **ATAU** ucapan mengandung: `browser`, `web`, `tab`, `situs`, `website`, `cari`, `search`, `youtube`, `google`, `link`, `url`, `scroll` | Daftar Tab terbuka & Snapshot DOM halaman aktif. |
+| **`browser_index`** | Jendela aktif adalah Browser Chromium (Chrome/Brave/Edge/Opera/Vivaldi) **ATAU** ucapan mengandung: `browser`, `web`, `tab`, `situs`, `website`, `cari`, `search`, `youtube`, `google`, `link`, `url`, `scroll` | Daftar Tab terbuka & Snapshot DOM halaman aktif. |
 | **`desktop_index`** | Jendela aktif BUKAN browser **ATAU** ucapan mengandung aksi: `klik`, `pencet`, `tekan`, `angka`, `tombol`, `kalkulator`, `jendela`, `fokus`, `minimize`, `scan`, `pindai`, `hitung`, `tambah`, `kurang`, `kali`, `bagi` | Judul jendela aktif, daftar jendela OS, dan daftar tombol ber-`#ID`. |
 | **`todo_index`** | Mengandung kata: `todo`, `to-do`, `tugas`, `catat`, `catatan`, `agenda`, `jadwal`, `ingatkan`, `list`, `selesai` | Isi file `assets/todo.md`. |
 | **`music_index`** | Mengandung kata: `musik`, `lagu`, `play`, `putar`, `setel`, `mainkan`, `pause`, `jeda`, `lanjutkan`, `stop`, `next`, `audio`, `mp3` | Top 5 lagu lokal + jumlah total lagu. |
@@ -167,6 +167,12 @@ Setiap kali LLM dipanggil, system prompt disusun dengan urutan berikut:
 ### 8. Aturan Respon TTS & Avatar 3D
 * **Aturan Text-to-Speech:**
   * Kalimat lisan natural, ramah, dilarang menggunakan elipsis berulang (`...`), tawa buatan aneh (`ehehe`), atau markdown header/bullet points saat berbicara santai.
+  * Didukung ekosistem Chromium Web Speech API Native:
+    * **Google Chrome Web Speech TTS**: Disuarakan langsung oleh browser native (`window.speechSynthesis`), mendukung pemilihan vokal (female/male), pitch, speed slider, serta pelestarian angka ribuan (`1.000`) dan desimal (`0,5`).
+    * **STT Multi-Bahasa Native**: Pengenalan suara langsung via Chromium (`id-ID`, `jv-ID`, `su-ID`, `en-US`, `ja-JP`).
+    * **Zero Backend Audio Overhead**: Tanpa model TTS/STT lokal yang membebani RAM/VRAM/CPU.
+    * **Sinkronisasi Lip-Sync Avatar (AIUEO)**: Visualizer spektrum audio dan pergerakan bibir avatar diproses secara real-time via Web Audio API browser (`AudioContext` + `AnalyserNode`) yang menyinkronkan phoneme vokal AIUEO dengan ucapan TTS.
+    * **Kendali Suara 1 Pintu**: Pengaturan bahasa STT (`stt_lang`), suara TTS (`voice_name`, `voice_pitch`, `voice_speed`, `voice_gender`), mute mikrofon (`recognition.abort()`), dan penghentian suara (`speechSynthesis.cancel()`) langsung reaktif tersinkronisasi antara UI web dan backend.
 * **Tag Emosi 3D Avatar:**
   * Wajib diawali SATU tag emosi: `*senang*`, `*malu*`, `*semangat*`, `*kaget*`, `*mikir*`, `*sedih*`, `*marah*`, atau `*netral*`.
 * **Kecepatan Respon:**

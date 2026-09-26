@@ -10,11 +10,13 @@ Ragasukma dirancang menggunakan arsitektur **multi-threaded reaktif & non-blocki
 graph TD
     A[Thread 0: OS Main Thread] -->|Render Loop| A1[3D VRM / 2D Avatar Overlay WGPU]
     
-    B[Thread: ragasukma-session] -->|Audio Pipeline| B1[CPAL Continuous Stream & VAD]
-    B -->|Pipeline STT -> LLM -> TTS| B2[LLM Reasoning & Action Router]
+    B[Thread: ragasukma-session] -->|Chromium Web STT Injector| B2[LLM Reasoning & Action Router]
     
     B2 -->|Kirim Perintah Aksi| W1[Task Worker: yt-dlp / I/O]
     B2 -->|Minta Scan Visual| W2[Vision Worker: ONNX PP-OCR & YOLO]
+    B2 -->|SSE Text & Emotion Stream| Web[Web Client: Web Speech TTS & VU Meter]
+    Web -->|POST /api/stt/transcript| B
+    Web -->|POST /api/tts/state| B
     
     W6[Cloudflared Worker: CloudflaredTunnelManager] -->|Public HTTPS Tunnel| W6a[Mobile Web Remote & QR Code]
     W6a -->|POST /api/remote/text| B3[Remote Text Injector: remote_text.rs]
@@ -38,7 +40,7 @@ graph TD
 * **Lifecycle:** Selalu aktif di background thread sejak aplikasi dinyalakan.
 * **Mekanisme Komunikasi:** `std::sync::mpsc::channel` (non-blocking event queue).
 * **Tanggung Jawab:**
-  * Menerima event DOM dan snapshot tab dari ekstensi browser *Ragasukma Companion* (Chrome, Edge, Brave).
+  * Menerima event DOM dan snapshot tab dari ekstensi browser *Ragasukma Companion* (Google Chrome, Brave, Edge, Chromium, Opera, Vivaldi via `.zip` extension).
   * Mengisolasi penulisan I/O file agar tidak memblokir thread HTTP server.
   * Menghasilkan file **`assets/active_tab_browser.json`** yang berisi daftar tab terbuka, elemen form input, tombol interaktif, dan teks snapshot DOM aktif sebagai *Ground of Truth* web.
   * Membersihkan session snapshot usang saat aplikasi pertama kali di-boot.
@@ -115,13 +117,20 @@ graph TD
 
 ---
 
-### 7. 🎙️ Voice Session Worker (`ragasukma-session`)
-* **File Sumber:** `src/main.rs` & `src/engine/session.rs`
+### 7. 🎙️ Voice Session Worker (`ragasukma-session`) & Pure Web Speech Architecture
+* **File Sumber:** `src/main.rs`, `src/engine/session.rs`, `src/engine/chat_loop/`, & `src/audio/tts.rs`
 * **Lifecycle:** Berjalan di thread terpisah dengan kapasitas stack besar (**16 MB stack size**) untuk kestabilan inferensi lintas platform.
 * **Tanggung Jawab:**
-  * Mengelola state percakapan interaktif (Continuous Audio Stream, Google STT, Edge TTS).
+  * Mengelola state percakapan interaktif melalui pipeline **Chromium Web Speech API**.
+  * Menerima transkrip suara pengguna dari web frontend (`POST /api/stt/transcript`) secara instan dan menyuntikkannya ke prompt loop.
   * Menggabungkan konteks *Ground of Truth* dari Browser Worker (`active_tab_browser.json`) dan Desktop Worker (`active_window_app.json`) ke dalam prompt LLM.
-  * Menjalankan **Action Router Orchestrator** untuk mengeksekusi tag aksi `[CMD:...]` secara instan di background tanpa mengganggu pembacaan suara avatar.
+  * Menjalankan **Action Router Orchestrator** untuk mengeksekusi tag aksi `[CMD:...]` secara instan di background tanpa memblokir percakapan.
+  * **Zero Backend Audio Overhead**:
+    * **Pure Web Speech & Zero Audio Device Lock**: Tidak ada thread recorder atau VAD backend yang mengunci hardware mikrofon. Mikrofon ditangkap langsung oleh browser (`webkitSpeechRecognition`), transkrip dikirim via `POST /api/stt/transcript`, dan output suara disintesis via `window.speechSynthesis`.
+    * **Sinkronisasi Reaktif Satu Pintu**: Status suara (`speaking: true/false`, `emotion`) disinkronkan secara instan via `POST /api/tts/state` untuk menjaga konsistensi state avatar WGPU dan system tray.
+    * Visualizer Spectrum & VU Meter menggunakan **Web Audio API native browser** (`AudioContext` + `AnalyserNode`) pada 60 FPS dengan 0ms latency dan 0% beban CPU backend.
+    * Voice interruption (*barge-in*), mic mute (`recognition.abort()`), dan TTS mute (`speechSynthesis.cancel()`) diputus langsung di sisi web.
+    * Backend hanya mempertahankan modul `rodio` murni untuk pemutaran musik MP3 lokal (`media:play`).
 
 ---
 

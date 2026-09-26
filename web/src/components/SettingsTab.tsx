@@ -32,22 +32,16 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
   const [llmBaseUrl, setLlmBaseUrl] = createSignal('');
   const [llmModel, setLlmModel] = createSignal('');
   const [llmApiKey, setLlmApiKey] = createSignal('');
-  const [groqApiKey, setGroqApiKey] = createSignal('');
 
   // Audio & STT
-  const [sttEngine, setSttEngine] = createSignal('');
   const [voiceInterruption, setVoiceInterruption] = createSignal(false);
-  const [voiceMode, setVoiceMode] = createSignal('');
-  const [micSensitivity, setMicSensitivity] = createSignal('');
-  const [vadSilenceLimit, setVadSilenceLimit] = createSignal('');
-  const [noiseReduction, setNoiseReduction] = createSignal(0);
 
-  // TTS Engine
-  const [ttsEngine, setTtsEngine] = createSignal('');
-  const [ttsLang, setTtsLang] = createSignal('');
+  // TTS & STT (Chrome Web Speech API Ecosystem)
+  const [ttsLang, setTtsLang] = createSignal('id-ID');
+  const [sttLang, setSttLang] = createSignal('id-ID');
+  const [ttsVoiceName, setTtsVoiceName] = createSignal('');
   const [ttsSpeed, setTtsSpeed] = createSignal(1.0);
-  const [ttsElevenLabsKey, setTtsElevenLabsKey] = createSignal('');
-  const [elevenLabsVoiceId, setElevenLabsVoiceId] = createSignal('');
+  const [ttsPitch, setTtsPitch] = createSignal(1.0);
 
   // Avatar & System
   const [avatarType, setAvatarType] = createSignal('');
@@ -89,20 +83,14 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       setLlmBaseUrl(cfg.llm_base_url);
       setLlmModel(cfg.llm_model);
       setLlmApiKey(cfg.llm_api_key);
-      setGroqApiKey(cfg.groq_api_key);
 
-      setSttEngine(cfg.stt_engine);
       setVoiceInterruption(cfg.voice_interruption);
-      setVoiceMode(cfg.voice_mode);
-      setMicSensitivity(cfg.mic_sensitivity);
-      setVadSilenceLimit(cfg.vad_silence_limit);
-      setNoiseReduction(cfg.noise_reduction_level);
 
-      setTtsEngine(cfg.tts_engine);
-      setTtsLang(cfg.tts_lang);
-      setTtsSpeed(cfg.tts_speed);
-      setTtsElevenLabsKey(cfg.tts_eleven_labs_key);
-      setElevenLabsVoiceId(cfg.elevenlabs_voice_id);
+      setTtsLang(cfg.tts_lang || 'id-ID');
+      setSttLang(cfg.stt_lang || 'id-ID');
+      setTtsVoiceName(cfg.tts_voice_name || '');
+      setTtsSpeed(cfg.tts_speed || 1.0);
+      setTtsPitch(cfg.tts_pitch || 1.0);
 
       setAvatarType(cfg.avatar_type);
       setAlwaysOnTop(cfg.always_on_top);
@@ -166,22 +154,16 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       user_callsign: userCallsign().trim(),
       assistant_gender: assistantGender(),
       personality_role: personalityRole(),
-      stt_engine: sttEngine(),
       voice_interruption: voiceInterruption(),
-      groq_api_key: groqApiKey().trim(),
       llm_provider: llmProvider(),
       llm_base_url: llmBaseUrl().trim(),
       llm_model: llmModel().trim(),
       llm_api_key: llmApiKey().trim(),
-      voice_mode: voiceMode(),
-      mic_sensitivity: micSensitivity(),
-      vad_silence_limit: vadSilenceLimit(),
-      noise_reduction_level: noiseReduction(),
-      tts_engine: ttsEngine(),
       tts_lang: ttsLang(),
+      stt_lang: sttLang(),
+      tts_voice_name: ttsVoiceName(),
       tts_speed: ttsSpeed(),
-      tts_eleven_labs_key: ttsElevenLabsKey().trim(),
-      elevenlabs_voice_id: elevenLabsVoiceId().trim(),
+      tts_pitch: ttsPitch(),
       avatar_type: avatarType(),
       always_on_top: alwaysOnTop(),
     };
@@ -189,6 +171,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
     const ok = await api.saveConfig(payload);
     setIsSaving(false);
     if (ok) {
+      // Siarkan update konfigurasi langsung ke runtime Chrome Web Speech API di App.tsx
+      window.dispatchEvent(new CustomEvent('ragasukma:config_updated', { detail: payload }));
       props.showToast('Semua konfigurasi berhasil disimpan ke config-ai.json!');
     } else {
       props.showToast('Gagal menyimpan ke config-ai.json');
@@ -300,26 +284,18 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
 
       {activeSubTab() === 'audio_tts' && (
         <AudioTtsSection
-          sttEngine={sttEngine()}
-          setSttEngine={setSttEngine}
-          groqApiKey={groqApiKey()}
-          setGroqApiKey={setGroqApiKey}
-          voiceInterruption={voiceInterruption()}
-          setVoiceInterruption={setVoiceInterruption}
-          micSensitivity={micSensitivity()}
-          setMicSensitivity={setMicSensitivity}
-          vadSilenceLimit={vadSilenceLimit()}
-          setVadSilenceLimit={setVadSilenceLimit}
-          noiseReduction={noiseReduction()}
-          setNoiseReduction={setNoiseReduction}
-          ttsEngine={ttsEngine()}
-          setTtsEngine={setTtsEngine}
+          assistantGender={assistantGender()}
+          setAssistantGender={setAssistantGender}
+          sttLang={sttLang()}
+          setSttLang={setSttLang}
+          ttsVoiceName={ttsVoiceName()}
+          setTtsVoiceName={setTtsVoiceName}
           ttsSpeed={ttsSpeed()}
           setTtsSpeed={setTtsSpeed}
-          ttsElevenLabsKey={ttsElevenLabsKey()}
-          setTtsElevenLabsKey={setTtsElevenLabsKey}
-          elevenLabsVoiceId={elevenLabsVoiceId()}
-          setElevenLabsVoiceId={setElevenLabsVoiceId}
+          ttsPitch={ttsPitch()}
+          setTtsPitch={setTtsPitch}
+          voiceInterruption={voiceInterruption()}
+          setVoiceInterruption={setVoiceInterruption}
         />
       )}
 

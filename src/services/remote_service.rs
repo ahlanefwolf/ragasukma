@@ -93,3 +93,74 @@ pub fn handle_remote_text(full_url: &str, body_str: &str, stream: &mut TcpStream
         send_json_response(stream, 400, "{\"error\":\"Invalid payload, expected {text: string}\"}");
     }
 }
+
+pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
+    #[derive(serde::Deserialize)]
+    struct SttPayload {
+        #[serde(alias = "transcript")]
+        text: String,
+    }
+
+    if let Ok(payload) = serde_json::from_str::<SttPayload>(body_str) {
+        let clean = payload.text.trim();
+        if clean.is_empty() {
+            send_json_response(stream, 400, "{\"error\":\"Empty transcript string\"}");
+            return;
+        }
+
+        let injected = crate::engine::remote_text::inject_remote_text(clean.to_string());
+        if injected {
+            crate::term_log!("🎙️ [Chrome Web STT] Transkrip diterima: \"{}\"", clean);
+            send_json_response(stream, 200, "{\"success\":true,\"message\":\"Transcript injected to LLM\"}");
+        } else {
+            crate::term_log!("⚠️ [Chrome Web STT] Chat loop belum berjalan aktif!");
+            send_json_response(stream, 503, "{\"error\":\"Voice chat loop is not currently active\"}");
+        }
+    } else {
+        send_json_response(stream, 400, "{\"error\":\"Invalid payload, expected {text: string} or {transcript: string}\"}");
+    }
+}
+
+pub fn handle_tts_state(
+    body_str: &str,
+    stream: &mut TcpStream,
+    shared: &std::sync::Arc<std::sync::Mutex<crate::app_state::ServerSharedState>>,
+) {
+    #[derive(serde::Deserialize)]
+    struct TtsStatePayload {
+        speaking: bool,
+        emotion: Option<String>,
+    }
+
+    if let Ok(payload) = serde_json::from_str::<TtsStatePayload>(body_str) {
+        crate::app_state::set_ai_speaking(payload.speaking);
+        let emotion = payload.emotion.unwrap_or_else(|| "neutral".to_string());
+
+        if payload.speaking {
+            let asst_name = crate::config::load_user_config().assistant_name;
+            crate::tray::TrayState::update_with_emotion(
+                crate::services::tray_service::AssistantState::Speaking,
+                &format!("{asst_name} Berbicara"),
+                &emotion,
+            );
+            if let Ok(mut lock) = shared.lock() {
+                lock.current_state = crate::ui::pose_system::AssistantVisualState::Speaking;
+                lock.current_emotion = emotion;
+                lock.state_version = lock.state_version.wrapping_add(1);
+            }
+        } else {
+            crate::tray::TrayState::update_with_emotion(
+                crate::services::tray_service::AssistantState::Idle,
+                "Standby Siap",
+                "neutral",
+            );
+            if let Ok(mut lock) = shared.lock() {
+                lock.current_state = crate::ui::pose_system::AssistantVisualState::Idle;
+                lock.state_version = lock.state_version.wrapping_add(1);
+            }
+        }
+        send_json_response(stream, 200, "{\"success\":true}");
+    } else {
+        send_json_response(stream, 400, "{\"error\":\"Invalid TTS state payload\"}");
+    }
+}

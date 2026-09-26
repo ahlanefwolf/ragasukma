@@ -93,7 +93,65 @@
         }
       }
 
-      // 4. Semua Tulisan di Layar (Universal DOM + Web Components + Shadow DOM + Links/Buttons)
+      // 4. Ekstraksi Konten Kalimat Nyata (Main Article & Content Extractor Universal)
+      function isNoiseElement(el) {
+        if (!el) return true;
+        const tag = el.tagName ? el.tagName.toLowerCase() : "";
+        if (["nav", "header", "footer", "aside", "script", "style", "noscript", "svg", "iframe"].includes(tag)) {
+          return true;
+        }
+        const role = el.getAttribute ? el.getAttribute("role") : null;
+        if (role && ["navigation", "banner", "contentinfo", "search"].includes(role.toLowerCase())) {
+          return true;
+        }
+        if (el.closest && el.closest("nav, header, footer, aside, [role='navigation'], [role='banner'], [role='contentinfo'], .sidebar, #sidebar, .nav, .navbar, .menu")) {
+          return true;
+        }
+        return false;
+      }
+
+      // Cari kontainer utama halaman web
+      const contentRoot = document.querySelector("article, main, [role='main'], [role='article'], [itemprop='articleBody'], .post-content, .article-content, .entry-content, .detail-content, .story-content, .body-content, #content, .content") || document.body;
+
+      const mainSentences = [];
+      const mainSentencesSet = new Set();
+
+      // Ekstrak heading dan paragraf naratif asli
+      const narrativeNodes = Array.from(contentRoot.querySelectorAll("h1, h2, h3, h4, h5, h6, [role='heading'], p, blockquote, [role='article'] p"));
+      for (const el of narrativeNodes) {
+        if (!isVisible(el) || isNoiseElement(el)) continue;
+        const txt = (el.innerText || el.textContent || "").trim().replace(/\s+/g, " ");
+        // Saring: panjang minimal 25 karakter dan mengandung spasi (kalimat nyata)
+        if (txt.length >= 25 && txt.includes(" ") && !mainSentencesSet.has(txt)) {
+          mainSentencesSet.add(txt);
+          mainSentences.push(txt);
+        }
+      }
+
+      // 5. Bentuk Ringkasan Isi Kalimat Halaman (text_summary) yang utuh & padat
+      let text_summary = "";
+      if (mainSentences.length > 0) {
+        let accumulated = 0;
+        const selected = [];
+        for (const s of mainSentences) {
+          if (accumulated + s.length > 2500 && selected.length >= 3) break;
+          selected.push(s);
+          accumulated += s.length;
+        }
+        text_summary = selected.join("\n\n");
+      }
+
+      // Fallback jika halaman web app / dashboard (bukan artikel panjang)
+      if (!text_summary && document.body && document.body.innerText) {
+        const bodyLines = document.body.innerText
+          .split("\n")
+          .map(l => l.trim().replace(/\s+/g, " "))
+          .filter(l => l.length >= 25 && l.includes(" "));
+        const uniqueFallback = Array.from(new Set(bodyLines)).slice(0, 15);
+        text_summary = uniqueFallback.join("\n\n");
+      }
+
+      // 6. Kumpulan Semua Teks Visual Terindeks (Prioritas: Judul -> Kalimat Utama -> Teks Lain -> Link)
       const texts = [];
       const seen = new Set();
 
@@ -106,16 +164,22 @@
         }
       }
 
-      // 4a. Tambahkan teks dari judul halaman & link-link
+      // 6a. Judul halaman
       if (document.title) {
         addTextLine(document.title);
       }
-      for (const lt of linkTexts) {
-        const lines = lt.split("\n");
-        for (const line of lines) addTextLine(line);
+
+      // 6b. Kalimat-kalimat isi konten utama
+      for (const ms of mainSentences) {
+        if (ms.length <= MAX_LEN) {
+          addTextLine(ms);
+        } else {
+          // Jika kalimat panjang, masukkan potongan awalnya
+          addTextLine(ms.slice(0, MAX_LEN));
+        }
       }
 
-      // 4b. Tambahkan teks dari seluruh elemen visual teks universal
+      // 6c. Seluruh teks elemen visual lainnya
       const textNodes = Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6, [role='heading'], p, span, li, label, summary, td, th, [role='article'], [role='listitem'], [role='option'], [id*='title'], [class*='title']"));
       for (const el of textNodes) {
         if (!isVisible(el)) continue;
@@ -126,25 +190,19 @@
         }
       }
 
-      // 4c. Tambahkan teks dari button & controls
+      // 6d. Teks link-link
+      for (const lt of linkTexts) {
+        const lines = lt.split("\n");
+        for (const line of lines) addTextLine(line);
+      }
+
+      // 6e. Teks buttons
       for (const b of buttons) {
         if (b.text) {
           const lines = b.text.split("\n");
           for (const line of lines) addTextLine(line);
         }
       }
-
-      // 4d. Tambahkan teks dari document.body.innerText secara keseluruhan
-      if (document.body && document.body.innerText) {
-        const bodyLines = document.body.innerText.split("\n");
-        for (const line of bodyLines) {
-          addTextLine(line);
-        }
-      }
-
-      // 5. Ringkasan Isi Halaman (text_summary) yang bersih & padat untuk AI
-      const summaryLines = texts.slice(0, 40);
-      const text_summary = summaryLines.join(" • ");
 
       return {
         url: window.location.href,

@@ -62,7 +62,7 @@ pub fn resolve_emotion_layers<'a>(
     let emo = emotion.to_lowercase();
 
     match emo.as_str() {
-        "happy" => {
+        "happy" | "senang" | "gembira" | "bahagia" | "ceria" | "tersenyum" | "smile" | "joy" => {
             // Senyum ceria penuh
             if let Some(expr) = find_first_matching(
                 expressions,
@@ -71,7 +71,7 @@ pub fn resolve_emotion_layers<'a>(
                 layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
             }
         }
-        "shy" => {
+        "shy" | "malu" | "blush" | "tersipu" | "manja" => {
             // Tersipu / malu: Prioritas blend shape blush/shy.
             // Jika tidak ada, padukan senyum lembut (0.45) + kedip sebagian (0.35)
             if let Some(expr) = find_first_matching(
@@ -103,7 +103,7 @@ pub fn resolve_emotion_layers<'a>(
                 }
             }
         }
-        "surprised" => {
+        "surprised" | "kaget" | "terkejut" | "takjub" | "shock" => {
             // Terkejut / kaget: Mata membelalak lebar + mulut 'O'
             if let Some(expr) = find_first_matching(
                 expressions,
@@ -123,7 +123,7 @@ pub fn resolve_emotion_layers<'a>(
                 });
             }
         }
-        "sad" => {
+        "sad" | "sedih" | "haru" | "kecewa" => {
             // Sedih / haru: Alis turun + sudut bibir melengkung ke bawah
             if let Some(expr) = find_first_matching(
                 expressions,
@@ -132,7 +132,7 @@ pub fn resolve_emotion_layers<'a>(
                 layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
             }
         }
-        "thinking" => {
+        "thinking" | "bingung" | "mikir" | "heran" | "penasaran" | "doubt" => {
             // Berpikir / heran: Alis berkerut / ekspresi ragu.
             // Jika tidak ada preset khusus, padukan senyum kecil (0.2) + bibir 'U' (0.35)
             if let Some(expr) = find_first_matching(
@@ -155,7 +155,7 @@ pub fn resolve_emotion_layers<'a>(
                 }
             }
         }
-        "excited" => {
+        "excited" | "semangat" | "antusias" | "heboh" | "cheer" => {
             // Antusias / bersemangat: Kedip sebelah (wink) + senyum gembira
             if let Some(expr) =
                 find_first_matching(expressions, &["excited", "cheer", "fcl_all_excited"])
@@ -179,7 +179,7 @@ pub fn resolve_emotion_layers<'a>(
                 }
             }
         }
-        "angry" => {
+        "angry" | "marah" | "kesal" | "ngambek" | "judes" | "protes" => {
             // Kesal / marah: Alis menukik ke bawah + tatapan tajam
             if let Some(expr) =
                 find_first_matching(expressions, &["angry", "ikari", "fcl_eye_angry"])
@@ -187,7 +187,7 @@ pub fn resolve_emotion_layers<'a>(
                 layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
             }
         }
-        "neutral" | "" => {
+        "neutral" | "netral" | "" => {
             // Netral: Kosong (wajah rileks alami 100% base vertices)
         }
         _ => {

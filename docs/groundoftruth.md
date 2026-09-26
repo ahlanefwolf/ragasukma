@@ -16,6 +16,9 @@ Untuk mengatasi ini, **Ragasukma menerapkan prinsip "Zero Guessing / Strict Grou
    * **Tahap 1 (Index Level)**: LLM membaca index ringan (misal: daftar nama jendela terbuka di OS). LLM memanggil `[CMD:desktop:focus|App]` atau `[CMD:app:open|App]`.
    * **Eksekusi & Auto-Scan**: Engine memfokuskan jendela dan secara otomatis memindai seluruh tombol/elemen dari jendela yang baru aktif di depan.
    * **Tahap 2 (Content Level)**: Engine mengirimkan observasi tombol jendela aktif ke LLM, lalu LLM mengeksekusi aksi lanjutan (`[CMD:desktop:click_button|ID]`) dengan akurasi 100% tanpa perlu menunggu pengguna bicara lagi!
+6. **Pure Web Speech STT Ground of Truth**: Transkripsi suara pengguna bersumber langsung dari Chromium Web Speech API (`webkitSpeechRecognition`) tanpa rekaan backend audio. Teks faktual dikirim ke backend via `POST /api/stt/transcript` untuk diproses LLM secara instan.
+7. **Zero Local Audio Overhead**: Seluruh inferensi STT dan sintesis TTS diserahkan penuh kepada ekosistem native Google Chrome / Chromium browser (`webkitSpeechRecognition` & `window.speechSynthesis`). Backend bebas dari beban dependensi berat (Sherpa ONNX, Whisper, Supertonic, DSP filters, atau VAD buffer loops). Pilihan bahasa STT (`id-ID`, `jv-ID`, `su-ID`, dll.) dan suara vokal (gender, pitch, speed) bersumber langsung dari suara native yang terpasang di browser pengguna.
+8. **Single Gate Reactive Settings**: Seluruh konfigurasi pengguna (bahasa STT, suara TTS, persona, dll.) dikelola melalui satu pintu API (`/api/config`). Ketika disimpan di UI Pengaturan, konfigurasi langsung reaktif ke backend dan browser tanpa restart.
 
 ---
 
@@ -46,7 +49,7 @@ graph TD
 
 ### 1. 🌐 Browser Context Ground of Truth
 * **Berkas Penyimpan:** `assets/active_tab_browser.json`
-* **Penyedia Data (*Worker*):** `BrowserSessionWorker` via ekstensi browser resmi *Ragasukma Companion* (Chrome / Brave / Edge).
+* **Penyedia Data (*Worker*):** `BrowserSessionWorker` via ekstensi browser resmi *Ragasukma Companion* (Chromium: Chrome, Brave, Edge, Opera, Vivaldi) yang dibundle dalam format `.zip` (unpacked extension folder).
 * **Frekuensi Pembaruan:** Event-driven (saat tab berganti, URL berubah, atau DOM selesai dimuat).
 * **Data yang Disuntikkan:**
   * **Tab Terbuka:** ID tab, URL, judul halaman web, dan status aktif.
@@ -65,7 +68,7 @@ graph TD
 * **Mekanisme OS Native (Cross-Platform):**
   * **Windows:** Windows UI Automation (UIA) & Win32 API (`GetForegroundWindow`, `EnumWindows`).
   * **macOS:** AppleScript `System Events` (mengambil jendela aktif, daftar jendela terbuka, serta elemen tombol/UI).
-  * **Linux:** X11 (`_NET_ACTIVE_WINDOW`, `_NET_CLIENT_LIST`) & Wayland compositor API.
+  * **Linux:** D-Bus AT-SPI (`atspi::zbus`), X11 (`_NET_ACTIVE_WINDOW`, `_NET_CLIENT_LIST`), dan Wayland compositor (Sway / Hyprland IPC query).
 * **Data yang Disuntikkan:**
   * **Jendela Aktif Saat Ini:** Nama proses aplikasi (`app_name`) dan judul jendela (`window_title`).
   * **Daftar Jendela Terbuka di Seluruh OS:** Jendela-jendela yang sedang berjalan di taskbar/dock beserta status aktif/latar belakang.

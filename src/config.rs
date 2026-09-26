@@ -89,10 +89,6 @@ pub struct UserConfig {
     #[serde(default)]
     pub assistant_gender: String,
     #[serde(default)]
-    pub stt_engine: String,
-    #[serde(default)]
-    pub groq_api_key: String,
-    #[serde(default)]
     pub llm_provider: String,
     #[serde(default)]
     pub llm_base_url: String,
@@ -101,23 +97,15 @@ pub struct UserConfig {
     #[serde(default)]
     pub llm_api_key: String,
     #[serde(default)]
-    pub voice_mode: String,
-    #[serde(default)]
-    pub mic_sensitivity: String,
-    #[serde(default)]
-    pub vad_silence_limit: String,
-    #[serde(default)]
-    pub noise_reduction_level: u8,
-    #[serde(default)]
-    pub tts_engine: String,
-    #[serde(default)]
     pub tts_lang: String,
+    #[serde(default)]
+    pub stt_lang: String,
+    #[serde(default)]
+    pub tts_voice_name: String,
     #[serde(default)]
     pub tts_speed: f32,
     #[serde(default)]
-    pub tts_eleven_labs_key: String,
-    #[serde(default)]
-    pub elevenlabs_voice_id: String,
+    pub tts_pitch: f32,
     #[serde(default)]
     pub avatar_type: String,
     #[serde(default)]
@@ -133,23 +121,17 @@ impl Default for UserConfig {
             user_callsign: "".to_string(),
             personality_role: "".to_string(),
             assistant_gender: "".to_string(),
-            stt_engine: "".to_string(),
-            groq_api_key: "".to_string(),
             llm_provider: "".to_string(),
             llm_base_url: "".to_string(),
             llm_model: "".to_string(),
             llm_api_key: "".to_string(),
-            voice_mode: "".to_string(),
-            mic_sensitivity: "".to_string(),
-            vad_silence_limit: "".to_string(),
-            noise_reduction_level: 0,
-            tts_engine: "".to_string(),
-            tts_lang: "".to_string(),
-            tts_speed: 1.0f32,
-            tts_eleven_labs_key: "".to_string(),
-            elevenlabs_voice_id: "".to_string(),
-            avatar_type: "".to_string(),
-            always_on_top: false,
+            tts_lang: "id-ID".to_string(),
+            stt_lang: "id-ID".to_string(),
+            tts_voice_name: "".to_string(),
+            tts_speed: 1.0,
+            tts_pitch: 1.0,
+            avatar_type: "2d".to_string(),
+            always_on_top: true,
             voice_interruption: false,
         }
     }
@@ -272,22 +254,15 @@ fn save_user_config_locked(cfg: &UserConfig) -> Result<(), String> {
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct AppConfig {
-    pub stt_engine: String,
-    pub groq_api_key: String,
     pub llm_provider: String,
     pub llm_base_url: String,
     pub llm_model: String,
     pub llm_api_key: String,
-    pub voice_mode: String,
-    pub vad_activation_threshold: f32,
-    pub vad_consecutive_chunks: usize,
-    pub vad_silence_limit_chunks: usize,
-    pub noise_reduction_level: u8,
-    pub tts_engine: String,
     pub tts_lang: String,
+    pub stt_lang: String,
+    pub tts_voice_name: String,
     pub tts_speed: f32,
-    pub tts_eleven_labs_key: String,
-    pub elevenlabs_voice_id: String,
+    pub tts_pitch: f32,
     pub assistant_name: String,
     pub assistant_gender: String,
     pub user_callsign: String,
@@ -301,44 +276,16 @@ impl AppConfig {
     pub fn load() -> Self {
         let u = load_user_config();
 
-        let (vad_activation_threshold, required_consecutive) =
-            match u.mic_sensitivity.trim().to_lowercase().as_str() {
-                "0" => (0.045f32, 2), // 0 - Ekstra Kebal (Ruangan Sangat Ramai)
-                "1" => (0.030f32, 2), // 1 - Sangat Rendah
-                "2" => (0.018f32, 2), // 2 - Rendah
-                "3" => (0.012f32, 2), // 3 - Normal (Standar)
-                "4" => (0.007f32, 1), // 4 - Tinggi (Responsif)
-                "5" => (0.004f32, 1), // 5 - Sangat Tinggi
-                "6" => (0.002f32, 1), // 6 - Ultra Sensitif (Bisikan)
-                other => (other.parse::<f32>().unwrap_or(0.012f32), 2),
-            };
-
-        let vad_silence_limit_chunks = match u.vad_silence_limit.trim().to_lowercase().as_str() {
-            "0" => 12,
-            "1" => 16,
-            "2" => 20,
-            "3" => 26,
-            "4" => 35,
-            other => other.parse::<usize>().unwrap_or(20),
-        };
-
         Self {
-            stt_engine: u.stt_engine,
-            groq_api_key: u.groq_api_key,
             llm_provider: u.llm_provider,
             llm_base_url: u.llm_base_url,
             llm_model: u.llm_model,
             llm_api_key: u.llm_api_key,
-            voice_mode: u.voice_mode,
-            vad_activation_threshold,
-            vad_consecutive_chunks: required_consecutive,
-            vad_silence_limit_chunks,
-            noise_reduction_level: u.noise_reduction_level,
-            tts_engine: u.tts_engine,
             tts_lang: u.tts_lang,
+            stt_lang: u.stt_lang,
+            tts_voice_name: u.tts_voice_name,
             tts_speed: u.tts_speed,
-            tts_eleven_labs_key: u.tts_eleven_labs_key,
-            elevenlabs_voice_id: u.elevenlabs_voice_id,
+            tts_pitch: u.tts_pitch,
             assistant_name: u.assistant_name,
             assistant_gender: u.assistant_gender,
             user_callsign: u.user_callsign,

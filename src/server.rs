@@ -182,7 +182,9 @@ pub fn handle_api_route(
         // Assets Service
         ("GET", "/api/assets/info") => handle_assets_info(&mut stream),
         ("POST", "/api/upload/vrm") => handle_upload_vrm(body_bytes, &mut stream, &shared),
-        ("POST", "/api/upload/avatar") => handle_upload_avatar(full_url, body_bytes, &mut stream),
+        ("POST", "/api/upload/avatar") => {
+            handle_upload_avatar(full_url, body_bytes, &mut stream, &shared)
+        }
 
         // Browser Sessions & DOM Snapshot Service
         ("POST", "/api/browser/snapshot") => {
@@ -224,6 +226,8 @@ pub fn handle_api_route(
         ("GET", "/api/remote/tunnel/status") => handle_tunnel_status(&mut stream),
         ("POST", "/api/remote/tunnel/start") => handle_tunnel_start(&mut stream),
         ("POST", "/api/remote/tunnel/stop") => handle_tunnel_stop(&mut stream),
+        ("POST", "/api/stt/transcript") => handle_stt_transcript(body_str, &mut stream),
+        ("POST", "/api/tts/state") => handle_tts_state(body_str, &mut stream, &shared),
         ("POST", path) if path.starts_with("/api/remote/text") => {
             handle_remote_text(full_url, body_str, &mut stream);
         }
@@ -264,9 +268,8 @@ pub fn handle_api_route(
         ("GET", "/api/state") => handle_get_state(&mut stream, &shared),
         ("POST", "/api/state") => handle_post_state(body_str, &mut stream, &shared),
 
-        // Events Service (Separated SSE Streams)
+        // Events Service (SSE Stream)
         ("GET", "/api/events") | ("GET", "/api/events/state") => handle_sse_state(stream, shared),
-        ("GET", "/api/events/menu") => handle_sse_menu(stream, shared),
 
         // Music Storage & Downloader Service (Local Static Audio)
         ("GET", "/api/music/check") => handle_music_check(&mut stream),

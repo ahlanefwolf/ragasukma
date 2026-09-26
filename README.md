@@ -20,9 +20,15 @@
 ## Fitur & Kemampuan Sistem
 
 ### 1. Interaksi Suara & Visual 3D
-- **Transparent 3D VRM Overlay**: Engine rendering native WGPU dengan shader MToon 1:1, sinkronisasi ekspresi wajah (blendshapes/morph targets), dan tuning pose realtime.
-- **Hands-free Voice Activity Detection (VAD)**: Deteksi suara otomatis dengan noise reduction DSP dan audio processing real-time.
-- **Multi-Engine STT & TTS**: Mendukung Google STT, Groq Whisper, Google Translate TTS, dan ElevenLabs Multilingual v2.
+- **Transparent 3D VRM Overlay**: Engine rendering native WGPU dengan shader MToon 1:1, sinkronisasi ekspresi wajah (blendshapes/morph targets) multi-bahasa (*senang*, *malu*, *bingung*, *kaget*, *marah*, *semangat*), dan tuning pose realtime.
+- **Pure Web Speech Architecture (Zero Backend Audio Overhead)**:
+  - STT Native Chromium (`webkitSpeechRecognition`) berakurasi tinggi dengan dukungan multi-bahasa daerah (Bahasa Indonesia `id-ID`, Basa Jawa `jv-ID`, Basa Sunda `su-ID`, English, Japanese).
+  - TTS Native Chromium (`window.speechSynthesis`) dengan kendali pitch, speed slider, pemilihan gender/vokal suara, dan pelestarian angka ribuan serta desimal.
+  - Zero mic hardware locks: Backend bebas dari beban recorder, buffer VAD, dan model audio berat.
+  - Visualizer Spectrum & VU Meter 60 FPS langsung via Web Audio API browser.
+- **Barge-in Voice Interruption & Strict Single-Tab Ownership**:
+  - Interupsi instan memotong TTS saat pengguna berbicara kembali.
+  - Mekanisme eliminasi tab ganda yang otomatis menghentikan mic, membatalkan antrean TTS, dan menutup SSE stream tab lama untuk mencegah suara ganda.
 
 ### 2. Browser DOM Automation & Click Engine
 - **Active Tab DOM Ground-of-Truth**: Analisis visual dan elemen interaktif tab aktif secara realtime untuk eksekusi perintah tanpa halusinasi.

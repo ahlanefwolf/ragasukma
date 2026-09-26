@@ -6,9 +6,12 @@ import { API_BASE } from './base';
 // ---------------------------------------------------------------------------
 export interface CoreStatePayload {
   state: string;
+  voice_muted?: boolean;
+  mic_muted?: boolean;
 }
 
 export interface ClientAction {
+  id?: number;
   action: string;
   payload?: string;
 }
@@ -94,69 +97,24 @@ function stopStateSSEIfNoListeners() {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 2. MENU SSE STREAM (/api/events/menu)
-// Stream murni visualisasi spektrum level audio mikrofon (~16.6 FPS)
-// Hanya hidup saat MenuTab sedang terbuka.
-// ---------------------------------------------------------------------------
-export interface MicLevelPayload {
-  level: number;
-}
-
-type MicLevelListener = (level: number) => void;
-
-let menuEventSource: EventSource | null = null;
-const micLevelListeners = new Set<MicLevelListener>();
-let menuReconnectTimer: number | null = null;
-
-function startMenuSSE() {
-  if (menuEventSource || menuReconnectTimer) return;
-
-  try {
-    menuEventSource = new EventSource(`${API_BASE}/api/events/menu`);
-
-    // Event: 'mic' -> Terpisah murni stream audio level spektrum (~16.6 FPS)
-    menuEventSource.addEventListener('mic', (event: MessageEvent) => {
-      try {
-        const data: MicLevelPayload = JSON.parse(event.data);
-        micLevelListeners.forEach((cb) => cb(data.level));
-      } catch {}
-    });
-
-    menuEventSource.onerror = () => {
-      try {
-        menuEventSource?.close();
-      } catch {}
-      menuEventSource = null;
-
-      if (!menuReconnectTimer && micLevelListeners.size > 0) {
-        menuReconnectTimer = window.setTimeout(() => {
-          menuReconnectTimer = null;
-          startMenuSSE();
-        }, 1500);
-      }
-    };
-  } catch (err) {
-    console.error('Failed to init Menu EventSource:', err);
+export function forceCloseSSE() {
+  if (stateReconnectTimer) {
+    clearTimeout(stateReconnectTimer);
+    stateReconnectTimer = null;
   }
+  stateListeners.clear();
+  actionListeners.clear();
+  connectionListeners.clear();
+  if (stateEventSource) {
+    try {
+      stateEventSource.close();
+    } catch {}
+    stateEventSource = null;
+  }
+  isConnected = false;
 }
 
-function stopMenuSSEIfNoListeners() {
-  if (micLevelListeners.size === 0) {
-    if (menuReconnectTimer) {
-      clearTimeout(menuReconnectTimer);
-      menuReconnectTimer = null;
-    }
-    if (menuEventSource) {
-      try {
-        menuEventSource.close();
-      } catch {}
-      menuEventSource = null;
-    }
-    // Reset buffer level agar tidak ada residual state saat membuka kembali
-    micLevelListeners.clear();
-  }
-}
+
 
 export const eventsService = {
   // Single Client Session Claim (1x saat tab dibuka)
@@ -218,20 +176,5 @@ export const eventsService = {
     };
   },
 
-  // 3. Subscribe Realtime Mic Audio Level Event (level: 0 - 100)
-  subscribeMicLevel(onMicChange: (level: number) => void): () => void {
-    micLevelListeners.add(onMicChange);
-    startMenuSSE();
-
-    return () => {
-      micLevelListeners.delete(onMicChange);
-      stopMenuSSEIfNoListeners();
-    };
-  },
-
-  // Force stop Menu SSE explicitly
-  closeMenuSSE(): void {
-    micLevelListeners.clear();
-    stopMenuSSEIfNoListeners();
-  },
+  forceCloseSSE,
 };

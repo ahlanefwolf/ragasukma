@@ -25,7 +25,7 @@ Digunakan untuk navigasi antar-jendela aplikasi, membaca UI (Accessibility Tree 
 ---
 
 ### 2. 🌐 Browser Automation (`browser:*`)
-Berkomunikasi langsung dua arah dengan browser (Google Chrome, Brave, Edge, Chromium) melalui ekstensi bawaan *Ragasukma Companion*.
+Berkomunikasi langsung dua arah dengan browser Chromium (Google Chrome, Brave, Edge, Chromium, Opera, Vivaldi) melalui ekstensi bawaan *Ragasukma Companion* format `.zip` (ekstrak dan load unpacked di `chrome://extensions`).
 
 | Action Identifier | Deskripsi | Parameter | Kemungkinan Perintah Pengguna (Voice / Chat) | Tag Command AI |
 | :--- | :--- | :--- | :--- | :--- |
@@ -68,7 +68,7 @@ Aksi utilitas sistem bawaan lintas OS (Windows, Linux, macOS).
 ---
 
 ### 5. 🎵 Music & Media Player (`media:*`)
-Pengontrol musik latar belakang internal dengan dukungan pemutar lokal dan downloader audio YouTube (yt-dlp).
+Pengontrol musik latar belakang internal berbasis pemutar audio lokal (`rodio`) dan downloader audio YouTube (`yt-dlp`).
 
 | Action Identifier | Deskripsi | Parameter | Kemungkinan Perintah Pengguna (Voice / Chat) | Tag Command AI |
 | :--- | :--- | :--- | :--- | :--- |
@@ -198,6 +198,14 @@ Bagian ini merangkum pola-pola kesalahan umum dan halusinasi AI yang sering terj
   * ❌ *Halusinasi AI:* `[CMD:browser:search|google|rust] [CMD:browser:open|google.com] [CMD:browser:type|rust]`
 * **Pencegahan:**
   * Jalankan satu aksi utama yang paling spesifik. `browser:search` sudah otomatis menangani navigasi dan pencarian sekaligus.
+
+### 11. Penanganan Interupsi Suara (*Barge-in*) & Kontrol Mute Reaktif
+* **Mekanisme Eksekusi:**
+  * Penangkapan suara STT dan sintesis suara TTS berjalan di ekosistem native Chromium browser.
+  * Ketika pengguna memotong pembicaraan (*barge-in*) atau menekan tombol Mute di UI web/menu:
+    * `speechSynthesis.cancel()` langsung memutus suara TTS tanpa delay buffer audio.
+    * `recognition.abort()` atau `recognition.stop()` menghentikan listening mikrofon secara instan di sisi browser.
+    * Backend diperbarui secara reaktif via `/api/tts/state` dan state visualizer avatar 3D kembali ke status standby dalam waktu < 5ms.
 
 ---
 

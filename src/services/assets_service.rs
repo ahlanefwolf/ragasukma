@@ -89,7 +89,12 @@ pub fn handle_upload_vrm(
     }
 }
 
-pub fn handle_upload_avatar(full_url: &str, body_bytes: &[u8], stream: &mut TcpStream) {
+pub fn handle_upload_avatar(
+    full_url: &str,
+    body_bytes: &[u8],
+    stream: &mut TcpStream,
+    shared: &Arc<Mutex<ServerSharedState>>,
+) {
     if body_bytes.is_empty() {
         send_json_response(stream, 400, "{\"error\":\"Empty image payload\"}");
         return;
@@ -112,10 +117,10 @@ pub fn handle_upload_avatar(full_url: &str, body_bytes: &[u8], stream: &mut TcpS
         .unwrap_or_else(|| "idle".to_string());
 
     let filename = match slot.to_lowercase().as_str() {
-        "listening" => "listening.png",
-        "talking" | "speaking" => "talking.png",
-        "thinking" => "thinking.png",
-        _ => "idle.png",
+        "listening" => "char-avatar-listening.png",
+        "speaking" => "char-avatar-speaking.png",
+        "thinking" => "char-avatar-thinking.png",
+        _ => "char-avatar-idle.png",
     };
 
     let assets_dir = get_assets_dir();
@@ -129,6 +134,9 @@ pub fn handle_upload_avatar(full_url: &str, body_bytes: &[u8], stream: &mut TcpS
                 slot,
                 target_path
             );
+            if let Ok(mut lock) = shared.lock() {
+                lock.vrm_updated = true;
+            }
             send_json_response(stream, 200, "{\"success\":true}");
         }
         Err(e) => {

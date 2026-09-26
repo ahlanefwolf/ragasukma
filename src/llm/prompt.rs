@@ -289,11 +289,22 @@ pub fn load_active_browser_summary_indexed(query: Option<&str>) -> String {
             };
 
             summary.push_str(&format!(
-                "* **Konten Teks / Link Pilihan (Ground of Truth):**\n  - {}\n",
+                "* **Konten Teks / Elemen Pilihan:**\n  - {}\n",
                 final_texts.join("\n  - ")
             ));
-        } else if !snapshot.text_summary.is_empty() {
-            summary.push_str(&format!("* **Ringkasan Teks:**\n{}\n", snapshot.text_summary));
+        }
+
+        if !snapshot.text_summary.is_empty() {
+            let clean_summary = snapshot.text_summary.trim();
+            let display_summary = if clean_summary.len() > 1500 {
+                format!("{}...", &clean_summary[..1500])
+            } else {
+                clean_summary.to_string()
+            };
+            summary.push_str(&format!(
+                "* **Isi / Ringkasan Halaman Web (Ground of Truth):**\n{}\n",
+                display_summary
+            ));
         }
 
         parts.push(summary);
@@ -539,27 +550,29 @@ pub fn build_system_prompt_indexed(user_input: Option<&str>) -> String {
 	{apps_prompt}\
 	{browser_prompt}\
 	{window_prompt}\n\
-ATURAN FORMAT UCAPAN TEXT-TO-SPEECH (TTS):
-1. Format Natural:
-   - Gunakan kalimat lisan natural, ramah, dan enak didengar.
-   - DILARANG menggunakan titik-titik berturutan / elipsis ('...'). Gunakan koma (',') atau titik ('.') biasa.
-   - DILARANG menuliskan suara tawa buatan seperti 'ehehe', 'hehehe', 'ehe', atau kata ganjil 'anu...'.
-   - DILARANG menggunakan markdown bold/italic (**teks**), bullet points, atau header (#).
-2. Tag Emosi 3D Avatar (PILIH SATU DI AWAL KALIMAT PERTAMA):
-   - Awali respon dengan SATU tag emosi bintang: *senang*, *malu*, *semangat*, *kaget*, *mikir*, *sedih*, *marah*, atau *netral*.
-   - Contoh: '*senang* Siap {callsign}, kubantu sekarang!'
-3. Pola Respon:
-   - JIKA MENJALANKAN AKSI: Jawablah SANGAT SINGKAT (3-6 kata) lalu sertakan tag perintah di akhir!
-     * Buka aplikasi: '*senang* Siap, ini Spotify-nya! [CMD:app:open|Spotify]'
-     * Cari di web: '*semangat* Oke, langsung kucari di YouTube! [CMD:browser:search|youtube.com|denny caknan]'
-     * Ketik di web: '*semangat* Siap, kuketikkan sekarang! [CMD:browser:type|berita teknologi]'
-     * Ketik lalu enter: '*senang* Oke langsung kuketik dan cari! [CMD:browser:type|berita teknologi] [CMD:browser:enter]'
-     * Tekan enter: '*semangat* Siap, tombol enter ditekan! [CMD:browser:enter]'
-     * Klik di web: '*senang* Siap, kuklik sekarang! [CMD:browser:click_text|Play]'
-     * Pindai visual layar: '*semangat* Siap, kupindai layar sekarang! [CMD:desktop:scan_visual]'
-     * Beralih jendela: '*senang* Siap, membuka jendela tersebut! [CMD:desktop:focus|Spotify]'
-     * Klik tombol desktop: '*senang* Siap, tombolnya kuklik! [CMD:desktop:click_button|Simpan]'
-     * Klik koordinat layar: '*senang* Siap, kuklik pada koordinat tersebut! [CMD:desktop:click_at|1829|15]'
-   - JIKA OBROLAN SANTAI: Responmu cukup 1 kalimat santai dan ramah.{skills_prompt}"
+	ATURAN FORMAT UCAPAN TEXT-TO-SPEECH (TTS):
+	1. Format Natural:
+	   - Gunakan kalimat lisan natural, ramah, dan enak didengar.
+	   - DILARANG menggunakan titik-titik berturutan / elipsis ('...'). Gunakan koma (',') atau titik ('.') biasa.
+	   - DILARANG menuliskan suara tawa buatan seperti 'ehehe', 'hehehe', 'ehe', atau kata ganjil 'anu...'.
+	   - DILARANG menggunakan markdown bold/italic (**teks**), bullet points (- atau *), nomor list, atau header (#). Jangan membuat daftar poin, ucapkan mengalir dalam kalimat lisan.
+	   - DILARANG mengulang pertanyaan basa-basi di akhir kalimat (seperti 'Ada yang bisa kubantu lagi?', 'Mas mau ngapain dulu?', 'Mau kubantuin sesuatu?'). Cukup jawab dengan hangat tanpa memaksa bertanya balik.
+	2. Tag Emosi 3D Avatar (PILIH SATU DI AWAL KALIMAT PERTAMA):
+	   - Awali respon dengan SATU tag emosi bintang: *senang*, *malu*, *semangat*, *kaget*, *mikir*, *sedih*, *marah*, atau *netral*.
+	   - Contoh: '*senang* Siap {callsign}, kubantu sekarang!'
+	3. Pola Respon:
+	   - JIKA MENJALANKAN AKSI: Jawablah SANGAT SINGKAT (3-6 kata) lalu sertakan tag perintah di akhir!
+	     * Buka aplikasi: '*senang* Siap, ini Spotify-nya! [CMD:app:open|Spotify]'
+	     * Cari di web: '*semangat* Oke, langsung kucari di YouTube! [CMD:browser:search|youtube.com|denny caknan]'
+	     * Ketik di web: '*semangat* Siap, kuketikkan sekarang! [CMD:browser:type|berita teknologi]'
+	     * Ketik lalu enter: '*senang* Oke langsung kuketik dan cari! [CMD:browser:type|berita teknologi] [CMD:browser:enter]'
+	     * Tekan enter: '*semangat* Siap, tombol enter ditekan! [CMD:browser:enter]'
+	     * Klik di web: '*senang* Siap, kuklik sekarang! [CMD:browser:click_text|Play]'
+	     * Pindai visual layar: '*semangat* Siap, kupindai layar sekarang! [CMD:desktop:scan_visual]'
+	     * Beralih jendela: '*senang* Siap, membuka jendela tersebut! [CMD:desktop:focus|Spotify]'
+	     * Klik tombol desktop: '*senang* Siap, tombolnya kuklik! [CMD:desktop:click_button|Simpan]'
+	     * Klik koordinat layar: '*senang* Siap, kuklik pada koordinat tersebut! [CMD:desktop:click_at|1829|15]'
+	   - JIKA MERANGKUM / MEMBACA WEB / MENJELASKAN PENGETAHUAN / BERCERITA: Jelaskan dengan lengkap, detail, dan mendalam sesuai kebutuhan, tetap dalam gaya tutur lisan yang mengalir santun tanpa poin-poin kaku.
+	   - JIKA OBROLAN SANTAI BIASA: Responmu cukup 1 hingga 2 kalimat pendek (di bawah 25 kata), ramah, santai, dan tidak bertele-tele.{skills_prompt}"
     )
 }

@@ -49,10 +49,9 @@ export const api = {
   // Single Client Session & SSE Events Service
   claimSession: eventsService.claimSession,
   notifyActiveTab: eventsService.notifyActiveTab,
-  closeMenuSSE: eventsService.closeMenuSSE,
   subscribeState: eventsService.subscribeState,
   subscribeActions: eventsService.subscribeActions,
-  subscribeMicLevel: eventsService.subscribeMicLevel,
+  forceCloseSSE: eventsService.forceCloseSSE,
 
   // Music Storage & Downloader Service
   installYtDlp: musicService.installYtDlp,

@@ -12,7 +12,6 @@ pub struct AppStatePayload {
     pub is_paused: bool,
     pub voice_muted: bool,
     pub mic_muted: bool,
-    pub mic_level: u8,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_session_token: Option<String>,
 }
@@ -35,7 +34,6 @@ pub struct ServerSharedState {
     pub is_shutdown: bool,
     pub voice_muted: bool,
     pub mic_muted: bool,
-    pub mic_level: u8,
     pub poses_updated: bool,
     pub config_updated: bool,
     pub vrm_updated: bool,
@@ -144,15 +142,6 @@ pub fn is_voice_muted() -> bool {
     false
 }
 
-pub fn update_mic_level(level: u8) {
-    if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
-        if let Some(shared) = lock.as_ref() {
-            if let Ok(mut s) = shared.lock() {
-                s.mic_level = level;
-            }
-        }
-    }
-}
 
 pub fn is_mic_muted() -> bool {
     if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {

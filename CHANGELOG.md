@@ -9,6 +9,20 @@ Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/id/
 ## [v0.2.0] - 2026-09-20
 
 ### 🚀 Fitur Baru & Peningkatan Utama
+- **Pure Web Speech Engine (Zero Backend Audio Overhead)**:
+  - Seluruh inferensi STT dan sintesis TTS dialihkan murni ke Web Speech API bawaan Chromium (`webkitSpeechRecognition` & `window.speechSynthesis`).
+  - Menghapus total modul berat backend (`supertonic.rs`, `dsp.rs`, `recorder.rs`, `stt.rs`, dan buffer VAD berulang) sehingga backend 100% idle saat pengguna diam.
+  - Dukungan aksen pengenalan suara multi-bahasa lokal (`id-ID`, `jv-ID`, `su-ID`, dll.) serta kontrol vokal fleksibel (gender, pitch, speed, voice name).
+  - Web Audio API Spectrum & VU meter 60 FPS langsung di browser tanpa overhead jaringan.
+- **Strict Single-Tab Ownership & Clean Teardown**:
+  - Eliminasi total bug audio dobel: tab lama yang tereliminasi seketika memanggil `window.speechSynthesis.cancel()`, `recognition.abort()`, dan memutuskan SSE stream (`forceCloseSSE`).
+  - Deduplikasi incremental ID pada SSE action buffer untuk memastikan kalimat ucapan tidak pernah dieksekusi berulang.
+- **Ekspresi Wajah 3D & Lip-Sync Terpadu**:
+  - Penyelarasan parser emosi multi-bahasa (`*senang*`, `*malu*`, `*bingung*`, `*kaget*`, `*marah*`, `*semangat*`, `*sedih*`) langsung ke morph targets / blendshapes VRM di renderer WGPU desktop.
+  - Perbaikan aturan prompt LLM: melarang pengulangan pertanyaan basa-basi, membatasi obrolan santai tetap padat (1-2 kalimat lisan), namun tetap leluasa menjelaskan/merangkum konten web secara mendalam saat diminta.
+- **Penyempurnaan Companion Extension**:
+  - Ekstraktor DOM (`dom_extractor.js`) kini menyaring navigasi/header/footer dan fokus mengekstrak teks konten artikel / narasi aktual (`text_summary`).
+  - Pembaruan paket distribusi `assets/ragasukma-companion.zip`.
 - **Antigravity Pool & Local OpenAI-Compatible API Router (`:42128/v1`)**:
   - Dukungan multi-akun Google Multi-OAuth dengan pooling otomatis dan failover kuota cerdas saat mencapai batas rate limit.
   - Endpoint universal standar OpenAI-compatible (`http://127.0.0.1:42128/v1/chat/completions` & `/v1/models`) yang memungkinkan integrasi langsung dengan Cursor, VS Code, Cline, OpenWebUI, dan third-party tools lainnya.
@@ -25,9 +39,11 @@ Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/id/
   - Migrasi seluruh font sistem ke keluarga kelas dunia **IBM Plex Sans** (UI & Heading) dan **IBM Plex Mono** (Console log, durasi, status badge) untuk legibilitas maksimal dan estetika anti-AI slop.
 
 ### 🐛 Perbaikan Bug & Optimasi Performa
-- **Pembersihan Audio Decoding Pipeline**: Mengeliminasi ketergantungan audio decode ganda di backend dan mengandalkan single-source-of-truth streaming langsung ke frontend web & PiP.
+- **Pembersihan Modul & Standarisasi Aset**: Pembersihan seluruh referensi usang `char-avatar-talking` ke standar `char-avatar-speaking`, serta penataan struktur internal `chat_loop`.
+- **Zero Race Condition Audio Pipeline**: Mengeliminasi ketergantungan audio decode ganda di backend dan mengandalkan single-source-of-truth streaming langsung ke frontend web & PiP.
 - **Pembersihan Elemen Dekoratif & Focus Outline**: Menghilangkan outline 2px tebal dan box shadow berlebih, menggantinya dengan border highlight 1px yang bersih dan responsif.
 - **Konsumsi Sumber Daya Minimal**: Render loop PiP dan Web Worker hanya mengonsumsi < 0.5% CPU dan ~3 MB RAM, dengan pembersihan memori otomatis (`terminate()`) saat ditutup.
+- **Kebersihan Kode**: Diagnostik proyek 0 error dan 0 warning di seluruh backend Rust dan frontend TypeScript.
 
 ---
 

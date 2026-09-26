@@ -490,9 +490,23 @@ impl Renderer {
                 }
             } else if self.avatar_type.eq_ignore_ascii_case("2d") {
                 let state = self.current_visual_state;
+
+                // Untuk 2D Avatar saat Speaking: buat animasi mouth flapping (buka-tutup mulut)
+                // tersinkronisasi dengan gelombang vokal AIUEO yang sama dengan 3D VRM (~5.5 Hz)
+                let active_2d_state = if state == AssistantVisualState::Speaking {
+                    let mouth_open = ((self.elapsed_time * 5.5).sin().abs()).powf(1.4);
+                    if mouth_open > 0.28 {
+                        AssistantVisualState::Speaking
+                    } else {
+                        AssistantVisualState::Idle
+                    }
+                } else {
+                    state
+                };
+
                 if let Some((_, bind_group, img_size)) = self
                     .avatar_2d_textures
-                    .get(&state)
+                    .get(&active_2d_state)
                     .or_else(|| self.avatar_2d_textures.get(&AssistantVisualState::Idle))
                 {
                     let breath = if state == AssistantVisualState::Idle {

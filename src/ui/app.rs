@@ -139,7 +139,6 @@ impl App {
             is_shutdown: false,
             voice_muted: false,
             mic_muted: false,
-            mic_level: 0,
             poses_updated: false,
             config_updated: false,
             vrm_updated: false,
