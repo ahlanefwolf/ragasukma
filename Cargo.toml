@@ -1,6 +1,6 @@
 [package]
 name = "ragasukma"
-version = "0.2.1"
+version = "0.2.0"
 edition = "2024"
 description = "AI Voice Assistant with 3D/2D Native WGPU Overlay"
 authors = ["Ahlan Saputra <hlnsptr@gmail.com>"]
