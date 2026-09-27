@@ -56,9 +56,9 @@ Menerima hasil pengenalan suara (STT) yang ditangkap langsung oleh Google Chrome
 ---
 
 ### `POST /api/tts/state`
-Menerima status sinkronisasi bicara dari Google Chrome Speech Synthesis (`window.speechSynthesis`). Digunakan untuk menggerakkan bibir avatar 3D (AIUEO phonemes) dan status sistem tray.
+Menerima status sinkronisasi visual dan vokal dari Google Chrome Speech Recognition/Synthesis (`window.speechSynthesis` & `webkitSpeechRecognition`). Digunakan untuk sinkronisasi state pose avatar 3D (`listening`, `thinking`, `speaking`, `idle`), gerak bibir (morph targets), dan status system tray.
 
-- **Request Body (Mulai Bicara)**:
+- **Request Body (Mulai Berbicara / TTS Aktif)**:
   ```json
   {
     "speaking": true,
@@ -66,12 +66,21 @@ Menerima status sinkronisasi bicara dari Google Chrome Speech Synthesis (`window
   }
   ```
 
-- **Request Body (Selesai Bicara / Terpotong Interupsi)**:
+- **Request Body (Deteksi Suara User / Listening State)**:
+  ```json
+  {
+    "state": "listening",
+    "emotion": "neutral"
+  }
+  ```
+
+- **Request Body (Selesai Bicara / Terpotong Interupsi / Kembali Standby)**:
   ```json
   {
     "speaking": false
   }
   ```
+  *(Atau menggunakan `{ "state": "idle", "emotion": "neutral" }`)*
 
 - **Response (200 OK)**:
   ```json
@@ -304,16 +313,35 @@ Mengunggah gambar 2D untuk ekspresi avatar tertentu.
 ## 6. 🕺 Poses & Live Bone Tuner
 
 ### `GET /api/poses`
-Mengambil konfigurasi orientasi tulang per visual state dari `assets/poses.json`.
+Mengambil konfigurasi orientasi tulang per visual state dari `assets/poses.json`. Mendukung multi-pose dinamis dengan Catmull-Rom spline interpolation (bukan hanya 2 pose kaku A/B).
 
-- **Response (200 OK)**: Objek poses per state (`idle`, `listening`, `speaking`, `thinking`).
+- **Response (200 OK)**:
+  ```json
+  {
+    "idle": {
+      "speed": 1.0,
+      "poses": [
+        {
+          "bones": {
+            "head": [0.03, 0.01, -0.14],
+            "leftUpperArm": [0.09, 0.06, -1.4],
+            "leftIndex": [-0.01, 0.24, -0.08]
+          }
+        }
+      ]
+    },
+    "listening": { ... },
+    "thinking": { ... },
+    "speaking": { ... }
+  }
+  ```
 
 ---
 
 ### `POST /api/poses`
-Menyimpan konfigurasi rotasi pose permanen ke disk.
+Menyimpan konfigurasi rotasi pose permanen ke disk (`assets/poses.json`).
 
-- **Request Body**: JSON data struktur `PoseConfig`.
+- **Request Body**: JSON data struktur multi-pose `PosesConfig`.
 - **Response (200 OK)**:
   ```json
   {
@@ -325,12 +353,20 @@ Menyimpan konfigurasi rotasi pose permanen ke disk.
 ---
 
 ### `POST /api/tuner/preview`
-Meninjau animasi/pose state tertentu tanpa menyimpan ke disk.
+Meninjau animasi/pose state tertentu secara visual tanpa menyimpan ke disk.
 
 - **Request Body**:
   ```json
   {
-    "state": "speaking"
+    "state": "speaking",
+    "emotion": "senang",
+    "poses": [
+      {
+        "bones": {
+          "head": [0.05, -0.02, 0.0]
+        }
+      }
+    ]
   }
   ```
 - **Response (200 OK)**:
@@ -343,16 +379,19 @@ Meninjau animasi/pose state tertentu tanpa menyimpan ke disk.
 ---
 
 ### `POST /api/tuner/live`
-Mengirimkan sudut rotasi tulang secara realtime (saat user menggeser slider tuner di UI) untuk diaplikasikan ke model 3D seketika (< 5ms).
+Mengirimkan sudut rotasi batch sendi tulang secara realtime (saat user menggeser slider tuner di UI) untuk diaplikasikan ke model 3D seketika (< 5ms) tanpa tertimpa siklus animasi otomatis (`is_tuning` active).
 
 - **Request Body**:
   ```json
   {
-    "bone": "head",
-    "x": 0.05,
-    "y": -0.12,
-    "z": 0.0,
-    "state": "speaking"
+    "active": true,
+    "state": "idle",
+    "emotion": "neutral",
+    "bones": {
+      "head": [0.05, -0.12, 0.0],
+      "leftUpperArm": [0.35, 0.2, -0.8],
+      "leftIndex": [0.0, 0.0, 1.25]
+    }
   }
   ```
 - **Response (200 OK)**:
