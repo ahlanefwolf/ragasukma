@@ -111,6 +111,11 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
         let injected = crate::engine::remote_text::inject_remote_text(clean.to_string());
         if injected {
             crate::term_log!("🎙️ [Chrome Web STT] Transkrip diterima: \"{}\"", clean);
+            let asst_name = crate::config::load_user_config().assistant_name;
+            crate::tray::TrayState::update(
+                crate::services::tray_service::AssistantState::Thinking,
+                &format!("{asst_name} Berpikir..."),
+            );
             send_json_response(stream, 200, "{\"success\":true,\"message\":\"Transcript injected to LLM\"}");
         } else {
             crate::term_log!("⚠️ [Chrome Web STT] Chat loop belum berjalan aktif!");
@@ -128,15 +133,29 @@ pub fn handle_tts_state(
 ) {
     #[derive(serde::Deserialize)]
     struct TtsStatePayload {
+        #[serde(default)]
         speaking: bool,
+        #[serde(default)]
+        listening: bool,
+        #[serde(default)]
+        state: Option<String>,
         emotion: Option<String>,
     }
 
     if let Ok(payload) = serde_json::from_str::<TtsStatePayload>(body_str) {
-        crate::app_state::set_ai_speaking(payload.speaking);
         let emotion = payload.emotion.unwrap_or_else(|| "neutral".to_string());
+        let target_state = if let Some(ref st) = payload.state {
+            st.to_lowercase()
+        } else if payload.speaking {
+            "speaking".to_string()
+        } else if payload.listening {
+            "listening".to_string()
+        } else {
+            "idle".to_string()
+        };
 
-        if payload.speaking {
+        if target_state == "speaking" {
+            crate::app_state::set_ai_speaking(true);
             let asst_name = crate::config::load_user_config().assistant_name;
             crate::tray::TrayState::update_with_emotion(
                 crate::services::tray_service::AssistantState::Speaking,
@@ -148,7 +167,34 @@ pub fn handle_tts_state(
                 lock.current_emotion = emotion;
                 lock.state_version = lock.state_version.wrapping_add(1);
             }
+        } else if target_state == "listening" {
+            crate::app_state::set_ai_speaking(false);
+            let asst_name = crate::config::load_user_config().assistant_name;
+            crate::tray::TrayState::update_with_emotion(
+                crate::services::tray_service::AssistantState::Listening,
+                &format!("{asst_name} Mendengarkan..."),
+                &emotion,
+            );
+            if let Ok(mut lock) = shared.lock() {
+                lock.current_state = crate::ui::pose_system::AssistantVisualState::Listening;
+                lock.current_emotion = emotion;
+                lock.state_version = lock.state_version.wrapping_add(1);
+            }
+        } else if target_state == "thinking" {
+            crate::app_state::set_ai_speaking(false);
+            let asst_name = crate::config::load_user_config().assistant_name;
+            crate::tray::TrayState::update_with_emotion(
+                crate::services::tray_service::AssistantState::Thinking,
+                &format!("{asst_name} Berpikir..."),
+                &emotion,
+            );
+            if let Ok(mut lock) = shared.lock() {
+                lock.current_state = crate::ui::pose_system::AssistantVisualState::Thinking;
+                lock.current_emotion = emotion;
+                lock.state_version = lock.state_version.wrapping_add(1);
+            }
         } else {
+            crate::app_state::set_ai_speaking(false);
             crate::tray::TrayState::update_with_emotion(
                 crate::services::tray_service::AssistantState::Idle,
                 "Standby Siap",

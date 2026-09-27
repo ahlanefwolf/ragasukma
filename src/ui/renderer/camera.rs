@@ -76,10 +76,13 @@ pub fn update_camera_and_bones(
     cam: &CameraState,
     pose_manager: &mut PoseManager,
     delta_seconds: f32,
+    is_tuning: bool,
     global_transforms: &mut Vec<Mat4>,
     bone_uniform: &mut BoneMatricesUniform,
 ) {
-    pose_manager.update_poses(delta_seconds);
+    if !is_tuning {
+        pose_manager.update_poses(delta_seconds);
+    }
 
     let width = screen_width;
     let height = screen_height.max(1.0);

@@ -391,6 +391,7 @@ impl Renderer {
             &cam,
             pose_manager,
             delta_seconds,
+            is_tuning,
             &mut self.cached_global_transforms,
             &mut self.cached_bone_uniform,
         );

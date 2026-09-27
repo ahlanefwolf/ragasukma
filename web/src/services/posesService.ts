@@ -1,10 +1,13 @@
 import { API_BASE, fetchWithTimeout } from './base';
 
+export interface SinglePose {
+  bones: Record<string, [number, number, number]>;
+}
+
 export interface PoseKeyframes {
   emotion?: string;
   speed: number;
-  pose_a: Record<string, [number, number, number]>;
-  pose_b: Record<string, [number, number, number]>;
+  poses?: SinglePose[];
 }
 
 export type PosesConfig = Record<string, PoseKeyframes>;

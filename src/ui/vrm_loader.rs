@@ -387,7 +387,25 @@ impl VrmModelData {
             {
                 for (bone_name, bone_obj) in bones {
                     if let Some(node_idx) = bone_obj.get("node").and_then(|n| n.as_u64()) {
-                        bone_mapping.insert(bone_name.clone(), node_idx as usize);
+                        let mapped_key = match bone_name.as_str() {
+                            "leftThumbMetacarpal" | "leftThumbProximal" => Some("leftThumb"),
+                            "leftIndexProximal" => Some("leftIndex"),
+                            "leftMiddleProximal" => Some("leftMiddle"),
+                            "leftRingProximal" => Some("leftRing"),
+                            "leftLittleProximal" => Some("leftLittle"),
+                            "rightThumbMetacarpal" | "rightThumbProximal" => Some("rightThumb"),
+                            "rightIndexProximal" => Some("rightIndex"),
+                            "rightMiddleProximal" => Some("rightMiddle"),
+                            "rightRingProximal" => Some("rightRing"),
+                            "rightLittleProximal" => Some("rightLittle"),
+                            _ => None,
+                        };
+
+                        if let Some(std_name) = mapped_key {
+                            bone_mapping.insert(std_name.to_string(), node_idx as usize);
+                        } else {
+                            bone_mapping.insert(bone_name.clone(), node_idx as usize);
+                        }
                     }
                 }
             }
@@ -642,6 +660,31 @@ pub fn map_vrm_bone_str(name_str: &str) -> Option<&'static str> {
     } else if name_str.contains("LeftHand") || name_str.contains("L_Hand") || name_str == "leftHand"
     {
         Some("leftHand")
+    } else if name_str.contains("L_Thumb1")
+        || name_str.contains("LeftThumbProximal")
+        || name_str == "leftThumb"
+    {
+        Some("leftThumb")
+    } else if name_str.contains("L_Index1")
+        || name_str.contains("LeftIndexProximal")
+        || name_str == "leftIndex"
+    {
+        Some("leftIndex")
+    } else if name_str.contains("L_Middle1")
+        || name_str.contains("LeftMiddleProximal")
+        || name_str == "leftMiddle"
+    {
+        Some("leftMiddle")
+    } else if name_str.contains("L_Ring1")
+        || name_str.contains("LeftRingProximal")
+        || name_str == "leftRing"
+    {
+        Some("leftRing")
+    } else if name_str.contains("L_Little1")
+        || name_str.contains("LeftLittleProximal")
+        || name_str == "leftLittle"
+    {
+        Some("leftLittle")
     } else if name_str.contains("RightUpperArm")
         || name_str.contains("R_UpperArm")
         || name_str == "rightUpperArm"
@@ -657,6 +700,31 @@ pub fn map_vrm_bone_str(name_str: &str) -> Option<&'static str> {
         || name_str == "rightHand"
     {
         Some("rightHand")
+    } else if name_str.contains("R_Thumb1")
+        || name_str.contains("RightThumbProximal")
+        || name_str == "rightThumb"
+    {
+        Some("rightThumb")
+    } else if name_str.contains("R_Index1")
+        || name_str.contains("RightIndexProximal")
+        || name_str == "rightIndex"
+    {
+        Some("rightIndex")
+    } else if name_str.contains("R_Middle1")
+        || name_str.contains("RightMiddleProximal")
+        || name_str == "rightMiddle"
+    {
+        Some("rightMiddle")
+    } else if name_str.contains("R_Ring1")
+        || name_str.contains("RightRingProximal")
+        || name_str == "rightRing"
+    {
+        Some("rightRing")
+    } else if name_str.contains("R_Little1")
+        || name_str.contains("RightLittleProximal")
+        || name_str == "rightLittle"
+    {
+        Some("rightLittle")
     } else if name_str.contains("LeftShoulder")
         || name_str.contains("L_Shoulder")
         || name_str == "leftShoulder"

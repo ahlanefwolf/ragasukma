@@ -155,9 +155,24 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
     utter.rate = props.ttsSpeed || 1.0;
     utter.pitch = props.ttsPitch || 1.0;
 
-    utter.onstart = () => setIsPlayingTest(true);
-    utter.onend = () => setIsPlayingTest(false);
-    utter.onerror = () => setIsPlayingTest(false);
+    utter.onstart = () => {
+      setIsPlayingTest(true);
+      try {
+        window.dispatchEvent(new CustomEvent('ragasukma:test_voice', { detail: { active: true } }));
+      } catch {}
+    };
+    utter.onend = () => {
+      setIsPlayingTest(false);
+      try {
+        window.dispatchEvent(new CustomEvent('ragasukma:test_voice', { detail: { active: false } }));
+      } catch {}
+    };
+    utter.onerror = () => {
+      setIsPlayingTest(false);
+      try {
+        window.dispatchEvent(new CustomEvent('ragasukma:test_voice', { detail: { active: false } }));
+      } catch {}
+    };
 
     window.speechSynthesis.speak(utter);
   };

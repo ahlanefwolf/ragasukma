@@ -227,6 +227,8 @@ export const App: Component = () => {
     // 🎙️ Google Chrome Speech Recognition (STT) - Dengar suara dari browser dan kirim transkrip ke backend
     let recognition: any = null;
     let isTtsSpeaking = false;
+    let isTestVoiceActive = false;
+    let isListeningActive = false;
     let isVoiceMuted = false;
     let isMicMuted = false;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -258,6 +260,8 @@ export const App: Component = () => {
         });
 
         recognition.onspeechstart = () => {
+          if (isTestVoiceActive) return;
+
           // ⚡ Voice Interruption (Barge-in): Begitu pengguna mulai bersuara, potong TTS seketika!
           if (isTtsSpeaking && runtimeConfig?.voice_interruption) {
             console.log('⚡ [Barge-in: onspeechstart] Suara terdeteksi, memotong suara asisten seketika!');
@@ -265,16 +269,21 @@ export const App: Component = () => {
               window.speechSynthesis.cancel();
             }
             isTtsSpeaking = false;
+          }
+
+          // Picu state listening jika tidak sedang bicara TTS dan mic tidak di-mute
+          if (!isMicMuted && !isTtsSpeaking) {
+            isListeningActive = true;
             fetch(`${API_BASE}/api/tts/state`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ speaking: false, emotion: 'neutral' }),
+              body: JSON.stringify({ state: 'listening', emotion: 'neutral' }),
             }).catch(() => {});
           }
         };
 
         recognition.onresult = (event: any) => {
-          if (isMicMuted) return;
+          if (isMicMuted || isTestVoiceActive) return;
 
           // ⚡ Voice Interruption (Barge-in): Potong TTS seketika saat user bicara
           if (isTtsSpeaking) {
@@ -284,11 +293,6 @@ export const App: Component = () => {
                 window.speechSynthesis.cancel();
               }
               isTtsSpeaking = false;
-              fetch(`${API_BASE}/api/tts/state`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ speaking: false, emotion: 'neutral' }),
-              }).catch(() => {});
             } else {
               // Jika interupsi nonaktif, abaikan suara selama TTS bersuara
               return;
@@ -308,9 +312,19 @@ export const App: Component = () => {
                   spokenClean.includes(transcriptClean)
                 ) {
                   console.warn('[Barge-in] Self-echo suara asisten diabaikan:', transcript);
+                  // Kembalikan ke idle jika ini hanya self echo
+                  if (isListeningActive) {
+                    isListeningActive = false;
+                    fetch(`${API_BASE}/api/tts/state`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ state: 'idle', emotion: 'neutral' }),
+                    }).catch(() => {});
+                  }
                   continue;
                 }
 
+                isListeningActive = false;
                 console.log('[Chrome Web STT] Sending transcript:', transcript);
                 fetch(`${API_BASE}/api/stt/transcript`, {
                   method: 'POST',
@@ -342,6 +356,22 @@ export const App: Component = () => {
     } catch (e) {
       console.warn('[Chrome Web STT] SpeechRecognition init failed:', e);
     }
+
+    // Listener custom event saat user menguji suara di tab Settings (AudioTtsSection)
+    const handleTestVoiceEvent = (e: CustomEvent) => {
+      const active = !!e.detail?.active;
+      isTestVoiceActive = active;
+      if (active) {
+        try { recognition?.abort(); } catch {}
+      } else {
+        setTimeout(() => {
+          if (!isDead() && !isMicMuted && !isTtsSpeaking) {
+            try { recognition?.start(); } catch {}
+          }
+        }, 300);
+      }
+    };
+    window.addEventListener('ragasukma:test_voice' as any, handleTestVoiceEvent);
 
     // Listener custom event untuk reaktivitas instan HANYA saat user klik "Simpan" di SettingsTab (1 Pintu)
     const handleConfigUpdated = (e: CustomEvent) => {
@@ -526,6 +556,7 @@ export const App: Component = () => {
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('hashchange', handleHashChange);
       window.removeEventListener('ragasukma:config_updated' as any, handleConfigUpdated);
+      window.removeEventListener('ragasukma:test_voice' as any, handleTestVoiceEvent);
       unsubState();
       unsubActions();
     });

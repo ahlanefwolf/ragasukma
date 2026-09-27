@@ -19,11 +19,11 @@ export const BONE_CATEGORIES: BoneCategory[] = [
     id: 'leftFingers', 
     label: 'Jari Kiri', 
     bones: [
-      'leftThumbProximal',
-      'leftIndexProximal',
-      'leftMiddleProximal',
-      'leftRingProximal',
-      'leftLittleProximal'
+      'leftThumb',
+      'leftIndex',
+      'leftMiddle',
+      'leftRing',
+      'leftLittle'
     ] 
   },
   { 
@@ -35,11 +35,11 @@ export const BONE_CATEGORIES: BoneCategory[] = [
     id: 'rightFingers', 
     label: 'Jari Kanan', 
     bones: [
-      'rightThumbProximal',
-      'rightIndexProximal',
-      'rightMiddleProximal',
-      'rightRingProximal',
-      'rightLittleProximal'
+      'rightThumb',
+      'rightIndex',
+      'rightMiddle',
+      'rightRing',
+      'rightLittle'
     ] 
   },
   { 
@@ -62,21 +62,21 @@ export const BONE_LABELS: Record<string, string> = {
   leftUpperArm: 'Lengan Atas Kiri (L-UpperArm)',
   leftLowerArm: 'Lengan Bawah Kiri (L-LowerArm)',
   leftHand: 'Telapak Tangan Kiri (L-Hand)',
-  leftThumbProximal: 'Jempol Kiri (L-Thumb)',
-  leftIndexProximal: 'Telunjuk Kiri (L-Index)',
-  leftMiddleProximal: 'Jari Tengah Kiri (L-Middle)',
-  leftRingProximal: 'Jari Manis Kiri (L-Ring)',
-  leftLittleProximal: 'Kelingking Kiri (L-Pinky)',
+  leftThumb: 'Jempol Kiri (L-Thumb)',
+  leftIndex: 'Telunjuk Kiri (L-Index)',
+  leftMiddle: 'Jari Tengah Kiri (L-Middle)',
+  leftRing: 'Jari Manis Kiri (L-Ring)',
+  leftLittle: 'Kelingking Kiri (L-Pinky)',
 
   rightShoulder: 'Bahu Kanan (R-Shoulder)',
   rightUpperArm: 'Lengan Atas Kanan (R-UpperArm)',
   rightLowerArm: 'Lengan Bawah Kanan (R-LowerArm)',
   rightHand: 'Telapak Tangan Kanan (R-Hand)',
-  rightThumbProximal: 'Jempol Kanan (R-Thumb)',
-  rightIndexProximal: 'Telunjuk Kanan (R-Index)',
-  rightMiddleProximal: 'Jari Tengah Kanan (R-Middle)',
-  rightRingProximal: 'Jari Manis Kanan (R-Ring)',
-  rightLittleProximal: 'Kelingking Kanan (R-Pinky)',
+  rightThumb: 'Jempol Kanan (R-Thumb)',
+  rightIndex: 'Telunjuk Kanan (R-Index)',
+  rightMiddle: 'Jari Tengah Kanan (R-Middle)',
+  rightRing: 'Jari Manis Kanan (R-Ring)',
+  rightLittle: 'Kelingking Kanan (R-Pinky)',
 
   leftUpperLeg: 'Paha Kiri (L-UpperLeg)',
   leftLowerLeg: 'Betis Kiri (L-LowerLeg)',
@@ -96,16 +96,16 @@ export const MIRROR_MAP: Record<string, string> = {
   leftHand: 'rightHand',
   rightHand: 'leftHand',
 
-  leftThumbProximal: 'rightThumbProximal',
-  rightThumbProximal: 'leftThumbProximal',
-  leftIndexProximal: 'rightIndexProximal',
-  rightIndexProximal: 'leftIndexProximal',
-  leftMiddleProximal: 'rightMiddleProximal',
-  rightMiddleProximal: 'leftMiddleProximal',
-  leftRingProximal: 'rightRingProximal',
-  rightRingProximal: 'leftRingProximal',
-  leftLittleProximal: 'rightLittleProximal',
-  rightLittleProximal: 'leftLittleProximal',
+  leftThumb: 'rightThumb',
+  rightThumb: 'leftThumb',
+  leftIndex: 'rightIndex',
+  rightIndex: 'leftIndex',
+  leftMiddle: 'rightMiddle',
+  rightMiddle: 'leftMiddle',
+  leftRing: 'rightRing',
+  rightRing: 'leftRing',
+  leftLittle: 'rightLittle',
+  rightLittle: 'leftLittle',
 
   leftUpperLeg: 'rightUpperLeg',
   rightUpperLeg: 'leftUpperLeg',
