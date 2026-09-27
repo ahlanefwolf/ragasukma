@@ -63,18 +63,17 @@ graph TD
 ---
 
 ### 3. 👁️ Vision Worker (`PerceptionEngine`)
-* **File Sumber:** `src/engine/perception.rs`
-* **Lifecycle:** Standby di thread terpisah (**0% CPU idle**) dan menggunakan pola *Lazy Loading*.
+* **File Sumber:** `src/engine/perception/`
+* **Lifecycle:** Standby di thread terpisah (**0% CPU idle, 0 MB RAM idle**).
 * **Mekanisme Komunikasi:** Request-response via `mpsc::channel`.
-* **Model AI / Engine:**
-  * **PP-OCR DBNet (Detection)**: Menemukan kotak lokasi teks di seluruh layar monitor.
-  * **PP-OCR SVTR (Recognition)**: Membaca isi teks dan simbol pada resolusi penuh.
-  * **OmniParser YOLO (Icon Detection)**: Mendeteksi ikon dan tombol non-teks.
+* **Engine Arsitektur:**
+  * **Windows Native OCR (`Windows.Media.Ocr`)**: Menggunakan engine OCR bawaan sistem operasi Windows 10/11 langsung dari WinRT API tanpa perlu file model ONNX eksternal ataupun alokasi RAM persisten.
+  * **Fallback Universal (`PaddleOCR`)**: Jika native OCR tidak tersedia atau pada Linux / macOS, memanggil fallback script Python `paddleocr` secara on-demand.
+  * **OS Accessibility Tree**: Tombol, icon, input, dan menu native diekstrak langsung dari level OS (UI Automation di Windows, AT-SPI di Linux, Accessibility API di macOS).
 * **Tanggung Jawab:**
-  * Membaca layar secara visual murni ketika aplikasi tidak memiliki OS Accessibility Tree (misal game, canvas, custom UI).
-  * Model ONNX hanya dimuat ke memory RAM/VRAM saat pertama kali ada perintah scan (`desktop:scan_visual`).
+  * Membaca layar secara visual murni ketika aplikasi tidak memiliki OS Accessibility Tree (misal game, canvas, custom UI, remote desktop).
   * Mengklasifikasikan angka kalkulator, tombol keypad, dan simbol operator (`+`, `-`, `*`, `/`, `=`, `%`) secara otomatis menjadi elemen interaktif yang bisa diklik.
-  * Menghasilkan koordinat pixel fisik presisi tinggi yang sinkron dengan Per-Monitor V2 DPI Aware.
+  * Menghasilkan koordinat pixel fisik presisi tinggi yang sinkron dengan DPI sistem operasi.
 
 ---
 
