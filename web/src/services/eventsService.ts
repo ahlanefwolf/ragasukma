@@ -6,8 +6,10 @@ import { API_BASE } from './base';
 // ---------------------------------------------------------------------------
 export interface CoreStatePayload {
   state: string;
+  emotion?: string;
   voice_muted?: boolean;
   mic_muted?: boolean;
+  is_running?: boolean;
 }
 
 export interface ClientAction {

@@ -83,6 +83,8 @@ pub fn handle_remote_text(full_url: &str, body_str: &str, stream: &mut TcpStream
 
         let injected = crate::engine::remote_text::inject_remote_text(clean.to_string());
         if injected {
+            // Mute mic & voice lokal desktop sesaat agar respon suara fokus mengalir ke HP
+            crate::app_state::set_mic_muted(true);
             crate::term_log!("📱 [Mobile Remote] Menerima teks dari HP: \"{}\"", clean);
             send_json_response(stream, 200, "{\"success\":true,\"message\":\"Text sent to LLM\"}");
         } else {
@@ -191,6 +193,11 @@ pub fn handle_tts_state(
                 lock.state_version = lock.state_version.wrapping_add(1);
             }
         } else if target_state == "listening" {
+            // Guard: Jangan izinkan masuk mode listening jika voice assistant belum dinyalakan (standby)
+            if !crate::app_state::is_session_running() {
+                send_json_response(stream, 200, "{\"success\":true,\"ignored\":true}");
+                return;
+            }
             crate::app_state::set_ai_speaking(false);
             let asst_name = crate::config::load_user_config().assistant_name;
             crate::tray::TrayState::update_with_emotion(

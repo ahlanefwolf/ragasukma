@@ -65,6 +65,9 @@ graph TD
 ### 2. 🖥️ Desktop & Window Management Ground of Truth
 * **Berkas Penyimpan:** `assets/active_window_app.json`
 * **Penyedia Data (*Worker*):** `ActiveWindowWatcher` (Native OS thread, 1.5 detik interval / event-driven).
+* **Mekanisme Perlindungan Race Condition & Anti-Stall:**
+  * **Debounced Snapshot:** Watcher mendeteksi perpindahan fokus jendela secara adaptif dengan proteksi penulisan atomik, mencegah tabrakan I/O atau *race condition* ketika modul *Vision Perception* (`desktop:scan_visual`) sedang mengekstrak koordinat layar.
+  * **Single Source of Truth:** Seluruh query jendela OS bersumber dari file snapshot ini sebelum aksi interaksi (`focus`, `click_button`, `minimize`) dieksekusi.
 * **Mekanisme OS Native (Cross-Platform):**
   * **Windows:** Windows UI Automation (UIA) & Win32 API (`GetForegroundWindow`, `EnumWindows`).
   * **macOS:** AppleScript `System Events` (mengambil jendela aktif, daftar jendela terbuka, serta elemen tombol/UI).

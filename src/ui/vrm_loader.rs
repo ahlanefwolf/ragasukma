@@ -97,6 +97,9 @@ pub struct VrmModelData {
     pub skins: Vec<SkinData>,
     pub bone_mapping: HashMap<String, usize>,
     pub node_to_bone: Vec<Option<String>>,
+    pub parent_indices: Vec<Option<usize>>,
+    pub parent_rest_world_rotations: Vec<Quat>,
+    pub spring_bone_manager: Option<std::sync::Mutex<crate::ui::spring_bone::SpringBoneManager>>,
     pub expressions: HashMap<String, VrmExpressionData>,
     pub known_mesh_indices: Vec<usize>,
 }
@@ -138,6 +141,21 @@ fn extract_image_rgba(
         Some(arc_img)
     } else {
         None
+    }
+}
+
+fn compute_rest_world_rotations(
+    node_idx: usize,
+    parent_rot: Quat,
+    nodes: &[NodeData],
+    rest_world_rots: &mut [Quat],
+) {
+    let world_rot = parent_rot * nodes[node_idx].initial_rotation;
+    rest_world_rots[node_idx] = world_rot;
+    for &child_idx in &nodes[node_idx].children {
+        if child_idx < nodes.len() {
+            compute_rest_world_rotations(child_idx, world_rot, nodes, rest_world_rots);
+        }
     }
 }
 
@@ -246,7 +264,7 @@ impl VrmModelData {
             let mut shade_texture = None;
             let mut shade_color_factor = [1.0, 1.0, 1.0];
             let mut matcap_texture = None;
-            let mut matcap_factor = [0.0, 0.0, 0.0];
+            let mut matcap_factor = [1.0, 1.0, 1.0];
             let mut shading_shift = -0.2;
             let mut shading_toony = 0.85;
 
@@ -282,9 +300,9 @@ impl VrmModelData {
                     if let Some(mf) = mtoon_json.get("matcapFactor").and_then(|v| v.as_array()) {
                         if mf.len() >= 3 {
                             matcap_factor = [
-                                mf[0].as_f64().unwrap_or(0.0) as f32,
-                                mf[1].as_f64().unwrap_or(0.0) as f32,
-                                mf[2].as_f64().unwrap_or(0.0) as f32,
+                                mf[0].as_f64().unwrap_or(1.0) as f32,
+                                mf[1].as_f64().unwrap_or(1.0) as f32,
+                                mf[2].as_f64().unwrap_or(1.0) as f32,
                             ];
                         }
                     }
@@ -617,6 +635,40 @@ impl VrmModelData {
         }
         let known_mesh_indices: Vec<usize> = primitives.iter().map(|p| p.mesh_index).collect();
 
+        // Precompute parent indices dan rest world rotations untuk Three-VRM Normalized Rig
+        let mut parent_indices = vec![None; nodes.len()];
+        for (i, node) in nodes.iter().enumerate() {
+            for &child in &node.children {
+                if child < parent_indices.len() {
+                    parent_indices[child] = Some(i);
+                }
+            }
+        }
+
+        let mut rest_world_rotations = vec![Quat::IDENTITY; nodes.len()];
+        for &root_idx in &root_nodes {
+            if root_idx < nodes.len() {
+                compute_rest_world_rotations(
+                    root_idx,
+                    Quat::IDENTITY,
+                    &nodes,
+                    &mut rest_world_rotations,
+                );
+            }
+        }
+
+        let mut parent_rest_world_rotations = vec![Quat::IDENTITY; nodes.len()];
+        for i in 0..nodes.len() {
+            if let Some(parent_idx) = parent_indices[i] {
+                parent_rest_world_rotations[i] = rest_world_rotations[parent_idx];
+            }
+        }
+
+        let spring_bone_manager = gltf_json
+            .as_ref()
+            .and_then(|j| crate::ui::spring_bone::SpringBoneManager::from_gltf_json(j, &nodes))
+            .map(std::sync::Mutex::new);
+
         println!(
             "✨ [VRM Loader] Sukses memuat {} mesh parts, {} material layers, {} blend expressions",
             primitives.len(),
@@ -632,6 +684,9 @@ impl VrmModelData {
             skins,
             bone_mapping,
             node_to_bone,
+            parent_indices,
+            parent_rest_world_rotations,
+            spring_bone_manager,
             expressions,
             known_mesh_indices,
         })

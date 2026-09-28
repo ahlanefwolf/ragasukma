@@ -8,6 +8,8 @@ use crate::ui::pose_system::{AssistantVisualState, PosesConfig};
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppStatePayload {
     pub state: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub emotion: Option<String>,
     pub is_running: bool,
     pub is_paused: bool,
     pub voice_muted: bool,
@@ -47,6 +49,22 @@ pub struct ServerSharedState {
 pub static GLOBAL_SHARED_STATE: Mutex<Option<Arc<Mutex<ServerSharedState>>>> = Mutex::new(None);
 static AI_SPEAKING_FLAG: AtomicBool = AtomicBool::new(false);
 static INTERRUPT_FLAG: AtomicBool = AtomicBool::new(false);
+static LAST_REMOTE_ACTIVE: Mutex<Option<Instant>> = Mutex::new(None);
+
+pub fn touch_remote_active() {
+    if let Ok(mut lock) = LAST_REMOTE_ACTIVE.lock() {
+        *lock = Some(Instant::now());
+    }
+}
+
+pub fn is_remote_client_active() -> bool {
+    if let Ok(lock) = LAST_REMOTE_ACTIVE.lock() {
+        if let Some(t) = *lock {
+            return t.elapsed().as_secs() < 30;
+        }
+    }
+    false
+}
 
 pub fn set_ai_speaking(speaking: bool) {
     AI_SPEAKING_FLAG.store(speaking, Ordering::SeqCst);
@@ -140,6 +158,32 @@ pub fn is_voice_muted() -> bool {
         }
     }
     false
+}
+
+pub fn set_voice_muted(muted: bool) {
+    if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
+        if let Some(shared) = lock.as_ref() {
+            if let Ok(mut s) = shared.lock() {
+                if s.voice_muted != muted {
+                    s.voice_muted = muted;
+                    s.state_version = s.state_version.wrapping_add(1);
+                }
+            }
+        }
+    }
+}
+
+pub fn set_mic_muted(muted: bool) {
+    if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
+        if let Some(shared) = lock.as_ref() {
+            if let Ok(mut s) = shared.lock() {
+                if s.mic_muted != muted {
+                    s.mic_muted = muted;
+                    s.state_version = s.state_version.wrapping_add(1);
+                }
+            }
+        }
+    }
 }
 
 

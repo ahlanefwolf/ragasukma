@@ -123,6 +123,10 @@ impl AppSession {
                         TrayState::clear_commands();
                         let _ = self.start_chat_loop();
                     }
+                    "reset_session" | "reset_chat" => {
+                        self.llm.reset_history();
+                        crate::term_log!("🔄 [Reset Session] Riwayat memori obrolan AI berhasil di-reset!");
+                    }
                     "quit" => {
                         let _ = crate::engine::cloudflared::stop_cloudflared_tunnel();
                         TrayState::clear();

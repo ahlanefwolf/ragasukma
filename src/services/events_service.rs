@@ -28,8 +28,10 @@ fn write_sse_header(stream: &mut TcpStream) -> bool {
 #[derive(Debug, Serialize, Clone)]
 pub struct CoreStatePayload {
     pub state: String,
+    pub emotion: String,
     pub voice_muted: bool,
     pub mic_muted: bool,
+    pub is_running: bool,
 }
 
 pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
@@ -38,8 +40,10 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
     }
 
     let mut last_state = String::new();
+    let mut last_emotion = String::new();
     let mut last_voice_muted = false;
     let mut last_mic_muted = false;
+    let mut last_is_running = false;
     let mut initial_sent = false;
     let mut ping_ticks: u32 = 0;
     let mut last_action_id = crate::app_state::get_latest_action_id();
@@ -62,22 +66,30 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
 
             let v_muted = lock.voice_muted;
             let m_muted = lock.mic_muted;
+            let emo = lock.current_emotion.clone();
+            let running = lock.is_running;
 
             let changed = !initial_sent
                 || st_str != last_state
+                || emo != last_emotion
                 || v_muted != last_voice_muted
-                || m_muted != last_mic_muted;
+                || m_muted != last_mic_muted
+                || running != last_is_running;
 
             if changed {
                 initial_sent = true;
                 last_state = st_str.to_string();
+                last_emotion = emo.clone();
                 last_voice_muted = v_muted;
                 last_mic_muted = m_muted;
+                last_is_running = running;
 
                 let payload = CoreStatePayload {
                     state: st_str.to_string(),
+                    emotion: emo,
                     voice_muted: v_muted,
                     mic_muted: m_muted,
+                    is_running: running,
                 };
                 (true, serde_json::to_string(&payload).unwrap_or_default())
             } else {
@@ -127,8 +139,31 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
 }
 
 // ---------------------------------------------------------------------------
-// 2. MENU SSE STREAM (/api/events/menu)
-// Terpisah murni untuk Menu Tab:
-// - event: 'controls' -> { is_running, is_paused, voice_muted, mic_muted } (Event-driven)
-// - event: 'mic'      -> { level } (Realtime 20 FPS / 50ms)
+// 2. HTTP ACTIONS POLLING (/api/actions/since?last_id=...)
+// Fallback resilient untuk Mobile Tunnel / Cloudflare yang membuffer SSE
 // ---------------------------------------------------------------------------
+pub fn handle_get_actions_since(full_url: &str, stream: &mut TcpStream) {
+    let last_id = full_url
+        .split('?')
+        .nth(1)
+        .and_then(|q| {
+            q.split('&').find_map(|pair| {
+                let mut kv = pair.split('=');
+                if kv.next()? == "last_id" {
+                    kv.next()?.parse::<u64>().ok()
+                } else {
+                    None
+                }
+            })
+        })
+        .unwrap_or(0);
+
+    let (actions, new_last_id) = crate::app_state::get_client_actions_since(last_id);
+    let resp = serde_json::json!({
+        "actions": actions,
+        "last_id": new_last_id
+    })
+    .to_string();
+
+    crate::server::send_json_response(stream, 200, &resp);
+}

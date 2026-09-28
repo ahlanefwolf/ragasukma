@@ -58,6 +58,24 @@ pub fn handle_menu_cmd(
                 lock.mic_muted = false;
                 lock.state_version = lock.state_version.wrapping_add(1);
             }
+        } else if payload.cmd == "mode_remote_desktop" {
+            if let Ok(mut lock) = shared.lock() {
+                let changed = lock.voice_muted || !lock.mic_muted;
+                lock.voice_muted = false;
+                lock.mic_muted = true;
+                if changed {
+                    lock.state_version = lock.state_version.wrapping_add(1);
+                }
+            }
+        } else if payload.cmd == "mode_full_mobile" {
+            if let Ok(mut lock) = shared.lock() {
+                let changed = !lock.voice_muted || !lock.mic_muted;
+                lock.voice_muted = true;
+                lock.mic_muted = true;
+                if changed {
+                    lock.state_version = lock.state_version.wrapping_add(1);
+                }
+            }
         }
 
         crate::tray::TrayState::push_command(payload.cmd);
@@ -81,6 +99,7 @@ pub fn handle_get_state(stream: &mut TcpStream, shared: &Arc<Mutex<ServerSharedS
             .and_then(|s| s.as_ref().map(|x| x.token.clone()));
         let payload = AppStatePayload {
             state: st_str.to_string(),
+            emotion: Some(lock.current_emotion.clone()),
             is_running: lock.is_running,
             is_paused: lock.is_paused,
             voice_muted: lock.voice_muted,

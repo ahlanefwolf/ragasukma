@@ -11,10 +11,10 @@
   "stt_lang": "id-ID",
   "tts_voice_name": "Google Bahasa Indonesia",
   "tts_speed": 1.15,
-  "tts_pitch": 1.25,
+  "tts_pitch": 1.3,
   "avatar_type": "vrm",
   "always_on_top": true,
   "voice_interruption": true,
-  "vad_threshold": 0.15,
+  "vad_threshold": 0.5,
   "vad_noise_suppression": true
 }

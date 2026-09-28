@@ -126,6 +126,8 @@ graph TD
   * Menjalankan **Action Router Orchestrator** untuk mengeksekusi tag aksi `[CMD:...]` secara instan di background tanpa memblokir percakapan.
   * **Zero Backend Audio Overhead**:
     * **Pure Web Speech & Zero Audio Device Lock**: Tidak ada thread recorder atau VAD backend yang mengunci hardware mikrofon. Mikrofon ditangkap langsung oleh browser (`webkitSpeechRecognition`), transkrip dikirim via `POST /api/stt/transcript`, dan output suara disintesis via `window.speechSynthesis`.
+    * **STT Lifecycle & Standby Guard**: STT browser hanya aktif saat sesi asisten berstatus berjalan (`is_running === true`). Saat standby, mikrofon STT otomatis dimatikan (*stopped*).
+    * **Watchdog Anti-Stuck Listening**: Watchdog timer (3.5s di web browser dan 4.5s di backend desktop) menjamin avatar otomatis kembali ke pose `Idle` jika getaran suara tidak menghasilkan transkrip kata.
     * **Sinkronisasi Reaktif Satu Pintu**: Status suara (`speaking: true/false`, `emotion`) disinkronkan secara instan via `POST /api/tts/state` untuk menjaga konsistensi state avatar WGPU dan system tray.
     * Visualizer Spectrum & VU Meter menggunakan **Web Audio API native browser** (`AudioContext` + `AnalyserNode`) pada 60 FPS dengan 0ms latency dan 0% beban CPU backend.
     * Voice interruption (*barge-in*), mic mute (`recognition.abort()`), dan TTS mute (`speechSynthesis.cancel()`) diputus langsung di sisi web.
@@ -134,9 +136,14 @@ graph TD
 ---
 
 ### 8. 🖥️ OS Main Render Thread (Thread 0)
-* **File Sumber:** `src/ui/mod.rs` & `src/main.rs`
+* **File Sumber:** `src/ui/mod.rs`, `src/ui/spring_bone.rs`, `src/ui/pose_system.rs`, & `src/main.rs`
 * **Lifecycle:** Berjalan di Thread 0 sistem operasi (kebutuhan wajib driver grafis Windows / macOS Cocoa / Linux X11/Wayland).
 * **Tanggung Jawab:**
   * Mengontrol event loop windowing `winit`.
   * Merender 3D VRM Model / 2D Avatar Overlay menggunakan backend grafis native **WGPU** (DirectX 12, Vulkan, atau Metal).
-  * Menggerakkan animasi ekspresi emosi (*senang, malu, semangat, kaget, mikir, sedih, marah*) serta kalkulasi lip-sync bibir secara real-time.
+  * **VRM SpringBone Verlet Physics (1:1 Three-VRM Pixiv Standard)**:
+    * Mensimulasikan ayunan inersia elastis dan lentur pada rambut, poni, rok, dan aksesoris model VRM 1.0 secara real-time.
+    * Menggunakan formula kalkulasi sudut dan translasi yang identik dengan `@pixiv/three-vrm`.
+  * **Natural Breathing & Blinking**: Siklus nafas ritmis pada dada/pundak serta kedipan mata prosedural (~5.2s interval) dengan peredaman saat emosi aktif.
+  * **Procedural Lip-Sync & 8 Emosi Kanonikal**: Sinkronisasi artikulasi vokal vokal (`aa`, `ih`, `ou`, `ee`, `oh`) saat berbicara dan 8 morph emosi kanonikal (`happy`, `shy`, `excited`, `surprised`, `thinking`, `sad`, `angry`, `neutral`).
+  * **Watchdog Fail-Safe State**: Memantau durasi pose `Listening` dan otomatis mengembalikannya ke `Idle` ("Standby Siap") jika melebihi batas 4.5 detik.

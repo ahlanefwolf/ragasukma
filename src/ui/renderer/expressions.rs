@@ -50,10 +50,7 @@ pub struct ActiveExpressionLayer<'a> {
     pub weight: f32,
 }
 
-/// Menghitung bobot blend shapes untuk 7+ ekspresi emosi utama.
-/// Jika model VRM tidak memiliki blend shape khusus (misal "shy" atau "thinking"),
-/// sistem otomatis menyusun procedural blend dari blend shape dasar (joy, blink, wink, sorrow, dll)
-/// sehingga SETIAP emosi DIJAMIN memiliki tampilan visual yang khas, unik, dan berbeda.
+/// Menghitung bobot blend shapes untuk 8 emosi kanonikal (VRM 1.0 standard Three.js).
 pub fn resolve_emotion_layers<'a>(
     expressions: &'a HashMap<String, VrmExpressionData>,
     emotion: &str,
@@ -62,136 +59,55 @@ pub fn resolve_emotion_layers<'a>(
     let emo = emotion.to_lowercase();
 
     match emo.as_str() {
-        "happy" | "senang" | "gembira" | "bahagia" | "ceria" | "tersenyum" | "smile" | "joy" => {
-            // Senyum ceria penuh
-            if let Some(expr) = find_first_matching(
-                expressions,
-                &["happy", "joy", "smile", "fcl_mth_smile", "fcl_eye_joy"],
-            ) {
+        "happy" | "senang" => {
+            if let Some(expr) = find_expression(expressions, "happy") {
                 layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
             }
         }
-        "shy" | "malu" | "blush" | "tersipu" | "manja" => {
-            // Tersipu / malu: Prioritas blend shape blush/shy.
-            // Jika tidak ada, padukan senyum lembut (0.45) + kedip sebagian (0.35)
-            if let Some(expr) = find_first_matching(
-                expressions,
-                &[
-                    "shy",
-                    "blush",
-                    "tere",
-                    "tersipu",
-                    "fcl_all_shy",
-                    "fcl_all_blush",
-                ],
-            ) {
-                layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
-            } else {
-                if let Some(joy) = find_first_matching(expressions, &["happy", "joy", "smile"]) {
-                    layers.push(ActiveExpressionLayer {
-                        expr: joy,
-                        weight: 0.40,
-                    });
-                }
-                if let Some(blink) =
-                    find_first_matching(expressions, &["blink", "eyeblink", "fcl_eye_close"])
-                {
-                    layers.push(ActiveExpressionLayer {
-                        expr: blink,
-                        weight: 0.30,
-                    });
-                }
+        "shy" | "malu" => {
+            if let Some(joy) = find_expression(expressions, "happy") {
+                layers.push(ActiveExpressionLayer { expr: joy, weight: 0.40 });
+            }
+            if let Some(blink) = find_expression(expressions, "blink") {
+                layers.push(ActiveExpressionLayer { expr: blink, weight: 0.30 });
             }
         }
-        "surprised" | "kaget" | "terkejut" | "takjub" | "shock" => {
-            // Terkejut / kaget: Mata membelalak lebar + mulut 'O'
-            if let Some(expr) = find_first_matching(
-                expressions,
-                &[
-                    "surprised",
-                    "surprise",
-                    "odoroki",
-                    "shock",
-                    "fcl_eye_surprised",
-                ],
-            ) {
-                layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
-            } else if let Some(oh) = find_first_matching(expressions, &["oh", "o", "fcl_mth_o"]) {
-                layers.push(ActiveExpressionLayer {
-                    expr: oh,
-                    weight: 0.60,
-                });
+        "excited" | "semangat" => {
+            if let Some(wink) = find_first_matching(expressions, &["blinkleft", "wink"]) {
+                layers.push(ActiveExpressionLayer { expr: wink, weight: 0.85 });
+            }
+            if let Some(joy) = find_expression(expressions, "happy") {
+                layers.push(ActiveExpressionLayer { expr: joy, weight: 0.70 });
             }
         }
-        "sad" | "sedih" | "haru" | "kecewa" => {
-            // Sedih / haru: Alis turun + sudut bibir melengkung ke bawah
-            if let Some(expr) = find_first_matching(
-                expressions,
-                &["sad", "sorrow", "kanashimi", "cry", "fcl_eye_sad"],
-            ) {
+        "surprised" | "kaget" => {
+            if let Some(expr) = find_expression(expressions, "surprised") {
                 layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
             }
         }
-        "thinking" | "bingung" | "mikir" | "heran" | "penasaran" | "doubt" => {
-            // Berpikir / heran: Alis berkerut / ekspresi ragu.
-            // Jika tidak ada preset khusus, padukan senyum kecil (0.2) + bibir 'U' (0.35)
-            if let Some(expr) = find_first_matching(
-                expressions,
-                &["thinking", "confused", "doubt", "mikir", "fcl_all_thinking"],
-            ) {
-                layers.push(ActiveExpressionLayer { expr, weight: 0.80 });
-            } else {
-                if let Some(u_mouth) = find_first_matching(expressions, &["ou", "u", "fcl_mth_u"]) {
-                    layers.push(ActiveExpressionLayer {
-                        expr: u_mouth,
-                        weight: 0.35,
-                    });
-                }
-                if let Some(sad) = find_first_matching(expressions, &["sad", "sorrow"]) {
-                    layers.push(ActiveExpressionLayer {
-                        expr: sad,
-                        weight: 0.20,
-                    });
-                }
+        "thinking" | "mikir" => {
+            if let Some(u_mouth) = find_first_matching(expressions, &["ou", "u"]) {
+                layers.push(ActiveExpressionLayer { expr: u_mouth, weight: 0.35 });
+            }
+            if let Some(sad) = find_expression(expressions, "sad") {
+                layers.push(ActiveExpressionLayer { expr: sad, weight: 0.20 });
             }
         }
-        "excited" | "semangat" | "antusias" | "heboh" | "cheer" => {
-            // Antusias / bersemangat: Kedip sebelah (wink) + senyum gembira
-            if let Some(expr) =
-                find_first_matching(expressions, &["excited", "cheer", "fcl_all_excited"])
-            {
-                layers.push(ActiveExpressionLayer { expr, weight: 0.90 });
-            } else {
-                if let Some(wink) = find_first_matching(
-                    expressions,
-                    &["wink", "wink_l", "wink_r", "blink_l", "fcl_eye_wink_l"],
-                ) {
-                    layers.push(ActiveExpressionLayer {
-                        expr: wink,
-                        weight: 0.85,
-                    });
-                }
-                if let Some(joy) = find_first_matching(expressions, &["happy", "joy", "smile"]) {
-                    layers.push(ActiveExpressionLayer {
-                        expr: joy,
-                        weight: 0.70,
-                    });
-                }
+        "sad" | "sedih" => {
+            if let Some(expr) = find_expression(expressions, "sad") {
+                layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
             }
         }
-        "angry" | "marah" | "kesal" | "ngambek" | "judes" | "protes" => {
-            // Kesal / marah: Alis menukik ke bawah + tatapan tajam
-            if let Some(expr) =
-                find_first_matching(expressions, &["angry", "ikari", "fcl_eye_angry"])
-            {
+        "angry" | "marah" => {
+            if let Some(expr) = find_expression(expressions, "angry") {
                 layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
             }
         }
         "neutral" | "netral" | "" => {
-            // Netral: Kosong (wajah rileks alami 100% base vertices)
+            // Netral: 100% base mesh tanpa morph
         }
         _ => {
-            // Fallback: Coba cocokkan nama emosi apa pun secara langsung
+            // Fallback jika nama emosi langsung cocok dengan nama morph
             if let Some(expr) = find_expression(expressions, &emo) {
                 layers.push(ActiveExpressionLayer { expr, weight: 0.75 });
             }
@@ -201,159 +117,34 @@ pub fn resolve_emotion_layers<'a>(
     layers
 }
 
-/// Ekstrak emosi dari teks mentah (sebelum atau sesudah dibersihkan).
-/// Mendukung tag eksplisit seperti `*senang*`, `*malu*`, `[EMO:happy]`, `[happy]`
-/// serta fallback deteksi kata kunci natural.
+/// Ekstrak emosi dari tag eksplisit respon AI (*senang*, *malu*, *semangat*, *kaget*, *mikir*, *sedih*, *marah*, *netral*)
 pub fn detect_emotion(text: &str) -> Option<&'static str> {
     let lower = text.to_lowercase();
 
-    // 1. Tag eksplisit format bintang (*senang*, *malu*, dll) atau kurung siku ([EMO:happy], [senang])
-    if lower.contains("*senang*")
-        || lower.contains("*happy*")
-        || lower.contains("*gembira*")
-        || lower.contains("*ceria*")
-        || lower.contains("*senyum*")
-        || lower.contains("[emo:happy]")
-        || lower.contains("[emo:senang]")
-        || lower.contains("[happy]")
-        || lower.contains("[senang]")
-    {
+    // Deteksi tag emosi resmi format bintang (*tag*) atau [tag]
+    if lower.contains("*senang*") || lower.contains("*happy*") || lower.contains("[happy]") || lower.contains("[senang]") {
         return Some("happy");
     }
-    if lower.contains("*malu*")
-        || lower.contains("*shy*")
-        || lower.contains("*blush*")
-        || lower.contains("*tersipu*")
-        || lower.contains("*manja*")
-        || lower.contains("[emo:shy]")
-        || lower.contains("[emo:malu]")
-        || lower.contains("[shy]")
-        || lower.contains("[malu]")
-    {
+    if lower.contains("*malu*") || lower.contains("*shy*") || lower.contains("[shy]") || lower.contains("[malu]") {
         return Some("shy");
     }
-    if lower.contains("*marah*")
-        || lower.contains("*angry*")
-        || lower.contains("*kesal*")
-        || lower.contains("*ngambek*")
-        || lower.contains("*judes*")
-        || lower.contains("*protes*")
-        || lower.contains("[emo:angry]")
-        || lower.contains("[emo:marah]")
-        || lower.contains("[angry]")
-        || lower.contains("[marah]")
-    {
-        return Some("angry");
-    }
-    if lower.contains("*semangat*")
-        || lower.contains("*excited*")
-        || lower.contains("*antusias*")
-        || lower.contains("*heboh*")
-        || lower.contains("[emo:excited]")
-        || lower.contains("[emo:semangat]")
-        || lower.contains("[excited]")
-        || lower.contains("[semangat]")
-    {
+    if lower.contains("*semangat*") || lower.contains("*excited*") || lower.contains("[excited]") || lower.contains("[semangat]") {
         return Some("excited");
     }
-    if lower.contains("*kaget*")
-        || lower.contains("*surprised*")
-        || lower.contains("*terkejut*")
-        || lower.contains("*takjub*")
-        || lower.contains("*heran*")
-        || lower.contains("[emo:surprised]")
-        || lower.contains("[emo:kaget]")
-        || lower.contains("[surprised]")
-        || lower.contains("[kaget]")
-    {
+    if lower.contains("*kaget*") || lower.contains("*surprised*") || lower.contains("[surprised]") || lower.contains("[kaget]") {
         return Some("surprised");
     }
-    if lower.contains("*mikir*")
-        || lower.contains("*thinking*")
-        || lower.contains("*bingung*")
-        || lower.contains("*confused*")
-        || lower.contains("*penasaran*")
-        || lower.contains("[emo:thinking]")
-        || lower.contains("[emo:mikir]")
-        || lower.contains("[thinking]")
-        || lower.contains("[mikir]")
-    {
+    if lower.contains("*mikir*") || lower.contains("*thinking*") || lower.contains("[thinking]") || lower.contains("[mikir]") {
         return Some("thinking");
     }
-    if lower.contains("*sedih*")
-        || lower.contains("*sad*")
-        || lower.contains("*kecewa*")
-        || lower.contains("*prihatin*")
-        || lower.contains("*galau*")
-        || lower.contains("[emo:sad]")
-        || lower.contains("[emo:sedih]")
-        || lower.contains("[sad]")
-        || lower.contains("[sedih]")
-    {
+    if lower.contains("*sedih*") || lower.contains("*sad*") || lower.contains("[sad]") || lower.contains("[sedih]") {
         return Some("sad");
     }
-    if lower.contains("*netral*")
-        || lower.contains("*neutral*")
-        || lower.contains("*biasa*")
-        || lower.contains("[emo:neutral]")
-        || lower.contains("[emo:netral]")
-        || lower.contains("[neutral]")
-        || lower.contains("[netral]")
-    {
+    if lower.contains("*marah*") || lower.contains("*angry*") || lower.contains("[angry]") || lower.contains("[marah]") {
+        return Some("angry");
+    }
+    if lower.contains("*netral*") || lower.contains("*neutral*") || lower.contains("[neutral]") || lower.contains("[netral]") {
         return Some("neutral");
-    }
-
-    // 2. Keyword kontekstual natural jika tidak ada tag khusus
-    if lower.contains("tersipu") || lower.contains("pipi merah") || lower.contains("malu-malu") {
-        return Some("shy");
-    }
-    if lower.contains("kesal")
-        || lower.contains("ngambek")
-        || lower.contains("marah")
-        || lower.contains("jangan gitu dong")
-        || lower.contains("ihh")
-    {
-        return Some("angry");
-    }
-    if lower.contains("senang")
-        || lower.contains("gembira")
-        || lower.contains("alhamdulillah")
-        || lower.contains("suka banget")
-        || lower.contains("makasih")
-        || lower.contains("terima kasih")
-    {
-        return Some("happy");
-    }
-    if lower.contains("semangat")
-        || lower.contains("siap ")
-        || lower.contains("tentu saja")
-        || lower.contains("mantap")
-        || lower.contains("hebat")
-    {
-        return Some("excited");
-    }
-    if lower.contains("kaget")
-        || lower.contains("astaga")
-        || lower.contains("terkejut")
-        || lower.contains("beneran nih")
-        || lower.contains("masa sih")
-        || lower.contains("wah ")
-    {
-        return Some("surprised");
-    }
-    if lower.contains("bingung")
-        || lower.contains("kurang paham")
-        || lower.contains("hmm")
-        || lower.contains("sebentar")
-    {
-        return Some("thinking");
-    }
-    if lower.contains("sedih")
-        || lower.contains("kecewa")
-        || lower.contains("maaf")
-        || lower.contains("sayang sekali")
-    {
-        return Some("sad");
     }
 
     None
@@ -482,3 +273,50 @@ pub fn update_facial_expressions_and_lip_sync(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_canonical_emotions() {
+        assert_eq!(detect_emotion("*senang* halo kak!"), Some("happy"));
+        assert_eq!(detect_emotion("*malu* ah jangan gitu..."), Some("shy"));
+        assert_eq!(detect_emotion("*semangat* ayo kita mulai!"), Some("excited"));
+        assert_eq!(detect_emotion("*kaget* wah benarkah?"), Some("surprised"));
+        assert_eq!(detect_emotion("*mikir* hmm sebentar..."), Some("thinking"));
+        assert_eq!(detect_emotion("*sedih* maaf ya kak..."), Some("sad"));
+        assert_eq!(detect_emotion("*marah* ih nyebelin banget!"), Some("angry"));
+        assert_eq!(detect_emotion("*netral* ini jawabannya."), Some("neutral"));
+
+        // Fallback or without tag
+        assert_eq!(detect_emotion("halo kak, apa kabar?"), None);
+        assert_eq!(detect_emotion_with_fallback("halo kak"), "neutral");
+    }
+
+    #[test]
+    fn test_resolve_emotion_layers() {
+        let mut expressions = HashMap::new();
+        expressions.insert("happy".to_string(), VrmExpressionData { name: "happy".into(), binds: vec![] });
+        expressions.insert("blink".to_string(), VrmExpressionData { name: "blink".into(), binds: vec![] });
+        expressions.insert("blinkleft".to_string(), VrmExpressionData { name: "blinkleft".into(), binds: vec![] });
+        expressions.insert("surprised".to_string(), VrmExpressionData { name: "surprised".into(), binds: vec![] });
+        expressions.insert("sad".to_string(), VrmExpressionData { name: "sad".into(), binds: vec![] });
+        expressions.insert("angry".to_string(), VrmExpressionData { name: "angry".into(), binds: vec![] });
+        expressions.insert("ou".to_string(), VrmExpressionData { name: "ou".into(), binds: vec![] });
+
+        let happy_layers = resolve_emotion_layers(&expressions, "senang");
+        assert_eq!(happy_layers.len(), 1);
+        assert!((happy_layers[0].weight - 0.85).abs() < 1e-4);
+
+        let shy_layers = resolve_emotion_layers(&expressions, "shy");
+        assert_eq!(shy_layers.len(), 2);
+
+        let excited_layers = resolve_emotion_layers(&expressions, "semangat");
+        assert_eq!(excited_layers.len(), 2);
+
+        let neutral_layers = resolve_emotion_layers(&expressions, "neutral");
+        assert_eq!(neutral_layers.len(), 0);
+    }
+}
+

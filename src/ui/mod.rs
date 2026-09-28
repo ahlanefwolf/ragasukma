@@ -1,6 +1,7 @@
 pub mod app;
 pub mod pose_system;
 pub mod renderer;
+pub mod spring_bone;
 pub mod vrm_loader;
 
 use winit::event::Event;

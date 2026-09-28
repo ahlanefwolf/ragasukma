@@ -68,12 +68,39 @@ impl Default for ActiveWindowSnapshot {
 
 impl ActiveWindowSnapshot {
     pub fn save_to_file(&self) -> Result<(), String> {
+        let mut to_save = self.clone();
+
+        // 🛡️ Vision Protection: Jika snapshot sebelumnya adalah hasil vision_perception pada jendela/aplikasi yang sama,
+        // pertahankan data vision (tombol dengan koordinat center/bbox, inputs, dan OCR texts) agar tidak tertimpa
+        // oleh scan dangkal OS / accessibility tree!
+        if to_save.source != "vision_perception" {
+            if let Ok(prev) = Self::load_from_file() {
+                let is_same_app = !to_save.app_name.is_empty()
+                    && prev.app_name.eq_ignore_ascii_case(&to_save.app_name);
+                let is_same_win_id = !to_save.window_id.is_empty() && prev.window_id == to_save.window_id;
+
+                if prev.source == "vision_perception" && (is_same_app || is_same_win_id) {
+                    if !prev.buttons.is_empty() {
+                        to_save.buttons = prev.buttons;
+                    }
+                    if !prev.inputs.is_empty() {
+                        to_save.inputs = prev.inputs;
+                    }
+                    if !prev.texts.is_empty() {
+                        to_save.texts = prev.texts;
+                        to_save.text_summary = prev.text_summary;
+                    }
+                    to_save.source = "vision_perception".to_string();
+                }
+            }
+        }
+
         let path = get_snapshot_path();
         if let Some(parent) = path.parent() {
             let _ = fs::create_dir_all(parent);
         }
 
-        let json = serde_json::to_string_pretty(self)
+        let json = serde_json::to_string_pretty(&to_save)
             .map_err(|e| format!("Gagal serialize snapshot: {e}"))?;
 
         fs::write(&path, &json)
@@ -199,7 +226,6 @@ pub fn start_window_watcher() {
         .name("ragasukma-window-watcher".to_string())
         .spawn(|| {
             let mut last_quick_info: Option<(String, String)> = None;
-            let mut last_scan_time = std::time::Instant::now();
 
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(1500));
@@ -212,9 +238,9 @@ pub fn start_window_watcher() {
                     _ => false,
                 };
 
-                let force_periodic = last_scan_time.elapsed() >= std::time::Duration::from_secs(30);
-
-                if window_changed || force_periodic {
+                // Hanya scan jika jendela/aplikasi aktif benar-benar berpindah.
+                // Tidak ada lagi force_periodic 30s yang menimpa hasil visual vision_perception.
+                if window_changed {
                     #[cfg(target_os = "linux")]
                     {
                         if let Ok(snap) = pollster::block_on(linux::scan_active_window_linux()) {
@@ -235,7 +261,6 @@ pub fn start_window_watcher() {
                     }
 
                     last_quick_info = current_info;
-                    last_scan_time = std::time::Instant::now();
                 }
             }
         })

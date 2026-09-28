@@ -138,7 +138,38 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Interpolasi halus antara Shade dan Lit
     var final_rgb = mix(shade_color, lit_color, shading);
 
-    // 4. Emissive Texture (Warna Asli Rambut & Glow VRoid)
+    // 4. Three.js MToon MatCap (Spherical UV reflection) & Parametric Rim Lighting
+    let view_dir = normalize(camera.camera_pos - in.world_pos);
+
+    // 4a. MatCap
+    var matcap_rgb = vec3<f32>(0.0);
+    if (material.has_matcap == 1u) {
+        var x = vec3<f32>(view_dir.z, 0.0, -view_dir.x);
+        let len_x = length(x);
+        if (len_x > 0.0001) {
+            x = x / len_x;
+        } else {
+            x = vec3<f32>(1.0, 0.0, 0.0);
+        }
+        let y = cross(view_dir, x);
+        let sphere_uv = vec2<f32>(
+            0.5 + 0.5 * dot(x, n),
+            0.5 - 0.5 * dot(y, n)
+        );
+        let matcap_sample = textureSample(t_matcap, s_diffuse, sphere_uv).rgb;
+        matcap_rgb = material.matcap_factor.rgb * matcap_sample;
+    }
+
+    // 4b. Parametric Rim Lighting (Fresnel anime highlight pada siluet model)
+    let v_dot_n = clamp(dot(view_dir, n), 0.0, 1.0);
+    let rim_fresnel = pow(clamp(1.0 - v_dot_n, 0.0, 1.0), 4.5);
+    let rim_dir_factor = clamp(dotNL * 0.5 + 0.5, 0.0, 1.0);
+    let rim_light = lit_color * (rim_fresnel * rim_dir_factor * 0.65);
+
+    // Gabungkan Shading + Rim + MatCap
+    final_rgb = final_rgb + rim_light + matcap_rgb;
+
+    // 5. Emissive Texture (Warna Asli Rambut & Glow VRoid)
     if (material.has_emissive == 1u) {
         let em_sample = textureSample(t_emissive, s_diffuse, in.uv).rgb;
         let em_color = em_sample * material.emissive_factor.rgb;

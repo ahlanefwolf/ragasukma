@@ -226,6 +226,11 @@ pub fn handle_api_route(
         ("GET", "/api/remote/tunnel/status") => handle_tunnel_status(&mut stream),
         ("POST", "/api/remote/tunnel/start") => handle_tunnel_start(&mut stream),
         ("POST", "/api/remote/tunnel/stop") => handle_tunnel_stop(&mut stream),
+        ("POST", "/api/remote/active") => {
+            crate::app_state::touch_remote_active();
+            crate::app_state::set_mic_muted(true);
+            send_json_response(&mut stream, 200, "{\"success\":true,\"message\":\"Remote heartbeat updated\"}");
+        },
         ("POST", "/api/stt/transcript") => handle_stt_transcript(body_str, &mut stream),
         ("POST", "/api/tts/state") => handle_tts_state(body_str, &mut stream, &shared),
         ("POST", path) if path.starts_with("/api/remote/text") => {
@@ -268,8 +273,11 @@ pub fn handle_api_route(
         ("GET", "/api/state") => handle_get_state(&mut stream, &shared),
         ("POST", "/api/state") => handle_post_state(body_str, &mut stream, &shared),
 
-        // Events Service (SSE Stream)
+        // Events Service (SSE Stream & Actions Polling)
         ("GET", "/api/events") | ("GET", "/api/events/state") => handle_sse_state(stream, shared),
+        ("GET", path) if path.starts_with("/api/actions/since") => {
+            handle_get_actions_since(full_url, &mut stream);
+        }
 
         // Music Storage & Downloader Service (Local Static Audio)
         ("GET", "/api/music/check") => handle_music_check(&mut stream),
@@ -281,6 +289,49 @@ pub fn handle_api_route(
         ("POST", "/api/music/control") => handle_music_control(body_str, &mut stream),
         ("POST", "/api/music/download") => handle_music_download(body_str, &mut stream),
         ("POST", "/api/music/delete") => handle_music_delete(body_str, &mut stream),
+
+        // Assets & Avatar Image Static Serving (Dedicated API prefix to avoid collision with web/dist/assets)
+        ("GET", path) if path.starts_with("/api/assets/file/") => {
+            let filename = path.strip_prefix("/api/assets/file/").unwrap_or("");
+            let clean_filename = filename.trim_start_matches('/').split('?').next().unwrap_or("");
+            let file_path = crate::assets::find_file_in_candidates(clean_filename);
+
+            if file_path.exists() && file_path.is_file() {
+                if let Ok(data) = std::fs::read(&file_path) {
+                    let mime_type = match clean_filename.split('.').next_back().unwrap_or("").to_lowercase().as_str() {
+                        "png" => "image/png",
+                        "jpg" | "jpeg" => "image/jpeg",
+                        "webp" => "image/webp",
+                        "vrm" | "glb" => "model/gltf-binary",
+                        "json" => "application/json",
+                        _ => "application/octet-stream",
+                    };
+                    let resp_header = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: public, max-age=3600\r\n\r\n",
+                        mime_type,
+                        data.len()
+                    );
+                    let _ = stream.write_all(resp_header.as_bytes());
+                    let _ = stream.write_all(&data);
+                } else {
+                    let body = "500 Internal Server Error";
+                    let resp = format!(
+                        "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(resp.as_bytes());
+                }
+            } else {
+                let body = "404 Asset Not Found";
+                let resp = format!(
+                    "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(resp.as_bytes());
+            }
+        }
 
         // Static Web Dashboard Files
         ("GET", path) => {

@@ -173,8 +173,12 @@ Setiap kali LLM dipanggil, system prompt disusun dengan urutan berikut:
     * **Zero Backend Audio Overhead**: Tanpa model TTS/STT lokal yang membebani RAM/VRAM/CPU.
     * **Sinkronisasi Lip-Sync Avatar (AIUEO)**: Visualizer spektrum audio dan pergerakan bibir avatar diproses secara real-time via Web Audio API browser (`AudioContext` + `AnalyserNode`) yang menyinkronkan phoneme vokal AIUEO dengan ucapan TTS.
     * **Kendali Suara 1 Pintu**: Pengaturan bahasa STT (`stt_lang`), suara TTS (`voice_name`, `voice_pitch`, `voice_speed`, `voice_gender`), mute mikrofon (`recognition.abort()`), dan penghentian suara (`speechSynthesis.cancel()`) langsung reaktif tersinkronisasi antara UI web dan backend.
-* **Tag Emosi 3D Avatar:**
-  * Wajib diawali SATU tag emosi: `*senang*`, `*malu*`, `*semangat*`, `*kaget*`, `*mikir*`, `*sedih*`, `*marah*`, atau `*netral*`.
+* **Standar Tag Emosi 8 Kanonikal (Wajib):**
+  * Setiap respon **WAJIB** diawali persis SATU tag emosi bintang di awal kata pertama:
+    `*senang*`, `*malu*`, `*semangat*`, `*kaget*`, `*mikir*`, `*sedih*`, `*marah*`, atau `*netral*`.
+  * **DILARANG KERAS** menggunakan tag emosi selain 8 pilihan tersebut (misal: `*tertawa*`, `*ceria*`, `*menangis*`, `*senyum*`, dll).
+  * Filter `clean_text_for_speech` otomatis membuang tag ini sebelum suara TTS dibunyikan.
+  * *Dokumentasi detail bentuk wajah & bobot blend shape:* Lihat [`docs/expression.md`](expression.md).
 * **Kecepatan Respon:**
   * Jika menjalankan aksi $\rightarrow$ Wajib menjawab SANGAT SINGKAT (3-6 kata) diiringi tag `[CMD:...]` di akhir kalimat.
 

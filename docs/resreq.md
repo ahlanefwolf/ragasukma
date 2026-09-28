@@ -58,11 +58,15 @@ Menerima hasil pengenalan suara (STT) yang ditangkap langsung oleh Google Chrome
 ### `POST /api/tts/state`
 Menerima status sinkronisasi visual dan vokal dari Google Chrome Speech Recognition/Synthesis (`window.speechSynthesis` & `webkitSpeechRecognition`). Digunakan untuk sinkronisasi state pose avatar 3D (`listening`, `thinking`, `speaking`, `idle`), gerak bibir (morph targets), dan status system tray.
 
+- **Proteksi Standby & Anti-Stuck Guard:**
+  * Jika target state adalah `"listening"` namun sesi asisten di backend belum dimulai (`is_running == false`), backend otomatis mengabaikan permintaan ini (`{"success":true,"ignored":true}`) agar avatar tidak salah masuk ke pose mendengarkan saat komputer masih standby.
+  * Browser dan backend memiliki *watchdog timer* (3.5 - 4.5 detik) yang otomatis memaksa status kembali ke `"idle"` jika tidak ada kata yang ter-generate.
+
 - **Request Body (Mulai Berbicara / TTS Aktif)**:
   ```json
   {
     "speaking": true,
-    "emotion": "senang"
+    "emotion": "happy"
   }
   ```
 
@@ -104,12 +108,14 @@ Endpoint Server-Sent Events satu arah dengan reconnect otomatis untuk mengalirka
   Connection: keep-alive
   ```
 
-- **Event: `state`** (Diterbitkan saat visual state atau status mute berubah):
+- **Event: `state`** (Diterbitkan saat visual state, status emosi, mute, atau status sesi `is_running` berubah):
   ```sse
   event: state
-  data: {"state":"speaking","voice_muted":false,"mic_muted":false}
+  data: {"state":"speaking","emotion":"happy","voice_muted":false,"mic_muted":false,"is_running":true}
   ```
   *Nilai `state`: `"idle"` | `"listening"` | `"speaking"` | `"thinking"` | `"shutdown"`.*
+  *Nilai `emotion`: 8 emosi kanonikal (`"happy"`, `"shy"`, `"excited"`, `"surprised"`, `"thinking"`, `"sad"`, `"angry"`, `"neutral"`).*
+  *Nilai `is_running`: `true` saat tombol "Mulai Voice Assistant" aktif, `false` saat standby.*
 
 - **Event: `action`** (Trigger perintah aksi/TTS):
   * **Assistant Bicara (TTS)**:
@@ -569,6 +575,28 @@ Menerima teks percakapan dari antarmuka Web HP jarak jauh yang diamankan dengan 
   {
     "success": true,
     "message": "Text sent to LLM"
+  }
+  ```
+
+---
+
+### `POST /api/remote/audio-action?key={auth_key}`
+Mengatur perutean audio (Audio Routing) dan sinkronisasi playback antara **Mode Remote Desktop** vs **Mode Full Mobile**:
+- **Mode Remote Desktop:** TTS dan musik tetap bersuara dari speaker PC desktop; HP hanya berfungsi sebagai remote kontrol.
+- **Mode Full Mobile:** Suara TTS dan musik di desktop PC otomatis ditiadakan (mute di PC), suara dialihkan penuh ke smartphone pengguna. Mic di browser desktop otomatis di-mute saat remote aktif untuk mencegah *feedback loop*.
+
+- **Request Body**:
+  ```json
+  {
+    "mode": "full_mobile",
+    "action": "music:play",
+    "payload": "/music/chill_lofi.mp3"
+  }
+  ```
+- **Response (200 OK)**:
+  ```json
+  {
+    "success": true
   }
   ```
 

@@ -17,7 +17,7 @@ import {
   Zap,
   ZapOff
 } from 'lucide-solid';
-import { api, AppStatePayload } from '../api';
+import { api } from '../api';
 import { AiCapabilitiesCard } from './AiCapabilitiesCard';
 import { BrowserExtensionModal } from './BrowserExtensionModal';
 import { SystemAppsModal } from './SystemAppsModal';
@@ -142,6 +142,9 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       if (payload?.state) {
         props.setCurrentState(payload.state);
       }
+      if (typeof payload?.is_running === 'boolean') {
+        setIsRunning(payload.is_running);
+      }
     });
 
     const freqData = new Uint8Array(32);
@@ -185,29 +188,6 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     });
   });
 
-  const syncState = async (
-    newState: string,
-    running = isRunning(),
-    paused = isPaused(),
-    vMuted = voiceMuted(),
-    mMuted = micMuted()
-  ) => {
-    props.setCurrentState(newState);
-    setIsRunning(running);
-    setIsPaused(paused);
-    setVoiceMuted(vMuted);
-    setMicMuted(mMuted);
-
-    const payload: AppStatePayload = {
-      state: newState,
-      is_running: running,
-      is_paused: paused,
-      voice_muted: vMuted,
-      mic_muted: mMuted,
-    };
-    await api.setState(payload);
-  };
-
   const toggleAssistant = async () => {
     const nextRunning = !isRunning();
     setIsRunning(nextRunning);
@@ -248,7 +228,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     }
   };
 
-  const CURRENT_APP_VERSION = 'v0.1.2';
+  const CURRENT_APP_VERSION = 'v0.2.0';
 
   const handleCheckUpdate = async () => {
     setIsUpdating(true);

@@ -29,6 +29,7 @@ Buffer memori ini langsung dapat diakses secara live oleh Web UI via:
   * Mulai berpikir: `\n[LLM] <Asisten> sedang merespons...`.
   * Token streaming kalimat LLM ke stdout.
   * Teks respon utuh: `[<Asisten>] "..."`.
+  * Deteksi 8 emosi kanonikal (`happy`, `shy`, `excited`, `surprised`, `thinking`, `sad`, `angry`, `neutral`) via `detect_emotion`.
   * Error jaringan / LLM: `⚠️ [LLM Error]: ...`.
 * **`input_listener.rs`**:
   * Status jeda: `\n[DIJEDA] <Asisten> berhenti mendengarkan sementara.`.
@@ -54,10 +55,21 @@ Buffer memori ini langsung dapat diakses secara live oleh Web UI via:
 
 ---
 
-### 3. 🌐 Web Speech & Remote Ingestion (`src/services/remote_service.rs`)
+### 3. 🌐 Web Speech, STT Watchdog & Remote Ingestion (`src/services/remote_service.rs` & `voiceSession.ts`)
 * Transkrip STT dari browser Chrome: `🎙️ [Chrome Web STT] Transkrip diterima: "..."`.
 * Peringatan loop nonaktif: `⚠️ [Chrome Web STT] Chat loop belum berjalan aktif!`.
 * Input teks dari smartphone: `📱 [Mobile Remote] Menerima teks dari HP: "..."`.
+* STT Watchdog Timeout & Fallback (Browser):
+  * `[Chrome Web STT] Reset listening ke idle (watchdog timeout 3.5s)`
+  * `[Chrome Web STT] Reset listening ke idle (speech ended without transcript)`
+  * `[Chrome Web STT] Reset listening ke idle (no speech match)`
+* Remote Audio Routing: `🔊 [Remote Audio Sync] Mode: Remote Desktop vs Full Mobile`.
+
+---
+
+### 4. 🍃 VRM SpringBone & 3D Renderer (`src/ui/spring_bone.rs` & `app.rs`)
+* Inisialisasi pegas Verlet Physics: `🍃 [SpringBone] Diinisialisasi: X joints pegas dinamis, Y colliders tabrakan`.
+* Watchdog fail-safe desktop: otomatis reset visual state `Listening -> Idle` jika waktu listening > 4.5 detik.
 
 ---
 

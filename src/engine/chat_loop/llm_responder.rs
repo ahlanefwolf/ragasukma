@@ -5,29 +5,8 @@ use crate::audio::tts::TextToSpeech;
 use crate::llm::LlmClient;
 use crate::tray::{AssistantState, TrayState};
 
-/// Menjalankan inferensi LLM streaming dan mengalirkan hasil sintesis suara ke Google Chrome Web Speech API
 pub fn detect_emotion(text: &str) -> String {
-    if let Some(emo) = crate::ui::renderer::expressions::detect_emotion(text) {
-        return emo.to_string();
-    }
-    let lower = text.to_lowercase();
-    if let Some(start) = lower.find('*') {
-        if let Some(end) = lower[start + 1..].find('*') {
-            let tag = lower[start + 1..start + 1 + end].trim();
-            if !tag.is_empty() {
-                return tag.to_string();
-            }
-        }
-    }
-    for prefix in &[
-        "senang", "gembira", "bahagia", "malu", "blush", "bingung", "kaget", "sedih",
-        "marah", "panik", "semangat", "tertawa", "tersenyum", "tersipu",
-    ] {
-        if lower.starts_with(prefix) {
-            return prefix.to_string();
-        }
-    }
-    "neutral".to_string()
+    crate::ui::renderer::expressions::detect_emotion_with_fallback(text).to_string()
 }
 
 pub fn process_llm_response(

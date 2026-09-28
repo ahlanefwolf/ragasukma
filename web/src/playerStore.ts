@@ -106,10 +106,43 @@ export const initGlobalAudio = (el?: HTMLAudioElement) => {
   }
 };
 
+let isVoiceMutedLocally = false;
+
+// Dengarkan status mute dari server (misal saat mobile remote aktif)
+api.subscribeState((st) => {
+  if (st) {
+    const nextMuted = Boolean(st.voice_muted);
+    if (isVoiceMutedLocally !== nextMuted) {
+      isVoiceMutedLocally = nextMuted;
+      if (isVoiceMutedLocally && audioEl) {
+        audioEl.pause();
+        audioEl.currentTime = 0;
+        setIsPlaying(false);
+        setIsPaused(false);
+      }
+    }
+  }
+});
+
 // ---------------------------------------------------------------------------
 // 1. DENGARKAN EVENT DARI BACKEND SINGLE-SOURCE-OF-TRUTH (SSE ACTION)
 // ---------------------------------------------------------------------------
 api.subscribeActions(async (act) => {
+  // Jika tab saat ini adalah remote client di smartphone, biarkan audioSync di mobile yang memutar audio
+  try {
+    const hash = window.location.hash.toLowerCase();
+    const origin = window.location.origin.toLowerCase();
+    const search = window.location.search;
+    if (hash.includes('remote') || origin.includes('trycloudflare.com') || search.includes('key=')) {
+      return;
+    }
+  } catch (_) {}
+
+  // Jika suara desktop dimatikan (mode Full Mobile aktif), abaikan pemutaran musik di desktop
+  if (isVoiceMutedLocally) {
+    return;
+  }
+
   console.log('🎵 [playerStore] Menerima action SSE:', act);
 
   if (act.action === 'music:play') {
@@ -179,6 +212,7 @@ api.subscribeActions(async (act) => {
 
 function playLocalAudio(track: YtTrackInfo) {
   if (!track || !track.filename) return;
+  if (isVoiceMutedLocally) return;
   setCurrentTrack(track);
   setCurrentTime(0);
   setDuration(track.duration || 0);

@@ -57,6 +57,7 @@ pub struct PoseManager {
     pub state_transition_t: f32, // 0.0 -> 1.0 (interpolasi halus saat berganti state)
     pub state_from_quats: HashMap<String, Quat>, // Snapshot rotasi sendi sesaat sebelum ganti state
     pub elapsed_time: f32,
+    pub state_elapsed_time: f32, // Waktu aktif state saat ini (direset ke 0 saat ganti state, identik Three.js)
     pub target_quats: HashMap<String, Quat>,
     pub current_quats: HashMap<String, Quat>,
 }
@@ -70,6 +71,7 @@ impl Default for PoseManager {
             state_transition_t: 1.0,
             state_from_quats: HashMap::new(),
             elapsed_time: 0.0,
+            state_elapsed_time: 0.0,
             target_quats: HashMap::new(),
             current_quats: HashMap::new(),
         };
@@ -103,12 +105,14 @@ impl PoseManager {
     /// Update pose 1:1 persis Three.js / VRM standard dengan multi-pose dynamic cycle & natural breathing
     pub fn update_poses(&mut self, delta_time: f32) {
         self.elapsed_time += delta_time;
+        self.state_elapsed_time += delta_time;
 
         // Cek transisi perubahan state (misal: Idle -> Listening -> Thinking -> Speaking)
         if self.current_state != self.last_state {
             // Ambil snapshot rotasi sendi saat ini sebagai titik awal transisi halus
             self.state_from_quats = self.current_quats.clone();
             self.state_transition_t = 0.0;
+            self.state_elapsed_time = 0.0;
             self.last_state = self.current_state;
         }
 
@@ -133,7 +137,7 @@ impl PoseManager {
 
             // Engine Natural Breathing: Ritme nafas hidup di dada, punggung, pundak, dan mikro-gerak kepala
             let breath_rate = 1.35; // ~13 tarikan nafas per menit (ritme nafas santai)
-            let breath_sine = (self.elapsed_time * breath_rate).sin();
+            let breath_sine = (self.state_elapsed_time * breath_rate).sin();
             let breath_chest = breath_sine * 0.012;
             let breath_spine = breath_sine * 0.006;
             let breath_shoulder = breath_sine * 0.006;
@@ -164,7 +168,7 @@ impl PoseManager {
                 // Menjamin kontinuitas kecepatan gerak di setiap keyframe tanpa jeda henti (ease-in/out stall).
                 let cycle_step = 2.5 / active_speed;
                 let total_cycle_time = count as f32 * cycle_step;
-                let loop_time = self.elapsed_time % total_cycle_time;
+                let loop_time = self.state_elapsed_time % total_cycle_time;
                 let cur_idx = (loop_time / cycle_step).floor() as usize % count;
                 let next_idx = (cur_idx + 1) % count;
                 let prev_idx = if cur_idx == 0 { count - 1 } else { cur_idx - 1 };

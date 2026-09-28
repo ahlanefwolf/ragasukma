@@ -16,9 +16,8 @@ impl TextToSpeech {
             return Ok(());
         }
 
-        if crate::app_state::is_voice_muted() {
-            return Ok(());
-        }
+        // Catatan: is_voice_muted menandakan speaker desktop dimatikan (dialihkan ke mobile),
+        // namun event suara 'assistant:speak' harus tetap dipancarkan agar PWA HP dapat memainkannya!
 
         // 1. Beritahu status avatar & emosi untuk sinkronisasi visual bibir
         TrayState::update_with_emotion(
@@ -28,13 +27,28 @@ impl TextToSpeech {
         );
         crate::app_state::set_ai_speaking(true);
 
-        // 2. Alirkan kalimat respon dan emosi ke Google Chrome Speech Synthesis via SSE action
+        // 2. Alirkan kalimat respon dan emosi ke semua client (Desktop & Mobile) via SSE action
         let payload = serde_json::json!({
             "text": clean_text,
             "emotion": emotion
         })
         .to_string();
         crate::app_state::push_client_action("assistant:speak", Some(&payload));
+
+        // 3. Safety auto-reset: pastikan status speaking tidak pernah stuck jika browser tertahan
+        let word_count = clean_text.split_whitespace().count();
+        let timeout_secs = ((word_count as u64) / 2).clamp(4, 15);
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_secs(timeout_secs));
+            if crate::app_state::is_ai_speaking() {
+                crate::app_state::set_ai_speaking(false);
+                crate::tray::TrayState::update_with_emotion(
+                    crate::services::tray_service::AssistantState::Idle,
+                    "Standby Siap",
+                    "neutral",
+                );
+            }
+        });
 
         Ok(())
     }

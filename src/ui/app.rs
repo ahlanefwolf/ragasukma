@@ -36,6 +36,7 @@ pub struct App {
     pub last_config_check: Instant,
     pub last_config_mtime: Option<std::time::SystemTime>,
     pub has_opened_browser: bool,
+    pub listening_duration: f32,
 }
 
 impl App {
@@ -171,6 +172,7 @@ impl App {
             last_config_check: Instant::now(),
             last_config_mtime: crate::config::get_config_modified_time(),
             has_opened_browser: false,
+            listening_duration: 0.0,
         })
     }
 
@@ -522,6 +524,26 @@ impl App {
                             lock.config_updated = false;
                         }
                     }
+                }
+
+                if self.pose_manager.current_state == crate::ui::pose_system::AssistantVisualState::Listening {
+                    self.listening_duration += delta;
+                    // Watchdog: jika berada di state listening > 4.5s atau sesi asisten tidak aktif, paksa kembali ke Idle
+                    if self.listening_duration > 4.5 || !crate::app_state::is_session_running() {
+                        self.listening_duration = 0.0;
+                        self.pose_manager.current_state = crate::ui::pose_system::AssistantVisualState::Idle;
+                        if let Ok(mut lock) = self.shared_server_state.lock() {
+                            lock.current_state = crate::ui::pose_system::AssistantVisualState::Idle;
+                            lock.state_version = lock.state_version.wrapping_add(1);
+                        }
+                        crate::tray::TrayState::update_with_emotion(
+                            crate::services::tray_service::AssistantState::Idle,
+                            "Standby Siap",
+                            "neutral",
+                        );
+                    }
+                } else {
+                    self.listening_duration = 0.0;
                 }
 
                 let delta_sim = if is_tuning { 0.0 } else { delta };

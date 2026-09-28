@@ -377,6 +377,7 @@ pub fn scan_screen_visual_elements() -> PerceptionResult {
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]

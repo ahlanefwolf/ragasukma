@@ -68,7 +68,9 @@ Aksi utilitas sistem bawaan lintas OS (Windows, Linux, macOS).
 ---
 
 ### 5. 🎵 Music & Media Player (`media:*`)
-Pengontrol musik latar belakang internal berbasis pemutar audio lokal (`rodio`) dan downloader audio YouTube (`yt-dlp`).
+Pengontrol musik latar belakang internal berbasis pemutar audio lokal (`rodio`) dan downloader audio YouTube (`yt-dlp`). Mendukung perutean audio otomatis:
+- **Desktop Mode:** Musik disuarakan dari speaker PC desktop.
+- **Full Mobile Mode:** Musik disalurkan langsung ke browser smartphone via AudioSyncManager, suara di PC otomatis di-mute.
 
 | Action Identifier | Deskripsi | Parameter | Kemungkinan Perintah Pengguna (Voice / Chat) | Tag Command AI |
 | :--- | :--- | :--- | :--- | :--- |

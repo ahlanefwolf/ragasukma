@@ -144,6 +144,13 @@ pub fn update_camera_and_bones(
             );
         }
 
+        // 🍃 VRM SpringBone Verlet Physics (Rambut, Poni, Rok bergoyang dinamis)
+        if let Some(sb_mutex) = &model.spring_bone_manager {
+            if let Ok(mut sb) = sb_mutex.lock() {
+                sb.update(delta_seconds, model, global_transforms);
+            }
+        }
+
         if let Some(skin) = model.skins.first() {
             for (joint_i, &node_idx) in skin.joints.iter().enumerate() {
                 if joint_i < 256 {
@@ -175,7 +182,16 @@ fn compute_global_transforms(
 
     if let Some(Some(bone_name)) = model.node_to_bone.get(node_idx) {
         if let Some(pose_rot) = pose_manager.get_bone_quat(bone_name) {
-            rotation *= pose_rot;
+            // Three-VRM Normalized Humanoid Rig standard (@pixiv/three-vrm)
+            // boneNode.quaternion = inv(P) * rigBoneNode.quaternion * P * boneRotation
+            let parent_rot = model
+                .parent_rest_world_rotations
+                .get(node_idx)
+                .copied()
+                .unwrap_or(glam::Quat::IDENTITY);
+            let inv_p = parent_rot.inverse();
+            let r_local = inv_p * pose_rot * parent_rot;
+            rotation = r_local * node.initial_rotation;
         }
     }
 
