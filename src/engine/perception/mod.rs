@@ -201,6 +201,33 @@ pub fn start_vision_worker() {
 
                         if save_snapshot {
                             apply_perception_to_snapshot(&res);
+
+                            // Dapatkan info jendela yang sedang aktif untuk laporan suara asisten
+                            let active_app = if let Ok(snap) = crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file() {
+                                if !snap.window_title.is_empty() {
+                                    snap.window_title
+                                } else if !snap.app_name.is_empty() {
+                                    snap.app_name
+                                } else {
+                                    "layar desktop".to_string()
+                                }
+                            } else {
+                                "layar desktop".to_string()
+                            };
+
+                            let summary_info = if !res.texts.is_empty() || !res.buttons.is_empty() {
+                                format!(
+                                    "[STATUS SISTEM: Pemindaian layar untuk jendela {} sudah selesai, Mas! Datanya sudah masuk. Sampaikan dengan santai dan singkat bahwa layarnya sudah selesai dipindai dan siap jika ada yang mau ditanyakan/dibantu.]",
+                                    active_app
+                                )
+                            } else {
+                                format!(
+                                    "[STATUS SISTEM: Pemindaian layar untuk jendela {} selesai, tapi tidak ada teks atau tombol yang terbaca. Sampaikan secara singkat dan santai.]",
+                                    active_app
+                                )
+                            };
+
+                            crate::engine::remote_text::inject_remote_text(summary_info);
                         }
 
                         if let Some(resp) = respond_to {

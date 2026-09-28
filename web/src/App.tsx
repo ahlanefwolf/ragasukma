@@ -226,11 +226,98 @@ export const App: Component = () => {
 
     // 🎙️ Google Chrome Speech Recognition (STT) - Dengar suara dari browser dan kirim transkrip ke backend
     let recognition: any = null;
+    let startRecognitionSafely = () => {};
     let isTtsSpeaking = false;
     let isTestVoiceActive = false;
     let isListeningActive = false;
     let isVoiceMuted = false;
     let isMicMuted = false;
+
+    // Buffer riwayat ucapan asisten untuk deteksi cerdas anti-echolalia (speaker gema balik)
+    interface AssistantSpeechLog {
+      text: string;
+      tokens: string[];
+      timestamp: number;
+    }
+    const assistantSpeechHistory: AssistantSpeechLog[] = [];
+
+    const recordAssistantSpeech = (rawText: string) => {
+      if (!rawText) return;
+      const cleanTokens = rawText
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length >= 3);
+
+      assistantSpeechHistory.push({
+        text: rawText.toLowerCase(),
+        tokens: cleanTokens,
+        timestamp: Date.now(),
+      });
+
+      // Simpan riwayat dalam batas 25 detik terakhir (maks 8 entri)
+      const cutoff = Date.now() - 25000;
+      while (
+        assistantSpeechHistory.length > 8 ||
+        (assistantSpeechHistory.length > 0 && assistantSpeechHistory[0].timestamp < cutoff)
+      ) {
+        assistantSpeechHistory.shift();
+      }
+    };
+
+    const isEchoOfAssistantSpeech = (transcript: string): boolean => {
+      const now = Date.now();
+      const activeEntries = assistantSpeechHistory.filter((e) => now - e.timestamp < 25000);
+      if (activeEntries.length === 0) return false;
+
+      const transLower = transcript.toLowerCase();
+      const transTokens = transLower
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length >= 3);
+
+      if (transTokens.length === 0) return false;
+
+      // 1. Cek Trigram (3 kata berurutan) yang identik dengan teks asisten
+      if (transTokens.length >= 3) {
+        for (let i = 0; i <= transTokens.length - 3; i++) {
+          const trigram = `${transTokens[i]} ${transTokens[i + 1]} ${transTokens[i + 2]}`;
+          for (const entry of activeEntries) {
+            if (entry.text.includes(trigram)) {
+              console.warn('[Echo Guard] Terdeteksi trigram gema asisten:', trigram);
+              return true;
+            }
+          }
+        }
+      }
+
+      // 2. Cek Token Overlap Ratio (Rasio kata-kata unik yang cocok)
+      const historyTokenSet = new Set<string>();
+      for (const entry of activeEntries) {
+        for (const t of entry.tokens) {
+          historyTokenSet.add(t);
+        }
+      }
+
+      let matchCount = 0;
+      for (const token of transTokens) {
+        if (historyTokenSet.has(token)) {
+          matchCount++;
+        }
+      }
+
+      const matchRatio = matchCount / transTokens.length;
+      if (transTokens.length >= 3 && matchRatio >= 0.35) {
+        console.warn(
+          `[Echo Guard] Terdeteksi overlap kata (${Math.round(matchRatio * 100)}%) gema asisten:`,
+          transcript
+        );
+        return true;
+      }
+
+      return false;
+    };
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     const applyRecognitionLang = (lang: string) => {
@@ -260,19 +347,10 @@ export const App: Component = () => {
         });
 
         recognition.onspeechstart = () => {
-          if (isTestVoiceActive) return;
-
-          // ⚡ Voice Interruption (Barge-in): Begitu pengguna mulai bersuara, potong TTS seketika!
-          if (isTtsSpeaking && runtimeConfig?.voice_interruption) {
-            console.log('⚡ [Barge-in: onspeechstart] Suara terdeteksi, memotong suara asisten seketika!');
-            if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-              window.speechSynthesis.cancel();
-            }
-            isTtsSpeaking = false;
-          }
+          if (isTestVoiceActive || isTtsSpeaking) return;
 
           // Picu state listening jika tidak sedang bicara TTS dan mic tidak di-mute
-          if (!isMicMuted && !isTtsSpeaking) {
+          if (!isMicMuted) {
             isListeningActive = true;
             fetch(`${API_BASE}/api/tts/state`, {
               method: 'POST',
@@ -283,36 +361,19 @@ export const App: Component = () => {
         };
 
         recognition.onresult = (event: any) => {
-          if (isMicMuted || isTestVoiceActive) return;
-
-          // ⚡ Voice Interruption (Barge-in): Potong TTS seketika saat user bicara
-          if (isTtsSpeaking) {
-            if (runtimeConfig?.voice_interruption) {
-              console.log('⚡ [Barge-in: onresult] Suara user memotong pembicaraan asisten!');
-              if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-              }
-              isTtsSpeaking = false;
-            } else {
-              // Jika interupsi nonaktif, abaikan suara selama TTS bersuara
-              return;
-            }
+          // Hard-mute: jika mic sedang dimute, test voice aktif, atau asisten sedang bersuara, buang hasil
+          if (isMicMuted || isTestVoiceActive || isTtsSpeaking) {
+            console.log('[Chrome Web STT] Hasil diabaikan karena mic mute / TTS aktif');
+            return;
           }
 
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
               const transcript = event.results[i][0].transcript?.trim();
               if (transcript) {
-                // Filter self-echo jika mikrofon menangkap gema suara asisten sendiri
-                const spokenClean = (lastSpokenText || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                const transcriptClean = transcript.toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (
-                  spokenClean.length > 6 &&
-                  transcriptClean.length > 5 &&
-                  spokenClean.includes(transcriptClean)
-                ) {
-                  console.warn('[Barge-in] Self-echo suara asisten diabaikan:', transcript);
-                  // Kembalikan ke idle jika ini hanya self echo
+                // Filter komprehensif self-echo jika mikrofon menangkap pantulan suara speaker asisten
+                if (isEchoOfAssistantSpeech(transcript)) {
+                  console.warn('[Echo Guard] Self-echo pantulan speaker diabaikan:', transcript);
                   if (isListeningActive) {
                     isListeningActive = false;
                     fetch(`${API_BASE}/api/tts/state`, {
@@ -336,21 +397,147 @@ export const App: Component = () => {
           }
         };
 
-        recognition.onerror = (e: any) => {
-          console.warn('[Chrome Web STT] Error:', e.error);
-        };
-
-        recognition.onend = () => {
-          const shouldListen =
-            !isDead() && !isMicMuted && (runtimeConfig?.voice_interruption || !isTtsSpeaking);
-          if (shouldListen) {
-            try { recognition.start(); } catch {}
+        let isRecognitionStarting = false;
+        startRecognitionSafely = () => {
+          if (isDead() || isMicMuted || isRecognitionStarting) return;
+          try {
+            isRecognitionStarting = true;
+            recognition?.start();
+          } catch (e: any) {
+            // Jika sudah aktif (InvalidStateError), abaikan
+            if (e?.name !== 'InvalidStateError') {
+              console.warn('[Chrome Web STT] Start failed:', e);
+            }
+          } finally {
+            setTimeout(() => {
+              isRecognitionStarting = false;
+            }, 300);
           }
         };
 
-        // Mulai listen di background jika tidak muted
+        let vadAudioCtx: AudioContext | null = null;
+        let vadStream: MediaStream | null = null;
+        let vadInterval: any = null;
+
+        const startVadBargeInMonitoring = async () => {
+          if (vadInterval) return;
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                noiseSuppression: runtimeConfig?.vad_noise_suppression !== false,
+                echoCancellation: true,
+                autoGainControl: true,
+              },
+            });
+            vadStream = stream;
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            vadAudioCtx = ctx;
+            const source = ctx.createMediaStreamSource(stream);
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 512;
+            source.connect(analyser);
+
+            const buffer = new Uint8Array(analyser.frequencyBinCount);
+            let consecutiveAbove = 0;
+
+            vadInterval = setInterval(() => {
+              if (isDead() || isMicMuted) return;
+              if (!isTtsSpeaking || !runtimeConfig?.voice_interruption) {
+                consecutiveAbove = 0;
+                return;
+              }
+
+              analyser.getByteTimeDomainData(buffer);
+              let sumSquares = 0;
+              for (let i = 0; i < buffer.length; i++) {
+                const norm = (buffer[i] - 128) / 128;
+                sumSquares += norm * norm;
+              }
+              const rms = Math.sqrt(sumSquares / buffer.length);
+              const threshold =
+                runtimeConfig?.vad_threshold !== undefined ? runtimeConfig.vad_threshold : 0.15;
+
+              if (rms >= threshold) {
+                consecutiveAbove++;
+                if (consecutiveAbove >= 2) {
+                  consecutiveAbove = 0;
+                  console.log(
+                    `⚡ [VAD Barge-in] Suara user (${Math.round(rms * 100)}%) melampaui batas (${Math.round(
+                      threshold * 100
+                    )}%), mematikan suara asisten!`
+                  );
+                  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                  }
+                  isTtsSpeaking = false;
+                  fetch(`${API_BASE}/api/tts/state`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ speaking: false, state: 'listening' }),
+                  }).catch(() => {});
+                  setTimeout(() => {
+                    if (!isDead() && !isMicMuted && !isTtsSpeaking) {
+                      startRecognitionSafely();
+                    }
+                  }, 200);
+                }
+              } else {
+                consecutiveAbove = 0;
+              }
+            }, 60);
+          } catch (err: any) {
+            console.warn('[VAD Barge-in] Inisialisasi analyser audio:', err?.message || err);
+          }
+        };
+
+        // Handshake izin audio melalui getUserMedia untuk unlock token media browser
+        const ensureMicrophonePermission = async () => {
+          if (typeof navigator !== 'undefined' && 'mediaDevices' in navigator) {
+            try {
+              await startVadBargeInMonitoring();
+              console.log('[Chrome Web STT] Izin audio & VAD analyser berhasil aktif');
+              startRecognitionSafely();
+            } catch (err: any) {
+              console.warn('[Chrome Web STT] getUserMedia permission check:', err?.message || err);
+            }
+          }
+        };
+
+        recognition.onstart = () => {
+          isRecognitionStarting = false;
+        };
+
+        recognition.onerror = (e: any) => {
+          isRecognitionStarting = false;
+          console.warn('[Chrome Web STT] Error:', e.error);
+          if (e.error === 'not-allowed') {
+            // Pasang one-time listener pada user click/keypress di dokumen untuk unlock browser gesture requirement
+            const unlockGesture = () => {
+              console.log('[Chrome Web STT] Interaksi user terdeteksi, memulihkan sesi mikrofon...');
+              ensureMicrophonePermission().then(() => startRecognitionSafely());
+              window.removeEventListener('click', unlockGesture);
+              window.removeEventListener('keydown', unlockGesture);
+            };
+            window.addEventListener('click', unlockGesture, { once: true });
+            window.addEventListener('keydown', unlockGesture, { once: true });
+          }
+        };
+
+        recognition.onend = () => {
+          isRecognitionStarting = false;
+          // Kunci Keras: Jangan pernah menyalakan mic jika asisten sedang bersuara!
+          const shouldListen = !isDead() && !isMicMuted && !isTtsSpeaking;
+          if (shouldListen) {
+            setTimeout(() => {
+              startRecognitionSafely();
+            }, 200);
+          }
+        };
+
+        // Inisialisasi awal: Coba langsung, dan pastikan permission handshake jika diperlukan
         if (!isMicMuted) {
-          try { recognition.start(); } catch {}
+          startRecognitionSafely();
+          ensureMicrophonePermission();
         }
       }
     } catch (e) {
@@ -430,10 +617,17 @@ export const App: Component = () => {
         }
         lastSpokenText = textToSpeak;
         lastSpokenTime = now;
+        recordAssistantSpeech(textToSpeak);
 
         if (textToSpeak && typeof window !== 'undefined' && 'speechSynthesis' in window) {
           // Matikan antrean suara lama agar tidak pernah tumpuk/dobel
           window.speechSynthesis.cancel();
+
+          // KUNCI KERAS: Matikan mikrofon seketika sebelum TTS mulai memutar suara
+          isTtsSpeaking = true;
+          try {
+            recognition?.abort();
+          } catch {}
 
           // Chrome bug guard: teks panjang (>200 karakter) di Chrome speechSynthesis bisa macet di tengah jalan.
           // Kita pecah per kalimat pendek secara rapi.
@@ -443,7 +637,10 @@ export const App: Component = () => {
           };
 
           const sentences = splitSentences(textToSpeak);
-          if (sentences.length === 0) return;
+          if (sentences.length === 0) {
+            isTtsSpeaking = false;
+            return;
+          }
 
           const cfg = runtimeConfig;
           const voices = window.speechSynthesis.getVoices();
@@ -464,12 +661,12 @@ export const App: Component = () => {
               body: JSON.stringify({ speaking: false }),
             }).catch(() => {});
 
-            // Jeda 350ms hening setelah suara selesai sebelum mic menyala lagi
+            // Jeda 600ms hening setelah suara selesai agar sisa gema ruangan laptop hilang sebelum mic menyala lagi
             setTimeout(() => {
-              if (!isDead() && !isTtsSpeaking) {
-                try { recognition?.start(); } catch {}
+              if (!isDead() && !isTtsSpeaking && !isMicMuted) {
+                startRecognitionSafely();
               }
-            }, 350);
+            }, 600);
           };
 
           const speakNextSentence = () => {
@@ -493,12 +690,7 @@ export const App: Component = () => {
             if (cfg?.tts_pitch) utter.pitch = cfg.tts_pitch;
 
             if (currentIndex === 1) {
-              // Kalimat pertama dimulai
-              isTtsSpeaking = true;
-              // Hanya matikan mic jika pengguna menonaktifkan voice interruption
-              if (!runtimeConfig?.voice_interruption) {
-                try { recognition?.stop(); } catch {}
-              }
+              // Kalimat pertama dimulai: beri tahu backend state speaking aktif
               fetch(`${API_BASE}/api/tts/state`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

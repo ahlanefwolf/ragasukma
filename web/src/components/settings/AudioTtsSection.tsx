@@ -14,6 +14,10 @@ interface AudioTtsSectionProps {
   setTtsPitch: (val: number) => void;
   voiceInterruption: boolean;
   setVoiceInterruption: (val: boolean) => void;
+  vadThreshold: number;
+  setVadThreshold: (val: number) => void;
+  vadNoiseSuppression: boolean;
+  setVadNoiseSuppression: (val: boolean) => void;
 }
 
 export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
@@ -21,6 +25,81 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
   const [isPlayingTest, setIsPlayingTest] = createSignal(false);
   const [testText, setTestText] = createSignal('Halo Mas! Aku adalah asisten AI Ragasukma.');
   const [genderFilter, setGenderFilter] = createSignal<'all' | 'female' | 'male'>('all');
+
+  // 🎙️ Live VAD & Audio Level Meter State
+  const [isMicTesting, setIsMicTesting] = createSignal(false);
+  const [currentMicLevel, setCurrentMicLevel] = createSignal(0);
+  let micAudioCtx: AudioContext | null = null;
+  let micStream: MediaStream | null = null;
+  let micAnimId: number | null = null;
+
+  const stopMicMeter = () => {
+    if (micAnimId) {
+      cancelAnimationFrame(micAnimId);
+      micAnimId = null;
+    }
+    if (micStream) {
+      micStream.getTracks().forEach((t) => t.stop());
+      micStream = null;
+    }
+    if (micAudioCtx) {
+      micAudioCtx.close().catch(() => {});
+      micAudioCtx = null;
+    }
+    setCurrentMicLevel(0);
+    setIsMicTesting(false);
+  };
+
+  const startMicMeter = async () => {
+    stopMicMeter();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          noiseSuppression: props.vadNoiseSuppression,
+          echoCancellation: true,
+          autoGainControl: true,
+        },
+      });
+      micStream = stream;
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      micAudioCtx = ctx;
+
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.3;
+      source.connect(analyser);
+
+      const buffer = new Uint8Array(analyser.frequencyBinCount);
+      setIsMicTesting(true);
+
+      const loop = () => {
+        analyser.getByteTimeDomainData(buffer);
+        let sumSquares = 0;
+        for (let i = 0; i < buffer.length; i++) {
+          const norm = (buffer[i] - 128) / 128;
+          sumSquares += norm * norm;
+        }
+        const rms = Math.sqrt(sumSquares / buffer.length);
+        // Kalibrasi level ke rentang 0 - 100% yang responsif
+        const levelPct = Math.min(100, Math.round(rms * 250));
+        setCurrentMicLevel(levelPct);
+        micAnimId = requestAnimationFrame(loop);
+      };
+      loop();
+    } catch (err) {
+      console.warn('[VAD Meter] Gagal akses mic:', err);
+      setIsMicTesting(false);
+    }
+  };
+
+  const toggleMicMeter = () => {
+    if (isMicTesting()) {
+      stopMicMeter();
+    } else {
+      startMicMeter();
+    }
+  };
 
   // Sinkronkan filter awal dengan gender asisten jika ada
   createEffect(() => {
@@ -125,6 +204,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
   });
 
   onCleanup(() => {
+    stopMicMeter();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -260,6 +340,115 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 class="sr-only peer"
               />
               <div class="w-11 h-6 bg-theme-border peer-focus:outline-none peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-theme-text after:h-5 after:w-5 after:transition-all peer-checked:bg-theme-cyan"></div>
+            </label>
+          </div>
+        </div>
+
+        {/* 🎚️ VAD (Voice Activity Detection) & Noise Gate Visualizer */}
+        <div class="p-4 bg-theme-card/80 border border-theme-border space-y-3.5">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs sm:text-sm font-bold text-theme-text flex items-center gap-1.5">
+                  <Mic size={14} class="text-theme-cyan" />
+                  Garis Ambang Batas Suara (VAD Noise Gate)
+                </span>
+                <span class="text-[10px] px-1.5 py-0.5 border border-theme-cyan/40 bg-theme-cyan/10 text-theme-cyan font-mono font-bold">
+                  {Math.round((props.vadThreshold || 0.15) * 100)}%
+                </span>
+              </div>
+              <p class="text-xs text-theme-text/60 mt-0.5">
+                Hanya suara di atas garis yang memicu interupsi. Suara speaker laptop / noise kipas di bawah garis otomatis diabaikan.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={toggleMicMeter}
+              class={`px-3 py-1.5 text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                isMicTesting()
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 animate-pulse'
+                  : 'bg-theme-surface text-theme-cyan border-theme-cyan/40 hover:bg-theme-cyan/10'
+              }`}
+            >
+              <Mic size={13} />
+              {isMicTesting() ? 'Hentikan Uji Mic' : 'Tes Suara Mic Live'}
+            </button>
+          </div>
+
+          {/* Meter Audio & Garis Threshold Line */}
+          <div class="space-y-1.5">
+            <div class="relative w-full h-8 bg-black/40 border border-theme-border overflow-hidden select-none">
+              {/* Audio Level Bar (Level Real-time) */}
+              <div
+                class={`h-full transition-all duration-75 ${
+                  currentMicLevel() >= Math.round((props.vadThreshold || 0.15) * 100)
+                    ? 'bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.6)]'
+                    : 'bg-emerald-500/60'
+                }`}
+                style={{ width: `${currentMicLevel()}%` }}
+              ></div>
+
+              {/* Garis Penanda Ambang Batas (VAD Threshold Line) */}
+              <div
+                class="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10 shadow-[0_0_8px_#fbbf24]"
+                style={{ left: `${Math.round((props.vadThreshold || 0.15) * 100)}%` }}
+              >
+                {/* Pointer / Marker Pin */}
+                <div class="absolute -top-1 -left-1.5 w-3.5 h-3.5 bg-amber-400 rotate-45 border border-black shadow-sm"></div>
+              </div>
+
+              {/* Text Overlay di dalam Bar */}
+              <div class="absolute inset-0 flex items-center justify-between px-3 text-[11px] font-mono pointer-events-none">
+                <span class="text-white/60">
+                  {isMicTesting() ? `Mic: ${currentMicLevel()}%` : 'Klik "Tes Suara Mic" untuk kalibrasi'}
+                </span>
+                <span
+                  class={`font-bold transition-colors ${
+                    currentMicLevel() >= Math.round((props.vadThreshold || 0.15) * 100) && isMicTesting()
+                      ? 'text-rose-300 drop-shadow-md'
+                      : 'text-amber-300/80'
+                  }`}
+                >
+                  {currentMicLevel() >= Math.round((props.vadThreshold || 0.15) * 100) && isMicTesting()
+                    ? '🔥 MELEWATI GARIS (TRIGGER)'
+                    : `Garis: ${Math.round((props.vadThreshold || 0.15) * 100)}%`}
+                </span>
+              </div>
+            </div>
+
+            {/* Slider Pengatur Garis Ambang Batas */}
+            <div class="flex items-center gap-3">
+              <span class="text-[11px] font-mono text-theme-text/50">Sensitif (3%)</span>
+              <input
+                type="range"
+                min="0.03"
+                max="0.50"
+                step="0.01"
+                value={props.vadThreshold || 0.15}
+                onInput={(e) => props.setVadThreshold(parseFloat(e.currentTarget.value))}
+                class="flex-1 accent-amber-400 cursor-pointer h-1.5 bg-theme-border rounded-none"
+              />
+              <span class="text-[11px] font-mono text-theme-text/50">Ketat (50%)</span>
+            </div>
+          </div>
+
+          {/* Toggle Noise Suppression */}
+          <div class="flex items-center justify-between pt-2 border-t border-theme-border/60">
+            <div>
+              <label class="text-xs font-semibold text-theme-text block">🛡️ Peredam Bising (Noise Suppression)</label>
+              <p class="text-[11px] text-theme-text/60">
+                Filter bawaan WebRTC untuk meredam desis kipas laptop dan pantulan suara ruangan.
+              </p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={props.vadNoiseSuppression}
+                onChange={(e) => props.setVadNoiseSuppression(e.currentTarget.checked)}
+                class="sr-only peer"
+              />
+              <div class="w-9 h-5 bg-theme-border peer-focus:outline-none peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-theme-text after:h-4 after:w-4 after:transition-all peer-checked:bg-theme-cyan"></div>
             </label>
           </div>
         </div>

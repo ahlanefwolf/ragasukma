@@ -99,6 +99,64 @@
 
   window.addEventListener("load", () => triggerSnapshotDebounced(100, true));
 
+  // Intercept History API (pushState & replaceState) untuk SPA Universal (React, Vue, Next.js, Solid, Svelte)
+  try {
+    const originalPushState = history.pushState;
+    history.pushState = function (...args) {
+      originalPushState.apply(this, args);
+      lastSnapshotHash = "";
+      triggerSnapshotDebounced(150, true);
+    };
+
+    const originalReplaceState = history.replaceState;
+    history.replaceState = function (...args) {
+      originalReplaceState.apply(this, args);
+      lastSnapshotHash = "";
+      triggerSnapshotDebounced(250, true);
+    };
+  } catch (_) {}
+
+  // Intercept fetch & XMLHttpRequest untuk menangkap update data dinamis / API load di SPA
+  try {
+    const originalFetch = window.fetch;
+    if (originalFetch) {
+      window.fetch = async function (...args) {
+        try {
+          const response = await originalFetch.apply(this, args);
+          // HANYA trigger jika request bukan ke backend lokal Ragasukma
+          const urlStr = typeof args[0] === "string" ? args[0] : (args[0] && args[0].url ? args[0].url : "");
+          if (!urlStr.includes("42128") && !urlStr.includes("127.0.0.1") && document.visibilityState === "visible") {
+            triggerSnapshotDebounced(500, false);
+          }
+          return response;
+        } catch (err) {
+          throw err;
+        }
+      };
+    }
+
+    const OriginalXHR = window.XMLHttpRequest;
+    if (OriginalXHR) {
+      const originalOpen = OriginalXHR.prototype.open;
+      const originalSend = OriginalXHR.prototype.send;
+
+      OriginalXHR.prototype.open = function (method, url, ...rest) {
+        this._ragasukma_url = typeof url === "string" ? url : "";
+        return originalOpen.call(this, method, url, ...rest);
+      };
+
+      OriginalXHR.prototype.send = function (...args) {
+        this.addEventListener("load", () => {
+          const url = this._ragasukma_url || "";
+          if (!url.includes("42128") && !url.includes("127.0.0.1") && document.visibilityState === "visible") {
+            triggerSnapshotDebounced(500, false);
+          }
+        }, { passive: true });
+        return originalSend.apply(this, args);
+      };
+    }
+  } catch (_) {}
+
   // Universal SPA, YouTube/SPA Events, History, and Visibility Events
   window.addEventListener("popstate", () => {
     lastSnapshotHash = "";
@@ -134,31 +192,40 @@
     }
   });
 
-  // Reaktif terhadap perubahan DOM struktural (HANYA jika tab sedang aktif/visible)
+  // Reaktif terhadap perubahan DOM struktural & teks (HANYA jika tab sedang aktif/visible)
   try {
     const observer = new MutationObserver((mutations) => {
       if (document.visibilityState !== "visible") return;
 
-      // Filter mutasi sepele dari video player / timer / subtitle
+      // Filter mutasi: periksa penambahan/penghapusan node atau perubahan teks konten
       let hasSignificantMutation = false;
       for (const m of mutations) {
         if (m.type === "childList" && (m.addedNodes.length > 0 || m.removedNodes.length > 0)) {
+          hasSignificantMutation = true;
+          break;
+        } else if (m.type === "characterData") {
           hasSignificantMutation = true;
           break;
         }
       }
 
       if (hasSignificantMutation) {
-        triggerSnapshotDebounced(600);
+        triggerSnapshotDebounced(500, false);
       }
     });
 
+    const observerConfig = {
+      childList: true,
+      subtree: true,
+      characterData: true
+    };
+
     if (document.body) {
-      observer.observe(document.body, { childList: true, subtree: true });
+      observer.observe(document.body, observerConfig);
     } else {
       window.addEventListener("DOMContentLoaded", () => {
         if (document.body) {
-          observer.observe(document.body, { childList: true, subtree: true });
+          observer.observe(document.body, observerConfig);
         }
       });
     }

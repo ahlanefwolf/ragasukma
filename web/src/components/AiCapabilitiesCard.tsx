@@ -46,8 +46,16 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
     return 'linux';
   };
 
+  const paddleVenvScript = `# 1. Buat venv dengan python 3.12 (wajib Python <= 3.12 untuk PaddlePaddle CPU)
+python3.12 -m venv ~/.venvs/paddleocr
+source ~/.venvs/paddleocr/bin/activate
+
+# 2. Install paddlepaddle cpu stabil & paddleocr
+pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
+pip install paddleocr`;
+
   const handleCopyPaddleCmd = () => {
-    navigator.clipboard.writeText('pip install paddleocr');
+    navigator.clipboard.writeText(paddleVenvScript);
     setCopiedPaddleCmd(true);
     setTimeout(() => setCopiedPaddleCmd(false), 2000);
   };
@@ -58,12 +66,12 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
       icon: ScanEye,
       title: 'Pindai Layar & OCR Visual (Native OS / PaddleOCR)',
       category: 'desktop',
-      description: 'Menganalisis tampilan layar monitor dan aplikasi untuk mendeteksi seluruh teks, label, dan tombol yang tampil secara presisi.',
+      description: 'Menganalisis tampilan visual layar monitor dan aplikasi untuk mendeteksi teks, label, serta tombol yang tampil persis di layar.',
       examples: [
         '"Pindai layar" / "Scan visual"',
+        '"Lihat ada apa di layar"',
         '"Ada tombol apa aja di layar?"',
-        '"Lihat apakah ada tombol Pengaturan"',
-        '"Pindai dan klik tombol Search"'
+        '"Klik tulisan di layarnya"'
       ],
       badgeColor: 'text-theme-cyan bg-theme-cyan/15 border-theme-cyan/30'
     },
@@ -72,12 +80,12 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
       icon: AppWindow,
       title: 'Kontrol Jendela & Interaksi Desktop (Linux / Windows / macOS)',
       category: 'desktop',
-      description: 'Beralih fokus jendela aplikasi, klik tombol/tulisan di desktop, minimize, maksimalkan, atau tutup jendela langsung via IPC native.',
+      description: 'Beralih fokus jendela aplikasi, klik tombol/tulisan di desktop OS, minimize, maksimalkan, atau tutup jendela via Ground of Truth (active_window_app.json).',
       linuxDeps: 'wlrctl (Sway/Wayland) • ydotool (GNOME/KDE) • wmctrl/xdotool (X11)',
       examples: [
         '"Pindah ke window Zed" / "Fokus Google Chrome"',
-        '"Klik tulisan active_window_app.json"',
-        '"Klik tombol Pengaturan di desktop"',
+        '"Klik tulisan Skill Custom di layar"',
+        '"Klik tombol Simpan di desktop"',
         '"Tutup jendela" / "Maksimalkan jendela"'
       ],
       badgeColor: 'text-[#29483A] bg-[#29483A]/15 border-[#29483A]/30'
@@ -87,10 +95,10 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
       icon: Globe,
       title: 'Navigasi Browser & Multi-Tab (Chromium)',
       category: 'web',
-      description: 'Membuka website, berpindah antar tab yang sedang aktif, dan mencari kata kunci langsung di browser Chromium / Chrome.',
+      description: 'Membuka website, berpindah antar tab aktif, dan mencari kata kunci langsung di halaman web via Ground of Truth (active_tab_browser.json).',
       examples: [
         '"Buka tab YouTube" / "Buka Tokopedia"',
-        '"Pindah ke tab 9Router" / "Tutup tab Google"',
+        '"Pindah ke tab YouTube" / "Tutup tab Google"',
         '"Cari video tutorial Rust di YouTube"'
       ],
       badgeColor: 'text-theme-cyan bg-theme-cyan/15 border-theme-cyan/30'
@@ -100,10 +108,10 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
       icon: MousePointerClick,
       title: 'Interaksi Web (Live Click & Type)',
       category: 'web',
-      description: 'Mengklik tulisan/link yang tampil di browser, menekan tombol website, mengetik form, dan scroll halaman via ekstensi (.zip).',
+      description: 'Mengklik tautan/artikel di dalam web, menekan tombol formulir web, mengetik input form, dan scroll halaman web via ekstensi Chromium.',
       examples: [
-        '"Klik tulisan Sign In" / "Klik judul video"',
-        '"Klik tombol Skip" / "Klik Beli Sekarang"',
+        '"Klik link Sign In di web" / "Klik judul video"',
+        '"Klik tombol Submit di halaman web"',
         '"Ketik berita teknologi lalu tekan enter"',
         '"Scroll ke bawah"'
       ],
@@ -338,31 +346,36 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
                       <div class="mt-2.5 p-3 bg-amber-500/10 border border-amber-500/30 text-xs space-y-2">
                         <div class="flex items-center gap-1.5 font-bold text-amber-500">
                           <AlertTriangle size={14} class="shrink-0" />
-                          <span>Peringatan: Linux Memerlukan PaddleOCR</span>
+                          <span>Peringatan: Linux Memerlukan PaddleOCR (Python 3.8 - 3.12)</span>
                         </div>
                         <p class="text-[11px] text-theme-text/80 leading-relaxed">
-                          Distribusi Linux belum memiliki native OCR visual bawaan terpadu. Silakan install PaddleOCR melalui terminal agar AI dapat memindai layar:
+                          Distribusi Linux belum memiliki native OCR visual bawaan terpadu. PaddlePaddle membutuhkan Python 3.8 s.d. 3.12. Jalankan setup venv ini di terminal (otomatis dideteksi oleh backend):
                         </p>
-                        <div class="flex items-center justify-between gap-2 p-1.5 px-2 bg-theme-card border border-theme-border font-mono text-[11px]">
-                          <span class="text-theme-cyan font-bold select-all">pip install paddleocr</span>
-                          <button
-                            type="button"
-                            onClick={handleCopyPaddleCmd}
-                            class="px-2.5 py-1 bg-theme-bg hover:bg-theme-surface border border-theme-border text-[10px] font-bold flex items-center gap-1.5 cursor-pointer transition-all shrink-0"
-                            title="Salin perintah ke clipboard"
-                          >
-                            {copiedPaddleCmd() ? (
-                              <>
-                                <Check size={12} class="text-[#29483A]" />
-                                <span class="text-[#29483A]">Tersalin</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy size={12} class="text-theme-text/70" />
-                                <span>Salin</span>
-                              </>
-                            )}
-                          </button>
+                        <div class="p-2 bg-theme-card border border-theme-border font-mono text-[10.5px] space-y-1 relative group">
+                          <div class="flex items-center justify-between pb-1 border-b border-theme-border/50 text-[10px] text-theme-text/60">
+                            <span>Setup ~/.venvs/paddleocr:</span>
+                            <button
+                              type="button"
+                              onClick={handleCopyPaddleCmd}
+                              class="px-2 py-0.5 bg-theme-bg hover:bg-theme-surface border border-theme-border text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shrink-0"
+                              title="Salin seluruh perintah setup"
+                            >
+                              {copiedPaddleCmd() ? (
+                                <>
+                                  <Check size={11} class="text-[#29483A]" />
+                                  <span class="text-[#29483A]">Tersalin</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy size={11} class="text-theme-text/70" />
+                                  <span>Salin Skrip</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <pre class="overflow-x-auto text-theme-cyan font-bold select-all leading-relaxed custom-scrollbar pt-1">
+{paddleVenvScript}
+                          </pre>
                         </div>
                       </div>
                     )}

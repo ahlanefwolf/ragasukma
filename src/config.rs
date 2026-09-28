@@ -78,6 +78,14 @@ macro_rules! term_err {
     }};
 }
 
+fn default_vad_threshold() -> f32 {
+    0.15
+}
+
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserConfig {
     #[serde(default)]
@@ -112,6 +120,10 @@ pub struct UserConfig {
     pub always_on_top: bool,
     #[serde(default)]
     pub voice_interruption: bool,
+    #[serde(default = "default_vad_threshold")]
+    pub vad_threshold: f32,
+    #[serde(default = "default_true")]
+    pub vad_noise_suppression: bool,
 }
 
 impl Default for UserConfig {
@@ -133,6 +145,8 @@ impl Default for UserConfig {
             avatar_type: "2d".to_string(),
             always_on_top: true,
             voice_interruption: false,
+            vad_threshold: 0.15,
+            vad_noise_suppression: true,
         }
     }
 }

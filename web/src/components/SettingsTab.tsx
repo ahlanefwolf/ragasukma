@@ -35,6 +35,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
 
   // Audio & STT
   const [voiceInterruption, setVoiceInterruption] = createSignal(false);
+  const [vadThreshold, setVadThreshold] = createSignal(0.15);
+  const [vadNoiseSuppression, setVadNoiseSuppression] = createSignal(true);
 
   // TTS & STT (Chrome Web Speech API Ecosystem)
   const [ttsLang, setTtsLang] = createSignal('id-ID');
@@ -57,6 +59,25 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
   onMount(() => {
     isComponentMounted = true;
     loadConfigData();
+
+    const handleExternalConfigUpdate = (e: CustomEvent) => {
+      const updated = e.detail;
+      if (!isComponentMounted || !updated) return;
+      if (updated.voice_interruption !== undefined) {
+        setVoiceInterruption(Boolean(updated.voice_interruption));
+      }
+      if (updated.vad_threshold !== undefined) {
+        setVadThreshold(Number(updated.vad_threshold));
+      }
+      if (updated.vad_noise_suppression !== undefined) {
+        setVadNoiseSuppression(Boolean(updated.vad_noise_suppression));
+      }
+    };
+
+    window.addEventListener('ragasukma:config_updated' as any, handleExternalConfigUpdate);
+    onCleanup(() => {
+      window.removeEventListener('ragasukma:config_updated' as any, handleExternalConfigUpdate);
+    });
   });
 
   onCleanup(() => {
@@ -85,6 +106,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       setLlmApiKey(cfg.llm_api_key);
 
       setVoiceInterruption(cfg.voice_interruption);
+      setVadThreshold(cfg.vad_threshold !== undefined ? cfg.vad_threshold : 0.15);
+      setVadNoiseSuppression(cfg.vad_noise_suppression !== undefined ? cfg.vad_noise_suppression : true);
 
       setTtsLang(cfg.tts_lang || 'id-ID');
       setSttLang(cfg.stt_lang || 'id-ID');
@@ -155,6 +178,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       assistant_gender: assistantGender(),
       personality_role: personalityRole(),
       voice_interruption: voiceInterruption(),
+      vad_threshold: vadThreshold(),
+      vad_noise_suppression: vadNoiseSuppression(),
       llm_provider: llmProvider(),
       llm_base_url: llmBaseUrl().trim(),
       llm_model: llmModel().trim(),
@@ -296,6 +321,10 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           setTtsPitch={setTtsPitch}
           voiceInterruption={voiceInterruption()}
           setVoiceInterruption={setVoiceInterruption}
+          vadThreshold={vadThreshold()}
+          setVadThreshold={setVadThreshold}
+          vadNoiseSuppression={vadNoiseSuppression()}
+          setVadNoiseSuppression={setVadNoiseSuppression}
         />
       )}
 

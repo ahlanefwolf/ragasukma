@@ -17,6 +17,8 @@ export interface UserConfig {
   avatar_type: string;
   always_on_top: boolean;
   voice_interruption: boolean;
+  vad_threshold?: number;
+  vad_noise_suppression?: boolean;
 }
 
 let cachedConfig: UserConfig | null = null;

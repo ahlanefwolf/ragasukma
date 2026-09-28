@@ -108,10 +108,33 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
             return;
         }
 
+        let cfg = crate::config::load_user_config();
+        let ai_speaking = crate::app_state::is_ai_speaking();
+
+        // Jika AI sedang berbicara dan interupsi suara dinonaktifkan oleh pengguna,
+        // tolak mentah-mentah transkrip agar tidak terjadi tumpang-tindih ucapan.
+        if ai_speaking && !cfg.voice_interruption {
+            crate::term_log!(
+                "🤫 [Chrome Web STT] Transkrip diabaikan karena asisten sedang berbicara (interupsi nonaktif): \"{}\"",
+                clean
+            );
+            send_json_response(
+                stream,
+                200,
+                "{\"success\":false,\"ignored\":true,\"message\":\"AI is currently speaking and voice interruption is disabled\"}",
+            );
+            return;
+        }
+
         let injected = crate::engine::remote_text::inject_remote_text(clean.to_string());
         if injected {
-            crate::term_log!("🎙️ [Chrome Web STT] Transkrip diterima: \"{}\"", clean);
-            let asst_name = crate::config::load_user_config().assistant_name;
+            if ai_speaking && cfg.voice_interruption {
+                crate::term_log!("⚡ [Chrome Web STT] Interupsi suara memotong pembicaraan asisten: \"{}\"", clean);
+                crate::app_state::trigger_interruption();
+            } else {
+                crate::term_log!("🎙️ [Chrome Web STT] Transkrip diterima: \"{}\"", clean);
+            }
+            let asst_name = cfg.assistant_name;
             crate::tray::TrayState::update(
                 crate::services::tray_service::AssistantState::Thinking,
                 &format!("{asst_name} Berpikir..."),

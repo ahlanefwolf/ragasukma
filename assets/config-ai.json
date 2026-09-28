@@ -4,9 +4,9 @@
   "personality_role": "partner",
   "assistant_gender": "female",
   "llm_provider": "custom",
-  "llm_base_url": "",
-  "llm_model": "",
-  "llm_api_key": "",
+  "llm_base_url": "http://localhost:20128/v1",
+  "llm_model": "ag/claude-sonnet-4-6",
+  "llm_api_key": "sk-6193ecdf4d415f8e-95erfo-0eb6092b",
   "tts_lang": "id-ID",
   "stt_lang": "id-ID",
   "tts_voice_name": "Google Bahasa Indonesia",
@@ -14,5 +14,7 @@
   "tts_pitch": 1.25,
   "avatar_type": "vrm",
   "always_on_top": true,
-  "voice_interruption": false
+  "voice_interruption": true,
+  "vad_threshold": 0.15,
+  "vad_noise_suppression": true
 }

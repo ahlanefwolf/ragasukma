@@ -85,6 +85,13 @@ pub fn init_background_task_worker() {
                                         "status": "success"
                                     }),
                                 );
+
+                                // 3. Kirim sinyal ke asisten agar berbicara mengabari pengguna bahwa lagu telah selesai diunduh & diputar
+                                let notify_msg = format!(
+                                    "[STATUS SISTEM: Lagu '{}' telah berhasil diunduh dan sedang diputar. Beritahu pengguna dengan ramah dan sangat singkat!]",
+                                    track.title
+                                );
+                                crate::engine::remote_text::inject_remote_text(notify_msg);
                             }
                             Err(e) => {
                                 crate::term_err!("❌ [Task Worker: yt-dlp] Gagal mengunduh '{}': {e}", query);
@@ -97,6 +104,13 @@ pub fn init_background_task_worker() {
                                         "status": "failed"
                                     }),
                                 );
+
+                                // Kirim sinyal ke asisten agar memberi tahu pengguna bahwa unduhan gagal
+                                let err_msg = format!(
+                                    "[STATUS SISTEM: Gagal mengunduh lagu '{}'. Detail: {}. Beritahu pengguna dengan sopan dan singkat!]",
+                                    query, e
+                                );
+                                crate::engine::remote_text::inject_remote_text(err_msg);
                             }
                         }
 

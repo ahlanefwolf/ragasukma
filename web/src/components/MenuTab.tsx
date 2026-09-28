@@ -98,6 +98,24 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       setVoiceInterruption(Boolean(cfg.voice_interruption));
     }
 
+    const handleConfigUpdated = (e: CustomEvent) => {
+      const updated = e.detail;
+      if (updated?.voice_interruption !== undefined) {
+        setVoiceInterruption(Boolean(updated.voice_interruption));
+      }
+      if (updated?.assistant_name) {
+        setAssistantName(updated.assistant_name);
+      }
+      if (updated?.tts_voice_name || updated?.tts_lang) {
+        setTtsEngineName(
+          updated.tts_voice_name
+            ? `${updated.tts_voice_name} (${updated.tts_lang || 'id-ID'})`
+            : `Web Speech API (${updated.tts_lang || 'id-ID'})`
+        );
+      }
+    };
+    window.addEventListener('ragasukma:config_updated' as any, handleConfigUpdated);
+
     // Ambil initial state kontrol 1x via GET /api/state
     api.getState().then((initState) => {
       if (initState) {
@@ -223,6 +241,9 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     if (cfg) {
       cfg.voice_interruption = next;
       await api.saveConfig(cfg);
+      try {
+        window.dispatchEvent(new CustomEvent('ragasukma:config_updated', { detail: cfg }));
+      } catch {}
       props.showToast(next ? '⚡ Interupsi Suara (Barge-in) Aktif' : '🔇 Interupsi Suara Nonaktif');
     }
   };

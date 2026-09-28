@@ -29,66 +29,65 @@ pub fn load_skills_summary() -> String {
         let key = s.name.trim().to_lowercase();
         if !seen_names.contains(&key) {
             seen_names.insert(key);
-            lines.push(format!("- `[SKILL:{}]` : {}", s.name, s.description));
+            lines.push(format!(
+                "| `[SKILL:{}]` | Sesuai skrip | {} |",
+                s.name, s.description
+            ));
         }
     }
 
     let custom_skills_text = if lines.is_empty() {
-        "- (Tidak ada skill kustom tambahan)".to_string()
+        "*(Tidak ada skill kustom tambahan terdaftar)*".to_string()
     } else {
-        lines.join("\n")
+        format!(
+            "| Tag Custom Skill | Parameter | Keterangan |\n| :--- | :--- | :--- |\n{}",
+            lines.join("\n")
+        )
     };
 
     format!(
-        "\nSKILL & CANONICAL ACTIONS:
-Kamu DAPAT mengontrol komputer, browser web, aplikasi, dan musik secara langsung dengan tag `[CMD:namespace:action|payload]` atau `[CMD:namespace:action]`.
+        "\nKATALOG AKSI & SKILL (CANONICAL ACTIONS TABLE):
+Gunakan tabel di bawah ini sebagai rujukan mutlak pemilihan tag aksi `[CMD:...]` atau `[SKILL:...]`.
 
-PANDUAN PEMILIHAN AKSI:
-1. FORM & INPUT WEB:
-   - Ketik teks: `[CMD:browser:type|teks]`
-   - Ketik lalu enter: `[CMD:browser:type|teks] [CMD:browser:enter]`
-   - Tekan enter saja: `[CMD:browser:enter]`
-2. NAVIGASI TAB & SEARCH BROWSER:
-   - Buka tab situs baru: `[CMD:browser:open|url/domain]` (misal: `[CMD:browser:open|youtube.com]`)
-   - Cari di tab saat ini: `[CMD:browser:search|kata_kunci]`
-   - Cari di situs tertentu: `[CMD:browser:search|nama_situs|kata_kunci]` (misal: `[CMD:browser:search|youtube.com|arsenal vs brighton]`)
-   - Pindah tab: `[CMD:browser:switch|nama_tab]`
-   - Tutup tab: `[CMD:browser:close|nama_tab]`
-   - Scroll layar web: `[CMD:browser:scroll|400]` (bawah) atau `-400` (atas)
-3. INTERAKSI WEB (GROUND OF TRUTH):
-   - Klik judul/link/teks: `[CMD:browser:click_text|teks_di_layar]` (Cocokkan persis dengan snapshot web!)
-   - Klik tombol: `[CMD:browser:click_button|nama_tombol]`
-4. DESKTOP & WINDOW MANAGEMENT (GROUND OF TRUTH):
-   - Beralih ke jendela yang sudah terbuka: `[CMD:desktop:focus|nama_app_atau_judul]` (misal: `[CMD:desktop:focus|Calculator]`, `[CMD:desktop:focus|Chrome]`)
-   - Pindai jendela aktif (OS Tree): `[CMD:desktop:scan]`
-   - Pindai visual layar (ONNX OCR & Ikon): `[CMD:desktop:scan_visual]` (Gunakan jika elemen desktop kosong atau butuh membaca teks visual layar!)
-   - Kontrol jendela: `[CMD:desktop:minimize]`, `[CMD:desktop:maximize]`, `[CMD:desktop:close]`
-   - Klik tombol desktop: `[CMD:desktop:click_button|nama_atau_id_tombol]` (Cocokkan PERSIS dengan label atau ID di Ground of Truth desktop! Misal jika tertulis #15: \"Seven\", gunakan `[CMD:desktop:click_button|Seven]` atau `[CMD:desktop:click_button|15]`)
-   - Klik teks/tulisan desktop: `[CMD:desktop:click_text|tulisan_di_layar]` (Cocokkan dengan teks yang ada di Ground of Truth desktop!)
-   - Klik koordinat pixel layar: `[CMD:desktop:click_at|x|y]` (misal: `[CMD:desktop:click_at|1829|15]`)
-   - Ketik di aplikasi desktop: `[CMD:desktop:type|teks]`
-   - Tekan tombol khusus desktop: `[CMD:desktop:key|enter]`, `[CMD:desktop:key|tab]`, `[CMD:desktop:key|esc]`
-5. APLIKASI & OS:
-   - Buka aplikasi baru (jika belum terbuka di OS): `[CMD:app:open|NamaApp]` (misal: `[CMD:app:open|Calculator]`, `[CMD:app:open|Notepad]`, `[CMD:app:open|Spotify]`, `[CMD:app:open|Steam]`)
-   - Kontrol suara & sistem: `[CMD:os:volume_up]`, `[CMD:os:volume_down]`, `[CMD:os:mute]`, `[CMD:os:lock]`, `[CMD:os:screenshot]`
-6. MUSIK:
-   - Putar lagu: `[CMD:media:play|judul]`
-   - Kontrol: `[CMD:media:pause]`, `[CMD:media:resume]`, `[CMD:media:next]`, `[CMD:media:prev]`, `[CMD:media:stop]`
-7. CATATAN / AGENDA:
-   - Tambah tugas: `[CMD:todo:add|tugas]`
-   - Tugas selesai: `[CMD:todo:done|tugas]`
+| Kategori | Tag Aksi | Parameter | Sumber Data Ground of Truth | Kapan Digunakan & Batasan Mutlak | Contoh Ucapan Pendek Asisten |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Browser Web** | `[CMD:browser:open|url]` | `url/domain` | Masukan user | Buka alamat situs / domain baru di Chromium | '*senang* Siap, kubuka webnya! [CMD:browser:open&#124;youtube.com]' |
+| **Browser Web** | `[CMD:browser:search|query]` | `kata_kunci` | Masukan user | Cari di Google / tab pencarian aktif saat ini | '*semangat* Oke, langsung kucari! [CMD:browser:search&#124;berita terkini]' |
+| **Browser Web** | `[CMD:browser:search|situs|query]` | `situs&#124;kata_kunci` | Masukan user | Cari langsung di situs web tertentu | '*semangat* Oke, kucari di YouTube! [CMD:browser:search&#124;youtube.com&#124;denny caknan]' |
+| **Browser Web** | `[CMD:browser:switch|tab]` | `nama_tab` | Daftar Seluruh Tab Terbuka | Pindah tab web. DILARANG pakai jika targetnya aplikasi OS | '*senang* Pindah ke tab YouTube! [CMD:browser:switch&#124;YouTube]' |
+| **Browser Web** | `[CMD:browser:close|tab]` | `nama_tab` | Daftar Seluruh Tab Terbuka | Tutup salah satu tab web di browser | '*senang* Tabnya sudah kututup! [CMD:browser:close&#124;YouTube]' |
+| **Browser Web** | `[CMD:browser:scroll|jarak]` | `400` / `-400` | Nilai angka pixel | Gulir halaman web ke bawah atau ke atas | '*senang* Halaman digulir ke bawah! [CMD:browser:scroll&#124;400]' |
+| **Elemen Website**| `[CMD:browser:click_text|teks]` | `teks_link_web` | Konten Teks / Elemen Pilihan | Klik tautan/artikel di dalam web. DILARANG jika user bilang 'di layar' | '*senang* Siap, kuklik linknya! [CMD:browser:click_text&#124;Play]' |
+| **Elemen Website**| `[CMD:browser:click_button|nama]`| `nama_tombol_web` | Tombol di Halaman Web | Klik tombol form di web. DILARANG jika user bilang 'tombol di layar' | '*senang* Tombol web kuklik! [CMD:browser:click_button&#124;Submit]' |
+| **Elemen Website**| `[CMD:browser:type|teks]` | `teks_input` | Kolom Form / Input Web | Ketik teks ke kotak input di halaman web | '*semangat* Siap, kuketik sekarang! [CMD:browser:type&#124;resep masakan]' |
+| **Elemen Website**| `[CMD:browser:enter]` | *(Tanpa parameter)* | *(Tidak ada)* | Kirim tombol Enter pada halaman web | '*semangat* Tombol enter ditekan! [CMD:browser:enter]' |
+| **Desktop / Layar**| `[CMD:desktop:focus|jendela]` | `app_name&#124;judul` | Daftar Jendela Terbuka di OS | Fokus ke jendela aplikasi komputer (foot, Zed, Chrome, dll) | '*senang* Siap, pindah jendela! [CMD:desktop:focus&#124;Spotify]' |
+| **Desktop / Layar**| `[CMD:desktop:click_button|id]`| `label_atau_id_tombol` | Tombol / Kontrol Desktop | WAJIB saat user sebut 'tombol di layar/desktop/window'. Ambil persis! | '*senang* Tombol di layar kuklik! [CMD:desktop:click_button&#124;Simpan]' |
+| **Desktop / Layar**| `[CMD:desktop:click_text|teks]` | `tulisan_di_layar` | Konten Teks di Layar | WAJIB saat user sebut 'tulisan/teks di layar/desktop'. Ambil persis! | '*senang* Tulisan di layar kuklik! [CMD:desktop:click_text&#124;Skill Custom]' |
+| **Desktop / Layar**| `[CMD:desktop:click_at|x|y]` | `x&#124;y` | Koordinat visual pixel | Klik posisi pixel spesifik layar | '*senang* Koordinat layar kuklik! [CMD:desktop:click_at&#124;1829&#124;15]' |
+| **Desktop / Layar**| `[CMD:desktop:type|teks]` | `teks_ketikan` | Kolom Input | Ketik ke jendela aplikasi OS yang sedang aktif | '*semangat* Teks sudah kuketikkan! [CMD:desktop:type&#124;cargo build]' |
+| **Desktop / Layar**| `[CMD:desktop:key|nama_key]` | `enter` / `tab` / `esc` | *(Tidak ada)* | Tekan tombol keyboard di aplikasi OS aktif | '*semangat* Tombol keyboard ditekan! [CMD:desktop:key&#124;enter]' |
+| **Desktop / Layar**| `[CMD:desktop:scan_visual]` | *(Tanpa parameter)* | Layar monitor via OCR | Scan visual monitor jika user minta scan/lihat layar | '*semangat* Siap kupindai layarnya! [CMD:desktop:scan_visual]' |
+| **Desktop / Layar**| `[CMD:desktop:scan]` | *(Tanpa parameter)* | Accessibility tree OS | Perbarui pohon elemen jendela aplikasi aktif | '*senang* Memeriksa elemen jendela! [CMD:desktop:scan]' |
+| **Desktop / Layar**| `[CMD:desktop:minimize]` | *(Tanpa parameter)* | Jendela Aktif Saat Ini | Perkecil jendela aplikasi aktif ke panel taskbar | '*senang* Jendelanya sudah diminimalkan! [CMD:desktop:minimize]' |
+| **Desktop / Layar**| `[CMD:desktop:maximize]` | *(Tanpa parameter)* | Jendela Aktif Saat Ini | Perbesar / pulihkan jendela aplikasi aktif | '*senang* Ukuran jendela dimaksimalkan! [CMD:desktop:maximize]' |
+| **Desktop / Layar**| `[CMD:desktop:close]` | *(Tanpa parameter)* | Jendela Aktif Saat Ini | Tutup jendela aplikasi komputer yang aktif | '*senang* Jendelanya sudah kututup! [CMD:desktop:close]' |
+| **Aplikasi OS** | `[CMD:app:open|nama_app]` | `NamaAplikasi` | Daftar Aplikasi Terinstal | Buka aplikasi baru di OS jika belum ada di jendela terbuka | '*senang* Siap, kubuka sekarang! [CMD:app:open&#124;Spotify]' |
+| **Kontrol Sistem**| `[CMD:os:volume_up]` | *(Tanpa parameter)* | Audio OS | Naikkan volume audio komputer | '*semangat* Volume suara dinaikkan! [CMD:os:volume_up]' |
+| **Kontrol Sistem**| `[CMD:os:volume_down]` | *(Tanpa parameter)* | Audio OS | Turunkan volume audio komputer | '*senang* Volume suara diturunkan! [CMD:os:volume_down]' |
+| **Kontrol Sistem**| `[CMD:os:mute]` | *(Tanpa parameter)* | Audio OS | Matikan / bisukan suara speaker komputer | '*senang* Suara komputer dibisukan! [CMD:os:mute]' |
+| **Kontrol Sistem**| `[CMD:os:screenshot]` | *(Tanpa parameter)* | Monitor OS | Ambil gambar screenshot layar desktop | '*senang* Tangkapan layar tersimpan! [CMD:os:screenshot]' |
+| **Kontrol Sistem**| `[CMD:os:lock]` | *(Tanpa parameter)* | Sesi Pengguna OS | Kunci layar sistem operasi | '*senang* Layar komputer dikunci! [CMD:os:lock]' |
+| **Media Musik** | `[CMD:media:play|judul]` | `judul_lagu` | Koleksi Musik / yt-dlp | Putar musik audio lokal (atau unduh otomatis jika belum ada) | '*semangat* Memutar lagunya sekarang! [CMD:media:play&#124;Nemen]' |
+| **Media Musik** | `[CMD:media:pause]` | *(Tanpa parameter)* | Pemutar Media | Jeda sementara pemutaran musik | '*senang* Pemutaran musik dijeda! [CMD:media:pause]' |
+| **Media Musik** | `[CMD:media:resume]` | *(Tanpa parameter)* | Pemutar Media | Lanjutkan lagu yang sedang dijeda | '*semangat* Melanjutkan putar musik! [CMD:media:resume]' |
+| **Media Musik** | `[CMD:media:next]` / `prev` | *(Tanpa parameter)* | Antrean Musik | Putar lagu berikutnya atau kembali ke lagu sebelumnya | '*senang* Ganti ke lagu berikutnya! [CMD:media:next]' |
+| **Media Musik** | `[CMD:media:stop]` | *(Tanpa parameter)* | Pemutar Media | Hentikan pemutaran musik sepenuhnya | '*senang* Musik dimatikan! [CMD:media:stop]' |
+| **Agenda & Tugas**| `[CMD:todo:add|tugas]` | `deskripsi_tugas` | File Catatan To-Do | Tambah agenda atau tugas baru ke daftar to-do | '*senang* Catatan tugas ditambahkan! [CMD:todo:add&#124;Beli kopi]' |
+| **Agenda & Tugas**| `[CMD:todo:done|tugas]` | `kata_kunci_tugas` | File Catatan To-Do | Tandai tugas to-do yang sudah selesai dikerjakan | '*senang* Tugas ditandai selesai! [CMD:todo:done&#124;Beli kopi]' |
 
-Custom Skills Terdaftar:
+TABEL SKILL KUSTOM TERDAFTAR:
 {}
-
-ATURAN ELEMEN GROUND OF TRUTH (DILARANG MENEBAK / HALUSINASI):
-- BERALIH JENDELA: Target `[CMD:desktop:focus|nama_app_atau_judul]` WAJIB merujuk pada nama proses (misal: `Zed.exe`, `Calculator`, `chrome.exe`) atau judul yang ada di 'Daftar Jendela Terbuka di OS'. Cocokkan dengan jendela terdekat (misal jika user bilang 'Z editor' atau 'Zed', gunakan `[CMD:desktop:focus|Zed]`).
-- Di BROWSER: Target `[CMD:browser:click_text]` atau `[CMD:browser:click_button]` WAJIB sama persis dengan yang ada di KONTEKS HALAMAN BROWSER AKTIF.
-- MERANGKUM / MEMBACA HALAMAN WEB: Jika user meminta merangkum, membaca, atau bertanya isi web yang sedang aktif, BACA LANGSUNG dari 'Konten Teks / Link Pilihan' di browser yang sudah tersedia di prompt! DILARANG memanggil `[CMD:desktop:scan_visual]` jika jendela aktif adalah browser yang sudah memiliki data teks!
-- Di DESKTOP OS: Target `[CMD:desktop:click_button]` WAJIB sama persis dengan nama label atau #ID yang ada di daftar 'Tombol / Kontrol Desktop' pada KONTEKS JENDELA DESKTOP AKTIF. DILARANG MENEBAK SIMBOL ATAU NAMA TOMBOL SENDIRI!
-- Jika tombol yang diinginkan user tidak terlihat di daftar tombol jendela aktif:
-  1. Cek apakah jendelanya belum fokus di 'Daftar Jendela Terbuka di OS' -> Panggil `[CMD:desktop:focus|NamaJendela]` terlebih dahulu!
-  2. Atau panggil `[CMD:desktop:scan_visual]` HANYA jika elemen desktop kosong atau aplikasi desktop non-browser yang tidak memiliki accessibility tree.
 
 ATURAN RESPON DAN TTS:
 - Tag `[CMD:...]` atau `[SKILL:...]` otomatis dieksekusi di background dan TIDAK dibaca oleh TTS.
@@ -110,18 +109,28 @@ pub fn load_todo_summary() -> String {
 
 fn extract_search_keywords(query: Option<&str>) -> Vec<String> {
     if let Some(q) = query {
-        let stop_words = [
-            "buka", "bukakan", "tolong", "coba", "klik", "pencet", "tekan",
-            "video", "tulisan", "teks", "dong", "ya", "sih", "lah", "nya", "ke", "di", "dan",
-            "yang", "ini", "itu", "pada", "tab", "web", "browser", "halaman", "situs",
+        // Partikel pengisi / basa-basi yang mutlak dibuang
+        let filler_particles = [
+            "dong", "ya", "sih", "lah", "nya", "ke", "di", "dan", "yang", "ini", "itu",
+            "pada", "tolong", "coba", "kan", "deh", "tuh", "kah",
         ];
+
+        // Kata kerja / label GUI yang biasanya merupakan instruksi, tapi bisa jadi nama elemen di layar
+        let action_labels = [
+            "buka", "bukakan", "klik", "pencet", "tekan", "video", "tulisan", "teks",
+            "tab", "web", "browser", "halaman", "situs", "tombol",
+        ];
+
         let mut results = Vec::new();
         let mut seen = HashSet::new();
 
         for raw_w in q.split_whitespace() {
             let clean = raw_w.trim_matches(|c: char| !c.is_alphanumeric());
-            if clean.len() >= 2 && !stop_words.contains(&clean.to_lowercase().as_str()) {
-                let clean_lower = clean.to_lowercase();
+            let clean_lower = clean.to_lowercase();
+            if clean.len() >= 2
+                && !filler_particles.contains(&clean_lower.as_str())
+                && !action_labels.contains(&clean_lower.as_str())
+            {
                 if seen.insert(clean_lower.clone()) {
                     results.push(clean_lower);
                 }
@@ -130,10 +139,28 @@ fn extract_search_keywords(query: Option<&str>) -> Vec<String> {
             // Pecah juga sub-token pemisah seperti underscore, dash, atau dot (misal: active_window_app.json)
             for sub in raw_w.split(['_', '-', '.', '/']) {
                 let clean_sub = sub.trim_matches(|c: char| !c.is_alphanumeric());
-                if clean_sub.len() >= 2 && !stop_words.contains(&clean_sub.to_lowercase().as_str()) {
-                    let sub_lower = clean_sub.to_lowercase();
+                let sub_lower = clean_sub.to_lowercase();
+                if clean_sub.len() >= 2
+                    && !filler_particles.contains(&sub_lower.as_str())
+                    && !action_labels.contains(&sub_lower.as_str())
+                {
                     if seen.insert(sub_lower.clone()) {
                         results.push(sub_lower);
+                    }
+                }
+            }
+        }
+
+        // Safety Fallback Cerdas:
+        // Jika hasil kosong (misal user hanya berkata "klik Buka", "pilih Tab Video", atau "tekan tombol"),
+        // jangan biarkan kosong! Ambil kembali kata non-partikel agar elemen "Buka" atau "Video" tetap ditemukan.
+        if results.is_empty() {
+            for raw_w in q.split_whitespace() {
+                let clean = raw_w.trim_matches(|c: char| !c.is_alphanumeric());
+                let clean_lower = clean.to_lowercase();
+                if clean.len() >= 2 && !filler_particles.contains(&clean_lower.as_str()) {
+                    if seen.insert(clean_lower.clone()) {
+                        results.push(clean_lower);
                     }
                 }
             }
@@ -233,7 +260,7 @@ pub fn load_active_browser_summary_indexed(query: Option<&str>) -> String {
 
             if !final_btns.is_empty() {
                 let formatted_btns: Vec<String> = final_btns.into_iter().map(|b| format!("\"{}\"", b)).collect();
-                summary.push_str(&format!("* **Tombol di Layar:** {}\n", formatted_btns.join(", ")));
+                summary.push_str(&format!("* **Tombol di Halaman Web:** {}\n", formatted_btns.join(", ")));
             }
         }
 
@@ -255,8 +282,9 @@ pub fn load_active_browser_summary_indexed(query: Option<&str>) -> String {
             }
 
             let final_texts: Vec<&str> = if is_reading_summary {
-                // Saat user minta rangkuman/baca halaman, ambil artikel/paragraf teks dominan (hingga 25 teks)
-                unique_texts.into_iter().take(25).collect()
+                // Saat user minta rangkuman/baca halaman, ambil teks metadata penting (harga, varian, judul, status)
+                // hingga 20 item pertama dari DOM texts agar informasi esensial tidak terlewat
+                unique_texts.into_iter().take(20).collect()
             } else if !keywords.is_empty() {
                 let mut scored_texts: Vec<(&str, usize)> = unique_texts
                     .into_iter()
@@ -302,7 +330,7 @@ pub fn load_active_browser_summary_indexed(query: Option<&str>) -> String {
                 clean_summary.to_string()
             };
             summary.push_str(&format!(
-                "* **Isi / Ringkasan Halaman Web (Ground of Truth):**\n{}\n",
+                "* **Isi / Ringkasan Naratif Halaman (Ground of Truth):**\n{}\n",
                 display_summary
             ));
         }
@@ -545,34 +573,24 @@ pub fn build_system_prompt_indexed(user_input: Option<&str>) -> String {
 
     format!(
         "Namamu adalah {assistant_name}. Kamu adalah AI bergender {gender_tag}. {persona_desc}{task_context}\n\
-	{music_prompt}\
-	{todo_prompt}\
-	{apps_prompt}\
-	{browser_prompt}\
-	{window_prompt}\n\
-	ATURAN FORMAT UCAPAN TEXT-TO-SPEECH (TTS):
-	1. Format Natural:
-	   - Gunakan kalimat lisan natural, ramah, dan enak didengar.
-	   - DILARANG menggunakan titik-titik berturutan / elipsis ('...'). Gunakan koma (',') atau titik ('.') biasa.
-	   - DILARANG menuliskan suara tawa buatan seperti 'ehehe', 'hehehe', 'ehe', atau kata ganjil 'anu...'.
-	   - DILARANG menggunakan markdown bold/italic (**teks**), bullet points (- atau *), nomor list, atau header (#). Jangan membuat daftar poin, ucapkan mengalir dalam kalimat lisan.
-	   - DILARANG mengulang pertanyaan basa-basi di akhir kalimat (seperti 'Ada yang bisa kubantu lagi?', 'Mas mau ngapain dulu?', 'Mau kubantuin sesuatu?'). Cukup jawab dengan hangat tanpa memaksa bertanya balik.
-	2. Tag Emosi 3D Avatar (PILIH SATU DI AWAL KALIMAT PERTAMA):
-	   - Awali respon dengan SATU tag emosi bintang: *senang*, *malu*, *semangat*, *kaget*, *mikir*, *sedih*, *marah*, atau *netral*.
-	   - Contoh: '*senang* Siap {callsign}, kubantu sekarang!'
-	3. Pola Respon:
-	   - JIKA MENJALANKAN AKSI: Jawablah SANGAT SINGKAT (3-6 kata) lalu sertakan tag perintah di akhir!
-	     * Buka aplikasi: '*senang* Siap, ini Spotify-nya! [CMD:app:open|Spotify]'
-	     * Cari di web: '*semangat* Oke, langsung kucari di YouTube! [CMD:browser:search|youtube.com|denny caknan]'
-	     * Ketik di web: '*semangat* Siap, kuketikkan sekarang! [CMD:browser:type|berita teknologi]'
-	     * Ketik lalu enter: '*senang* Oke langsung kuketik dan cari! [CMD:browser:type|berita teknologi] [CMD:browser:enter]'
-	     * Tekan enter: '*semangat* Siap, tombol enter ditekan! [CMD:browser:enter]'
-	     * Klik di web: '*senang* Siap, kuklik sekarang! [CMD:browser:click_text|Play]'
-	     * Pindai visual layar: '*semangat* Siap, kupindai layar sekarang! [CMD:desktop:scan_visual]'
-	     * Beralih jendela: '*senang* Siap, membuka jendela tersebut! [CMD:desktop:focus|Spotify]'
-	     * Klik tombol desktop: '*senang* Siap, tombolnya kuklik! [CMD:desktop:click_button|Simpan]'
-	     * Klik koordinat layar: '*senang* Siap, kuklik pada koordinat tersebut! [CMD:desktop:click_at|1829|15]'
-	   - JIKA MERANGKUM / MEMBACA WEB / MENJELASKAN PENGETAHUAN / BERCERITA: Jelaskan dengan lengkap, detail, dan mendalam sesuai kebutuhan, tetap dalam gaya tutur lisan yang mengalir santun tanpa poin-poin kaku.
-	   - JIKA OBROLAN SANTAI BIASA: Responmu cukup 1 hingga 2 kalimat pendek (di bawah 25 kata), ramah, santai, dan tidak bertele-tele.{skills_prompt}"
+{music_prompt}\
+{todo_prompt}\
+{apps_prompt}\
+{browser_prompt}\
+{window_prompt}\n\
+ATURAN FORMAT UCAPAN TEXT-TO-SPEECH (TTS):
+1. Format Natural:
+   - Gunakan kalimat lisan natural, ramah, dan enak didengar.
+   - DILARANG menggunakan titik-titik berturutan / elipsis ('...'). Gunakan koma (',') atau titik ('.') biasa.
+   - DILARANG menuliskan suara tawa buatan seperti 'ehehe', 'hehehe', 'ehe', atau kata ganjil 'anu...'.
+   - DILARANG menggunakan markdown bold/italic (**teks**), bullet points (- atau *), nomor list, atau header (#). Jangan membuat daftar poin, ucapkan mengalir dalam kalimat lisan.
+   - DILARANG mengulang pertanyaan basa-basi di akhir kalimat (seperti 'Ada yang bisa kubantu lagi?', 'Mas mau ngapain dulu?', 'Mau kubantuin sesuatu?'). Cukup jawab dengan hangat tanpa memaksa bertanya balik.
+2. Tag Emosi 3D Avatar (PILIH SATU DI AWAL KALIMAT PERTAMA):
+   - Awali respon dengan SATU tag emosi bintang: *senang*, *malu*, *semangat*, *kaget*, *mikir*, *sedih*, *marah*, atau *netral*.
+   - Contoh: '*senang* Siap {callsign}, kubantu sekarang!'
+3. Pola Respon:
+   - JIKA MENJALANKAN AKSI / PERINTAH (selain merangkum, membaca, atau melihat): Jawablah SANGAT SINGKAT (cukup 3 hingga 6 kata saja), to-the-point, jangan mengulang instruksi panjang, langsung jalankan aksi! Ikuti format contoh di kolom 'Contoh Ucapan Pendek Asisten' pada tabel aksi di atas.
+   - JIKA MERANGKUM / MEMBACA WEB / MELIHAT / MENJELASKAN PENGETAHUAN: Jelaskan dengan lengkap, jelas, dan informatif sesuai yang diminta.
+   - JIKA OBROLAN SANTAI BIASA / KONFIRMASI: Jawab maksimal 1-2 kalimat pendek yang padat dan hangat. DILARANG BERTELE-TELE ATAU PANJANG LEBAR! Dilarang menyusun esai atau paragraf panjang jika tidak diminta secara eksplisit.{skills_prompt}"
     )
 }

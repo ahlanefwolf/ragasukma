@@ -21,14 +21,11 @@ pub fn execute_desktop_action(action: &str, payload: &str) -> Option<(String, St
             }
         }
         "scan_visual" | "ocr" => {
-            let res = crate::engine::perception::request_vision_scan_sync();
+            // Jalankan scan secara non-blocking di background worker
+            crate::engine::perception::trigger_vision_scan_async();
             Some((
                 "Pindai Visual Layar".to_string(),
-                format!(
-                    "Berhasil memindai layar: {} tombol/ikon dan {} teks terdeteksi.",
-                    res.buttons.len(),
-                    res.texts.len()
-                ),
+                "Proses pemindaian visual layar sedang berjalan di background.".to_string(),
             ))
         }
         "focus" => {
