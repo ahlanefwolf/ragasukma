@@ -1,5 +1,6 @@
 import { API_BASE } from './base';
 import { configService, UserConfig, getChromeSttCode } from './configService';
+import { duckMusic, unduckMusic } from '../playerStore';
 
 export interface VoiceSessionOptions {
   isDead: () => boolean;
@@ -38,6 +39,7 @@ export class VoiceSessionManager {
   private lastSpokenText = '';
   private lastSpokenTime = 0;
   private speakSessionId = 0;
+  private nativeSpeakTimer: any = null;
 
   constructor(options: VoiceSessionOptions) {
     this.isDead = options.isDead;
@@ -139,10 +141,10 @@ export class VoiceSessionManager {
       timestamp: Date.now(),
     });
 
-    // Pantulan akustik speaker ke mikrofon hanya terjadi maksimal 4 detik setelah suara diputar
-    const cutoff = Date.now() - 4000;
+    // Pantulan akustik speaker ke mikrofon dipantau hingga 15 detik setelah suara diputar
+    const cutoff = Date.now() - 15000;
     while (
-      this.assistantSpeechHistory.length > 5 ||
+      this.assistantSpeechHistory.length > 8 ||
       (this.assistantSpeechHistory.length > 0 && this.assistantSpeechHistory[0].timestamp < cutoff)
     ) {
       this.assistantSpeechHistory.shift();
@@ -151,11 +153,21 @@ export class VoiceSessionManager {
 
   private isEchoOfAssistantSpeech(transcript: string): boolean {
     const now = Date.now();
-    // Hanya periksa pantulan akustik jika speaker asisten baru saja bersuara dalam 4 detik terakhir
-    const activeEntries = this.assistantSpeechHistory.filter((e) => now - e.timestamp < 4000);
+    // Periksa pantulan akustik hingga 15 detik terakhir
+    const activeEntries = this.assistantSpeechHistory.filter((e) => now - e.timestamp < 15000);
     if (activeEntries.length === 0) return false;
 
-    const transLower = transcript.toLowerCase();
+    const transLower = transcript.toLowerCase().trim();
+    if (!transLower) return false;
+
+    // 1. Cek kecocokan langsung atau substring lengkap
+    for (const entry of activeEntries) {
+      if (entry.text.includes(transLower) || transLower.includes(entry.text)) {
+        console.warn('[Echo Guard] Terdeteksi substring pantulan suara asisten:', transLower);
+        return true;
+      }
+    }
+
     const transTokens = transLower
       .replace(/[^a-z0-9\s]/g, ' ')
       .split(/\s+/)
@@ -163,12 +175,12 @@ export class VoiceSessionManager {
 
     if (transTokens.length === 0) return false;
 
-    // 1. Cek Trigram (3 kata berurutan) yang identik dengan teks asisten dalam rentang <= 3 detik
+    // 2. Cek Trigram (3 kata berurutan) yang identik dengan teks asisten
     if (transTokens.length >= 3) {
       for (let i = 0; i <= transTokens.length - 3; i++) {
         const trigram = `${transTokens[i]} ${transTokens[i + 1]} ${transTokens[i + 2]}`;
         for (const entry of activeEntries) {
-          if (entry.text.includes(trigram) && now - entry.timestamp < 3500) {
+          if (entry.text.includes(trigram)) {
             console.warn('[Echo Guard] Terdeteksi pantulan trigram speaker asisten:', trigram);
             return true;
           }
@@ -176,7 +188,7 @@ export class VoiceSessionManager {
       }
     }
 
-    // 2. Cek Token Overlap Ratio (tingkatkan ke 65% agar dialog manusia yang mengutip tidak terblokir)
+    // 3. Cek Token Overlap Ratio (> 50%)
     const historyTokenSet = new Set<string>();
     for (const entry of activeEntries) {
       for (const t of entry.tokens) {
@@ -192,7 +204,7 @@ export class VoiceSessionManager {
     }
 
     const matchRatio = matchCount / transTokens.length;
-    if (transTokens.length >= 4 && matchRatio >= 0.65) {
+    if (transTokens.length >= 3 && matchRatio >= 0.50) {
       console.warn(
         `[Echo Guard] Terdeteksi overlap tinggi (${Math.round(matchRatio * 100)}%) pantulan speaker:`,
         transcript
@@ -578,7 +590,7 @@ export class VoiceSessionManager {
   }
 
   // ---------------------------------------------------------------------------
-  // 4. Speech Synthesis (Supertonic-3 Audio + Chrome Web Speech Fallback)
+  // 4. Speech Synthesis (Supertonic-3 Neural ONNX Audio Stream)
   // ---------------------------------------------------------------------------
   public handleAssistantSpeak(payload: any) {
     if (this.isMobileClient()) return;
@@ -591,12 +603,14 @@ export class VoiceSessionManager {
     let speakEmotion = 'neutral';
     let audioUrl: string | null = null;
     let isNativePlayed = false;
+    let durationSecs = 0;
     try {
       const parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;
       textToSpeak = parsed.text || '';
       speakEmotion = parsed.emotion || 'neutral';
       audioUrl = parsed.audio_url || null;
       isNativePlayed = !!parsed.native_played;
+      durationSecs = Number(parsed.duration) || 0;
     } catch {
       textToSpeak = typeof payload === 'string' ? payload : '';
     }
@@ -614,17 +628,32 @@ export class VoiceSessionManager {
       this.recordAssistantSpeech(textToSpeak);
     }
 
+    const sessionId = ++this.speakSessionId;
+
     if (isNativePlayed) {
-      // Backend memutar audio langsung ke hardware speaker PC (Zero duplicate/echo)
+      // Backend memutar audio langsung ke hardware speaker PC
+      this.isTtsSpeaking = true;
+      duckMusic(0.25);
       this.cancelListeningWatchdog();
       this.isListeningActive = false;
       try {
         this.recognition?.abort();
       } catch {}
+
+      // Kunci microphone selama suara berputar di speaker PC ditambah jeda 400ms agar gaung hilang
+      const waitMs =
+        durationSecs > 0 ? durationSecs * 1000 + 400 : Math.max(3000, textToSpeak.length * 70);
+      clearTimeout(this.nativeSpeakTimer);
+      this.nativeSpeakTimer = setTimeout(() => {
+        if (sessionId !== this.speakSessionId) return;
+        this.isTtsSpeaking = false;
+        unduckMusic();
+        if (!this.isDead() && !this.isMicMuted && this.isAssistantRunning) {
+          this.startRecognitionSafely();
+        }
+      }, waitMs);
       return;
     }
-
-    const sessionId = ++this.speakSessionId;
 
     // Hentikan pemutaran audio Supertonic sebelumnya jika ada
     try {
@@ -644,6 +673,7 @@ export class VoiceSessionManager {
 
       const audio = new Audio(url);
       (window as any).__activeSupertonicAudio = audio;
+      duckMusic(0.25);
 
       let hasReportedSpeaking = false;
       const notifySpeakingStart = () => {
@@ -664,6 +694,7 @@ export class VoiceSessionManager {
       const finishSupertonic = () => {
         if (sessionId !== this.speakSessionId) return;
         this.isTtsSpeaking = false;
+        unduckMusic();
         (window as any).__activeSupertonicAudio = null;
         if (revokeOnEnd) {
           try {
@@ -809,6 +840,10 @@ export class VoiceSessionManager {
     if (this.startingTimeoutId) {
       clearTimeout(this.startingTimeoutId);
       this.startingTimeoutId = null;
+    }
+    if (this.nativeSpeakTimer) {
+      clearTimeout(this.nativeSpeakTimer);
+      this.nativeSpeakTimer = null;
     }
     if ((window as any).__activeSupertonicAudio) {
       try {

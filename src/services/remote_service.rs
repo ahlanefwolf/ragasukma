@@ -123,8 +123,6 @@ pub fn handle_remote_text(full_url: &str, body_str: &str, stream: &mut TcpStream
 
         let injected = crate::engine::remote_text::inject_remote_text(clean.to_string());
         if injected {
-            // Mute mic & voice lokal desktop sesaat agar respon suara fokus mengalir ke HP
-            crate::app_state::set_mic_muted(true);
             crate::term_log!("📱 [Mobile Remote] Received text from phone: \"{}\"", clean);
             send_json_response(
                 stream,
@@ -162,8 +160,23 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
             return;
         }
 
+        // 1. Anti-Echolalia Protection: Tolak transkrip jika merupakan pantulan suara speaker asisten sendiri
+        if crate::app_state::is_echo_of_last_spoken(clean) {
+            crate::term_log!(
+                "🤫 [Anti-Echolalia] Transkrip pantulan speaker diabaikan: \"{}\"",
+                clean
+            );
+            send_json_response(
+                stream,
+                200,
+                "{\"success\":false,\"ignored\":true,\"message\":\"Echo of assistant speech ignored\"}",
+            );
+            return;
+        }
+
         let cfg = crate::config::load_user_config();
-        let ai_speaking = crate::app_state::is_ai_speaking();
+        let ai_speaking = crate::app_state::is_ai_speaking()
+            || crate::audio::player::is_native_voice_playing();
 
         // Jika AI sedang berbicara dan interupsi suara dinonaktifkan oleh pengguna,
         // tolak mentah-mentah transkrip agar tidak terjadi tumpang-tindih ucapan.
@@ -248,6 +261,7 @@ pub fn handle_tts_state(
 
         if target_state == "speaking" {
             crate::app_state::set_ai_speaking(true);
+            crate::app_state::touch_speech_activity();
             let asst_name = crate::config::load_user_config().assistant_name;
             crate::tray::TrayState::update_with_emotion(
                 crate::services::tray_service::AssistantState::Speaking,
@@ -265,6 +279,7 @@ pub fn handle_tts_state(
                 send_json_response(stream, 200, "{\"success\":true,\"ignored\":true}");
                 return;
             }
+            crate::audio::player::stop_native_voice();
             crate::app_state::set_ai_speaking(false);
             let asst_name = crate::config::load_user_config().assistant_name;
             crate::tray::TrayState::update_with_emotion(
@@ -291,6 +306,7 @@ pub fn handle_tts_state(
                 lock.state_version = lock.state_version.wrapping_add(1);
             }
         } else {
+            crate::audio::player::stop_native_voice();
             crate::app_state::set_ai_speaking(false);
             crate::tray::TrayState::update_with_emotion(
                 crate::services::tray_service::AssistantState::Idle,

@@ -207,25 +207,47 @@ pub fn update_facial_expressions_and_lip_sync(
         }
     }
 
-    // 3. Lip Sync Vokal Vowel (A, I, U, E, O) saat Speaking
+    // 3. Audio-Driven Lip Sync Vokal Vowel (A, I, U, E, O) saat Speaking
     if current_state == AssistantVisualState::Speaking && !is_tuning {
-        let vowels = ["a", "i", "u", "e", "o"];
-        let vowel_idx = ((elapsed_time * 3.0) as usize) % vowels.len();
-        let target_vowel = vowels[vowel_idx];
+        let lip_weights = crate::audio::player::get_current_lip_sync_weights();
 
-        let vowel_aliases: &[&str] = match target_vowel {
-            "a" => &["aa", "a", "viseme_a", "preset_a", "fcl_mth_a"],
-            "i" => &["ih", "i", "viseme_i", "preset_i", "fcl_mth_i"],
-            "u" => &["ou", "u", "viseme_u", "preset_u", "fcl_mth_u"],
-            "e" => &["ee", "e", "viseme_e", "preset_e", "fcl_mth_e"],
-            "o" => &["oh", "o", "viseme_o", "preset_o", "fcl_mth_o"],
-            _ => &[],
-        };
+        if lip_weights.mouth_open > 0.015 {
+            // Suara aktif dari speaker hardware: gunakan analisis frekuensi formant audio nyata
+            let vowel_map: &[(&[&str], f32)] = &[
+                (&["aa", "a", "viseme_a", "preset_a", "fcl_mth_a"], lip_weights.aa),
+                (&["ih", "i", "viseme_i", "preset_i", "fcl_mth_i"], lip_weights.ih),
+                (&["ou", "u", "viseme_u", "preset_u", "fcl_mth_u"], lip_weights.ou),
+                (&["ee", "e", "viseme_e", "preset_e", "fcl_mth_e"], lip_weights.ee),
+                (&["oh", "o", "viseme_o", "preset_o", "fcl_mth_o"], lip_weights.oh),
+            ];
 
-        let vowel_mouth_open = ((elapsed_time * 5.5).sin().abs()).powf(1.4) * 0.60;
-        if vowel_mouth_open > 0.04 {
-            if let Some(expr) = find_first_matching(&model.expressions, vowel_aliases) {
-                active_weights.push((expr, vowel_mouth_open));
+            for (aliases, weight) in vowel_map {
+                if *weight > 0.02 {
+                    if let Some(expr) = find_first_matching(&model.expressions, aliases) {
+                        active_weights.push((expr, *weight));
+                    }
+                }
+            }
+        } else if !crate::audio::player::is_native_voice_playing() {
+            // Fallback animasi artikulasi vokal natural saat audio dialihkan ke remote web client:
+            let vowels = ["aa", "ih", "ou", "ee", "oh"];
+            let vowel_idx = ((elapsed_time * 3.2) as usize) % vowels.len();
+            let target_vowel = vowels[vowel_idx];
+
+            let vowel_aliases: &[&str] = match target_vowel {
+                "aa" => &["aa", "a", "viseme_a", "preset_a", "fcl_mth_a"],
+                "ih" => &["ih", "i", "viseme_i", "preset_i", "fcl_mth_i"],
+                "ou" => &["ou", "u", "viseme_u", "preset_u", "fcl_mth_u"],
+                "ee" => &["ee", "e", "viseme_e", "preset_e", "fcl_mth_e"],
+                "oh" => &["oh", "o", "viseme_o", "preset_o", "fcl_mth_o"],
+                _ => &[],
+            };
+
+            let vowel_mouth_open = ((elapsed_time * 5.0).sin().abs()).powf(1.4) * 0.45;
+            if vowel_mouth_open > 0.04 {
+                if let Some(expr) = find_first_matching(&model.expressions, vowel_aliases) {
+                    active_weights.push((expr, vowel_mouth_open));
+                }
             }
         }
     }

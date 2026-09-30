@@ -641,8 +641,28 @@ pub fn samples_to_wav_bytes(samples: &[f32], sample_rate: u32) -> Vec<u8> {
     out.extend_from_slice(b"data");
     out.extend_from_slice(&data_len.to_le_bytes());
 
+    // Peak Normalization (Digital Headroom Scaling):
+    // Model neural Supertonic-3 secara mentah menghasilkan peak amplitudo konservatif (~0.25 - 0.35).
+    // Kita cari peak maksimum gelombang dan kalikan secara linier ke target 0.92 (-0.7 dBFS)
+    // agar suara lantang, jernih, dan tidak clipping/pecah di speaker PC maupun HP.
+    let mut max_abs: f32 = 0.0;
     for &sample in samples {
-        let clamped = sample.clamp(-1.0, 1.0);
+        let abs = sample.abs();
+        if abs > max_abs {
+            max_abs = abs;
+        }
+    }
+
+    let scale = if max_abs > 0.01 {
+        // Target 0.92 memberikan headroom aman dari inter-sample peak pada DAC audio
+        (0.92 / max_abs).clamp(1.0, 4.0)
+    } else {
+        1.0
+    };
+
+    for &sample in samples {
+        let scaled = sample * scale;
+        let clamped = scaled.clamp(-1.0, 1.0);
         let s_i16 = (clamped * 32767.0) as i16;
         out.extend_from_slice(&s_i16.to_le_bytes());
     }

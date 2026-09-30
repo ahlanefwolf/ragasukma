@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRM, VRMUtils } from '@pixiv/three-vrm';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { API_BASE } from '../services/base';
+import { globalAudioSync } from './AudioSyncManager';
 
 interface AvatarViewerProps {
   state: 'idle' | 'listening' | 'speaking' | 'thinking';
@@ -522,15 +523,26 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
             targetWeights['blink'] = Math.min(1.0, (targetWeights['blink'] || 0) + naturalBlinkWeight);
           }
 
-          // 2c. Lip Sync Vokal Vowel (A, I, U, E, O) saat Speaking (Identik dengan expressions.rs)
+          // 2c. Audio-Driven Lip Sync Vokal Vowel (A, I, U, E, O) saat Speaking
           if (currentState === 'speaking') {
-            const vowels = ['aa', 'ih', 'ou', 'ee', 'oh'];
-            const vowelIdx = Math.floor(stateElapsedTime * 3.0) % vowels.length;
-            const targetVowel = vowels[vowelIdx];
+            const lip = globalAudioSync.getVoiceLipWeights();
+            if (lip.mouthOpen > 0.015) {
+              // Suara aktif dari speaker HP: terapkan bobot formant AIUEO presisi
+              targetWeights['aa'] = lip.aa;
+              targetWeights['ih'] = lip.ih;
+              targetWeights['ou'] = lip.ou;
+              targetWeights['ee'] = lip.ee;
+              targetWeights['oh'] = lip.oh;
+            } else if (!globalAudioSync.isVoiceAudioActive()) {
+              // Fallback animasi artikulasi vokal natural saat audio dimainkan di remote desktop PC:
+              const vowels = ['aa', 'ih', 'ou', 'ee', 'oh'];
+              const vowelIdx = Math.floor(stateElapsedTime * 3.2) % vowels.length;
+              const targetVowel = vowels[vowelIdx];
 
-            const vowelMouthOpen = Math.pow(Math.abs(Math.sin(stateElapsedTime * 5.5)), 1.4) * 0.60;
-            if (vowelMouthOpen > 0.04) {
-              targetWeights[targetVowel] = vowelMouthOpen;
+              const vowelMouthOpen = Math.pow(Math.abs(Math.sin(stateElapsedTime * 5.0)), 1.4) * 0.45;
+              if (vowelMouthOpen > 0.04) {
+                targetWeights[targetVowel] = vowelMouthOpen;
+              }
             }
           }
 

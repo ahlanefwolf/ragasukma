@@ -27,7 +27,7 @@ impl AppSession {
         );
 
         let tts = Arc::new(TextToSpeech::new());
-        crate::term_log!("🔊 TTS Engine: Google Chrome Web Speech API ready.");
+        crate::term_log!("🔊 TTS Engine: Supertonic-3 Neural ONNX ready.");
 
         let last_config_mtime = crate::config::get_config_modified_time();
 

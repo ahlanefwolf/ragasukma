@@ -145,6 +145,12 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       if (typeof payload?.is_running === 'boolean') {
         setIsRunning(payload.is_running);
       }
+      if (typeof payload?.voice_muted === 'boolean') {
+        setVoiceMuted(payload.voice_muted);
+      }
+      if (typeof payload?.mic_muted === 'boolean') {
+        setMicMuted(payload.mic_muted);
+      }
     });
 
     const freqData = new Uint8Array(32);

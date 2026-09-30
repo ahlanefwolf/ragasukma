@@ -9,7 +9,7 @@ pub enum LoopAction {
     TextInput(String),
 }
 
-/// Menunggu input teks transkrip dari Google Chrome Web Speech API / Mobile Web STT
+/// Menunggu input teks transkrip dari Web STT / Mobile STT
 /// sekaligus merespon kontrol GUI / Tray secara non-blocking dengan 0% CPU idle.
 pub fn wait_for_user_turn(session: &mut AppSession, text_rx: &Receiver<String>) -> LoopAction {
     let mut last_audio_check = Instant::now();

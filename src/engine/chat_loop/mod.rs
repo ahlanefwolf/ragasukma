@@ -114,7 +114,7 @@ impl AppSession {
                 }),
             );
 
-            // 5. Inferensi LLM dan respons suara ke Google Chrome Web Speech API
+            // 5. Inferensi LLM dan respons suara Supertonic-3 Neural TTS
             let tts_clone = Arc::clone(&self.tts);
             let result =
                 process_llm_response(&mut self.llm, &tts_clone, &asst_name, &effective_input);

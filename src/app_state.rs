@@ -67,6 +67,22 @@ pub fn is_remote_client_active() -> bool {
 }
 
 static SPEAKING_EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static LAST_SPEECH_ACTIVITY: Mutex<Option<Instant>> = Mutex::new(None);
+
+pub fn touch_speech_activity() {
+    if let Ok(mut lock) = LAST_SPEECH_ACTIVITY.lock() {
+        *lock = Some(Instant::now());
+    }
+}
+
+pub fn last_speech_activity_elapsed() -> std::time::Duration {
+    if let Ok(lock) = LAST_SPEECH_ACTIVITY.lock() {
+        if let Some(t) = *lock {
+            return t.elapsed();
+        }
+    }
+    std::time::Duration::from_secs(999999)
+}
 
 pub fn next_speaking_epoch() -> u64 {
     SPEAKING_EPOCH.fetch_add(1, Ordering::SeqCst) + 1
@@ -157,6 +173,65 @@ pub fn is_tuning_mode() -> bool {
         }
     }
     false
+}
+
+// -----------------------------------------------------------------------------
+// Anti-Echolalia Speaker Echo Guard (Acoustic Loopback Prevention)
+// -----------------------------------------------------------------------------
+static LAST_SPOKEN_TEXT: Mutex<Option<(String, Instant)>> = Mutex::new(None);
+
+pub fn record_last_spoken_text(text: &str) {
+    if let Ok(mut lock) = LAST_SPOKEN_TEXT.lock() {
+        *lock = Some((text.to_lowercase(), Instant::now()));
+    }
+}
+
+pub fn is_echo_of_last_spoken(transcript: &str) -> bool {
+    let Ok(lock) = LAST_SPOKEN_TEXT.lock() else {
+        return false;
+    };
+    let Some((ref text, instant)) = *lock else {
+        return false;
+    };
+
+    // Perlindungan pantulan suara speaker hingga 12 detik setelah diucapkan
+    if instant.elapsed().as_secs() > 12 {
+        return false;
+    }
+
+    let trans_clean = transcript.trim().to_lowercase();
+    let trans_words: Vec<&str> = trans_clean
+        .split_whitespace()
+        .filter(|w| w.len() >= 3)
+        .collect();
+    if trans_words.is_empty() {
+        return false;
+    }
+
+    // 1. Cek kecocokan langsung atau substring
+    if text.contains(&trans_clean) || trans_clean.contains(text) {
+        return true;
+    }
+
+    // 2. Cek trigram (3 kata berurutan)
+    if trans_words.len() >= 3 {
+        for window in trans_words.windows(3) {
+            let trigram = format!("{} {} {}", window[0], window[1], window[2]);
+            if text.contains(&trigram) {
+                return true;
+            }
+        }
+    }
+
+    // 3. Cek overlap kata signifikan (> 50% kata ada di kalimat asisten)
+    let mut match_count = 0;
+    for &word in &trans_words {
+        if text.contains(word) {
+            match_count += 1;
+        }
+    }
+    let ratio = match_count as f32 / trans_words.len() as f32;
+    ratio >= 0.50
 }
 
 pub fn is_voice_muted() -> bool {

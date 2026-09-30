@@ -8,6 +8,15 @@ export interface MobileTrackState {
   duration: number;
 }
 
+export interface MobileLipWeights {
+  aa: number;
+  ih: number;
+  ou: number;
+  ee: number;
+  oh: number;
+  mouthOpen: number;
+}
+
 /**
  * MobileAudioSyncManager
  * Mengelola audio unlock dan pemutaran musik streaming langsung di browser smartphone.
@@ -24,11 +33,21 @@ export class MobileAudioSyncManager {
     if (typeof window !== 'undefined') {
       const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtxClass) {
-        this.audioCtx = new AudioCtxClass();
+        try {
+          this.audioCtx = new AudioCtxClass({ latencyHint: 'playback' });
+        } catch {
+          this.audioCtx = new AudioCtxClass();
+        }
       }
 
       this.musicAudio = new Audio();
       this.musicAudio.preload = 'auto';
+
+      this.voiceAudio = new Audio();
+      this.voiceAudio.preload = 'auto';
+      // Gunakan playsinline agar iOS / Android merutekan langsung ke Media Speaker murni
+      this.voiceAudio.setAttribute('playsinline', 'true');
+      (this.voiceAudio as any).playsInline = true;
 
       this.musicAudio.addEventListener('timeupdate', () => {
         this.emitTrackState();
@@ -102,6 +121,10 @@ export class MobileAudioSyncManager {
       if (this.musicAudio) {
         this.musicAudio.load();
       }
+      if (this.voiceAudio) {
+        this.voiceAudio.load();
+      }
+      this.initVoiceAnalyserOnce();
 
       this.isUnlocked = true;
       console.log('[MobileAudio] Audio gesture lock berhasil dibuka');
@@ -252,7 +275,195 @@ export class MobileAudioSyncManager {
     return !!(this.musicAudio && !this.musicAudio.paused && !this.musicAudio.ended);
   }
 
+  // ---------------------------------------------------------------------------
+  // Supertonic-3 Neural Voice Audio & Audio-Driven Lip Sync (A-I-U-E-O Visemes)
+  // ---------------------------------------------------------------------------
+  private voiceAudio: HTMLAudioElement | null = null;
+  private voiceSourceNode: MediaElementAudioSourceNode | null = null;
+  private voiceGainNode: GainNode | null = null;
+  private voiceAnalyser: AnalyserNode | null = null;
+  private voiceFreqData: Uint8Array | null = null;
+  private voiceTimeData: Uint8Array | null = null;
+
+  private ensureVoiceAnalyserReady() {
+    this.initVoiceAnalyserOnce();
+  }
+
+  private initVoiceAnalyserOnce() {
+    if (!this.audioCtx || !this.voiceAudio || this.voiceSourceNode) return;
+    try {
+      if (!this.voiceAnalyser) {
+        this.voiceAnalyser = this.audioCtx.createAnalyser();
+        this.voiceAnalyser.fftSize = 512;
+        this.voiceAnalyser.smoothingTimeConstant = 0.35;
+        this.voiceFreqData = new Uint8Array(this.voiceAnalyser.frequencyBinCount);
+        this.voiceTimeData = new Uint8Array(this.voiceAnalyser.fftSize);
+      }
+      if (!this.voiceGainNode) {
+        this.voiceGainNode = this.audioCtx.createGain();
+        // Backend WAV sudah ternormalisasi ke 0.92 peak, beri gain netral/optimal (1.05) agar jernih dan lantang tanpa distorsi
+        this.voiceGainNode.gain.value = 1.05;
+      }
+      const source = this.audioCtx.createMediaElementSource(this.voiceAudio);
+      source.connect(this.voiceAnalyser);
+      this.voiceAnalyser.connect(this.voiceGainNode);
+      this.voiceGainNode.connect(this.audioCtx.destination);
+      this.voiceSourceNode = source;
+    } catch (e) {
+      console.warn('[MobileAudio] Web Audio Analyser init note:', e);
+    }
+  }
+
+  public playVoice(
+    url: string,
+    callbacks?: {
+      onPlaying?: () => void;
+      onEnded?: () => void;
+      onError?: (err: any) => void;
+    }
+  ) {
+    if (!this.voiceAudio) return;
+    this.initVoiceAnalyserOnce();
+
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume().catch(() => {});
+    }
+
+    // Bersihkan listener sebelumnya
+    this.voiceAudio.onplaying = null;
+    this.voiceAudio.onended = null;
+    this.voiceAudio.onerror = null;
+
+    let hasRevoked = false;
+    const safeRevoke = () => {
+      if (!hasRevoked && url.startsWith('blob:')) {
+        hasRevoked = true;
+        try {
+          URL.revokeObjectURL(url);
+        } catch {}
+      }
+    };
+
+    this.voiceAudio.onplaying = () => {
+      callbacks?.onPlaying?.();
+    };
+
+    this.voiceAudio.onended = () => {
+      safeRevoke();
+      callbacks?.onEnded?.();
+    };
+
+    this.voiceAudio.onerror = (e) => {
+      safeRevoke();
+      callbacks?.onError?.(e);
+    };
+
+    this.voiceAudio.src = url;
+    this.voiceAudio.currentTime = 0;
+    this.voiceAudio.volume = 1.0;
+    const p = this.voiceAudio.play();
+    if (p !== undefined) {
+      p.catch((err) => {
+        safeRevoke();
+        callbacks?.onError?.(err);
+      });
+    }
+  }
+
+  public stopVoice() {
+    if (this.voiceAudio) {
+      this.voiceAudio.pause();
+      this.voiceAudio.src = '';
+    }
+  }
+
+  public attachVoiceAudio(audio: HTMLAudioElement) {
+    // Reusable voiceAudio sudah otomatis terpasang
+  }
+
+  public detachVoiceAudio() {
+    // Reusable voiceAudio tetap hidup, cukup hentikan pemutaran
+    this.stopVoice();
+  }
+
+  public isVoiceAudioActive(): boolean {
+    return !!(this.voiceAudio && !this.voiceAudio.paused && !this.voiceAudio.ended);
+  }
+
+  public getVoiceLipWeights(): MobileLipWeights {
+    const zero: MobileLipWeights = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0, mouthOpen: 0 };
+    if (!this.voiceAudio || this.voiceAudio.paused || this.voiceAudio.ended) {
+      return zero;
+    }
+
+    if (!this.voiceAnalyser || !this.voiceFreqData || !this.voiceTimeData) {
+      // Fallback sinusoidal ringan jika Analyser belum siap
+      const cur = this.voiceAudio.currentTime;
+      const open = Math.pow(Math.abs(Math.sin(cur * 16.0)), 1.3) * 0.55;
+      return { aa: open, ih: 0, ou: 0, ee: 0, oh: 0, mouthOpen: open };
+    }
+
+    this.voiceAnalyser.getByteTimeDomainData(this.voiceTimeData as any);
+    this.voiceAnalyser.getByteFrequencyData(this.voiceFreqData as any);
+
+    // 1. RMS Energy dari waveform time-domain (128 adalah titik nol baseline)
+    let sumSq = 0;
+    const len = this.voiceTimeData.length;
+    for (let i = 0; i < len; i++) {
+      const norm = (this.voiceTimeData[i] - 128) / 128;
+      sumSq += norm * norm;
+    }
+    const rms = Math.sqrt(sumSq / len);
+
+    // Noise floor: jika di bawah 0.015, anggap senyap / jeda napas antar kata
+    if (rms < 0.015) {
+      return zero;
+    }
+
+    const mouthOpen = Math.min(1.0, Math.pow(Math.max(0, (rms - 0.015) * 6.5), 0.8) * 0.9);
+
+    // 2. Formant Energy Bands dari FFT Frequency Data:
+    // (sampleRate ~44100-48000 Hz, fftSize 512 => 256 bins, lebar bin ~86-94 Hz)
+    // Low band (~200 - 650 Hz): bins 2..7 (vokal U & O)
+    // Mid band (~700 - 1500 Hz): bins 8..17 (vokal A)
+    // Mid-High band (~1500 - 2400 Hz): bins 18..27 (vokal E)
+    // High band (~2400 - 3800 Hz): bins 28..44 (vokal I)
+    let eLow = 0;
+    for (let i = 2; i <= 7 && i < this.voiceFreqData.length; i++) eLow += this.voiceFreqData[i];
+    let eMid = 0;
+    for (let i = 8; i <= 17 && i < this.voiceFreqData.length; i++) eMid += this.voiceFreqData[i];
+    let eMidHigh = 0;
+    for (let i = 18; i <= 27 && i < this.voiceFreqData.length; i++) eMidHigh += this.voiceFreqData[i];
+    let eHigh = 0;
+    for (let i = 28; i <= 44 && i < this.voiceFreqData.length; i++) eHigh += this.voiceFreqData[i];
+
+    const eTotal = eLow + eMid + eMidHigh + eHigh + 1e-4;
+    const rLow = eLow / eTotal;
+    const rMid = eMid / eTotal;
+    const rMidHigh = eMidHigh / eTotal;
+    const rHigh = eHigh / eTotal;
+
+    // Bobot viseme vokal AIUEO
+    const aa = Math.min(1.0, rMid * 1.55) * mouthOpen;
+    const ih = Math.min(1.0, rHigh * 1.85) * mouthOpen * 0.75;
+    const ou = Math.min(1.0, Math.max(0, rLow - rMid * 0.3) * 1.7) * mouthOpen * 0.70;
+    const ee = Math.min(1.0, rMidHigh * 1.75) * mouthOpen * 0.80;
+    const oh = Math.min(1.0, (rLow * 0.65 + rMid * 0.45) * 1.4) * mouthOpen * 0.85;
+
+    return {
+      aa,
+      ih,
+      ou,
+      ee,
+      oh,
+      mouthOpen,
+    };
+  }
+
   public stopAll() {
     this.stopMusic();
+    this.stopVoice();
   }
 }
+
+export const globalAudioSync = new MobileAudioSyncManager();

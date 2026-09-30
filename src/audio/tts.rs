@@ -69,6 +69,10 @@ impl TextToSpeech {
             false
         };
 
+        let actual_audio_duration = audio_bytes_opt
+            .as_ref()
+            .and_then(|bytes| wav_duration_secs(bytes));
+
         let mut native_played = false;
         if let Some(bytes) = audio_bytes_opt {
             if !crate::app_state::is_voice_muted() {
@@ -77,11 +81,14 @@ impl TextToSpeech {
             }
         }
 
-        // 1. Alirkan kalimat respon, emosi, dan audio_url ke semua client (Desktop & Mobile) via SSE action
+        crate::app_state::record_last_spoken_text(&clean_text);
+
+        // 1. Alirkan kalimat respon, emosi, durasi, dan audio_url ke semua client (Desktop & Mobile) via SSE action
         let payload = serde_json::json!({
             "text": clean_text,
             "emotion": emotion,
             "audio_url": if synthesized { Some(audio_url) } else { None },
+            "duration": actual_audio_duration,
             "voice": voice,
             "lang": lang,
             "native_played": native_played
@@ -114,20 +121,53 @@ impl TextToSpeech {
             }
         }
 
-        // 3. Passive fail-safe watchdog: hanya aktif jika browser crash/tertutup saat berbicara (60 detik)
-        // Dilengkapi speaking epoch agar thread sesi lama tidak memotong giliran bicara yang baru
+        // 3. Passive fail-safe watchdog presisi berbasis durasi aktual WAV:
+        // Dihitung langsung dari panjang detik audio WAV hasil sintesis Supertonic-3 neural engine.
         let epoch = crate::app_state::next_speaking_epoch();
+        crate::app_state::touch_speech_activity();
+
+        let exact_audio_secs = actual_audio_duration.unwrap_or_else(|| {
+            (clean_text.chars().count() as f32 / 10.0).max(5.0)
+        });
+        // Grace period toleransi latensi jaringan & buffering audio player (~6 detik)
+        let timeout_limit_secs = (exact_audio_secs + 6.0).ceil() as u64;
+
         std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_secs(60));
-            if crate::app_state::is_ai_speaking()
-                && crate::app_state::current_speaking_epoch() == epoch
-            {
-                crate::app_state::set_ai_speaking(false);
-                crate::tray::TrayState::update_with_emotion(
-                    crate::services::tray_service::AssistantState::Idle,
-                    "Standby",
-                    "neutral",
-                );
+            let start = std::time::Instant::now();
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(400));
+
+                // Jika sudah selesai bicara secara normal atau ada epoch bicara baru, keluar
+                if !crate::app_state::is_ai_speaking()
+                    || crate::app_state::current_speaking_epoch() != epoch
+                {
+                    break;
+                }
+
+                // Jika audio native PC masih aktif berputar, jangan pernah force idle!
+                if crate::audio::player::is_native_voice_playing() {
+                    crate::app_state::touch_speech_activity();
+                    continue;
+                }
+
+                // Jika client masih mengirim aktivitas suara dalam 3 detik terakhir, perpanjang waktu
+                if crate::app_state::last_speech_activity_elapsed().as_secs() < 3 {
+                    continue;
+                }
+
+                // Jika durasi melebihi durasi audio aktual + buffer toleransi
+                if start.elapsed().as_secs() >= timeout_limit_secs {
+                    crate::term_log!(
+                        "⏱️ [TTS Watchdog] Durasi audio selesai ({exact_audio_secs:.1}s), mengembalikan avatar ke Standby."
+                    );
+                    crate::app_state::set_ai_speaking(false);
+                    crate::tray::TrayState::update_with_emotion(
+                        crate::services::tray_service::AssistantState::Idle,
+                        "Standby",
+                        "neutral",
+                    );
+                    break;
+                }
             }
         });
 
@@ -465,6 +505,21 @@ pub fn clean_text_for_speech(text: &str) -> String {
     }
 
     final_result.trim().to_string()
+}
+
+/// Menghitung durasi detik secara presisi dari file audio WAV Supertonic-3
+pub fn wav_duration_secs(wav_bytes: &[u8]) -> Option<f32> {
+    if wav_bytes.len() > 44 && &wav_bytes[0..4] == b"RIFF" && &wav_bytes[8..12] == b"WAVE" {
+        let sample_rate = u32::from_le_bytes(wav_bytes[24..28].try_into().ok()?) as f32;
+        let channels = u16::from_le_bytes(wav_bytes[22..24].try_into().ok()?) as f32;
+        let bits_per_sample = u16::from_le_bytes(wav_bytes[34..36].try_into().ok()?) as f32;
+        let bytes_per_sec = sample_rate * channels * (bits_per_sample / 8.0);
+        if bytes_per_sec > 0.0 {
+            let data_size = (wav_bytes.len().saturating_sub(44)) as f32;
+            return Some(data_size / bytes_per_sec);
+        }
+    }
+    None
 }
 
 fn simple_hash_u64(s: &str) -> u64 {

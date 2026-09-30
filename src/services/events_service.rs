@@ -41,9 +41,8 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
         return;
     }
 
-    // Sambungan SSE aktif otomatis menandakan remote client sedang terkoneksi (mute mic desktop)
+    // Sambungan SSE aktif otomatis menandakan remote client sedang terkoneksi
     crate::app_state::touch_remote_active();
-    crate::app_state::set_mic_muted(true);
 
     let mut last_state = String::new();
     let mut last_emotion = String::new();

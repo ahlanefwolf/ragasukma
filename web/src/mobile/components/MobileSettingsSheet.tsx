@@ -1,5 +1,5 @@
 import { Component, Show } from 'solid-js';
-import { Monitor, Smartphone, Terminal, X, Settings2 } from 'lucide-solid';
+import { Monitor, Smartphone, Terminal, X, Settings2, Power } from 'lucide-solid';
 import { MobileAudioMode } from './MobileHeader';
 
 interface MobileSettingsSheetProps {
@@ -10,6 +10,7 @@ interface MobileSettingsSheetProps {
   logsCount: number;
   onOpenLogs: () => void;
   onUnlockAudio?: () => void;
+  onDisconnectRemote?: () => void;
 }
 
 export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) => {
@@ -134,6 +135,23 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
             >
               Sinkronkan Ulang Audio HP
             </button>
+          </Show>
+
+          {/* Section: Putuskan Sesi Remote */}
+          <Show when={props.onDisconnectRemote}>
+            <div class="pt-2 border-t border-theme-border/60">
+              <button
+                type="button"
+                onClick={() => {
+                  props.onClose();
+                  props.onDisconnectRemote?.();
+                }}
+                class="w-full p-2.5 bg-theme-rose/10 hover:bg-theme-rose/20 text-theme-rose border border-theme-rose/30 flex items-center justify-center gap-2 text-xs font-bold transition-all active:scale-98"
+              >
+                <Power size={15} />
+                <span>Putuskan Sesi Remote (Kembali ke PC)</span>
+              </button>
+            </div>
           </Show>
         </div>
       </div>

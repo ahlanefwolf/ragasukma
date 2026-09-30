@@ -3,7 +3,7 @@ import { api, LogEntry } from '../api';
 import { API_BASE } from '../services/base';
 import { getChromeSttCode } from '../services/configService';
 import { AvatarViewer } from './AvatarViewer';
-import { MobileAudioSyncManager, MobileTrackState } from './AudioSyncManager';
+import { globalAudioSync, MobileTrackState } from './AudioSyncManager';
 import { MobileAudioMode } from './components/MobileHeader';
 import { MobileTopBar } from './components/MobileTopBar';
 import { MobileSettingsSheet } from './components/MobileSettingsSheet';
@@ -60,7 +60,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   let logsContainerRef: HTMLDivElement | undefined;
   let isFetchingLogs = false;
   let speechRec: any = null;
-  const audioSync = new MobileAudioSyncManager();
+  const audioSync = globalAudioSync;
   let lastActionId = 0;
 
   const fetchLogs = async () => {
@@ -84,9 +84,12 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   };
 
   let activeVoiceAudio: HTMLAudioElement | null = null;
+  let isVoiceSpeakingOnMobile = false;
+  let mobileSpeakSeq = 0;
 
   const speakOnMobile = (text: string, em: string, audioUrl?: string | null) => {
     if (!isHpAudioActive()) return;
+    const mySeq = ++mobileSpeakSeq;
 
     // Hentikan suara TTS sebelumnya jika ada (jangan matikan musik!)
     if (activeVoiceAudio) {
@@ -97,14 +100,25 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       activeVoiceAudio = null;
     }
 
-    // Audio Ducking: turunkan volume musik agar suara AI terdengar jelas
-    audioSync.duckMusic(0.25);
+    // Kunci status speaking segera agar avatar di HP langsung merespon & tidak prematur idle
+    isVoiceSpeakingOnMobile = true;
+    setVisualState('speaking');
     setEmotion(em);
 
-    const playAudio = (url: string, revokeOnEnd = false) => {
+    // Audio Ducking: turunkan volume musik agar suara AI terdengar jelas
+    audioSync.duckMusic(0.25);
+
+    // Beritahu backend bahwa mode speaking aktif
+    fetch(`${API_BASE}/api/tts/state`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ speaking: true, emotion: em }),
+    }).catch(() => {});
+
+    const playAudio = (url: string) => {
       const fullUrl = url.startsWith('http') || url.startsWith('blob:') ? url : `${API_BASE}${url}`;
-      const audio = new Audio(fullUrl);
-      activeVoiceAudio = audio;
+      isVoiceSpeakingOnMobile = true;
+      activeVoiceAudio = true as any;
 
       let hasReportedSpeaking = false;
       const notifySpeaking = () => {
@@ -118,20 +132,13 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         }).catch(() => {});
       };
 
-      audio.onplaying = notifySpeaking;
-      audio.onplay = notifySpeaking;
-
-      audio.onended = () => {
-        if (activeVoiceAudio === audio) {
-          activeVoiceAudio = null;
-        }
-        // Pulihkan volume musik normal
+      const finishSpeaking = () => {
+        if (mySeq !== mobileSpeakSeq) return;
+        activeVoiceAudio = null;
+        isVoiceSpeakingOnMobile = false;
         audioSync.unduckMusic();
         setVisualState('idle');
         setEmotion('neutral');
-        if (revokeOnEnd) {
-          try { URL.revokeObjectURL(url); } catch {}
-        }
         fetch(`${API_BASE}/api/tts/state`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -139,33 +146,23 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         }).catch(() => {});
       };
 
-      audio.onerror = (e) => {
-        console.warn('[Mobile Supertonic Audio] Playback error:', e);
-        if (activeVoiceAudio === audio) {
-          activeVoiceAudio = null;
-        }
-        audioSync.unduckMusic();
-        setVisualState('idle');
-        setEmotion('neutral');
-      };
-
-      audio.play().catch((err) => {
-        console.warn('[Mobile Supertonic Audio] Play blocked/interrupted:', err);
-        if (activeVoiceAudio === audio) {
-          activeVoiceAudio = null;
-        }
-        audioSync.unduckMusic();
-        setVisualState('idle');
-        setEmotion('neutral');
+      audioSync.playVoice(fullUrl, {
+        onPlaying: notifySpeaking,
+        onEnded: finishSpeaking,
+        onError: (err) => {
+          console.warn('[Mobile Supertonic Audio] Playback error/blocked:', err);
+          finishSpeaking();
+        },
       });
     };
 
     if (audioUrl) {
-      playAudio(audioUrl, false);
+      playAudio(audioUrl);
       return;
     }
 
     if (!text.trim()) {
+      isVoiceSpeakingOnMobile = false;
       setVisualState('idle');
       setEmotion('neutral');
       return;
@@ -187,10 +184,12 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       })
       .then((blob) => {
         const url = URL.createObjectURL(blob);
-        playAudio(url, true);
+        playAudio(url);
       })
       .catch((err) => {
         console.warn('[Mobile Supertonic Audio] Synthesize fetch error:', err);
+        isVoiceSpeakingOnMobile = false;
+        audioSync.unduckMusic();
         setVisualState('idle');
         setEmotion('neutral');
       });
@@ -205,7 +204,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       lastActionId = act.id;
     }
 
-    // 1. Suara respon Supertonic-3 AI atau Web Speech API HP Android
+    // 1. Suara respon Supertonic-3 Neural Audio (WAV stream)
     if (act.action === 'assistant:speak') {
       let textToSpeak = '';
       let em = 'neutral';
@@ -293,6 +292,11 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     speechRec.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
       if (transcript && transcript.trim()) {
+        // Segera rilis STT mic agar Android keluar dari Voice Telephony mode kembali ke Media Hi-Fi
+        try {
+          speechRec.abort();
+        } catch {}
+        setIsHpMicListening(false);
         setInputText(transcript.trim());
         sendTextToHost(transcript.trim());
       }
@@ -366,15 +370,36 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     }, 250);
   };
 
+  const handleDisconnectRemote = async () => {
+    try {
+      audioSync.stopAll();
+      localStorage.setItem('ragasukma_audio_mode', 'remote_desktop');
+      setAudioMode('remote_desktop');
+      await api.sendCommand('mode_reset_desktop');
+      props.showToast('🖥️ Sesi remote diputuskan, audio & mic dikembalikan penuh ke desktop.');
+      setShowSettings(false);
+      setTimeout(() => {
+        window.location.hash = '';
+        window.location.reload();
+      }, 400);
+    } catch {
+      props.showToast('Gagal memutuskan remote.');
+    }
+  };
+
   onMount(() => {
     audioSync.setOnTrackStateChange((st) => {
       setMobileMusicState(st);
     });
 
     notifyRemoteActive();
-    // Sinkronkan mode awal audio ke server (memastikan mic desktop langsung di-mute)
-    const initMode = audioMode();
-    api.sendCommand(initMode === 'full_mobile' ? 'mode_full_mobile' : 'mode_remote_desktop').catch(() => {});
+    // Sinkronkan mode aktif ke backend (jika Full HP, kirim mode_full_mobile; jika Remote PC, kirim mode_remote_desktop)
+    const currentMode = audioMode();
+    if (currentMode === 'full_mobile') {
+      api.sendCommand('mode_full_mobile').catch(() => {});
+    } else {
+      api.sendCommand('mode_remote_desktop').catch(() => {});
+    }
 
     // Sinkronkan bahasa STT dari config server secara dinamis
     api.getConfig().then((cfg) => {
@@ -445,13 +470,21 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
           const st = await stRes.json();
           if (st && st.state) {
             const s = st.state.toLowerCase();
-            if (['idle', 'listening', 'speaking', 'thinking'].includes(s)) {
-              setVisualState(s as any);
-            }
-            if (st.emotion) {
-              setEmotion(st.emotion);
-            } else if (s === 'idle') {
-              setEmotion('neutral');
+            // JIKA HP sedang memutar suara TTS (activeVoiceAudio != null || isVoiceSpeakingOnMobile),
+            // KUNCI status speaking! Jangan biarkan backend menimpa menjadi idle secara prematur sampai audio onended.
+            if (activeVoiceAudio !== null || isVoiceSpeakingOnMobile) {
+              setVisualState('speaking');
+            } else if (isHpMicListening()) {
+              setVisualState('listening');
+            } else {
+              if (['idle', 'listening', 'speaking', 'thinking'].includes(s)) {
+                setVisualState(s as any);
+              }
+              if (st.emotion) {
+                setEmotion(st.emotion);
+              } else if (s === 'idle') {
+                setEmotion('neutral');
+              }
             }
           }
         }
@@ -470,8 +503,31 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       }
     }, 750);
 
+    // Helper pemulihan sesi: kembalikan mic & voice penuh ke desktop saat HP ditutup
+    const restoreDesktopSession = () => {
+      try {
+        const payload = JSON.stringify({ cmd: 'mode_reset_desktop' });
+        if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          navigator.sendBeacon(`${API_BASE}/api/cmd`, blob);
+        } else {
+          fetch(`${API_BASE}/api/cmd`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true,
+          }).catch(() => {});
+        }
+      } catch {}
+    };
+
+    window.addEventListener('beforeunload', restoreDesktopSession);
+    window.addEventListener('pagehide', restoreDesktopSession);
+
     onCleanup(() => {
       document.title = 'Ragasukma - Konfigurasi & Dashboard AI';
+      window.removeEventListener('beforeunload', restoreDesktopSession);
+      window.removeEventListener('pagehide', restoreDesktopSession);
       window.removeEventListener('touchstart', handleFirstInteraction);
       window.removeEventListener('click', handleFirstInteraction);
       if (window.visualViewport) {
@@ -492,6 +548,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         speechRec = null;
       }
       audioSync.stopAll();
+      restoreDesktopSession();
     });
   });
 
@@ -525,7 +582,21 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     const textToSend = (customText !== undefined ? customText : inputText()).trim();
     if (!textToSend || isSending()) return;
 
-    audioSync.stopAll();
+    // Pastikan mic STT di HP telah terlepas agar speaker HP tidak terjebak di filter telepon/radio
+    if (speechRec && isHpMicListening()) {
+      try {
+        speechRec.abort();
+      } catch {}
+      setIsHpMicListening(false);
+    }
+
+    if (activeVoiceAudio) {
+      try {
+        activeVoiceAudio = null;
+      } catch {}
+    }
+    // Hentikan suara asisten jika sedang bicara (interupsi user), jangan matikan musik!
+    audioSync.stopVoice();
 
     setIsSending(true);
     try {
@@ -606,6 +677,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         logsCount={logs().length}
         onOpenLogs={() => setShowLogsDrawer(true)}
         onUnlockAudio={() => unlockAudioContext(false)}
+        onDisconnectRemote={handleDisconnectRemote}
       />
 
       {/* 3. Karakter 3D VRM 100% Fullscreen Penuh Tanpa Terpotong Padding */}
@@ -631,8 +703,10 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
               if (isHpAudioActive()) {
                 if (mobileMusicState().isPlaying) {
                   audioSync.pauseMusic();
+                  await api.controlMusic('pause').catch(() => {});
                 } else {
                   audioSync.resumeMusic();
+                  await api.controlMusic('resume').catch(() => {});
                 }
               } else {
                 const nextPlaying = !mobileMusicState().isPlaying;
@@ -643,6 +717,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
             onStop={async () => {
               if (isHpAudioActive()) {
                 audioSync.stopMusic();
+                await api.controlMusic('stop').catch(() => {});
               } else {
                 setMobileMusicState({ track: null, isPlaying: false, isPaused: false, currentTime: 0, duration: 0 });
                 await api.controlMusic('stop');

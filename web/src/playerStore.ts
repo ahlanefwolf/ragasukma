@@ -102,23 +102,36 @@ export const initGlobalAudio = (el?: HTMLAudioElement) => {
   }
 };
 
-let isVoiceMutedLocally = false;
+let isDucked = false;
+let preDuckVolume = 1.0;
+let isDesktopVoiceMuted = false;
 
-// Dengarkan status mute dari server (misal saat mobile remote aktif)
+// Dengarkan status mute dari server (jika Full HP aktif, matikan pemutaran musik di browser PC)
 api.subscribeState((st) => {
-  if (st) {
-    const nextMuted = Boolean(st.voice_muted);
-    if (isVoiceMutedLocally !== nextMuted) {
-      isVoiceMutedLocally = nextMuted;
-      if (isVoiceMutedLocally && audioEl) {
-        audioEl.pause();
-        audioEl.currentTime = 0;
-        setIsPlaying(false);
-        setIsPaused(false);
-      }
+  if (st && typeof st.voice_muted === 'boolean') {
+    isDesktopVoiceMuted = st.voice_muted;
+    if (isDesktopVoiceMuted && audioEl && !audioEl.paused) {
+      audioEl.pause();
+      setIsPlaying(false);
+      setIsPaused(false);
     }
   }
 });
+
+export const duckMusic = (duckLevel = 0.25) => {
+  if (audioEl && !audioEl.paused && !isDucked) {
+    isDucked = true;
+    preDuckVolume = audioEl.volume;
+    audioEl.volume = Math.max(0, Math.min(1, duckLevel));
+  }
+};
+
+export const unduckMusic = () => {
+  if (audioEl && isDucked) {
+    isDucked = false;
+    audioEl.volume = preDuckVolume;
+  }
+};
 
 // ---------------------------------------------------------------------------
 // 1. DENGARKAN EVENT DARI BACKEND SINGLE-SOURCE-OF-TRUTH (SSE ACTION)
@@ -137,10 +150,7 @@ api.subscribeActions(async (act) => {
     }
   } catch (_) {}
 
-  // Jika suara desktop dimatikan (mode Full Mobile aktif), abaikan pemutaran musik di desktop
-  if (isVoiceMutedLocally) {
-    return;
-  }
+
 
   console.log('🎵 [playerStore] Menerima action SSE:', act);
 
@@ -211,7 +221,8 @@ api.subscribeActions(async (act) => {
 
 function playLocalAudio(track: YtTrackInfo) {
   if (!track || !track.filename) return;
-  if (isVoiceMutedLocally) return;
+  // Jika server sedang mode Full HP (isDesktopVoiceMuted = true), browser PC tidak boleh bersuara (PC hening)
+  if (isDesktopVoiceMuted) return;
   setCurrentTrack(track);
   setCurrentTime(0);
   setDuration(track.duration || 0);

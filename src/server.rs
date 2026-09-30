@@ -230,7 +230,6 @@ pub fn handle_api_route(
         ("POST", "/api/remote/tunnel/stop") => handle_tunnel_stop(&mut stream),
         ("POST", "/api/remote/active") => {
             crate::app_state::touch_remote_active();
-            crate::app_state::set_mic_muted(true);
             send_json_response(
                 &mut stream,
                 200,
