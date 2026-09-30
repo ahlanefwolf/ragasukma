@@ -1,5 +1,7 @@
 use super::constants::*;
-use super::types::{AntigravityAccount, TokenResponse, current_timestamp_secs, generate_pseudo_uuid};
+use super::types::{
+    AntigravityAccount, TokenResponse, current_timestamp_secs, generate_pseudo_uuid,
+};
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
@@ -66,14 +68,12 @@ pub fn exchange_code(
         bail!("OAuth authorization code exchange failed: {err}");
     }
 
-    let token_data: OAuthTokenResponse = res.json().context("Failed to parse OAuth token response")?;
+    let token_data: OAuthTokenResponse =
+        res.json().context("Failed to parse OAuth token response")?;
     Ok(token_data)
 }
 
-pub fn get_user_info(
-    client: &reqwest::blocking::Client,
-    access_token: &str,
-) -> Result<UserInfo> {
+pub fn get_user_info(client: &reqwest::blocking::Client, access_token: &str) -> Result<UserInfo> {
     let res = client
         .get(format!("{}?alt=json", ANTIGRAVITY_USER_INFO_URL))
         .header("Authorization", format!("Bearer {access_token}"))
@@ -97,7 +97,9 @@ pub fn complete_oauth_flow(
     let tokens = exchange_code(client, code, redirect_uri)?;
     let refresh_token = match tokens.refresh_token {
         Some(tok) if !tok.trim().is_empty() => tok.trim().to_string(),
-        _ => bail!("Google OAuth did not return a refresh_token. Please revoke app access or ensure prompt=consent was used."),
+        _ => bail!(
+            "Google OAuth did not return a refresh_token. Please revoke app access or ensure prompt=consent was used."
+        ),
     };
 
     let user_info = get_user_info(client, &tokens.access_token).ok();
@@ -203,7 +205,10 @@ pub fn ensure_project_id(
                 let mut default_tier = "legacy-tier".to_string();
                 if let Some(tiers) = val.pointer("/allowedTiers").and_then(|v| v.as_array()) {
                     for t in tiers {
-                        if t.get("isDefault").and_then(|v| v.as_bool()).unwrap_or(false) {
+                        if t.get("isDefault")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false)
+                        {
                             if let Some(tid) = t.get("id").and_then(|v| v.as_str()) {
                                 default_tier = tid.to_string();
                                 break;

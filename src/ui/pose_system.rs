@@ -92,7 +92,7 @@ impl PoseManager {
             if file.read_to_string(&mut contents).is_ok() {
                 if let Ok(parsed) = serde_json::from_str::<PosesConfig>(&contents) {
                     println!(
-                        "🎭 [PoseManager] Berhasil memuat {} state dari {:?}",
+                        "🎭 [PoseManager] Successfully loaded {} states from {:?}",
                         parsed.states.len(),
                         path
                     );
@@ -154,7 +154,9 @@ impl PoseManager {
                         breath_spine
                     } else if bone_name == "leftShoulder" || bone_name == "rightShoulder" {
                         breath_shoulder
-                    } else if bone_name == "head" && self.current_state == AssistantVisualState::Idle {
+                    } else if bone_name == "head"
+                        && self.current_state == AssistantVisualState::Idle
+                    {
                         -breath_sine * 0.004
                     } else {
                         0.0
@@ -229,7 +231,9 @@ impl PoseManager {
                         breath_spine
                     } else if bone_name == "leftShoulder" || bone_name == "rightShoulder" {
                         breath_shoulder
-                    } else if bone_name == "head" && self.current_state == AssistantVisualState::Idle {
+                    } else if bone_name == "head"
+                        && self.current_state == AssistantVisualState::Idle
+                    {
                         -breath_sine * 0.004
                     } else {
                         0.0

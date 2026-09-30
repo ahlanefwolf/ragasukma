@@ -4,9 +4,26 @@ use std::sync::LazyLock;
 static RE_SKILL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\[(?:SKILL|CMD):[^\]]+\]").expect("valid regex"));
 
-/// Membersihkan teks dari teks aksi roleplay ekspresi tanpa memotong judul atau kata penting
+// Matches Claude-style XML tool-call blocks the model may emit instead of [CMD:...]:
+//   <dots_function_call>...</dots_function_call>
+//   <invoke ...>...</invoke>
+// NOTE: <parameter> is intentionally NOT matched standalone — it is always nested
+// inside <invoke> or <dots_function_call> which are already stripped by the patterns above.
+static RE_XML_TOOL_CALL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?s)<dots_function_call[^>]*>.*?</dots_function_call>|<invoke[^>]*>.*?</invoke>",
+    )
+    .expect("valid xml tool call regex")
+});
+
+/// Clean AI text: strip action tags ([CMD:...], [SKILL:...]), XML tool-call blocks
+/// emitted by Claude models, and asterisk emotion markers — without cutting real content.
 pub fn clean_ai_text(text: &str) -> String {
-    let text_clean = RE_SKILL.replace_all(text, "");
+    // First strip any XML tool-call blocks Claude may have emitted
+    let text = RE_XML_TOOL_CALL.replace_all(text, "");
+
+    // Then strip [CMD:...] / [SKILL:...] tags
+    let text_clean = RE_SKILL.replace_all(&text, "");
 
     let mut result = String::new();
     let mut chars = text_clean.chars().peekable();
@@ -22,7 +39,7 @@ pub fn clean_ai_text(text: &str) -> String {
                     break;
                 }
             }
-            // Tag aksi tidak boleh dimodifikasi/dihapus
+            // Action tags must not be modified/deleted
             result.push_str(&inside);
             continue;
         }

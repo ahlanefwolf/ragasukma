@@ -51,7 +51,7 @@ const getInitialTabFromHash = (): string => {
   return 'menu';
 };
 
-export const App: Component = () => {
+const App: Component = () => {
   const [activeTab, setActiveTab] = createSignal(getInitialTabFromHash());
   const [currentState, setCurrentState] = createSignal('idle');
   const [isDead, setIsDead] = createSignal(false);
@@ -381,9 +381,9 @@ export const App: Component = () => {
                 <Show when={activeTab() === 'remote'}>
                   <RemoteTab showToast={showToast} />
                 </Show>
-                <Show when={activeTab() === 'settings'}>
+                <div class={activeTab() === 'settings' ? 'block' : 'hidden'}>
                   <SettingsTab showToast={showToast} />
-                </Show>
+                </div>
                 <Show when={activeTab() === 'provider-antigravity'}>
                   <AntigravityTab showToast={showToast} />
                 </Show>

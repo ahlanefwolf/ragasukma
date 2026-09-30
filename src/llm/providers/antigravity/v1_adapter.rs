@@ -1,10 +1,10 @@
 use super::constants::*;
 use super::types::generate_pseudo_uuid;
 use crate::llm::v1_engine::{
-    extract_text_content, sanitize_function_name, V1ChatRequest, V1Response, V1StreamEvent,
-    V1ToolCall, V1ToolCallFunction,
+    V1ChatRequest, V1Response, V1StreamEvent, V1ToolCall, V1ToolCallFunction, extract_text_content,
+    sanitize_function_name,
 };
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::collections::HashMap;
 use std::io::BufRead;
 use std::sync::{LazyLock, Mutex};
@@ -364,17 +364,45 @@ fn sanitize_schema_recursive(val: &mut serde_json::Value) {
 
     // 8. Remove unsupported JSON Schema keywords for Gemini Protobuf
     const UNSUPPORTED_KEYWORDS: &[&str] = &[
-        "$schema", "$id", "$ref", "$comment", "$defs", "definitions",
-        "title", "default", "examples",
-        "additionalProperties", "propertyNames", "patternProperties",
-        "unevaluatedProperties", "unevaluatedItems",
-        "minLength", "maxLength", "exclusiveMinimum", "exclusiveMaximum",
-        "minItems", "maxItems", "uniqueItems", "multipleOf", "contains",
-        "prefixItems", "additionalItems", "format",
-        "contentSchema", "contentMediaType", "contentEncoding",
-        "deprecated", "readOnly", "writeOnly",
-        "dependencies", "dependentSchemas", "dependentRequired",
-        "not", "if", "then", "else",
+        "$schema",
+        "$id",
+        "$ref",
+        "$comment",
+        "$defs",
+        "definitions",
+        "title",
+        "default",
+        "examples",
+        "additionalProperties",
+        "propertyNames",
+        "patternProperties",
+        "unevaluatedProperties",
+        "unevaluatedItems",
+        "minLength",
+        "maxLength",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "minItems",
+        "maxItems",
+        "uniqueItems",
+        "multipleOf",
+        "contains",
+        "prefixItems",
+        "additionalItems",
+        "format",
+        "contentSchema",
+        "contentMediaType",
+        "contentEncoding",
+        "deprecated",
+        "readOnly",
+        "writeOnly",
+        "dependencies",
+        "dependentSchemas",
+        "dependentRequired",
+        "not",
+        "if",
+        "then",
+        "else",
     ];
     for key in UNSUPPORTED_KEYWORDS {
         map.remove(*key);
@@ -402,9 +430,7 @@ fn sanitize_schema_recursive(val: &mut serde_json::Value) {
         let mut remove_required = false;
         if let Some(req_val) = map.get_mut("required") {
             if let Some(req_arr) = req_val.as_array_mut() {
-                req_arr.retain(|r| {
-                    r.as_str().map(|k| valid_keys.contains(k)).unwrap_or(false)
-                });
+                req_arr.retain(|r| r.as_str().map(|k| valid_keys.contains(k)).unwrap_or(false));
                 if req_arr.is_empty() {
                     remove_required = true;
                 }
@@ -553,7 +579,8 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                             }
                         });
 
-                        if let Some(sig) = call_sig.as_deref().and_then(sanitize_thought_signature) {
+                        if let Some(sig) = call_sig.as_deref().and_then(sanitize_thought_signature)
+                        {
                             part["thoughtSignature"] = serde_json::Value::String(sig);
                         }
 
@@ -649,8 +676,13 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                 parts.retain(|p| {
                     let is_thought = p.get("thought").and_then(|t| t.as_bool()).unwrap_or(false);
                     let has_fc = p.get("functionCall").is_some();
-                    let has_text = p.get("text").and_then(|t| t.as_str()).map(|t| !t.is_empty()).unwrap_or(false);
-                    let has_sig = p.get("thoughtSignature").is_some() || p.get("thought_signature").is_some();
+                    let has_text = p
+                        .get("text")
+                        .and_then(|t| t.as_str())
+                        .map(|t| !t.is_empty())
+                        .unwrap_or(false);
+                    let has_sig =
+                        p.get("thoughtSignature").is_some() || p.get("thought_signature").is_some();
 
                     if is_thought && !has_fc {
                         return false;
@@ -665,7 +697,8 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                 for p in parts.iter_mut() {
                     if let Some(fc) = p.get("functionCall") {
                         let call_id = fc.get("id").and_then(|i| i.as_str()).unwrap_or("");
-                        let existing_sig = p.get("thoughtSignature")
+                        let existing_sig = p
+                            .get("thoughtSignature")
                             .or_else(|| p.get("thought_signature"))
                             .and_then(|s| s.as_str())
                             .and_then(sanitize_thought_signature);
@@ -685,9 +718,13 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                         });
                         first_fc_seen = true;
 
-                        if let Some(sig) = call_sig.as_deref().and_then(sanitize_thought_signature) {
+                        if let Some(sig) = call_sig.as_deref().and_then(sanitize_thought_signature)
+                        {
                             if let Some(obj) = p.as_object_mut() {
-                                obj.insert("thoughtSignature".to_string(), serde_json::Value::String(sig));
+                                obj.insert(
+                                    "thoughtSignature".to_string(),
+                                    serde_json::Value::String(sig),
+                                );
                             }
                         }
                     }
@@ -702,11 +739,7 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
             "role": "user",
             "parts": [{ "text": "Hello" }]
         }));
-    } else if normalized_contents[0]
-        .get("role")
-        .and_then(|r| r.as_str())
-        != Some("user")
-    {
+    } else if normalized_contents[0].get("role").and_then(|r| r.as_str()) != Some("user") {
         normalized_contents.insert(
             0,
             serde_json::json!({
@@ -724,7 +757,10 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
         for t in tools {
             if let Some(fn_obj) = t.get("function") {
                 let name = fn_obj.get("name").and_then(|n| n.as_str()).unwrap_or("");
-                let desc = fn_obj.get("description").and_then(|d| d.as_str()).unwrap_or("");
+                let desc = fn_obj
+                    .get("description")
+                    .and_then(|d| d.as_str())
+                    .unwrap_or("");
                 let params = fn_obj.get("parameters").unwrap_or(&serde_json::Value::Null);
 
                 declarations.push(serde_json::json!({
@@ -813,7 +849,10 @@ pub fn execute_v1_stream<F>(
 where
     F: FnMut(V1StreamEvent) -> Result<()>,
 {
-    let endpoint = format!("{}/v1internal:streamGenerateContent?alt=sse", ANTIGRAVITY_BASE_URL);
+    let endpoint = format!(
+        "{}/v1internal:streamGenerateContent?alt=sse",
+        ANTIGRAVITY_BASE_URL
+    );
     let payload = build_gemini_payload(req, project_id);
 
     let response = client
@@ -861,7 +900,9 @@ where
                             }
                         }
 
-                        if let Some(parts) = cand.pointer("/content/parts").and_then(|p| p.as_array()) {
+                        if let Some(parts) =
+                            cand.pointer("/content/parts").and_then(|p| p.as_array())
+                        {
                             for part in parts {
                                 let part_thought_sig = part
                                     .get("thoughtSignature")

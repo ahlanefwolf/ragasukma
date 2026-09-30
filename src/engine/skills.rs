@@ -31,7 +31,11 @@ pub fn parse_skills_markdown() -> Vec<SkillItem> {
     let mut skills = Vec::new();
     for line in content.lines() {
         let trimmed = line.trim();
-        if !trimmed.starts_with('|') || trimmed.contains(":---") || trimmed.contains("Nama Skill") {
+        if !trimmed.starts_with('|')
+            || trimmed.contains(":---")
+            || trimmed.contains("Skill Name")
+            || trimmed.contains("Nama Skill")
+        {
             continue;
         }
 
@@ -61,9 +65,9 @@ pub fn parse_skills_markdown() -> Vec<SkillItem> {
 pub fn save_skills_markdown(skills: &[SkillItem]) -> std::io::Result<()> {
     let mut out = String::from(
         "# ⚡ Skill Command Registry\n\n\
-Daftar perintah cepat dan otomasi sistem yang dapat dijalankan langsung melalui suara, menu, atau otomatisasi AI.\n\
-File ini dapat diedit langsung atau dikelola melalui UI Skill Commands.\n\n\
-| Nama Skill | Deskripsi | Command / Script |\n\
+List of quick commands and system automations that can be triggered directly via voice, menu, or AI automation.\n\
+This file can be edited directly or managed via the Skill Commands UI.\n\n\
+| Skill Name | Description | Command / Script |\n\
 | :--- | :--- | :--- |\n",
     );
 
@@ -98,11 +102,19 @@ pub fn execute_command_by_os(cmd: &str) -> std::io::Result<()> {
         let trimmed = cmd.trim();
         // Jika perintah adalah executable langsung atau file (misal calc.exe, notepad.exe, explorer.exe)
         // dan tidak mengandung shell pipe/redirect, jalankan langsung tanpa cmd /C
-        if !trimmed.contains('|') && !trimmed.contains('&') && !trimmed.contains('>') && !trimmed.contains('<') {
+        if !trimmed.contains('|')
+            && !trimmed.contains('&')
+            && !trimmed.contains('>')
+            && !trimmed.contains('<')
+        {
             if let Some((prog, args)) = trimmed.split_once(' ') {
                 let clean_prog = prog.trim_matches('"');
                 let clean_args = args.trim_matches('"');
-                if std::process::Command::new(clean_prog).arg(clean_args).spawn().is_ok() {
+                if std::process::Command::new(clean_prog)
+                    .arg(clean_args)
+                    .spawn()
+                    .is_ok()
+                {
                     return Ok(());
                 }
             } else {

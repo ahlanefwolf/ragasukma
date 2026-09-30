@@ -1,5 +1,5 @@
 import { API_BASE } from './base';
-import { configService, UserConfig } from './configService';
+import { configService, UserConfig, getChromeSttCode } from './configService';
 
 export interface VoiceSessionOptions {
   isDead: () => boolean;
@@ -19,8 +19,12 @@ export class VoiceSessionManager {
   private isVoiceMuted = false;
   private isMicMuted = false;
   private isAssistantRunning = false;
-  private listeningWatchdogTimer: any = null;
+  private isRecognitionRunning = false;
   private isRecognitionStarting = false;
+  private isWaitingForUserGesture = false;
+  private startingTimeoutId: any = null;
+  private listeningWatchdogTimer: any = null;
+  private removeGlobalGestureListeners: (() => void) | null = null;
 
   // VAD Audio Nodes
   private vadAudioCtx: AudioContext | null = null;
@@ -30,20 +34,69 @@ export class VoiceSessionManager {
   // Echo Guard Buffer
   private assistantSpeechHistory: Array<{ text: string; tokens: string[]; timestamp: number }> = [];
 
-  // TTS Deduplication
+  // TTS Deduplication & Session Isolation
   private lastSpokenText = '';
   private lastSpokenTime = 0;
+  private speakSessionId = 0;
 
   constructor(options: VoiceSessionOptions) {
     this.isDead = options.isDead;
     this.isMobileClient = options.isMobileClient;
+
+    if (!this.isMobileClient() && typeof window !== 'undefined') {
+      // Inisialisasi SpeechRecognition secara sinkron sejak detik 0
+      this.initSpeechRecognition();
+      this.setupGlobalGestureListeners();
+    }
+  }
+
+  private setupGlobalGestureListeners() {
+    const onUserGesture = () => {
+      // 1. Resume Web Audio context jika sempat suspended oleh autoplay policy
+      if (this.vadAudioCtx && this.vadAudioCtx.state === 'suspended') {
+        this.vadAudioCtx.resume().catch(() => {});
+      }
+
+      // 2. Jika pengenalan suara sempat tertahan izin browser (not-allowed / gesture required)
+      if (this.isWaitingForUserGesture) {
+        this.isWaitingForUserGesture = false;
+        console.log('[Chrome Web STT] Interaksi pengguna terdeteksi, memulihkan sesi mikrofon...');
+        this.ensureMicrophonePermission().then(() => {
+          this.startRecognitionSafely();
+        });
+      } else if (
+        this.isAssistantRunning &&
+        !this.isMicMuted &&
+        !this.isTtsSpeaking &&
+        !this.isRecognitionRunning &&
+        !this.isRecognitionStarting
+      ) {
+        // Recovery otomatis jika sesi asisten aktif tapi recognition belum jalan
+        this.startRecognitionSafely();
+      }
+    };
+
+    window.addEventListener('pointerdown', onUserGesture, { passive: true });
+    window.addEventListener('keydown', onUserGesture, { passive: true });
+
+    this.removeGlobalGestureListeners = () => {
+      window.removeEventListener('pointerdown', onUserGesture);
+      window.removeEventListener('keydown', onUserGesture);
+    };
   }
 
   public async init() {
     if (this.isMobileClient() || typeof window === 'undefined') return;
 
+    if (!this.recognition) {
+      this.initSpeechRecognition();
+    }
+
     try {
       this.runtimeConfig = await configService.getConfig();
+      if (this.recognition && this.runtimeConfig?.lang) {
+        this.recognition.lang = getChromeSttCode(this.runtimeConfig.lang);
+      }
     } catch (_) {}
 
     try {
@@ -53,14 +106,24 @@ export class VoiceSessionManager {
         if (initState && typeof initState.is_running === 'boolean') {
           this.isAssistantRunning = initState.is_running;
         }
+        if (initState && (typeof initState.voice_muted === 'boolean' || typeof initState.mic_muted === 'boolean')) {
+          this.updateMuteState(Boolean(initState.voice_muted), Boolean(initState.mic_muted));
+        }
       }
     } catch (_) {}
 
-    this.initSpeechRecognition();
+    // Jika asisten aktif (misal setelah F5 refresh saat sesi sedang berjalan), segera jalankan STT!
+    if (this.isAssistantRunning && !this.isMicMuted && !this.isTtsSpeaking && !this.isRecognitionRunning) {
+      console.log('[Voice Session] Auto-starting recognition saat inisialisasi sesi...');
+      this.startRecognitionSafely();
+      this.ensureMicrophonePermission();
+    }
   }
 
   // ---------------------------------------------------------------------------
   // 1. Anti-Echolalia Echo Guard
+  // ---------------------------------------------------------------------------
+  // 1. Anti-Echolalia Echo Guard (Acoustic Speaker Feedback Protection)
   // ---------------------------------------------------------------------------
   private recordAssistantSpeech(rawText: string) {
     if (!rawText) return;
@@ -76,9 +139,10 @@ export class VoiceSessionManager {
       timestamp: Date.now(),
     });
 
-    const cutoff = Date.now() - 25000;
+    // Pantulan akustik speaker ke mikrofon hanya terjadi maksimal 4 detik setelah suara diputar
+    const cutoff = Date.now() - 4000;
     while (
-      this.assistantSpeechHistory.length > 8 ||
+      this.assistantSpeechHistory.length > 5 ||
       (this.assistantSpeechHistory.length > 0 && this.assistantSpeechHistory[0].timestamp < cutoff)
     ) {
       this.assistantSpeechHistory.shift();
@@ -87,7 +151,8 @@ export class VoiceSessionManager {
 
   private isEchoOfAssistantSpeech(transcript: string): boolean {
     const now = Date.now();
-    const activeEntries = this.assistantSpeechHistory.filter((e) => now - e.timestamp < 25000);
+    // Hanya periksa pantulan akustik jika speaker asisten baru saja bersuara dalam 4 detik terakhir
+    const activeEntries = this.assistantSpeechHistory.filter((e) => now - e.timestamp < 4000);
     if (activeEntries.length === 0) return false;
 
     const transLower = transcript.toLowerCase();
@@ -98,20 +163,20 @@ export class VoiceSessionManager {
 
     if (transTokens.length === 0) return false;
 
-    // 1. Cek Trigram (3 kata berurutan) yang identik dengan teks asisten
+    // 1. Cek Trigram (3 kata berurutan) yang identik dengan teks asisten dalam rentang <= 3 detik
     if (transTokens.length >= 3) {
       for (let i = 0; i <= transTokens.length - 3; i++) {
         const trigram = `${transTokens[i]} ${transTokens[i + 1]} ${transTokens[i + 2]}`;
         for (const entry of activeEntries) {
-          if (entry.text.includes(trigram)) {
-            console.warn('[Echo Guard] Terdeteksi trigram gema asisten:', trigram);
+          if (entry.text.includes(trigram) && now - entry.timestamp < 3500) {
+            console.warn('[Echo Guard] Terdeteksi pantulan trigram speaker asisten:', trigram);
             return true;
           }
         }
       }
     }
 
-    // 2. Cek Token Overlap Ratio
+    // 2. Cek Token Overlap Ratio (tingkatkan ke 65% agar dialog manusia yang mengutip tidak terblokir)
     const historyTokenSet = new Set<string>();
     for (const entry of activeEntries) {
       for (const t of entry.tokens) {
@@ -127,9 +192,9 @@ export class VoiceSessionManager {
     }
 
     const matchRatio = matchCount / transTokens.length;
-    if (transTokens.length >= 3 && matchRatio >= 0.35) {
+    if (transTokens.length >= 4 && matchRatio >= 0.65) {
       console.warn(
-        `[Echo Guard] Terdeteksi overlap kata (${Math.round(matchRatio * 100)}%) gema asisten:`,
+        `[Echo Guard] Terdeteksi overlap tinggi (${Math.round(matchRatio * 100)}%) pantulan speaker:`,
         transcript
       );
       return true;
@@ -152,7 +217,7 @@ export class VoiceSessionManager {
       this.recognition = new SpeechRecognition();
       this.recognition.continuous = true;
       this.recognition.interimResults = false;
-      this.recognition.lang = this.runtimeConfig?.stt_lang || 'id-ID';
+      this.recognition.lang = getChromeSttCode(this.runtimeConfig?.lang || 'id');
 
       this.recognition.onspeechstart = () => {
         if (this.isTestVoiceActive || this.isTtsSpeaking || !this.isAssistantRunning) return;
@@ -160,10 +225,10 @@ export class VoiceSessionManager {
         if (!this.isMicMuted) {
           this.isListeningActive = true;
           this.cancelListeningWatchdog();
-          // Watchdog: jika dalam 3.5 detik tidak ada hasil teks final, paksa kembali ke idle
+          // Watchdog pengaman: hanya aktif jika browser hang / tidak pernah emit onspeechend (15 detik)
           this.listeningWatchdogTimer = setTimeout(() => {
-            this.resetToIdle('watchdog timeout 3.5s');
-          }, 3500);
+            this.resetToIdle('watchdog timeout 15s');
+          }, 15000);
 
           fetch(`${API_BASE}/api/tts/state`, {
             method: 'POST',
@@ -204,7 +269,9 @@ export class VoiceSessionManager {
                 continue;
               }
 
-              this.resetToIdle('transcript sent');
+              // Matikan status listening aktif lokal tanpa mengirimkan 'idle' ke backend!
+              // Menghindari race condition di mana request 'idle' menimpa status 'Thinking' di backend
+              this.isListeningActive = false;
               console.log('[Chrome Web STT] Sending transcript:', transcript);
               fetch(`${API_BASE}/api/stt/transcript`, {
                 method: 'POST',
@@ -218,27 +285,70 @@ export class VoiceSessionManager {
 
       this.recognition.onstart = () => {
         this.isRecognitionStarting = false;
+        this.isRecognitionRunning = true;
+        this.isWaitingForUserGesture = false;
+        if (this.startingTimeoutId) {
+          clearTimeout(this.startingTimeoutId);
+          this.startingTimeoutId = null;
+        }
+        console.log('[Chrome Web STT] Speech recognition started & active');
       };
 
       this.recognition.onerror = (e: any) => {
         this.isRecognitionStarting = false;
+        if (this.startingTimeoutId) {
+          clearTimeout(this.startingTimeoutId);
+          this.startingTimeoutId = null;
+        }
+
+        // 'aborted' dan 'no-speech' adalah event normal lifecycle Web Speech API:
+        // - 'aborted': dipicu ketika aplikasi sengaja memanggil recognition.abort() (misal saat TTS mulai bicara atau mic mute).
+        // - 'no-speech': pengguna hening / tidak bersuara sebelum batas waktu hening.
+        if (e.error === 'aborted' || e.error === 'no-speech') {
+          return;
+        }
+
+        if (e.error === 'network') {
+          console.warn('[Chrome Web STT] Gangguan jaringan Google STT terdeteksi, memulihkan koneksi STT...');
+          setTimeout(() => {
+            if (!this.isDead() && !this.isMicMuted && !this.isTtsSpeaking && this.isAssistantRunning) {
+              this.startRecognitionSafely();
+            }
+          }, 1500);
+          return;
+        }
+
         console.warn('[Chrome Web STT] Error:', e.error);
         this.resetToIdle('recognition error: ' + e.error);
-        if (e.error === 'not-allowed') {
-          const unlockGesture = () => {
-            console.log('[Chrome Web STT] Interaksi user terdeteksi, memulihkan sesi mikrofon...');
-            this.ensureMicrophonePermission().then(() => this.startRecognitionSafely());
-            window.removeEventListener('click', unlockGesture);
-            window.removeEventListener('keydown', unlockGesture);
-          };
-          window.addEventListener('click', unlockGesture, { once: true });
-          window.addEventListener('keydown', unlockGesture, { once: true });
+
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          this.isWaitingForUserGesture = true;
+          this.isRecognitionRunning = false;
+          console.warn(
+            '[Chrome Web STT] Akses mikrofon terblokir oleh browser. Menunggu interaksi pengguna (klik/tombol)...'
+          );
         }
       };
 
       this.recognition.onend = () => {
         this.isRecognitionStarting = false;
+        this.isRecognitionRunning = false;
+        if (this.startingTimeoutId) {
+          clearTimeout(this.startingTimeoutId);
+          this.startingTimeoutId = null;
+        }
+
+        if (this.isTtsSpeaking) {
+          // Asisten sedang aktif berbicara lewat TTS, jangan ganggu state ke idle dan jangan restart listening
+          return;
+        }
         this.resetToIdle('recognition ended');
+
+        // Jangan restart jika sedang menunggu gesture user (not-allowed)
+        if (this.isWaitingForUserGesture) {
+          return;
+        }
+
         const shouldListen = !this.isDead() && !this.isMicMuted && !this.isTtsSpeaking && this.isAssistantRunning;
         if (shouldListen) {
           setTimeout(() => {
@@ -257,16 +367,20 @@ export class VoiceSessionManager {
   }
 
   public updateAssistantRunning(running: boolean) {
-    if (this.isAssistantRunning === running) return;
+    const isStateSame = this.isAssistantRunning === running;
     this.isAssistantRunning = running;
-    console.log('[Voice Session] Assistant running status changed:', running);
 
     if (running) {
-      if (!this.isMicMuted) {
+      // Jika running tapi recognition belum aktif (atau state baru berubah), jalankan recognition!
+      if (!this.isMicMuted && (!this.isRecognitionRunning || !isStateSame)) {
+        console.log('[Voice Session] Assistant running -> starting recognition...');
         this.startRecognitionSafely();
         this.ensureMicrophonePermission();
       }
     } else {
+      if (!isStateSame) {
+        console.log('[Voice Session] Assistant stopped -> stopping recognition...');
+      }
       this.resetToIdle('assistant stopped / standby');
       this.stopRecognition();
     }
@@ -274,12 +388,18 @@ export class VoiceSessionManager {
 
   public stopRecognition() {
     this.cancelListeningWatchdog();
+    this.isWaitingForUserGesture = false;
+    this.isRecognitionRunning = false;
+    this.isRecognitionStarting = false;
+    if (this.startingTimeoutId) {
+      clearTimeout(this.startingTimeoutId);
+      this.startingTimeoutId = null;
+    }
     if (this.recognition) {
       try {
         this.recognition.abort();
       } catch (_) {}
     }
-    this.isRecognitionStarting = false;
   }
 
   private cancelListeningWatchdog() {
@@ -293,6 +413,10 @@ export class VoiceSessionManager {
     this.cancelListeningWatchdog();
     if (this.isListeningActive) {
       this.isListeningActive = false;
+      if (this.isTtsSpeaking) {
+        console.log(`[Chrome Web STT] resetToIdle diabaikan karena TTS sedang aktif berbicara (${reason})`);
+        return;
+      }
       console.log(`[Chrome Web STT] Reset listening ke idle (${reason})`);
       fetch(`${API_BASE}/api/tts/state`, {
         method: 'POST',
@@ -303,18 +427,45 @@ export class VoiceSessionManager {
   }
 
   public startRecognitionSafely() {
-    if (this.isDead() || this.isMicMuted || !this.isAssistantRunning || this.isRecognitionStarting) return;
+    if (
+      this.isDead() ||
+      this.isMicMuted ||
+      !this.isAssistantRunning ||
+      this.isTtsSpeaking ||
+      this.isRecognitionRunning ||
+      this.isRecognitionStarting ||
+      this.isWaitingForUserGesture
+    ) {
+      return;
+    }
+
+    if (!this.recognition) {
+      this.initSpeechRecognition();
+      if (!this.recognition) return;
+    }
+
     try {
       this.isRecognitionStarting = true;
-      this.recognition?.start();
+      if (this.startingTimeoutId) {
+        clearTimeout(this.startingTimeoutId);
+      }
+      this.startingTimeoutId = setTimeout(() => {
+        this.isRecognitionStarting = false;
+        this.startingTimeoutId = null;
+      }, 500);
+
+      this.recognition.start();
     } catch (e: any) {
-      if (e?.name !== 'InvalidStateError') {
+      this.isRecognitionStarting = false;
+      if (this.startingTimeoutId) {
+        clearTimeout(this.startingTimeoutId);
+        this.startingTimeoutId = null;
+      }
+      if (e?.name === 'InvalidStateError') {
+        this.isRecognitionRunning = true;
+      } else {
         console.warn('[Chrome Web STT] Start failed:', e);
       }
-    } finally {
-      setTimeout(() => {
-        this.isRecognitionStarting = false;
-      }, 300);
     }
   }
 
@@ -386,8 +537,12 @@ export class VoiceSessionManager {
                 threshold * 100
               )}%), mematikan suara asisten!`
             );
-            if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-              window.speechSynthesis.cancel();
+            this.speakSessionId++;
+            if ((window as any).__activeSupertonicAudio) {
+              try {
+                (window as any).__activeSupertonicAudio.pause();
+                (window as any).__activeSupertonicAudio = null;
+              } catch {}
             }
             this.isTtsSpeaking = false;
             fetch(`${API_BASE}/api/tts/state`, {
@@ -423,7 +578,7 @@ export class VoiceSessionManager {
   }
 
   // ---------------------------------------------------------------------------
-  // 4. Speech Synthesis (TTS)
+  // 4. Speech Synthesis (Supertonic-3 Audio + Chrome Web Speech Fallback)
   // ---------------------------------------------------------------------------
   public handleAssistantSpeak(payload: any) {
     if (this.isMobileClient()) return;
@@ -434,56 +589,75 @@ export class VoiceSessionManager {
 
     let textToSpeak = '';
     let speakEmotion = 'neutral';
+    let audioUrl: string | null = null;
     try {
       const parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;
       textToSpeak = parsed.text || '';
       speakEmotion = parsed.emotion || 'neutral';
+      audioUrl = parsed.audio_url || null;
     } catch {
       textToSpeak = typeof payload === 'string' ? payload : '';
     }
     textToSpeak = textToSpeak.trim();
-    if (!textToSpeak) return;
+    if (!textToSpeak && !audioUrl) return;
 
     const now = Date.now();
-    if (textToSpeak === this.lastSpokenText && now - this.lastSpokenTime < 1500) {
+    if (textToSpeak && textToSpeak === this.lastSpokenText && now - this.lastSpokenTime < 1500) {
       console.warn('[TTS] Duplicate speak action suppressed:', textToSpeak);
       return;
     }
-    this.lastSpokenText = textToSpeak;
-    this.lastSpokenTime = now;
-    this.recordAssistantSpeech(textToSpeak);
+    if (textToSpeak) {
+      this.lastSpokenText = textToSpeak;
+      this.lastSpokenTime = now;
+      this.recordAssistantSpeech(textToSpeak);
+    }
 
-    if (textToSpeak && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+    const sessionId = ++this.speakSessionId;
+
+    // Hentikan pemutaran audio Supertonic sebelumnya jika ada
+    try {
+      if ((window as any).__activeSupertonicAudio) {
+        (window as any).__activeSupertonicAudio.pause();
+        (window as any).__activeSupertonicAudio = null;
+      }
+    } catch {}
+
+    const playAudioUrl = (url: string, revokeOnEnd = false) => {
       this.isTtsSpeaking = true;
+      this.cancelListeningWatchdog();
+      this.isListeningActive = false;
       try {
         this.recognition?.abort();
       } catch {}
 
-      const splitSentences = (txt: string): string[] => {
-        const matches = txt.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g);
-        return matches ? matches.map((s) => s.trim()).filter(Boolean) : [txt.trim()];
+      const audio = new Audio(url);
+      (window as any).__activeSupertonicAudio = audio;
+
+      let hasReportedSpeaking = false;
+      const notifySpeakingStart = () => {
+        if (hasReportedSpeaking || sessionId !== this.speakSessionId) return;
+        hasReportedSpeaking = true;
+        // Beritahu backend bahwa suara SUDAH benar-benar berbunyi dari speaker (bukan masih loading)
+        // Ini menjamin gerak bibir AIUEO sinkron 100% dengan gelombang suara
+        fetch(`${API_BASE}/api/tts/state`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ speaking: true, emotion: speakEmotion }),
+        }).catch(() => {});
       };
 
-      const sentences = splitSentences(textToSpeak);
-      if (sentences.length === 0) {
+      audio.onplaying = notifySpeakingStart;
+      audio.onplay = notifySpeakingStart;
+
+      const finishSupertonic = () => {
+        if (sessionId !== this.speakSessionId) return;
         this.isTtsSpeaking = false;
-        return;
-      }
-
-      const cfg = this.runtimeConfig;
-      const voices = window.speechSynthesis.getVoices();
-      const matchedVoice = cfg?.tts_voice_name ? voices.find((v) => v.name === cfg.tts_voice_name) : null;
-
-      let currentIndex = 0;
-      let keepAliveTimer: any = null;
-
-      const finishAll = () => {
-        if (keepAliveTimer) {
-          clearInterval(keepAliveTimer);
-          keepAliveTimer = null;
+        (window as any).__activeSupertonicAudio = null;
+        if (revokeOnEnd) {
+          try {
+            URL.revokeObjectURL(url);
+          } catch {}
         }
-        this.isTtsSpeaking = false;
 
         fetch(`${API_BASE}/api/tts/state`, {
           method: 'POST',
@@ -492,103 +666,53 @@ export class VoiceSessionManager {
         }).catch(() => {});
 
         setTimeout(() => {
-          if (!this.isDead() && !this.isTtsSpeaking && !this.isMicMuted) {
+          if (!this.isDead() && !this.isTtsSpeaking && !this.isMicMuted && this.isAssistantRunning) {
             this.startRecognitionSafely();
           }
-        }, 600);
+        }, 500);
       };
 
-      const speakNextSentence = () => {
-        if (this.isVoiceMuted) {
-          finishAll();
-          return;
-        }
-        if (currentIndex >= sentences.length) {
-          finishAll();
-          return;
-        }
-
-        const sentence = sentences[currentIndex];
-        const utter = new SpeechSynthesisUtterance(sentence);
-        if (matchedVoice) {
-          utter.voice = matchedVoice;
-          utter.lang = matchedVoice.lang;
-        } else if (cfg?.tts_lang) {
-          utter.lang = cfg.tts_lang;
-        }
-
-        utter.rate = cfg?.tts_speed || 1.0;
-        utter.pitch = cfg?.tts_pitch || 1.0;
-
-        utter.onstart = () => {
-          if (keepAliveTimer) clearInterval(keepAliveTimer);
-          keepAliveTimer = setInterval(() => {
-            if (window.speechSynthesis.speaking) {
-              window.speechSynthesis.pause();
-              window.speechSynthesis.resume();
-            }
-          }, 4500);
-
-          fetch(`${API_BASE}/api/tts/state`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ speaking: true, emotion: speakEmotion }),
-          }).catch(() => {});
-        };
-
-        let safetyTimer: any = null;
-
-        utter.onend = () => {
-          if (safetyTimer) clearTimeout(safetyTimer);
-          if (keepAliveTimer) {
-            clearInterval(keepAliveTimer);
-            keepAliveTimer = null;
-          }
-          currentIndex++;
-          speakNextSentence();
-        };
-
-        utter.onerror = (e: any) => {
-          if (safetyTimer) clearTimeout(safetyTimer);
-          if (keepAliveTimer) {
-            clearInterval(keepAliveTimer);
-            keepAliveTimer = null;
-          }
-          if (e?.error === 'canceled' || e?.error === 'interrupted') {
-            finishAll();
-            return;
-          }
-          console.warn('[TTS] Sentence error:', e);
-          currentIndex++;
-          speakNextSentence();
-        };
-
-        // Safety fallback: jika Chrome Linux menahan onend, paksa lanjut setelah estimasi durasi selesai
-        const estimatedDurationMs = Math.max(2000, (sentence.length / 15) * 1000 + 1500);
-        safetyTimer = setTimeout(() => {
-          console.warn('[TTS] Safety timer triggered for chunk');
-          if (keepAliveTimer) {
-            clearInterval(keepAliveTimer);
-            keepAliveTimer = null;
-          }
-          currentIndex++;
-          speakNextSentence();
-        }, estimatedDurationMs);
-
-        try {
-          if (window.speechSynthesis.paused) {
-            window.speechSynthesis.resume();
-          }
-          window.speechSynthesis.speak(utter);
-        } catch (err) {
-          console.warn('[TTS] Speak error:', err);
-          if (safetyTimer) clearTimeout(safetyTimer);
-          finishAll();
-        }
+      audio.onended = finishSupertonic;
+      audio.onerror = (e) => {
+        console.warn('[Supertonic Audio] Playback error:', e);
+        finishSupertonic();
       };
 
-      speakNextSentence();
+      audio.play().catch((err) => {
+        console.warn('[Supertonic Audio] Autoplay blocked/interrupted:', err);
+        finishSupertonic();
+      });
+    };
+
+    if (audioUrl) {
+      const fullUrl = audioUrl.startsWith('http') ? audioUrl : `${API_BASE}${audioUrl}`;
+      playAudioUrl(fullUrl, false);
+      return;
     }
+
+    // Jika audio_url belum ada, minta backend mensintesis langsung via Supertonic
+    fetch(`${API_BASE}/api/tts/synthesize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: textToSpeak,
+        voice: this.runtimeConfig?.tts_voice_name || 'F4',
+        lang: this.runtimeConfig?.lang || 'id',
+        speed: this.runtimeConfig?.tts_speed || 1.05,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        playAudioUrl(url, true);
+      })
+      .catch((err) => {
+        console.warn('[Supertonic Audio] Synthesize fetch error:', err);
+        this.isTtsSpeaking = false;
+      });
   }
 
   // ---------------------------------------------------------------------------
@@ -599,9 +723,10 @@ export class VoiceSessionManager {
     this.isVoiceMuted = voiceMuted;
 
     if (this.isVoiceMuted && !wasVoiceMuted) {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      if ((window as any).__activeSupertonicAudio) {
         try {
-          window.speechSynthesis.cancel();
+          (window as any).__activeSupertonicAudio.pause();
+          (window as any).__activeSupertonicAudio = null;
         } catch {}
       }
       this.isTtsSpeaking = false;
@@ -640,9 +765,10 @@ export class VoiceSessionManager {
 
   public handleConfigUpdated(cfg: UserConfig) {
     this.runtimeConfig = cfg;
-    if (cfg?.stt_lang && this.recognition && this.recognition.lang !== cfg.stt_lang) {
-      this.recognition.lang = cfg.stt_lang;
-      console.log('[Chrome Web STT] Reaktif ganti bahasa STT ke:', cfg.stt_lang);
+    const targetStt = getChromeSttCode(cfg?.lang || 'id');
+    if (this.recognition && this.recognition.lang !== targetStt) {
+      this.recognition.lang = targetStt;
+      console.log('[Chrome Web STT] Reaktif ganti bahasa STT ke:', targetStt);
       try {
         this.recognition.stop();
       } catch {}
@@ -666,13 +792,21 @@ export class VoiceSessionManager {
   public destroy() {
     this.cancelListeningWatchdog();
     this.stopVadMonitoring();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    this.removeGlobalGestureListeners?.();
+    this.removeGlobalGestureListeners = null;
+    if (this.startingTimeoutId) {
+      clearTimeout(this.startingTimeoutId);
+      this.startingTimeoutId = null;
+    }
+    if ((window as any).__activeSupertonicAudio) {
       try {
-        window.speechSynthesis.cancel();
+        (window as any).__activeSupertonicAudio.pause();
+        (window as any).__activeSupertonicAudio = null;
       } catch {}
     }
     if (this.recognition) {
       try {
+        this.recognition.onstart = null;
         this.recognition.onend = null;
         this.recognition.onerror = null;
         this.recognition.onresult = null;
@@ -683,5 +817,8 @@ export class VoiceSessionManager {
       } catch {}
       this.recognition = null;
     }
+    this.isRecognitionRunning = false;
+    this.isRecognitionStarting = false;
+    this.isWaitingForUserGesture = false;
   }
 }

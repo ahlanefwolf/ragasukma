@@ -13,7 +13,10 @@ fn capture_screen_image_linux_fallback() -> Result<DynamicImage, String> {
     }
 
     // 2. Coba wayshot (Wayland alternatif)
-    if let Ok(output) = std::process::Command::new("wayshot").args(["--stdout"]).output() {
+    if let Ok(output) = std::process::Command::new("wayshot")
+        .args(["--stdout"])
+        .output()
+    {
         if output.status.success() && !output.stdout.is_empty() {
             if let Ok(img) = image::load_from_memory(&output.stdout) {
                 return Ok(img);
@@ -31,7 +34,10 @@ fn capture_screen_image_linux_fallback() -> Result<DynamicImage, String> {
     }
 
     // 4. Coba scrot (X11 standar)
-    if let Ok(output) = std::process::Command::new("scrot").args(["-z", "-o", "-"]).output() {
+    if let Ok(output) = std::process::Command::new("scrot")
+        .args(["-z", "-o", "-"])
+        .output()
+    {
         if output.status.success() && !output.stdout.is_empty() {
             if let Ok(img) = image::load_from_memory(&output.stdout) {
                 return Ok(img);
@@ -40,7 +46,10 @@ fn capture_screen_image_linux_fallback() -> Result<DynamicImage, String> {
     }
 
     // 5. Coba ImageMagick import
-    if let Ok(output) = std::process::Command::new("import").args(["-window", "root", "png:-"]).output() {
+    if let Ok(output) = std::process::Command::new("import")
+        .args(["-window", "root", "png:-"])
+        .output()
+    {
         if output.status.success() && !output.stdout.is_empty() {
             if let Ok(img) = image::load_from_memory(&output.stdout) {
                 return Ok(img);
@@ -48,7 +57,7 @@ fn capture_screen_image_linux_fallback() -> Result<DynamicImage, String> {
         }
     }
 
-    Err("Tidak dapat mengambil screenshot di Linux: xcap gagal dan tool fallback (grim/wayshot/maim/scrot/import) tidak berhasil.".to_string())
+    Err("Failed to capture screenshot on Linux: xcap failed and all fallback tools (grim/wayshot/maim/scrot/import) unavailable.".to_string())
 }
 
 /// Capture screenshot of the primary display or target window
@@ -59,11 +68,14 @@ pub fn capture_screen_image() -> Result<DynamicImage, String> {
             return Err("No monitor found".to_string());
         }
 
-        let primary = monitors.into_iter().find(|m| m.is_primary()).unwrap_or_else(|| {
-            Monitor::all().unwrap().remove(0)
-        });
+        let primary = monitors
+            .into_iter()
+            .find(|m| m.is_primary())
+            .unwrap_or_else(|| Monitor::all().unwrap().remove(0));
 
-        let frame = primary.capture_image().map_err(|e| format!("Monitor capture error: {e}"))?;
+        let frame = primary
+            .capture_image()
+            .map_err(|e| format!("Monitor capture error: {e}"))?;
         let img_buf = RgbaImage::from_raw(frame.width(), frame.height(), frame.into_raw())
             .ok_or_else(|| "Failed to construct ImageBuffer from frame".to_string())?;
 
@@ -75,7 +87,10 @@ pub fn capture_screen_image() -> Result<DynamicImage, String> {
         Err(err) => {
             #[cfg(target_os = "linux")]
             {
-                crate::term_log!("⚠️ [Perception] xcap gagal ({}). Menggunakan Linux capture fallback...", err);
+                crate::term_log!(
+                    "⚠️ [Perception] xcap gagal ({}). Menggunakan Linux capture fallback...",
+                    err
+                );
                 capture_screen_image_linux_fallback()
             }
             #[cfg(not(target_os = "linux"))]
@@ -93,7 +108,9 @@ pub fn capture_window_image_by_title(target_title: &str) -> Result<DynamicImage,
 
     for win in windows {
         if win.title().to_lowercase().contains(&lower) {
-            let frame = win.capture_image().map_err(|e| format!("Window capture error: {e}"))?;
+            let frame = win
+                .capture_image()
+                .map_err(|e| format!("Window capture error: {e}"))?;
             let img_buf = RgbaImage::from_raw(frame.width(), frame.height(), frame.into_raw())
                 .ok_or_else(|| "Failed to construct ImageBuffer from window frame".to_string())?;
             return Ok(DynamicImage::ImageRgba8(img_buf));

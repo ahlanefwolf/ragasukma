@@ -10,7 +10,6 @@ export interface InstalledApp {
   name: string;
   exec: string;
   icon?: string;
-  comment?: string;
 }
 
 export const skillsService = {

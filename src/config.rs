@@ -86,6 +86,14 @@ fn default_true() -> bool {
     true
 }
 
+fn default_lang() -> String {
+    "id".to_string()
+}
+
+fn default_voice() -> String {
+    "F4".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserConfig {
     #[serde(default)]
@@ -104,16 +112,12 @@ pub struct UserConfig {
     pub llm_model: String,
     #[serde(default)]
     pub llm_api_key: String,
-    #[serde(default)]
-    pub tts_lang: String,
-    #[serde(default)]
-    pub stt_lang: String,
-    #[serde(default)]
+    #[serde(default = "default_lang")]
+    pub lang: String,
+    #[serde(default = "default_voice")]
     pub tts_voice_name: String,
     #[serde(default)]
     pub tts_speed: f32,
-    #[serde(default)]
-    pub tts_pitch: f32,
     #[serde(default)]
     pub avatar_type: String,
     #[serde(default)]
@@ -137,11 +141,9 @@ impl Default for UserConfig {
             llm_base_url: "".to_string(),
             llm_model: "".to_string(),
             llm_api_key: "".to_string(),
-            tts_lang: "id-ID".to_string(),
-            stt_lang: "id-ID".to_string(),
-            tts_voice_name: "".to_string(),
-            tts_speed: 1.0,
-            tts_pitch: 1.0,
+            lang: "id".to_string(),
+            tts_voice_name: "F4".to_string(),
+            tts_speed: 1.05,
             avatar_type: "2d".to_string(),
             always_on_top: true,
             voice_interruption: false,
@@ -215,13 +217,22 @@ pub fn load_user_config() -> UserConfig {
         // Coba baca sampai 3 kali dengan jeda singkat untuk mengatasi file lock sementara di Windows
         for _ in 0..3 {
             if let Ok(content) = fs::read_to_string(&path) {
-                if let Ok(cfg) = serde_json::from_str::<UserConfig>(&content) {
+                if let Ok(mut cfg) = serde_json::from_str::<UserConfig>(&content) {
+                    if cfg.lang.trim().is_empty() {
+                        cfg.lang = "id".to_string();
+                    }
+                    if cfg.tts_voice_name.trim().is_empty() || cfg.tts_voice_name.contains("Google")
+                    {
+                        cfg.tts_voice_name = "F4".to_string();
+                    }
                     return cfg;
                 }
             }
             std::thread::sleep(std::time::Duration::from_millis(15));
         }
-        crate::term_err!("⚠️ [Config Load] File config-ai.json sedang dikunci/tidak terbaca, menggunakan fallback memori.");
+        crate::term_err!(
+            "⚠️ [Config Load] File config-ai.json sedang dikunci/tidak terbaca, menggunakan fallback memori."
+        );
         return UserConfig::default();
     }
 
@@ -272,11 +283,9 @@ pub struct AppConfig {
     pub llm_base_url: String,
     pub llm_model: String,
     pub llm_api_key: String,
-    pub tts_lang: String,
-    pub stt_lang: String,
+    pub lang: String,
     pub tts_voice_name: String,
     pub tts_speed: f32,
-    pub tts_pitch: f32,
     pub assistant_name: String,
     pub assistant_gender: String,
     pub user_callsign: String,
@@ -295,11 +304,9 @@ impl AppConfig {
             llm_base_url: u.llm_base_url,
             llm_model: u.llm_model,
             llm_api_key: u.llm_api_key,
-            tts_lang: u.tts_lang,
-            stt_lang: u.stt_lang,
+            lang: u.lang,
             tts_voice_name: u.tts_voice_name,
             tts_speed: u.tts_speed,
-            tts_pitch: u.tts_pitch,
             assistant_name: u.assistant_name,
             assistant_gender: u.assistant_gender,
             user_callsign: u.user_callsign,

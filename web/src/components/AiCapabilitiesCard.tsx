@@ -36,7 +36,7 @@ interface AiCapabilitiesCardProps {
 export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) => {
   const [isExpanded, setIsExpanded] = createSignal(true);
   const [selectedCategory, setSelectedCategory] = createSignal<string>('all');
-  const [copiedPaddleCmd, setCopiedPaddleCmd] = createSignal(false);
+  const [copiedTesseractCmd, setCopiedTesseractCmd] = createSignal(false);
 
   const getClientOs = (): 'windows' | 'macos' | 'linux' => {
     if (typeof window === 'undefined') return 'windows';
@@ -46,25 +46,26 @@ export const AiCapabilitiesCard: Component<AiCapabilitiesCardProps> = (props) =>
     return 'linux';
   };
 
-  const paddleVenvScript = `# 1. Buat venv dengan python 3.12 (wajib Python <= 3.12 untuk PaddlePaddle CPU)
-python3.12 -m venv ~/.venvs/paddleocr
-source ~/.venvs/paddleocr/bin/activate
+  const tesseractInstallScript = `# Fedora / RHEL
+sudo dnf install tesseract tesseract-langpack-eng tesseract-langpack-ind
 
-# 2. Install paddlepaddle cpu stabil & paddleocr
-pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
-pip install paddleocr`;
+# Ubuntu / Debian
+sudo apt install tesseract-ocr tesseract-ocr-eng tesseract-ocr-ind
 
-  const handleCopyPaddleCmd = () => {
-    navigator.clipboard.writeText(paddleVenvScript);
-    setCopiedPaddleCmd(true);
-    setTimeout(() => setCopiedPaddleCmd(false), 2000);
+# Arch Linux
+sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
+
+  const handleCopyTesseractCmd = () => {
+    navigator.clipboard.writeText(tesseractInstallScript);
+    setCopiedTesseractCmd(true);
+    setTimeout(() => setCopiedTesseractCmd(false), 2000);
   };
 
   const capabilities: CapabilityItem[] = [
     {
       id: 'vision',
       icon: ScanEye,
-      title: 'Pindai Layar & OCR Visual (Native OS / PaddleOCR)',
+      title: 'Pindai Layar & OCR Visual (Native OS / Tesseract)',
       category: 'desktop',
       description: 'Menganalisis tampilan visual layar monitor dan aplikasi untuk mendeteksi teks, label, serta tombol yang tampil persis di layar.',
       examples: [
@@ -318,7 +319,7 @@ pip install paddleocr`;
                               {getClientOs() === 'linux' && (
                                 <>
                                   <AlertTriangle size={11} class="text-amber-500" />
-                                  Linux: Memerlukan PaddleOCR
+                                  Linux: Memerlukan Tesseract OCR
                                 </>
                               )}
                             </span>
@@ -346,21 +347,21 @@ pip install paddleocr`;
                       <div class="mt-2.5 p-3 bg-amber-500/10 border border-amber-500/30 text-xs space-y-2">
                         <div class="flex items-center gap-1.5 font-bold text-amber-500">
                           <AlertTriangle size={14} class="shrink-0" />
-                          <span>Peringatan: Linux Memerlukan PaddleOCR (Python 3.8 - 3.12)</span>
+                          <span>Peringatan: Linux Memerlukan Paket Tesseract OCR</span>
                         </div>
                         <p class="text-[11px] text-theme-text/80 leading-relaxed">
-                          Distribusi Linux belum memiliki native OCR visual bawaan terpadu. PaddlePaddle membutuhkan Python 3.8 s.d. 3.12. Jalankan setup venv ini di terminal (otomatis dideteksi oleh backend):
+                          Distribusi Linux menggunakan engine Tesseract OCR (streaming pipe memory). Install paket berikut via package manager distro kamu:
                         </p>
                         <div class="p-2 bg-theme-card border border-theme-border font-mono text-[10.5px] space-y-1 relative group">
                           <div class="flex items-center justify-between pb-1 border-b border-theme-border/50 text-[10px] text-theme-text/60">
-                            <span>Setup ~/.venvs/paddleocr:</span>
+                            <span>Perintah Instalasi Paket:</span>
                             <button
                               type="button"
-                              onClick={handleCopyPaddleCmd}
+                              onClick={handleCopyTesseractCmd}
                               class="px-2 py-0.5 bg-theme-bg hover:bg-theme-surface border border-theme-border text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shrink-0"
-                              title="Salin seluruh perintah setup"
+                              title="Salin perintah instalasi"
                             >
-                              {copiedPaddleCmd() ? (
+                              {copiedTesseractCmd() ? (
                                 <>
                                   <Check size={11} class="text-[#29483A]" />
                                   <span class="text-[#29483A]">Tersalin</span>
@@ -368,13 +369,13 @@ pip install paddleocr`;
                               ) : (
                                 <>
                                   <Copy size={11} class="text-theme-text/70" />
-                                  <span>Salin Skrip</span>
+                                  <span>Salin Perintah</span>
                                 </>
                               )}
                             </button>
                           </div>
                           <pre class="overflow-x-auto text-theme-cyan font-bold select-all leading-relaxed custom-scrollbar pt-1">
-{paddleVenvScript}
+{tesseractInstallScript}
                           </pre>
                         </div>
                       </div>

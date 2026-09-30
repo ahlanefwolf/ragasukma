@@ -22,7 +22,7 @@ import { API_BASE } from '../services/base';
 import { AvatarViewer } from './AvatarViewer';
 import { MobileAudioSyncManager, MobileTrackState } from './AudioSyncManager';
 
-export type MobileAudioMode = 'remote_desktop' | 'full_mobile';
+type MobileAudioMode = 'remote_desktop' | 'full_mobile';
 
 interface MobileAppProps {
   authKey: string;
@@ -134,45 +134,20 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     fetch(`${API_BASE}/api/remote/active`, { method: 'POST' }).catch(() => {});
   };
 
-  const speakOnMobile = (text: string, em: string) => {
+  const speakOnMobile = (text: string, em: string, audioUrl?: string | null) => {
     if (!isHpAudioActive()) return;
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
-    try {
-      window.speechSynthesis.cancel();
-      audioSync.stopAll();
-      setEmotion(em);
-      setVisualState('speaking');
+    audioSync.stopAll();
+    setEmotion(em);
 
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = 'id-ID';
-      utter.rate = 1.15;
-      utter.pitch = 1.25;
+    const playAudio = (url: string, revokeOnEnd = false) => {
+      const fullUrl = url.startsWith('http') || url.startsWith('blob:') ? url : `${API_BASE}${url}`;
+      const audio = new Audio(fullUrl);
 
-      const voices = window.speechSynthesis.getVoices();
-      const idVoice = voices.find(
-        (v) =>
-          v.lang.toLowerCase().startsWith('id') ||
-          v.lang.toLowerCase().startsWith('in') ||
-          v.name.toLowerCase().includes('indonesia')
-      );
-      if (idVoice) {
-        utter.voice = idVoice;
-      }
-
-      let hasFinished = false;
-      const finishSpeech = () => {
-        if (hasFinished) return;
-        hasFinished = true;
-        setVisualState('idle');
-        fetch(`${API_BASE}/api/tts/state`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ speaking: false, emotion: 'neutral' }),
-        }).catch(() => {});
-      };
-
-      utter.onstart = () => {
+      let hasReportedSpeaking = false;
+      const notifySpeaking = () => {
+        if (hasReportedSpeaking) return;
+        hasReportedSpeaking = true;
         setVisualState('speaking');
         fetch(`${API_BASE}/api/tts/state`, {
           method: 'POST',
@@ -181,36 +156,64 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         }).catch(() => {});
       };
 
-      utter.onend = () => {
-        finishSpeech();
-      };
+      audio.onplaying = notifySpeaking;
+      audio.onplay = notifySpeaking;
 
-      utter.onerror = (e) => {
-        console.warn('[Mobile TTS] Utterance error:', e);
-        finishSpeech();
-      };
-
-      // Safety timeout: jika browser mobile menahan onend
-      const estDuration = Math.max(3000, (text.length / 10) * 1000 + 1500);
-      setTimeout(() => {
-        if (visualState() === 'speaking') {
-          finishSpeech();
+      audio.onended = () => {
+        setVisualState('idle');
+        if (revokeOnEnd) {
+          try { URL.revokeObjectURL(url); } catch {}
         }
-      }, estDuration);
+        fetch(`${API_BASE}/api/tts/state`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ speaking: false, emotion: 'neutral' }),
+        }).catch(() => {});
+      };
 
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-      window.speechSynthesis.speak(utter);
-    } catch (err) {
-      console.warn('[Mobile TTS] Failed to speak:', err);
-      setVisualState('idle');
-      fetch(`${API_BASE}/api/tts/state`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ speaking: false }),
-      }).catch(() => {});
+      audio.onerror = (e) => {
+        console.warn('[Mobile Supertonic Audio] Playback error:', e);
+        setVisualState('idle');
+      };
+
+      audio.play().catch((err) => {
+        console.warn('[Mobile Supertonic Audio] Play blocked/interrupted:', err);
+        setVisualState('idle');
+      });
+    };
+
+    if (audioUrl) {
+      playAudio(audioUrl, false);
+      return;
     }
+
+    if (!text.trim()) {
+      setVisualState('idle');
+      return;
+    }
+
+    fetch(`${API_BASE}/api/tts/synthesize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        voice: 'F4',
+        lang: 'id',
+        speed: 1.05,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        playAudio(url, true);
+      })
+      .catch((err) => {
+        console.warn('[Mobile Supertonic Audio] Synthesize fetch error:', err);
+        setVisualState('idle');
+      });
   };
 
   // Handler Terpusat Semua Aksi (SSE + Polling Fallback) dengan Deduplikasi ID
@@ -222,22 +225,24 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       lastActionId = act.id;
     }
 
-    // 1. Suara respon instan langsung dari Web Speech API HP Android (Google TTS)
+    // 1. Suara respon Supertonic-3 AI atau Web Speech API HP Android
     if (act.action === 'assistant:speak') {
       let textToSpeak = '';
       let em = 'neutral';
+      let audioUrl: string | null = null;
       try {
         const parsed = typeof act.payload === 'string' ? JSON.parse(act.payload) : act.payload;
         textToSpeak = parsed.text || '';
         em = parsed.emotion || 'neutral';
+        audioUrl = parsed.audio_url || null;
       } catch {
         textToSpeak = typeof act.payload === 'string' ? act.payload : '';
       }
       if (em) {
         setEmotion(em);
       }
-      if (textToSpeak.trim() && isHpAudioActive()) {
-        speakOnMobile(textToSpeak.trim(), em);
+      if ((textToSpeak.trim() || audioUrl) && isHpAudioActive()) {
+        speakOnMobile(textToSpeak.trim(), em, audioUrl);
       }
     }
 
@@ -312,11 +317,6 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
 
   const unlockAudioContext = async (silent = false) => {
     await audioSync.unlockAudio();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.getVoices();
-      } catch {}
-    }
     setHasUnlockedAudio(true);
     notifyRemoteActive();
     if (!silent) {
@@ -332,12 +332,6 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     } catch {}
 
     if (mode === 'remote_desktop') {
-      // Smartphone hening: batalkan suara TTS & stop musik HP
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        try {
-          window.speechSynthesis.cancel();
-        } catch {}
-      }
       audioSync.stopAll();
       await api.sendCommand('mode_remote_desktop');
       props.showToast('🖥️ Mode Remote Desktop: Suara di Desktop, Mic PC Mute');
@@ -423,11 +417,6 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         } catch {}
         speechRec = null;
       }
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        try {
-          window.speechSynthesis.cancel();
-        } catch {}
-      }
       audioSync.stopAll();
     });
   });
@@ -446,12 +435,6 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     const textToSend = (customText !== undefined ? customText : inputText()).trim();
     if (!textToSend || isSending()) return;
 
-    // Barge-in / interupsi: hentikan suara AI sebelumnya jika user mengirim pesan baru
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.cancel();
-      } catch {}
-    }
     audioSync.stopAll();
 
     setIsSending(true);

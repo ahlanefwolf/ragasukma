@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::Mutex;
+use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,7 +87,10 @@ static SESSION_WORKER_TX: Mutex<Option<SyncSender<BrowserSessionEvent>>> = Mutex
 
 /// Inisialisasi dedicated background worker thread untuk sinkronisasi `active_tab_browser.json`
 pub fn init_browser_session_worker() {
-    let (tx, rx): (SyncSender<BrowserSessionEvent>, Receiver<BrowserSessionEvent>) = sync_channel(128);
+    let (tx, rx): (
+        SyncSender<BrowserSessionEvent>,
+        Receiver<BrowserSessionEvent>,
+    ) = sync_channel(128);
 
     if let Ok(mut lock) = SESSION_WORKER_TX.lock() {
         *lock = Some(tx);
@@ -96,7 +99,7 @@ pub fn init_browser_session_worker() {
     let _ = std::thread::Builder::new()
         .name("ragasukma-browser-worker".to_string())
         .spawn(move || {
-            println!("🚀 [Browser Worker] Dedicated BrowserSessionWorker aktif untuk active_tab_browser.json");
+            println!("🚀 [Browser Worker] Dedicated BrowserSessionWorker active for active_tab_browser.json");
             browser_worker_loop(rx);
         });
 }
@@ -158,7 +161,12 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                         found_active = true;
                     } else {
                         let t_url = t.url.to_lowercase();
-                        if !found_active && !snap_url.is_empty() && (t_url == snap_url || snap_url.starts_with(&t_url) || t_url.starts_with(&snap_url)) {
+                        if !found_active
+                            && !snap_url.is_empty()
+                            && (t_url == snap_url
+                                || snap_url.starts_with(&t_url)
+                                || t_url.starts_with(&snap_url))
+                        {
                             t.active = true;
                             t.url = snap.url.clone();
                             t.title = snap.title.clone();
@@ -189,20 +197,24 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                 }
 
                 let mut snap = current_snapshot.take().unwrap_or_else(|| {
-                    LAST_ACTIVE_SNAPSHOT.lock().ok().and_then(|l| l.clone()).unwrap_or_else(|| BrowserDomSnapshot {
-                        url: String::new(),
-                        domain: String::new(),
-                        title: String::new(),
-                        timestamp: SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .map(|d| d.as_millis() as u64)
-                            .unwrap_or(0),
-                        tabs: Vec::new(),
-                        buttons: Vec::new(),
-                        inputs: Vec::new(),
-                        texts: Vec::new(),
-                        text_summary: String::new(),
-                    })
+                    LAST_ACTIVE_SNAPSHOT
+                        .lock()
+                        .ok()
+                        .and_then(|l| l.clone())
+                        .unwrap_or_else(|| BrowserDomSnapshot {
+                            url: String::new(),
+                            domain: String::new(),
+                            title: String::new(),
+                            timestamp: SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .map(|d| d.as_millis() as u64)
+                                .unwrap_or(0),
+                            tabs: Vec::new(),
+                            buttons: Vec::new(),
+                            inputs: Vec::new(),
+                            texts: Vec::new(),
+                            text_summary: String::new(),
+                        })
                 });
 
                 let mut updated_tabs = tabs;
@@ -228,7 +240,8 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                         if snap.url != t.url {
                             snap.url = t.url.clone();
                             snap.title = t.title.clone();
-                            snap.domain = t.url
+                            snap.domain = t
+                                .url
                                 .split("://")
                                 .nth(1)
                                 .unwrap_or(&t.url)
@@ -258,8 +271,6 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                 write_snapshot_to_disk(&snap);
                 current_snapshot = Some(snap);
             }
-
-
 
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                 // Pastikan file disk tetap ada dan terisi
@@ -366,7 +377,9 @@ pub fn smart_open_or_switch_tab(url: &str, query: Option<&str>, domain_hint: Opt
         if !d_hint.is_empty() && t_url.contains(&d_hint.to_lowercase()) {
             return true;
         }
-        if !q_hint.is_empty() && (t_url.contains(&q_hint.to_lowercase()) || t_title.contains(&q_hint.to_lowercase())) {
+        if !q_hint.is_empty()
+            && (t_url.contains(&q_hint.to_lowercase()) || t_title.contains(&q_hint.to_lowercase()))
+        {
             return true;
         }
         false
@@ -374,13 +387,21 @@ pub fn smart_open_or_switch_tab(url: &str, query: Option<&str>, domain_hint: Opt
 
     if let Some(tab) = existing_tab {
         println!(
-            "🔄 [Smart Tab Reuse] Menemukan tab yang sudah terbuka (ID: {}, Title: '{}'), mengaktifkan & navigasi tanpa membuka tab baru.",
+            "🔄 [Smart Tab Reuse] Found existing open tab (ID: {}, Title: '{}'), activating & navigating without opening a new tab.",
             tab.id, tab.title
         );
         send_browser_command(BrowserCommand {
             action: "SWITCH_OR_NAVIGATE".to_string(),
-            query: if q_hint.is_empty() { None } else { Some(q_hint.to_string()) },
-            domain: if d_hint.is_empty() { None } else { Some(d_hint.to_string()) },
+            query: if q_hint.is_empty() {
+                None
+            } else {
+                Some(q_hint.to_string())
+            },
+            domain: if d_hint.is_empty() {
+                None
+            } else {
+                Some(d_hint.to_string())
+            },
             new_url: Some(url.to_string()),
             ..Default::default()
         });
@@ -403,7 +424,11 @@ pub fn format_open_tabs_for_llm() -> String {
         lines.push(format!(
             "{}. **{}**{} (URL: `{}`) [Tab ID: `{}`]",
             i + 1,
-            if t.title.is_empty() { "Untitled" } else { &t.title },
+            if t.title.is_empty() {
+                "Untitled"
+            } else {
+                &t.title
+            },
             active_mark,
             t.url,
             t.id
@@ -440,7 +465,7 @@ pub fn cleanup_browser_sessions_on_startup() {
     if old_dir.exists() {
         let _ = fs::remove_dir_all(&old_dir);
     }
-    println!("🧹 [Active Tab] Inisialisasi awal 'assets/active_tab_browser.json' untuk sesi baru.");
+    println!("🧹 [Active Tab] Initializing 'assets/active_tab_browser.json' for new session.");
 }
 
 pub fn get_active_tab_browser_path() -> PathBuf {
@@ -482,7 +507,10 @@ pub fn handle_post_browser_snapshot(body: &str) -> (String, &'static str) {
             ),
         },
         Err(e) => (
-            format!(r#"{{"status":"error","message":"Invalid snapshot JSON: {}"}}"#, e),
+            format!(
+                r#"{{"status":"error","message":"Invalid snapshot JSON: {}"}}"#,
+                e
+            ),
             "application/json",
         ),
     }
@@ -504,7 +532,10 @@ pub fn handle_post_browser_tabs(body: &str) -> (String, &'static str) {
             )
         }
         Err(e) => (
-            format!(r#"{{"status":"error","message":"Invalid tabs payload: {}"}}"#, e),
+            format!(
+                r#"{{"status":"error","message":"Invalid tabs payload: {}"}}"#,
+                e
+            ),
             "application/json",
         ),
     }

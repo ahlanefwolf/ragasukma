@@ -1,5 +1,5 @@
 #[cfg(target_os = "linux")]
-use super::{current_epoch_ms, ActiveWindowSnapshot, DesktopElement, WindowItem};
+use super::{ActiveWindowSnapshot, DesktopElement, WindowItem, current_epoch_ms};
 
 #[cfg(target_os = "linux")]
 static ATSPI_CONN: std::sync::Mutex<Option<atspi::connection::AccessibilityConnection>> =
@@ -68,7 +68,10 @@ fn get_sway_windows() -> Option<Vec<CompositorWindow>> {
 
         if !name.is_empty() && !app.is_empty() && !app.eq_ignore_ascii_case("waybar") {
             let id = node.get("id").and_then(|i| i.as_i64()).unwrap_or(0);
-            let focused = node.get("focused").and_then(|f| f.as_bool()).unwrap_or(false);
+            let focused = node
+                .get("focused")
+                .and_then(|f| f.as_bool())
+                .unwrap_or(false);
             out.push(CompositorWindow {
                 id,
                 app: app.to_string(),
@@ -78,12 +81,18 @@ fn get_sway_windows() -> Option<Vec<CompositorWindow>> {
         }
 
         let empty_vec = Vec::new();
-        let nodes = node.get("nodes").and_then(|n| n.as_array()).unwrap_or(&empty_vec);
+        let nodes = node
+            .get("nodes")
+            .and_then(|n| n.as_array())
+            .unwrap_or(&empty_vec);
         for child in nodes {
             collect_nodes(child, out);
         }
 
-        let floating = node.get("floating_nodes").and_then(|n| n.as_array()).unwrap_or(&empty_vec);
+        let floating = node
+            .get("floating_nodes")
+            .and_then(|n| n.as_array())
+            .unwrap_or(&empty_vec);
         for child in floating {
             collect_nodes(child, out);
         }
@@ -91,11 +100,7 @@ fn get_sway_windows() -> Option<Vec<CompositorWindow>> {
 
     let mut wins = Vec::new();
     collect_nodes(&val, &mut wins);
-    if wins.is_empty() {
-        None
-    } else {
-        Some(wins)
-    }
+    if wins.is_empty() { None } else { Some(wins) }
 }
 
 #[cfg(target_os = "linux")]
@@ -108,8 +113,16 @@ pub fn get_focused_window_quick_info_linux() -> Option<(String, String)> {
             if output.status.success() {
                 if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&output.stdout) {
                     fn find_focused(node: &serde_json::Value) -> Option<(String, String)> {
-                        if node.get("focused").and_then(|f| f.as_bool()).unwrap_or(false) {
-                            let title = node.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+                        if node
+                            .get("focused")
+                            .and_then(|f| f.as_bool())
+                            .unwrap_or(false)
+                        {
+                            let title = node
+                                .get("name")
+                                .and_then(|n| n.as_str())
+                                .unwrap_or("")
+                                .to_string();
                             let app = node
                                 .get("app_id")
                                 .and_then(|a| a.as_str())
@@ -129,7 +142,9 @@ pub fn get_focused_window_quick_info_linux() -> Option<(String, String)> {
                                 }
                             }
                         }
-                        if let Some(floating) = node.get("floating_nodes").and_then(|n| n.as_array()) {
+                        if let Some(floating) =
+                            node.get("floating_nodes").and_then(|n| n.as_array())
+                        {
                             for child in floating {
                                 if let Some(res) = find_focused(child) {
                                     return Some(res);
@@ -231,10 +246,13 @@ pub async fn scan_active_window_linux() -> Result<ActiveWindowSnapshot, String> 
                             let role = win_proxy.get_role().await.unwrap_or(Role::Invalid);
                             let win_name = win_proxy.name().await.unwrap_or_default();
                             let state = win_proxy.get_state().await.unwrap_or_default();
-                            let is_active = state.contains(State::Active) || state.contains(State::Focused);
+                            let is_active =
+                                state.contains(State::Active) || state.contains(State::Focused);
 
-                            if !matches!(role, Role::Window | Role::Frame | Role::Dialog | Role::Application)
-                                || win_name.is_empty()
+                            if !matches!(
+                                role,
+                                Role::Window | Role::Frame | Role::Dialog | Role::Application
+                            ) || win_name.is_empty()
                             {
                                 continue;
                             }
@@ -292,12 +310,18 @@ pub async fn scan_active_window_linux() -> Result<ActiveWindowSnapshot, String> 
                         }
 
                         while let Some((node_ref, depth)) = queue.pop() {
-                            let Ok(node_proxy) = node_ref.as_accessible_proxy(zbus_conn).await else {
+                            let Ok(node_proxy) = node_ref.as_accessible_proxy(zbus_conn).await
+                            else {
                                 continue;
                             };
 
                             let role = node_proxy.get_role().await.unwrap_or(Role::Invalid);
-                            let name = node_proxy.name().await.unwrap_or_default().trim().to_string();
+                            let name = node_proxy
+                                .name()
+                                .await
+                                .unwrap_or_default()
+                                .trim()
+                                .to_string();
 
                             if !name.is_empty() {
                                 match role {
@@ -331,6 +355,13 @@ pub async fn scan_active_window_linux() -> Result<ActiveWindowSnapshot, String> 
                                     Role::Label | Role::Static | Role::Heading
                                         if !snapshot.texts.contains(&name) =>
                                     {
+                                        snapshot.buttons.push(DesktopElement {
+                                            id: element_id_counter,
+                                            label: name.clone(),
+                                            role: "text".to_string(),
+                                            ..Default::default()
+                                        });
+                                        element_id_counter += 1;
                                         snapshot.texts.push(name.clone());
                                     }
                                     _ => {}
@@ -353,7 +384,7 @@ pub async fn scan_active_window_linux() -> Result<ActiveWindowSnapshot, String> 
 
     snapshot.windows = all_windows;
     if snapshot.app_name.is_empty() {
-        snapshot.text_summary = "Tidak ada jendela aplikasi yang terfokus".to_string();
+        snapshot.text_summary = "No application window is focused".to_string();
     }
 
     Ok(snapshot)

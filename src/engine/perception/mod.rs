@@ -1,13 +1,13 @@
 pub mod capture;
 #[cfg(target_os = "macos")]
 pub mod ocr_macos;
-pub mod ocr_paddle;
+pub mod ocr_tesseract;
 #[cfg(target_os = "windows")]
 pub mod ocr_windows;
 pub mod utils;
 
 pub use capture::{capture_screen_image, capture_window_image_by_title};
-pub use utils::{get_coordinate_scale_divisor, is_button_like_text};
+pub use utils::{get_coordinate_scale_divisor, is_button_like_text, string_similarity};
 
 use image::{DynamicImage, GenericImageView};
 use serde::{Deserialize, Serialize};
@@ -17,8 +17,8 @@ use std::sync::Mutex;
 pub struct VisualElement {
     pub id: usize,
     pub label: String,
-    pub role: String, // "button", "input", "text"
-    pub bbox: [i32; 4], // [x, y, w, h]
+    pub role: String,     // "button", "input", "text"
+    pub bbox: [i32; 4],   // [x, y, w, h]
     pub center: [i32; 2], // [cx, cy]
     pub confidence: f32,
 }
@@ -33,8 +33,8 @@ pub struct PerceptionResult {
 }
 
 /// Lightweight PerceptionEngine
-/// Mengutamakan OCR bawaan sistem operasi (Windows Media OCR) tanpa membebani RAM
-/// dengan model ONNX yang berat. Memiliki fallback ke PaddleOCR via Python jika diperlukan.
+/// Mengutamakan OCR bawaan sistem operasi (Windows Media OCR / Apple Vision) tanpa membebani RAM
+/// dengan model yang berat. Memiliki fallback cepat ke Tesseract OCR (streaming via stdin/stdout pipe).
 pub struct PerceptionEngine {}
 
 static PERCEPTION_ENGINE: Mutex<Option<PerceptionEngine>> = Mutex::new(None);
@@ -48,15 +48,15 @@ impl PerceptionEngine {
     pub fn analyze_image(&mut self, image: &DynamicImage) -> PerceptionResult {
         let mut visual_elements: Vec<VisualElement> = Vec::new();
         let mut texts: Vec<String> = Vec::new();
-        let mut element_id = 1;
-        let scale_div = get_coordinate_scale_divisor();
-
         let (orig_w, orig_h) = image.dimensions();
         if orig_w == 0 || orig_h == 0 {
             return PerceptionResult::default();
         }
 
-        // 1. Eksekusi OCR dengan prioritas Native OS -> Fallback PaddleOCR
+        let mut element_id = 1;
+        let scale_div = get_coordinate_scale_divisor(orig_w, orig_h);
+
+        // 1. Eksekusi OCR dengan prioritas Native OS -> Fallback Tesseract OCR
         let ocr_boxes: Result<Vec<(String, [i32; 4], f32)>, String> = {
             #[cfg(target_os = "windows")]
             {
@@ -64,8 +64,10 @@ impl PerceptionEngine {
                 match ocr_windows::run_windows_native_ocr(image) {
                     Ok(detected) => Ok(detected),
                     Err(err) => {
-                        eprintln!("⚠️ [Perception] Windows Native OCR gagal ({err}), mencoba fallback PaddleOCR...");
-                        ocr_paddle::run_paddleocr_fallback(image)
+                        eprintln!(
+                            "⚠️ [Perception] Windows Native OCR gagal ({err}), mencoba fallback Tesseract OCR..."
+                        );
+                        ocr_tesseract::run_tesseract_fallback(image)
                     }
                 }
             }
@@ -76,16 +78,18 @@ impl PerceptionEngine {
                 match ocr_macos::run_macos_native_ocr(image) {
                     Ok(detected) => Ok(detected),
                     Err(err) => {
-                        eprintln!("⚠️ [Perception] Apple Vision OCR gagal ({err}), mencoba fallback PaddleOCR...");
-                        ocr_paddle::run_paddleocr_fallback(image)
+                        eprintln!(
+                            "⚠️ [Perception] Apple Vision OCR gagal ({err}), mencoba fallback Tesseract OCR..."
+                        );
+                        ocr_tesseract::run_tesseract_fallback(image)
                     }
                 }
             }
 
             #[cfg(not(any(target_os = "windows", target_os = "macos")))]
             {
-                // Linux: Gunakan fallback PaddleOCR
-                ocr_paddle::run_paddleocr_fallback(image)
+                // Linux: Gunakan Tesseract OCR memory-streaming
+                ocr_tesseract::run_tesseract_fallback(image)
             }
         };
 
@@ -128,7 +132,7 @@ impl PerceptionEngine {
                 }
             }
             Err(err) => {
-                eprintln!("❌ [Perception] Gagal memproses OCR visual: {err}");
+                eprintln!("❌ [Perception] Failed to process visual OCR: {err}");
             }
         }
 
@@ -143,7 +147,11 @@ impl PerceptionEngine {
         }
 
         let text_summary = if texts.len() > 30 {
-            format!("{} ... ({} teks terdeteksi)", texts[..30].join(" | "), texts.len())
+            format!(
+                "{} ... ({} teks terdeteksi)",
+                texts[..30].join(" | "),
+                texts.len()
+            )
         } else {
             texts.join(" | ")
         };
@@ -194,7 +202,7 @@ pub fn start_vision_worker() {
                         let res = match capture_screen_image() {
                             Ok(img) => engine.analyze_image(&img),
                             Err(e) => {
-                                eprintln!("❌ [Vision Worker] Gagal capture layar: {e}");
+                                eprintln!("❌ [Vision Worker] Failed to capture screen: {e}");
                                 PerceptionResult::default()
                             }
                         };
@@ -217,12 +225,12 @@ pub fn start_vision_worker() {
 
                             let summary_info = if !res.texts.is_empty() || !res.buttons.is_empty() {
                                 format!(
-                                    "[STATUS SISTEM: Pemindaian layar untuk jendela {} sudah selesai, Mas! Datanya sudah masuk. Sampaikan dengan santai dan singkat bahwa layarnya sudah selesai dipindai dan siap jika ada yang mau ditanyakan/dibantu.]",
+                                    "[SYSTEM STATUS: Screen scan for window '{}' complete. Data is ready. Inform the user briefly that the screen has been scanned and you're ready to help.]",
                                     active_app
                                 )
                             } else {
                                 format!(
-                                    "[STATUS SISTEM: Pemindaian layar untuk jendela {} selesai, tapi tidak ada teks atau tombol yang terbaca. Sampaikan secara singkat dan santai.]",
+                                    "[SYSTEM STATUS: Screen scan for window '{}' complete, but no text or buttons were detected. Inform the user briefly and casually.]",
                                     active_app
                                 )
                             };
@@ -238,7 +246,7 @@ pub fn start_vision_worker() {
                         let res = match capture_window_image_by_title(&title) {
                             Ok(img) => engine.analyze_image(&img),
                             Err(e) => {
-                                eprintln!("❌ [Vision Worker] Gagal capture window '{title}': {e}");
+                                eprintln!("❌ [Vision Worker] Failed to capture window '{title}': {e}");
                                 PerceptionResult::default()
                             }
                         };
@@ -254,7 +262,7 @@ pub fn start_vision_worker() {
                 }
             }
         })
-        .expect("Gagal spawn vision worker thread");
+        .expect("Failed to spawn vision worker thread");
 }
 
 /// Helper sinkron untuk meminta scan dari vision worker
@@ -354,7 +362,7 @@ pub fn scan_screen_visual_elements() -> PerceptionResult {
         match PerceptionEngine::new() {
             Ok(engine) => *lock = Some(engine),
             Err(e) => {
-                eprintln!("[Perception] Gagal inisialisasi Perception Engine: {e}");
+                eprintln!("[Perception] Failed to initialize Perception Engine: {e}");
                 return PerceptionResult::default();
             }
         }
@@ -363,7 +371,7 @@ pub fn scan_screen_visual_elements() -> PerceptionResult {
     let img = match capture_screen_image() {
         Ok(i) => i,
         Err(e) => {
-            eprintln!("[Perception] Gagal capture layar: {e}");
+            eprintln!("[Perception] Failed to capture screen: {e}");
             return PerceptionResult::default();
         }
     };
@@ -377,8 +385,25 @@ pub fn scan_screen_visual_elements() -> PerceptionResult {
 
 #[cfg(test)]
 mod tests {
-    #[allow(unused_imports)]
     use super::*;
+
+    #[test]
+    fn test_perception_analyze_blank_image() {
+        let mut engine = PerceptionEngine::new().unwrap();
+        let img = DynamicImage::new_rgb8(100, 50);
+        let res = engine.analyze_image(&img);
+        assert!(res.elements.is_empty());
+    }
+
+    #[test]
+    fn test_monitor_scale_factor() {
+        if let Ok(monitors) = xcap::Monitor::all() {
+            assert!(
+                !monitors.is_empty(),
+                "Harus ada minimal satu monitor terdeteksi"
+            );
+        }
+    }
 
     #[test]
     #[cfg(target_os = "windows")]

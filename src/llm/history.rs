@@ -75,14 +75,18 @@ pub fn log_conversation_turn(
     let (date_str, time_str) = get_local_date_and_time();
     let histories_dir = crate::assets::get_assets_dir().join("histories");
     if let Err(e) = std::fs::create_dir_all(&histories_dir) {
-        crate::term_err!("⚠️ [History] Gagal membuat direktori histories: {e}");
+        crate::term_err!("⚠️ [History] Failed to create histories directory: {e}");
         return;
     }
 
     let file_path = histories_dir.join(format!("{date_str}.md"));
     let is_new = !file_path.exists();
 
-    match OpenOptions::new().create(true).append(true).open(&file_path) {
+    match OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&file_path)
+    {
         Ok(mut file) => {
             if is_new {
                 let header = format!(
@@ -97,7 +101,10 @@ pub fn log_conversation_turn(
             let _ = file.write_all(entry.as_bytes());
         }
         Err(e) => {
-            crate::term_err!("⚠️ [History] Gagal menulis riwayat chat ke {:?}: {e}", file_path);
+            crate::term_err!(
+                "⚠️ [History] Failed to write chat history to {:?}: {e}",
+                file_path
+            );
         }
     }
 }

@@ -17,7 +17,7 @@ pub fn handle_menu_cmd(
     }
 
     if let Ok(payload) = serde_json::from_str::<CmdPayload>(body_str) {
-        if payload.cmd == "start_chat" || payload.cmd == "start" {
+        if payload.cmd == "start_chat" {
             if let Ok(mut lock) = shared.lock() {
                 lock.tuning_mode = false;
                 lock.live_tuning_bones.clear();
@@ -27,7 +27,7 @@ pub fn handle_menu_cmd(
                 lock.current_state = AssistantVisualState::Idle;
                 lock.state_version = lock.state_version.wrapping_add(1);
             }
-        } else if payload.cmd == "stop_chat" || payload.cmd == "stop" {
+        } else if payload.cmd == "stop_chat" {
             if let Ok(mut lock) = shared.lock() {
                 lock.is_running = false;
                 lock.current_state = AssistantVisualState::Idle;

@@ -3,17 +3,21 @@ use crate::engine::app_scanner::get_installed_applications;
 use crate::engine::skills::execute_command_by_os;
 
 /// Handler gabungan untuk kontrol sistem OS dan peluncuran aplikasi
-pub fn execute_os_or_app_action(namespace: &str, action: &str, payload: &str) -> Option<(String, String)> {
+pub fn execute_os_or_app_action(
+    namespace: &str,
+    action: &str,
+    payload: &str,
+) -> Option<(String, String)> {
     let act = action.trim().to_lowercase();
     let query = payload.trim();
 
     // 1. Aksi utilitas murni sistem OS
     match act.as_str() {
-        "volume_up" => return execute_by_catalog_name("Naikkan Volume"),
-        "volume_down" => return execute_by_catalog_name("Turunkan Volume"),
+        "volume_up" => return execute_by_catalog_name("Volume Up"),
+        "volume_down" => return execute_by_catalog_name("Volume Down"),
         "mute" => return execute_by_catalog_name("Mute Audio"),
-        "lock" => return execute_by_catalog_name("Kunci Layar"),
-        "screenshot" => return execute_by_catalog_name("Ambil Screenshot"),
+        "lock" => return execute_by_catalog_name("Lock Screen"),
+        "screenshot" => return execute_by_catalog_name("Screenshot"),
         _ => {}
     }
 
@@ -42,7 +46,7 @@ fn execute_by_catalog_name(catalog_name: &str) -> Option<(String, String)> {
     for item in get_builtin_system_skills() {
         if item.name.eq_ignore_ascii_case(catalog_name) {
             match execute_command_by_os(&item.command) {
-                Ok(_) => return Some((item.name, "Berhasil dijalankan".to_string())),
+                Ok(_) => return Some((item.name, "Executed successfully".to_string())),
                 Err(e) => return Some((item.name, format!("Error: {e}"))),
             }
         }
@@ -58,49 +62,55 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
         return None;
     }
 
-    let q_lower = app_query.to_lowercase();
     let installed_apps = get_installed_applications();
 
-    // 1st Priority: Exact match dari installed applications
-    for app in &installed_apps {
-        if app.name.eq_ignore_ascii_case(app_query) {
-            if execute_command_by_os(&app.exec).is_ok() {
-                return Some((format!("Buka {}", app.name), "Berhasil membuka aplikasi".to_string()));
-            }
+    // 1. Cari aplikasi berdasarkan hierarki matching (Exact -> Contains -> Aliases -> Fuzzy)
+    if let Some(target_app) = find_target_app(app_query, &installed_apps) {
+        if launch_app(target_app).is_ok() {
+            return Some((
+                format!("Open {}", target_app.name),
+                format!("Successfully opened application '{}'", target_app.name),
+            ));
         }
     }
 
-    // 2nd Priority: Starts with / Contains match dari installed applications
-    for app in &installed_apps {
-        let app_lower = app.name.to_lowercase();
-        if app_lower.starts_with(&q_lower) || app_lower.contains(&q_lower) {
-            if execute_command_by_os(&app.exec).is_ok() {
-                return Some((format!("Buka {}", app.name), "Berhasil membuka aplikasi".to_string()));
-            }
-        }
-    }
+    // 2. Fallback: Eksekusi langsung nama binary di PATH sistem jika ada
+    let q_clean = app_query.split('(').next().unwrap_or(app_query).trim();
 
-    // 3rd Priority: Fallback eksekusi langsung binary nama aplikasi jika ada di PATH OS
     #[cfg(target_os = "windows")]
     {
-        if execute_command_by_os(app_query).is_ok() {
+        if launch_windows_exec(q_clean).is_ok() {
             return Some((
-                format!("Buka {app_query}"),
-                "Berhasil menjalankan aplikasi dari sistem".to_string(),
+                format!("Open {q_clean}"),
+                "Successfully launched application from system".to_string(),
             ));
         }
-        let explorer_cmd = format!("explorer.exe \"{}\"", app_query);
-        if execute_command_by_os(&explorer_cmd).is_ok() {
+        let explorer_cmd = format!("explorer.exe \"{}\"", q_clean);
+        if launch_windows_exec(&explorer_cmd).is_ok() {
             return Some((
-                format!("Buka {app_query}"),
-                "Berhasil menjalankan aplikasi dari sistem".to_string(),
+                format!("Open {q_clean}"),
+                "Successfully launched application from system".to_string(),
             ));
         }
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
-        let binary_candidate = q_lower.replace(' ', "-");
+        let mac_cmd = format!("open -a \"{q_clean}\" 2>/dev/null || ({q_clean} &)");
+        let mut command = std::process::Command::new("sh");
+        command.args(["-c", &mac_cmd]);
+        crate::engine::skills::configure_subprocess(&mut command);
+        if command.spawn().is_ok() {
+            return Some((
+                format!("Open {q_clean}"),
+                "Successfully launched application from system".to_string(),
+            ));
+        }
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        let binary_candidate = q_clean.to_lowercase().replace(' ', "-");
         let cmd_test = format!("command -v {binary_candidate} >/dev/null 2>&1");
         if std::process::Command::new("sh")
             .args(["-c", &cmd_test])
@@ -108,15 +118,382 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
             .map(|s| s.success())
             .unwrap_or(false)
         {
-            let launch_cmd = format!("{binary_candidate} >/dev/null 2>&1 &");
-            if execute_command_by_os(&launch_cmd).is_ok() {
+            if launch_linux_command(&binary_candidate).is_ok() {
                 return Some((
-                    format!("Buka {app_query}"),
-                    "Berhasil menjalankan aplikasi dari sistem".to_string(),
+                    format!("Open {q_clean}"),
+                    "Successfully launched application from system".to_string(),
                 ));
+                }
+            }
+        }
+
+        None
+}
+
+/// Mencari aplikasi terpasang dengan hierarki 4 lapis:
+/// 1. Exact match (name / desktop_id / generic_name)
+/// 2. Substring & StartsWith match
+/// 3. Generic category alias (terminal -> foot, browser -> chrome, editor -> zed)
+/// 4. Fuzzy Levenshtein similarity (>= 70%)
+pub fn find_target_app<'a>(
+    query: &str,
+    apps: &'a [crate::engine::app_scanner::InstalledApp],
+) -> Option<&'a crate::engine::app_scanner::InstalledApp> {
+    let raw = query.trim();
+    if raw.is_empty() {
+        return None;
+    }
+
+    // Bersihkan format label seperti "Foot (Terminal)" -> ["Foot", "Terminal"]
+    let candidates: Vec<&str> = if let Some((base, role)) = raw.split_once('(') {
+        let clean_role = role.trim_end_matches(')').trim();
+        vec![base.trim(), clean_role, raw]
+    } else {
+        vec![raw]
+    };
+
+    // Prioritas 1: Exact match (case-insensitive)
+    for q in &candidates {
+        for app in apps {
+            if app.name.eq_ignore_ascii_case(q)
+                || app
+                    .desktop_id
+                    .as_deref()
+                    .is_some_and(|id| id.eq_ignore_ascii_case(q))
+                || app
+                    .generic_name
+                    .as_deref()
+                    .is_some_and(|g| g.eq_ignore_ascii_case(q))
+            {
+                return Some(app);
             }
         }
     }
 
+    // Prioritas 2: Substring & StartsWith match
+    for q in &candidates {
+        let q_lower = q.to_lowercase();
+        for app in apps {
+            let name_lower = app.name.to_lowercase();
+            let gen_lower = app.generic_name.as_deref().unwrap_or("").to_lowercase();
+            let id_lower = app.desktop_id.as_deref().unwrap_or("").to_lowercase();
+
+            if name_lower.starts_with(&q_lower)
+                || name_lower.contains(&q_lower)
+                || (!gen_lower.is_empty() && gen_lower.contains(&q_lower))
+                || (!id_lower.is_empty() && id_lower.contains(&q_lower))
+                || q_lower.contains(&name_lower)
+            {
+                return Some(app);
+            }
+        }
+    }
+
+    // Prioritas 3: Generic category alias matching (terminal -> foot, browser -> chrome, dll)
+    for q in &candidates {
+        let q_lower = q.to_lowercase();
+        for app in apps {
+            if crate::engine::app_scanner::is_app_matching_keywords(app, &[&q_lower]) {
+                return Some(app);
+            }
+        }
+    }
+
+    // Prioritas 4: Fuzzy Levenshtein Similarity (ambang batas >= 0.70)
+    let mut best_app = None;
+    let mut best_sim = 0.0f32;
+
+    for q in &candidates {
+        for app in apps {
+            let sim_name = crate::engine::perception::string_similarity(q, &app.name);
+            let sim_gen = app
+                .generic_name
+                .as_deref()
+                .map_or(0.0, |g| crate::engine::perception::string_similarity(q, g));
+            let sim_id = app.desktop_id.as_deref().map_or(0.0, |id| {
+                crate::engine::perception::string_similarity(q, id)
+            });
+
+            let max_score = sim_name.max(sim_gen).max(sim_id);
+            if max_score >= 0.70 && max_score > best_sim {
+                best_sim = max_score;
+                best_app = Some(app);
+            }
+        }
+    }
+
+    if let Some(app) = best_app {
+        crate::term_log!(
+            "🎯 [Fuzzy Match App] Found similar application '{}' -> '{}' (score: {:.1}%)",
+            raw,
+            app.name,
+            best_sim * 100.0
+        );
+        return Some(app);
+    }
+
     None
+}
+
+/// Peluncur aplikasi multiplatform, multidistro, multi-DE, dan multi-WM
+pub fn launch_app(app: &crate::engine::app_scanner::InstalledApp) -> std::io::Result<()> {
+    #[cfg(target_os = "windows")]
+    {
+        launch_windows_exec(&app.exec)
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let mac_cmd = format!("open -a \"{}\" 2>/dev/null || ({})", app.name, app.exec);
+        let mut command = std::process::Command::new("sh");
+        command.args(["-c", &mac_cmd]);
+        crate::engine::skills::configure_subprocess(&mut command);
+        command.spawn()?;
+        Ok(())
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        launch_linux_app(app)
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn launch_windows_exec(exec: &str) -> std::io::Result<()> {
+    let trimmed = exec.trim();
+    if !trimmed.contains('|')
+        && !trimmed.contains('&')
+        && !trimmed.contains('>')
+        && !trimmed.contains('<')
+    {
+        if let Some((prog, args)) = trimmed.split_once(' ') {
+            let clean_prog = prog.trim_matches('"');
+            let clean_args = args.trim_matches('"');
+            if std::process::Command::new(clean_prog)
+                .arg(clean_args)
+                .spawn()
+                .is_ok()
+            {
+                return Ok(());
+            }
+        } else {
+            let clean_prog = trimmed.trim_matches('"');
+            if std::process::Command::new(clean_prog).spawn().is_ok() {
+                return Ok(());
+            }
+        }
+    }
+
+    let mut command = std::process::Command::new("cmd");
+    command.args(["/S", "/C", &format!("\"{trimmed}\"")]);
+    crate::engine::skills::configure_subprocess(&mut command);
+    command.spawn()?;
+    Ok(())
+}
+
+#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+pub fn launch_linux_app(app: &crate::engine::app_scanner::InstalledApp) -> std::io::Result<()> {
+    // 1. Cek Compositor Wayland: Sway (Sway IPC seat spawn)
+    if std::env::var("SWAYSOCK").is_ok() {
+        if let Ok(status) = std::process::Command::new("swaymsg")
+            .args(["exec", "--", &app.exec])
+            .status()
+        {
+            if status.success() {
+                crate::term_log!(
+                    "🚀 [Linux Launcher] Opening '{}' via Sway IPC (swaymsg exec)",
+                    app.name
+                );
+                return Ok(());
+            }
+        }
+    }
+
+    // 2. Cek Compositor Wayland: Hyprland (Hyprland IPC dispatcher)
+    if std::env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok() {
+        if let Ok(status) = std::process::Command::new("hyprctl")
+            .args(["dispatch", "exec", "--", &app.exec])
+            .status()
+        {
+            if status.success() {
+                crate::term_log!(
+                    "🚀 [Linux Launcher] Opening '{}' via Hyprland IPC (hyprctl dispatch exec)",
+                    app.name
+                );
+                return Ok(());
+            }
+        }
+    }
+
+    // 3. Cek Window Manager X11: i3
+    if std::env::var("I3SOCK").is_ok() {
+        if let Ok(status) = std::process::Command::new("i3-msg")
+            .args(["exec", &app.exec])
+            .status()
+        {
+            if status.success() {
+                crate::term_log!(
+                    "🚀 [Linux Launcher] Opening '{}' via i3 IPC (i3-msg exec)",
+                    app.name
+                );
+                return Ok(());
+            }
+        }
+    }
+
+    // 4. Cek XDG Desktop Environment standard launcher (GNOME / KDE / XFCE / MATE)
+    if let Some(ref desktop_id) = app.desktop_id {
+        if let Ok(status) = std::process::Command::new("gtk-launch")
+            .arg(desktop_id)
+            .status()
+        {
+            if status.success() {
+                crate::term_log!(
+                    "🚀 [Linux Launcher] Opening '{}' via gtk-launch ({})" ,
+                    app.name,
+                    desktop_id
+                );
+                return Ok(());
+            }
+        }
+    }
+
+    if let Some(ref desktop_path) = app.desktop_path {
+        if let Ok(status) = std::process::Command::new("gio")
+            .args(["launch", desktop_path])
+            .status()
+        {
+            if status.success() {
+                crate::term_log!("🚀 [Linux Launcher] Opening '{}' via gio launch", app.name);
+                return Ok(());
+            }
+        }
+    }
+
+    // 5. Universal Detached Fallback (bekerja di seluruh distro & lingkungan desktop)
+    launch_linux_command(&app.exec)?;
+    crate::term_log!(
+        "🚀 [Linux Launcher] Opening '{}' via background detached process",
+        app.name
+    );
+    Ok(())
+}
+
+#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+pub fn launch_linux_command(cmd_str: &str) -> std::io::Result<()> {
+    // Cek Sway
+    if std::env::var("SWAYSOCK").is_ok() {
+        if let Ok(status) = std::process::Command::new("swaymsg")
+            .args(["exec", "--", cmd_str])
+            .status()
+        {
+            if status.success() {
+                return Ok(());
+            }
+        }
+    }
+
+    // Cek Hyprland
+    if std::env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok() {
+        if let Ok(status) = std::process::Command::new("hyprctl")
+            .args(["dispatch", "exec", "--", cmd_str])
+            .status()
+        {
+            if status.success() {
+                return Ok(());
+            }
+        }
+    }
+
+    // Cek i3
+    if std::env::var("I3SOCK").is_ok() {
+        if let Ok(status) = std::process::Command::new("i3-msg")
+            .args(["exec", cmd_str])
+            .status()
+        {
+            if status.success() {
+                return Ok(());
+            }
+        }
+    }
+
+    // Fallback universal detached spawn
+    let detached = format!("nohup {cmd_str} >/dev/null 2>&1 &");
+    let mut command = std::process::Command::new("sh");
+    command.args(["-c", &detached]);
+    crate::engine::skills::configure_subprocess(&mut command);
+    command.spawn()?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::app_scanner::InstalledApp;
+
+    #[test]
+    fn test_find_target_app_exact_generic_and_fuzzy() {
+        let apps = vec![
+            InstalledApp {
+                name: "Foot".to_string(),
+                exec: "foot".to_string(),
+                icon: None,
+                comment: Some("A wayland native terminal emulator".to_string()),
+                generic_name: Some("Terminal".to_string()),
+                keywords: vec![
+                    "shell".to_string(),
+                    "command".to_string(),
+                    "terminalemulator".to_string(),
+                ],
+                desktop_id: Some("foot".to_string()),
+                desktop_path: None,
+            },
+            InstalledApp {
+                name: "Google Chrome".to_string(),
+                exec: "google-chrome".to_string(),
+                icon: None,
+                comment: Some("Access the internet".to_string()),
+                generic_name: Some("Web Browser".to_string()),
+                keywords: vec!["internet".to_string(), "webbrowser".to_string()],
+                desktop_id: Some("google-chrome".to_string()),
+                desktop_path: None,
+            },
+            InstalledApp {
+                name: "Zed".to_string(),
+                exec: "zed".to_string(),
+                icon: None,
+                comment: None,
+                generic_name: Some("Text Editor".to_string()),
+                keywords: vec!["code".to_string(), "texteditor".to_string()],
+                desktop_id: Some("dev.zed.Zed".to_string()),
+                desktop_path: None,
+            },
+        ];
+
+        // 1. Exact Name
+        assert_eq!(find_target_app("Foot", &apps).unwrap().name, "Foot");
+
+        // 2. Generic Name / Alias
+        assert_eq!(find_target_app("terminal", &apps).unwrap().name, "Foot");
+
+        // 3. Label with Parenthesis from prompt ground of truth
+        assert_eq!(
+            find_target_app("Foot (Terminal)", &apps).unwrap().name,
+            "Foot"
+        );
+
+        // 4. Substring & Generic
+        assert_eq!(
+            find_target_app("chrome", &apps).unwrap().name,
+            "Google Chrome"
+        );
+        assert_eq!(
+            find_target_app("browser", &apps).unwrap().name,
+            "Google Chrome"
+        );
+
+        // 5. Fuzzy typo
+        assert_eq!(find_target_app("termnl", &apps).unwrap().name, "Foot");
+        assert_eq!(find_target_app("zedd", &apps).unwrap().name, "Zed");
+    }
 }

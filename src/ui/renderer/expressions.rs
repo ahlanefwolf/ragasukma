@@ -59,51 +59,69 @@ pub fn resolve_emotion_layers<'a>(
     let emo = emotion.to_lowercase();
 
     match emo.as_str() {
-        "happy" | "senang" => {
+        "happy" => {
             if let Some(expr) = find_expression(expressions, "happy") {
                 layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
             }
         }
-        "shy" | "malu" => {
+        "shy" => {
             if let Some(joy) = find_expression(expressions, "happy") {
-                layers.push(ActiveExpressionLayer { expr: joy, weight: 0.40 });
+                layers.push(ActiveExpressionLayer {
+                    expr: joy,
+                    weight: 0.40,
+                });
             }
             if let Some(blink) = find_expression(expressions, "blink") {
-                layers.push(ActiveExpressionLayer { expr: blink, weight: 0.30 });
+                layers.push(ActiveExpressionLayer {
+                    expr: blink,
+                    weight: 0.30,
+                });
             }
         }
-        "excited" | "semangat" => {
+        "excited" => {
             if let Some(wink) = find_first_matching(expressions, &["blinkleft", "wink"]) {
-                layers.push(ActiveExpressionLayer { expr: wink, weight: 0.85 });
+                layers.push(ActiveExpressionLayer {
+                    expr: wink,
+                    weight: 0.85,
+                });
             }
             if let Some(joy) = find_expression(expressions, "happy") {
-                layers.push(ActiveExpressionLayer { expr: joy, weight: 0.70 });
+                layers.push(ActiveExpressionLayer {
+                    expr: joy,
+                    weight: 0.70,
+                });
             }
         }
-        "surprised" | "kaget" => {
+        "surprised" => {
             if let Some(expr) = find_expression(expressions, "surprised") {
                 layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
             }
         }
-        "thinking" | "mikir" => {
+        "thinking" => {
             if let Some(u_mouth) = find_first_matching(expressions, &["ou", "u"]) {
-                layers.push(ActiveExpressionLayer { expr: u_mouth, weight: 0.35 });
+                layers.push(ActiveExpressionLayer {
+                    expr: u_mouth,
+                    weight: 0.35,
+                });
             }
             if let Some(sad) = find_expression(expressions, "sad") {
-                layers.push(ActiveExpressionLayer { expr: sad, weight: 0.20 });
+                layers.push(ActiveExpressionLayer {
+                    expr: sad,
+                    weight: 0.20,
+                });
             }
         }
-        "sad" | "sedih" => {
+        "sad" => {
             if let Some(expr) = find_expression(expressions, "sad") {
                 layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
             }
         }
-        "angry" | "marah" => {
+        "angry" => {
             if let Some(expr) = find_expression(expressions, "angry") {
                 layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
             }
         }
-        "neutral" | "netral" | "" => {
+        "neutral" | "" => {
             // Netral: 100% base mesh tanpa morph
         }
         _ => {
@@ -117,36 +135,25 @@ pub fn resolve_emotion_layers<'a>(
     layers
 }
 
-/// Ekstrak emosi dari tag eksplisit respon AI (*senang*, *malu*, *semangat*, *kaget*, *mikir*, *sedih*, *marah*, *netral*)
+const CANONICAL_EMOTIONS: [(&str, &str, &str); 8] = [
+    ("*happy*", "[happy]", "happy"),
+    ("*shy*", "[shy]", "shy"),
+    ("*excited*", "[excited]", "excited"),
+    ("*surprised*", "[surprised]", "surprised"),
+    ("*thinking*", "[thinking]", "thinking"),
+    ("*sad*", "[sad]", "sad"),
+    ("*angry*", "[angry]", "angry"),
+    ("*neutral*", "[neutral]", "neutral"),
+];
+
+/// Ekstrak emosi dari tag eksplisit standar AI (*happy*, *shy*, *excited*, *surprised*, *thinking*, *sad*, *angry*, *neutral*)
 pub fn detect_emotion(text: &str) -> Option<&'static str> {
     let lower = text.to_lowercase();
-
-    // Deteksi tag emosi resmi format bintang (*tag*) atau [tag]
-    if lower.contains("*senang*") || lower.contains("*happy*") || lower.contains("[happy]") || lower.contains("[senang]") {
-        return Some("happy");
+    for &(star, bracket, emo) in &CANONICAL_EMOTIONS {
+        if lower.contains(star) || lower.contains(bracket) {
+            return Some(emo);
+        }
     }
-    if lower.contains("*malu*") || lower.contains("*shy*") || lower.contains("[shy]") || lower.contains("[malu]") {
-        return Some("shy");
-    }
-    if lower.contains("*semangat*") || lower.contains("*excited*") || lower.contains("[excited]") || lower.contains("[semangat]") {
-        return Some("excited");
-    }
-    if lower.contains("*kaget*") || lower.contains("*surprised*") || lower.contains("[surprised]") || lower.contains("[kaget]") {
-        return Some("surprised");
-    }
-    if lower.contains("*mikir*") || lower.contains("*thinking*") || lower.contains("[thinking]") || lower.contains("[mikir]") {
-        return Some("thinking");
-    }
-    if lower.contains("*sedih*") || lower.contains("*sad*") || lower.contains("[sad]") || lower.contains("[sedih]") {
-        return Some("sad");
-    }
-    if lower.contains("*marah*") || lower.contains("*angry*") || lower.contains("[angry]") || lower.contains("[marah]") {
-        return Some("angry");
-    }
-    if lower.contains("*netral*") || lower.contains("*neutral*") || lower.contains("[neutral]") || lower.contains("[netral]") {
-        return Some("neutral");
-    }
-
     None
 }
 
@@ -280,43 +287,85 @@ mod tests {
 
     #[test]
     fn test_detect_canonical_emotions() {
-        assert_eq!(detect_emotion("*senang* halo kak!"), Some("happy"));
-        assert_eq!(detect_emotion("*malu* ah jangan gitu..."), Some("shy"));
-        assert_eq!(detect_emotion("*semangat* ayo kita mulai!"), Some("excited"));
-        assert_eq!(detect_emotion("*kaget* wah benarkah?"), Some("surprised"));
-        assert_eq!(detect_emotion("*mikir* hmm sebentar..."), Some("thinking"));
-        assert_eq!(detect_emotion("*sedih* maaf ya kak..."), Some("sad"));
-        assert_eq!(detect_emotion("*marah* ih nyebelin banget!"), Some("angry"));
-        assert_eq!(detect_emotion("*netral* ini jawabannya."), Some("neutral"));
+        assert_eq!(detect_emotion("*happy* hello!"), Some("happy"));
+        assert_eq!(detect_emotion("[happy] hello!"), Some("happy"));
+        assert_eq!(detect_emotion("*shy* oh don't say that..."), Some("shy"));
+        assert_eq!(detect_emotion("*excited* let's go!"), Some("excited"));
+        assert_eq!(detect_emotion("*surprised* really?"), Some("surprised"));
+        assert_eq!(detect_emotion("*thinking* hmm give me a second..."), Some("thinking"));
+        assert_eq!(detect_emotion("*sad* sorry about that..."), Some("sad"));
+        assert_eq!(detect_emotion("*angry* stop that!"), Some("angry"));
+        assert_eq!(detect_emotion("*neutral* here is the info."), Some("neutral"));
 
         // Fallback or without tag
-        assert_eq!(detect_emotion("halo kak, apa kabar?"), None);
-        assert_eq!(detect_emotion_with_fallback("halo kak"), "neutral");
+        assert_eq!(detect_emotion("hello there, how are you?"), None);
+        assert_eq!(detect_emotion_with_fallback("hello"), "neutral");
     }
 
     #[test]
     fn test_resolve_emotion_layers() {
         let mut expressions = HashMap::new();
-        expressions.insert("happy".to_string(), VrmExpressionData { name: "happy".into(), binds: vec![] });
-        expressions.insert("blink".to_string(), VrmExpressionData { name: "blink".into(), binds: vec![] });
-        expressions.insert("blinkleft".to_string(), VrmExpressionData { name: "blinkleft".into(), binds: vec![] });
-        expressions.insert("surprised".to_string(), VrmExpressionData { name: "surprised".into(), binds: vec![] });
-        expressions.insert("sad".to_string(), VrmExpressionData { name: "sad".into(), binds: vec![] });
-        expressions.insert("angry".to_string(), VrmExpressionData { name: "angry".into(), binds: vec![] });
-        expressions.insert("ou".to_string(), VrmExpressionData { name: "ou".into(), binds: vec![] });
+        expressions.insert(
+            "happy".to_string(),
+            VrmExpressionData {
+                name: "happy".into(),
+                binds: vec![],
+            },
+        );
+        expressions.insert(
+            "blink".to_string(),
+            VrmExpressionData {
+                name: "blink".into(),
+                binds: vec![],
+            },
+        );
+        expressions.insert(
+            "blinkleft".to_string(),
+            VrmExpressionData {
+                name: "blinkleft".into(),
+                binds: vec![],
+            },
+        );
+        expressions.insert(
+            "surprised".to_string(),
+            VrmExpressionData {
+                name: "surprised".into(),
+                binds: vec![],
+            },
+        );
+        expressions.insert(
+            "sad".to_string(),
+            VrmExpressionData {
+                name: "sad".into(),
+                binds: vec![],
+            },
+        );
+        expressions.insert(
+            "angry".to_string(),
+            VrmExpressionData {
+                name: "angry".into(),
+                binds: vec![],
+            },
+        );
+        expressions.insert(
+            "ou".to_string(),
+            VrmExpressionData {
+                name: "ou".into(),
+                binds: vec![],
+            },
+        );
 
-        let happy_layers = resolve_emotion_layers(&expressions, "senang");
+        let happy_layers = resolve_emotion_layers(&expressions, "happy");
         assert_eq!(happy_layers.len(), 1);
         assert!((happy_layers[0].weight - 0.85).abs() < 1e-4);
 
         let shy_layers = resolve_emotion_layers(&expressions, "shy");
         assert_eq!(shy_layers.len(), 2);
 
-        let excited_layers = resolve_emotion_layers(&expressions, "semangat");
+        let excited_layers = resolve_emotion_layers(&expressions, "excited");
         assert_eq!(excited_layers.len(), 2);
 
         let neutral_layers = resolve_emotion_layers(&expressions, "neutral");
         assert_eq!(neutral_layers.len(), 0);
     }
 }
-

@@ -50,6 +50,8 @@ nohup.out
 ai_voice_cmd.json
 ai_voice_state.json
 overlay_pos.json
+assets/histories/
+/assets/histories/
 
 # ------------------------------------------------------------------------------
 # OS, IDE & Editor metadata

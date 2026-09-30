@@ -66,6 +66,16 @@ pub fn is_remote_client_active() -> bool {
     false
 }
 
+static SPEAKING_EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+pub fn next_speaking_epoch() -> u64 {
+    SPEAKING_EPOCH.fetch_add(1, Ordering::SeqCst) + 1
+}
+
+pub fn current_speaking_epoch() -> u64 {
+    SPEAKING_EPOCH.load(Ordering::SeqCst)
+}
+
 pub fn set_ai_speaking(speaking: bool) {
     AI_SPEAKING_FLAG.store(speaking, Ordering::SeqCst);
 }
@@ -186,7 +196,6 @@ pub fn set_mic_muted(muted: bool) {
     }
 }
 
-
 pub fn is_mic_muted() -> bool {
     if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
         if let Some(shared) = lock.as_ref() {
@@ -261,7 +270,9 @@ pub fn notify_state_changed() {
 }
 
 pub fn get_latest_action_id() -> u64 {
-    NEXT_ACTION_ID.load(std::sync::atomic::Ordering::SeqCst).saturating_sub(1)
+    NEXT_ACTION_ID
+        .load(std::sync::atomic::Ordering::SeqCst)
+        .saturating_sub(1)
 }
 
 pub fn push_client_action(action: &str, payload: Option<&str>) {

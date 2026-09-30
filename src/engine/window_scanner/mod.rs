@@ -77,7 +77,8 @@ impl ActiveWindowSnapshot {
             if let Ok(prev) = Self::load_from_file() {
                 let is_same_app = !to_save.app_name.is_empty()
                     && prev.app_name.eq_ignore_ascii_case(&to_save.app_name);
-                let is_same_win_id = !to_save.window_id.is_empty() && prev.window_id == to_save.window_id;
+                let is_same_win_id =
+                    !to_save.window_id.is_empty() && prev.window_id == to_save.window_id;
 
                 if prev.source == "vision_perception" && (is_same_app || is_same_win_id) {
                     if !prev.buttons.is_empty() {
@@ -101,10 +102,9 @@ impl ActiveWindowSnapshot {
         }
 
         let json = serde_json::to_string_pretty(&to_save)
-            .map_err(|e| format!("Gagal serialize snapshot: {e}"))?;
+            .map_err(|e| format!("Failed to serialize snapshot: {e}"))?;
 
-        fs::write(&path, &json)
-            .map_err(|e| format!("Gagal menulis ke {path:?}: {e}"))?;
+        fs::write(&path, &json).map_err(|e| format!("Failed to write to {path:?}: {e}"))?;
 
         let local = PathBuf::from("assets/active_window_app.json");
         if local != path {
@@ -123,11 +123,10 @@ impl ActiveWindowSnapshot {
             return Err("File active_window_app.json belum ada".to_string());
         }
 
-        let content = fs::read_to_string(&path)
-            .map_err(|e| format!("Gagal membaca {:?}: {e}", path))?;
+        let content =
+            fs::read_to_string(&path).map_err(|e| format!("Failed to read {:?}: {e}", path))?;
 
-        serde_json::from_str(&content)
-            .map_err(|e| format!("Gagal parse JSON: {e}"))
+        serde_json::from_str(&content).map_err(|e| format!("Failed to parse JSON: {e}"))
     }
 }
 
@@ -264,5 +263,5 @@ pub fn start_window_watcher() {
                 }
             }
         })
-        .expect("Gagal spawn window watcher thread");
+        .expect("Failed to spawn window watcher thread");
 }

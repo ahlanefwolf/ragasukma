@@ -1,7 +1,5 @@
-use crate::llm::v1_engine::{
-    V1ChatRequest, V1StreamEvent, V1ToolCall,
-};
 use crate::llm::providers::antigravity::AntigravityProvider;
+use crate::llm::v1_engine::{V1ChatRequest, V1StreamEvent, V1ToolCall};
 use crate::server::send_json_response;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
@@ -131,7 +129,10 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
     let req: V1ChatRequest = match serde_json::from_str(body_str) {
         Ok(r) => r,
         Err(e) => {
-            let err_json = format!("{{\"error\":{{\"message\":\"Invalid JSON request: {}\"}}}}", e);
+            let err_json = format!(
+                "{{\"error\":{{\"message\":\"Invalid JSON request: {}\"}}}}",
+                e
+            );
             send_json_response(stream, 400, &err_json);
             return;
         }
@@ -298,12 +299,7 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
                 let approx_prompt_tokens = req
                     .messages
                     .iter()
-                    .map(|m| {
-                        serde_json::to_string(&m.content)
-                            .unwrap_or_default()
-                            .len()
-                            / 4
-                    })
+                    .map(|m| serde_json::to_string(&m.content).unwrap_or_default().len() / 4)
                     .sum::<usize>()
                     .max(1);
                 let approx_comp_tokens = (v1_resp.content.len() / 4).max(1);

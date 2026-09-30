@@ -1,6 +1,6 @@
+use std::collections::VecDeque;
 use std::sync::Mutex;
 use std::sync::mpsc::Sender;
-use std::collections::VecDeque;
 
 pub static REMOTE_TEXT_INJECTOR: Mutex<Option<Sender<String>>> = Mutex::new(None);
 static PENDING_TEXT_QUEUE: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());

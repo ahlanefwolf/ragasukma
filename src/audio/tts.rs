@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::tray::{AssistantState, TrayState};
+use anyhow::Result;
 
 pub struct TextToSpeech;
 
@@ -8,8 +8,8 @@ impl TextToSpeech {
         Self
     }
 
-    /// Sintesis suara dialirkan langsung ke ekosistem Google Chrome Speech Synthesis (Web Speech API)
-    /// Bebas dari depedensi engine TTS lokal maupun API eksternal pihak ketiga.
+    /// Sintesis suara diproses secara native menggunakan model neural Supertonic-3 (ONNX Runtime Rust).
+    /// Audio WAV berkualitas tinggi (44.1kHz Hi-Fi) dialirkan ke semua client (Desktop & Mobile).
     pub fn speak_with_emotion(&self, text: &str, emotion: &str, asst_name: &str) -> Result<()> {
         let clean_text = clean_text_for_speech(text);
         if clean_text.trim().is_empty() {
@@ -19,32 +19,96 @@ impl TextToSpeech {
         // Catatan: is_voice_muted menandakan speaker desktop dimatikan (dialihkan ke mobile),
         // namun event suara 'assistant:speak' harus tetap dipancarkan agar PWA HP dapat memainkannya!
 
-        // 1. Beritahu status avatar & emosi untuk sinkronisasi visual bibir
-        TrayState::update_with_emotion(
-            AssistantState::Speaking,
-            &format!("{asst_name} Berbicara"),
-            emotion,
-        );
-        crate::app_state::set_ai_speaking(true);
+        let cfg = crate::assets::load_config();
+        let voice = if !cfg.tts_voice_name.is_empty() {
+            cfg.tts_voice_name.clone()
+        } else {
+            "F4".to_string()
+        };
+        let lang = if !cfg.lang.is_empty() {
+            cfg.lang.clone()
+        } else {
+            "id".to_string()
+        };
+        let speed = if cfg.tts_speed > 0.0 {
+            cfg.tts_speed
+        } else {
+            1.05
+        };
 
-        // 2. Alirkan kalimat respon dan emosi ke semua client (Desktop & Mobile) via SSE action
+        let audio_id = format!("{:x}", simple_hash_u64(&clean_text));
+        let audio_url = format!("/api/tts/audio?id={audio_id}");
+
+        // Inisialisasi engine jika belum, dan sintesis audio Supertonic-3
+        let synthesized = if let Some(engine) = crate::audio::supertonic::get_engine() {
+            match engine.synthesize(&clean_text, &voice, &lang, speed) {
+                Ok(bytes) => {
+                    crate::audio::supertonic::set_last_audio_wav(audio_id.clone(), bytes);
+                    true
+                }
+                Err(e) => {
+                    crate::term_err!("⚠️ [Supertonic TTS] Failed to synthesize audio: {e}");
+                    false
+                }
+            }
+        } else if let Ok(engine) = crate::audio::supertonic::init_engine() {
+            match engine.synthesize(&clean_text, &voice, &lang, speed) {
+                Ok(bytes) => {
+                    crate::audio::supertonic::set_last_audio_wav(audio_id.clone(), bytes);
+                    true
+                }
+                Err(e) => {
+                    crate::term_err!("⚠️ [Supertonic TTS] Failed to synthesize audio: {e}");
+                    false
+                }
+            }
+        } else {
+            false
+        };
+
+        // 1. Alirkan kalimat respon, emosi, dan audio_url ke semua client (Desktop & Mobile) via SSE action
         let payload = serde_json::json!({
             "text": clean_text,
-            "emotion": emotion
+            "emotion": emotion,
+            "audio_url": if synthesized { Some(audio_url) } else { None },
+            "voice": voice,
+            "lang": lang
         })
         .to_string();
         crate::app_state::push_client_action("assistant:speak", Some(&payload));
 
-        // 3. Safety auto-reset: pastikan status speaking tidak pernah stuck jika browser tertahan
-        let word_count = clean_text.split_whitespace().count();
-        let timeout_secs = ((word_count as u64) / 2).clamp(4, 15);
+        // 2. Sinkronisasi status avatar & bibir AIUEO:
+        // Jika ada tab browser aktif yang memutar audio, browser yang akan mengirim notifikasi
+        // 'Speaking' tepat saat gelombang suara mulai berbunyi (audio.onplaying).
+        // Ini mencegah bibir bergerak mendahului suara saat proses sintesis ONNX berlangsung.
+        // Jika tidak ada browser terhubung (mode headless), aktifkan state Speaking di sini sebagai fallback.
+        let has_web_client = crate::app_state::ACTIVE_WEB_SESSION
+            .lock()
+            .ok()
+            .and_then(|s| s.as_ref().map(|_| true))
+            .unwrap_or(false);
+
+        if !has_web_client {
+            TrayState::update_with_emotion(
+                AssistantState::Speaking,
+                &format!("{asst_name} Berbicara"),
+                emotion,
+            );
+            crate::app_state::set_ai_speaking(true);
+        }
+
+        // 3. Passive fail-safe watchdog: hanya aktif jika browser crash/tertutup saat berbicara (60 detik)
+        // Dilengkapi speaking epoch agar thread sesi lama tidak memotong giliran bicara yang baru
+        let epoch = crate::app_state::next_speaking_epoch();
         std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_secs(timeout_secs));
-            if crate::app_state::is_ai_speaking() {
+            std::thread::sleep(std::time::Duration::from_secs(60));
+            if crate::app_state::is_ai_speaking()
+                && crate::app_state::current_speaking_epoch() == epoch
+            {
                 crate::app_state::set_ai_speaking(false);
                 crate::tray::TrayState::update_with_emotion(
                     crate::services::tray_service::AssistantState::Idle,
-                    "Standby Siap",
+                    "Standby",
                     "neutral",
                 );
             }
@@ -109,41 +173,212 @@ pub fn split_sentences_aware(text: &str, split_on_comma: bool) -> Vec<String> {
     }
 }
 
-pub fn clean_text_for_speech(text: &str) -> String {
-    let mut cleaned = String::with_capacity(text.len());
-    let mut in_asterisk = false;
-    let mut in_bracket = false;
-    let mut in_paren = false;
+fn remove_code_blocks(text: &str) -> String {
+    let mut output = String::with_capacity(text.len());
+    let mut in_code_block = false;
+    let mut backtick_count = 0;
 
-    // 1. Filter karakter, buang teks dalam tanda bintang (*emosi*), kurung siku [ACTION:...], dan kurung biasa (keterangan)
     for c in text.chars() {
-        if c == '*' {
-            in_asterisk = !in_asterisk;
-            continue;
+        if c == '`' {
+            backtick_count += 1;
+            if backtick_count == 3 {
+                in_code_block = !in_code_block;
+                backtick_count = 0;
+                output.push(' ');
+            }
+        } else {
+            backtick_count = 0;
+            if !in_code_block {
+                output.push(c);
+            }
         }
+    }
+    output
+}
+
+fn sanitize_urls(text: &str) -> String {
+    let mut output = String::with_capacity(text.len());
+    for word in text.split_whitespace() {
+        let lower = word.to_lowercase();
+        if lower.starts_with("http://")
+            || lower.starts_with("https://")
+            || lower.starts_with("www.")
+        {
+            let trailing_punct: String = word
+                .chars()
+                .rev()
+                .take_while(|c| matches!(c, '.' | ',' | '!' | '?' | ';' | ':' | ')'))
+                .collect::<String>()
+                .chars()
+                .rev()
+                .collect();
+            if !output.is_empty() {
+                output.push(' ');
+            }
+            output.push_str("tautan web");
+            output.push_str(&trailing_punct);
+        } else {
+            if !output.is_empty() {
+                output.push(' ');
+            }
+            output.push_str(word);
+        }
+    }
+    output
+}
+
+fn is_ignorable_tag(tag: &str) -> bool {
+    let lower = tag.trim().to_lowercase();
+    if lower.starts_with("action:") || lower.starts_with("cmd:") || lower.starts_with("skill:") {
+        return true;
+    }
+    matches!(
+        lower.as_str(),
+        "happy"
+            | "shy"
+            | "excited"
+            | "surprised"
+            | "thinking"
+            | "sad"
+            | "angry"
+            | "neutral"
+            | "active tab"
+            | "active"
+    ) || lower.chars().all(|c| c.is_ascii_digit())
+}
+
+fn is_emotion_or_action_emote(emote: &str) -> bool {
+    let lower = emote.trim().to_lowercase();
+    matches!(
+        lower.as_str(),
+        "happy"
+            | "shy"
+            | "excited"
+            | "surprised"
+            | "thinking"
+            | "sad"
+            | "angry"
+            | "neutral"
+    )
+}
+
+pub fn clean_text_for_speech(text: &str) -> String {
+    if text.trim().is_empty() {
+        return String::new();
+    }
+
+    // 1. Normalisasi karakter Unicode khusus (kutip lengkung, elipsis, dash, bullet)
+    let pre_normalized = text
+        .replace(['\u{201C}', '\u{201D}', '\u{00AB}', '\u{00BB}'], "\"") // “ ” « » -> "
+        .replace(['\u{2018}', '\u{2019}'], "'") // ‘ ’ -> '
+        .replace('\u{2026}', ", ") // … -> ,
+        .replace(['\u{2014}', '\u{2013}'], " - ") // — – -> -
+        .replace(['\u{2022}', '\u{25AA}', '\u{25CF}'], " "); // • ▪ ● -> spasi
+
+    // 2. Bersihkan blok kode markdown ```...``` agar TTS tidak mengeja sintaks kode
+    let without_code_blocks = remove_code_blocks(&pre_normalized);
+
+    // 3. Sanitasi URL mentah (https://... / http://... / www...) menjadi "tautan web"
+    let without_urls = sanitize_urls(&without_code_blocks);
+
+    // 4. Bersihkan tag bracket [ACTION:...], [happy], emote *senang*, dan format markdown
+    let mut cleaned = String::with_capacity(without_urls.len());
+    let mut chars = without_urls.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        // A. Bersihkan tag kurung siku [ACTION:...], [happy], dsb.
         if c == '[' {
-            in_bracket = true;
-            continue;
+            let mut tag_content = String::new();
+            let mut closed = false;
+            while let Some(&sc) = chars.peek() {
+                chars.next();
+                if sc == ']' {
+                    closed = true;
+                    break;
+                }
+                tag_content.push(sc);
+            }
+            if closed {
+                // Jika tag kurung siku diikuti markdown link `(url)`, pertahankan teks label dan abaikan url
+                if chars.peek() == Some(&'(') {
+                    chars.next(); // konsumsi '('
+                    while let Some(&uc) = chars.peek() {
+                        chars.next();
+                        if uc == ')' {
+                            break;
+                        }
+                    }
+                    cleaned.push_str(&tag_content);
+                } else if is_ignorable_tag(&tag_content) {
+                    // Tag aksi, emosi [happy], nomor referensi [1] diabaikan
+                    cleaned.push(' ');
+                } else {
+                    cleaned.push_str(&tag_content);
+                }
+                continue;
+            } else {
+                cleaned.push('[');
+                cleaned.push_str(&tag_content);
+                continue;
+            }
         }
-        if c == ']' {
-            in_bracket = false;
-            continue;
+
+        // B. Bersihkan tag bintang *emosi* (*senang*, *mikir*, dsb.) tapi jaga bold text **teks** dan bullet point
+        if c == '*' {
+            if chars.peek() == Some(&'*') {
+                // Bold markdown `**` -> cukup buang tanda bintang tanpa menghapus teksnya
+                chars.next(); // konsumsi bintang ke-2
+                cleaned.push(' ');
+                continue;
+            }
+
+            // Cek apakah ini bullet point di awal kata/kalimat (misal "* item")
+            if chars.peek() == Some(&' ') {
+                chars.next(); // konsumsi spasi
+                cleaned.push(' ');
+                continue;
+            }
+
+            // Cek apakah ada bintang penutup pada kata/frasa emosi pendek (<= 30 char)
+            let mut candidate = String::new();
+            let mut found_close = false;
+            let temp_chars = chars.clone();
+            for sc in temp_chars {
+                if sc == '*' {
+                    found_close = true;
+                    break;
+                }
+                if sc == '\n' || candidate.len() > 30 {
+                    break;
+                }
+                candidate.push(sc);
+            }
+
+            if found_close && is_emotion_or_action_emote(&candidate) {
+                // Lewati kandidat emote sampai bintang penutup
+                for sc in chars.by_ref() {
+                    if sc == '*' {
+                        break;
+                    }
+                }
+                cleaned.push(' ');
+                continue;
+            } else {
+                // Bukan emote resmi, pertahankan sebagai spasi agar teks berikutnya tetap terbaca
+                cleaned.push(' ');
+                continue;
+            }
         }
-        if c == '(' {
-            in_paren = true;
-            continue;
-        }
-        if c == ')' {
-            in_paren = false;
-            continue;
-        }
-        if in_asterisk || in_bracket || in_paren {
+
+        // C. Bersihkan kurung biasa () jika hanya berisi emote atau smiley :)
+        if c == '(' || c == ')' {
+            cleaned.push(' ');
             continue;
         }
 
-        // Hapus simbol markdown / karakter non-bicara / emoji
+        // D. Normalisasi karakter markdown non-bicara & tanda baca
         match c {
-            '#' | '`' | '_' | '~' | '^' | '|' | '<' | '>' | '—' | '–' => cleaned.push(' '),
+            '#' | '`' | '_' | '~' | '^' | '|' | '<' | '>' => cleaned.push(' '),
             '?' => cleaned.push('.'),
             c if c.is_ascii_punctuation() || c.is_alphanumeric() || c.is_whitespace() => {
                 cleaned.push(c);
@@ -152,7 +387,7 @@ pub fn clean_text_for_speech(text: &str) -> String {
         }
     }
 
-    // 2. Normalisasi titik berturutan atau elipsis menjadi koma agar intonasi TTS lancar
+    // 5. Normalisasi titik berturutan atau elipsis menjadi koma agar intonasi TTS lancar
     let formatted = cleaned
         .replace(". . .", ", ")
         .replace(". .", ", ")
@@ -163,21 +398,16 @@ pub fn clean_text_for_speech(text: &str) -> String {
 
     let mut result = formatted.trim().to_string();
 
-    // 3. Tangkal bug kata emosi mentah di paling awal kalimat (misal: "malu Halo...", "senang Halo...", "malu, Halo...")
+    // 6. Tangkal bug kata emosi mentah di paling awal kalimat (misal: "happy Halo...", "senang, Halo...", "mikir: Halo...")
     let emotion_prefixes = [
-        "malu",
-        "blush",
-        "senang",
-        "gembira",
-        "bingung",
-        "kaget",
-        "sedih",
-        "semangat",
-        "tertawa",
-        "tersenyum",
-        "tersipu",
-        "panik",
-        "marah",
+        "happy",
+        "shy",
+        "excited",
+        "surprised",
+        "thinking",
+        "sad",
+        "angry",
+        "neutral",
     ];
 
     loop {
@@ -205,12 +435,82 @@ pub fn clean_text_for_speech(text: &str) -> String {
         }
     }
 
-    result
+    // 7. Collapse whitespace berulang & rapikan tanda baca
+    let mut final_result = String::with_capacity(result.len());
+    let mut last_was_space = false;
+    for c in result.chars() {
+        if c.is_whitespace() {
+            if !last_was_space {
+                final_result.push(' ');
+                last_was_space = true;
+            }
+        } else {
+            // Hindari spasi sebelum titik/koma (misal: "Halo , teman" -> "Halo, teman")
+            if (c == ',' || c == '.' || c == '!') && last_was_space && !final_result.is_empty() {
+                final_result.pop();
+            }
+            final_result.push(c);
+            last_was_space = false;
+        }
+    }
+
+    final_result.trim().to_string()
+}
+
+fn simple_hash_u64(s: &str) -> u64 {
+    let mut h = 0xcbf29ce484222325u64;
+    for b in s.bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_clean_text_for_speech_strips_emotion_tags_and_prefixes() {
+        assert_eq!(
+            clean_text_for_speech("[happy] Halo apa kabar!"),
+            "Halo apa kabar!"
+        );
+        assert_eq!(
+            clean_text_for_speech("excited: Halo apa kabar!"),
+            "Halo apa kabar!"
+        );
+        assert_eq!(
+            clean_text_for_speech("angry, kenapa begitu?"),
+            "kenapa begitu."
+        );
+        assert_eq!(clean_text_for_speech("*thinking* sebentar ya"), "sebentar ya");
+    }
+
+    #[test]
+    fn test_clean_text_for_speech_preserves_bold_and_bullets() {
+        assert_eq!(
+            clean_text_for_speech("Ini **sangat penting** lho!"),
+            "Ini sangat penting lho!"
+        );
+        assert_eq!(clean_text_for_speech("* Poin pertama"), "Poin pertama");
+    }
+
+    #[test]
+    fn test_clean_text_for_speech_sanitizes_urls_and_code() {
+        assert_eq!(
+            clean_text_for_speech("Kunjungi https://github.com/hlnsptr untuk info."),
+            "Kunjungi tautan web untuk info."
+        );
+        assert_eq!(
+            clean_text_for_speech("Markdown [Dokumentasi](https://example.com) bagus."),
+            "Markdown Dokumentasi bagus."
+        );
+        assert_eq!(
+            clean_text_for_speech("Jalankan ```bash\ncargo test\n``` selesai."),
+            "Jalankan selesai."
+        );
+    }
 
     #[test]
     fn test_split_sentences_aware_preserves_numbers() {
@@ -219,13 +519,19 @@ mod tests {
         // Mode kalimat utuh (tanpa potong koma biasa)
         let sentences = split_sentences_aware(text, false);
         assert_eq!(sentences.len(), 2);
-        assert_eq!(sentences[0], "Harga barangnya Rp 1.500.000 dan diskonnya 0,5 persen.");
+        assert_eq!(
+            sentences[0],
+            "Harga barangnya Rp 1.500.000 dan diskonnya 0,5 persen."
+        );
         assert_eq!(sentences[1], "Apakah kamu setuju?");
 
         // Mode koma aktif
         let clauses = split_sentences_aware(text, true);
         assert_eq!(clauses.len(), 2);
-        assert_eq!(clauses[0], "Harga barangnya Rp 1.500.000 dan diskonnya 0,5 persen.");
+        assert_eq!(
+            clauses[0],
+            "Harga barangnya Rp 1.500.000 dan diskonnya 0,5 persen."
+        );
         assert_eq!(clauses[1], "Apakah kamu setuju?");
 
         // Teks dengan koma di luar angka

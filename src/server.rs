@@ -229,10 +229,18 @@ pub fn handle_api_route(
         ("POST", "/api/remote/active") => {
             crate::app_state::touch_remote_active();
             crate::app_state::set_mic_muted(true);
-            send_json_response(&mut stream, 200, "{\"success\":true,\"message\":\"Remote heartbeat updated\"}");
-        },
+            send_json_response(
+                &mut stream,
+                200,
+                "{\"success\":true,\"message\":\"Remote heartbeat updated\"}",
+            );
+        }
         ("POST", "/api/stt/transcript") => handle_stt_transcript(body_str, &mut stream),
         ("POST", "/api/tts/state") => handle_tts_state(body_str, &mut stream, &shared),
+        ("POST", "/api/tts/synthesize") => handle_tts_synthesize(body_str, &mut stream),
+        ("GET", path) if path.starts_with("/api/tts/audio") => {
+            handle_get_tts_audio(full_url, header_str, &mut stream);
+        }
         ("POST", path) if path.starts_with("/api/remote/text") => {
             handle_remote_text(full_url, body_str, &mut stream);
         }
@@ -248,10 +256,18 @@ pub fn handle_api_route(
 
         // LLM Providers - Antigravity
         ("GET", "/api/llm/antigravity/accounts") => handle_get_antigravity_accounts(&mut stream),
-        ("POST", "/api/llm/antigravity/accounts") => handle_post_antigravity_account(body_str, &mut stream),
-        ("POST", "/api/llm/antigravity/accounts/delete") => handle_delete_antigravity_account(body_str, &mut stream),
-        ("POST", "/api/llm/antigravity/accounts/refresh") => handle_refresh_antigravity_account(body_str, &mut stream),
-        ("POST", "/api/llm/antigravity/accounts/toggle") => handle_toggle_antigravity_account(body_str, &mut stream),
+        ("POST", "/api/llm/antigravity/accounts") => {
+            handle_post_antigravity_account(body_str, &mut stream)
+        }
+        ("POST", "/api/llm/antigravity/accounts/delete") => {
+            handle_delete_antigravity_account(body_str, &mut stream)
+        }
+        ("POST", "/api/llm/antigravity/accounts/refresh") => {
+            handle_refresh_antigravity_account(body_str, &mut stream)
+        }
+        ("POST", "/api/llm/antigravity/accounts/toggle") => {
+            handle_toggle_antigravity_account(body_str, &mut stream)
+        }
         ("POST", "/api/llm/antigravity/accounts/quota") => {
             handle_get_antigravity_account_quota(body_str, full_url, &mut stream)
         }
@@ -293,12 +309,22 @@ pub fn handle_api_route(
         // Assets & Avatar Image Static Serving (Dedicated API prefix to avoid collision with web/dist/assets)
         ("GET", path) if path.starts_with("/api/assets/file/") => {
             let filename = path.strip_prefix("/api/assets/file/").unwrap_or("");
-            let clean_filename = filename.trim_start_matches('/').split('?').next().unwrap_or("");
+            let clean_filename = filename
+                .trim_start_matches('/')
+                .split('?')
+                .next()
+                .unwrap_or("");
             let file_path = crate::assets::find_file_in_candidates(clean_filename);
 
             if file_path.exists() && file_path.is_file() {
                 if let Ok(data) = std::fs::read(&file_path) {
-                    let mime_type = match clean_filename.split('.').next_back().unwrap_or("").to_lowercase().as_str() {
+                    let mime_type = match clean_filename
+                        .split('.')
+                        .next_back()
+                        .unwrap_or("")
+                        .to_lowercase()
+                        .as_str()
+                    {
                         "png" => "image/png",
                         "jpg" | "jpeg" => "image/jpeg",
                         "webp" => "image/webp",
@@ -530,7 +556,7 @@ pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
         let addr = "127.0.0.1:42128";
         let listener = if let Some(prebound) = take_prebound_listener() {
             println!(
-                "🌐 [Web Dashboard & API Server] Berjalan di http://{}",
+                "🌐 [Web Dashboard & API Server] Running at http://{}",
                 addr
             );
             prebound
@@ -538,13 +564,13 @@ pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
             match TcpListener::bind(addr) {
                 Ok(l) => {
                     println!(
-                        "🌐 [Web Dashboard & API Server] Berjalan di http://{}",
+                        "🌐 [Web Dashboard & API Server] Running at http://{}",
                         addr
                     );
                     l
                 }
                 Err(e) => {
-                    eprintln!("⚠️ [Web Server] Gagal bind ke {}: {}", addr, e);
+                    eprintln!("⚠️ [Web Server] Failed to bind to {}: {}", addr, e);
                     return;
                 }
             }

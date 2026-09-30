@@ -22,32 +22,30 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
   const [activeSubTab, setActiveSubTab] = createSignal<SettingsSubTab>('persona_ai');
 
   // Assistant Persona & Call
-  const [assistantName, setAssistantName] = createSignal('');
-  const [userCallsign, setUserCallsign] = createSignal('');
-  const [assistantGender, setAssistantGender] = createSignal('');
-  const [personalityRole, setPersonalityRole] = createSignal('');
+  const [assistantName, setAssistantName] = createSignal('Sukma');
+  const [userCallsign, setUserCallsign] = createSignal('Mas');
+  const [assistantGender, setAssistantGender] = createSignal('female');
+  const [personalityRole, setPersonalityRole] = createSignal('tsundere');
 
   // AI LLM Provider
-  const [llmProvider, setLlmProvider] = createSignal('');
-  const [llmBaseUrl, setLlmBaseUrl] = createSignal('');
-  const [llmModel, setLlmModel] = createSignal('');
+  const [llmProvider, setLlmProvider] = createSignal('custom');
+  const [llmBaseUrl, setLlmBaseUrl] = createSignal('http://localhost:20128/v1');
+  const [llmModel, setLlmModel] = createSignal('ag/claude-sonnet-4-6');
   const [llmApiKey, setLlmApiKey] = createSignal('');
 
   // Audio & STT
-  const [voiceInterruption, setVoiceInterruption] = createSignal(false);
-  const [vadThreshold, setVadThreshold] = createSignal(0.15);
+  const [voiceInterruption, setVoiceInterruption] = createSignal(true);
+  const [vadThreshold, setVadThreshold] = createSignal(0.5);
   const [vadNoiseSuppression, setVadNoiseSuppression] = createSignal(true);
 
   // TTS & STT (Chrome Web Speech API Ecosystem)
-  const [ttsLang, setTtsLang] = createSignal('id-ID');
-  const [sttLang, setSttLang] = createSignal('id-ID');
-  const [ttsVoiceName, setTtsVoiceName] = createSignal('');
-  const [ttsSpeed, setTtsSpeed] = createSignal(1.0);
-  const [ttsPitch, setTtsPitch] = createSignal(1.0);
+  const [lang, setLang] = createSignal('id');
+  const [ttsVoiceName, setTtsVoiceName] = createSignal('F2');
+  const [ttsSpeed, setTtsSpeed] = createSignal(1.05);
 
   // Avatar & System
-  const [avatarType, setAvatarType] = createSignal('');
-  const [alwaysOnTop, setAlwaysOnTop] = createSignal(false);
+  const [avatarType, setAvatarType] = createSignal('vrm');
+  const [alwaysOnTop, setAlwaysOnTop] = createSignal(true);
   const [isSaving, setIsSaving] = createSignal(false);
   const [assetInfo, setAssetInfo] = createSignal<AssetInfo | null>(null);
   const [isUploadingVrm, setIsUploadingVrm] = createSignal(false);
@@ -95,28 +93,26 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
     const cfg = await api.getConfig();
     if (!isComponentMounted) return;
     if (cfg) {
-      setAssistantName(cfg.assistant_name);
-      setUserCallsign(cfg.user_callsign);
-      setAssistantGender(cfg.assistant_gender);
-      setPersonalityRole(cfg.personality_role);
+      if (cfg.assistant_name !== undefined) setAssistantName(cfg.assistant_name);
+      if (cfg.user_callsign !== undefined) setUserCallsign(cfg.user_callsign);
+      if (cfg.assistant_gender) setAssistantGender(cfg.assistant_gender);
+      if (cfg.personality_role) setPersonalityRole(cfg.personality_role);
 
-      setLlmProvider(cfg.llm_provider);
-      setLlmBaseUrl(cfg.llm_base_url);
-      setLlmModel(cfg.llm_model);
-      setLlmApiKey(cfg.llm_api_key);
+      if (cfg.llm_provider) setLlmProvider(cfg.llm_provider);
+      if (cfg.llm_base_url !== undefined) setLlmBaseUrl(cfg.llm_base_url);
+      if (cfg.llm_model) setLlmModel(cfg.llm_model);
+      if (cfg.llm_api_key !== undefined) setLlmApiKey(cfg.llm_api_key);
 
-      setVoiceInterruption(cfg.voice_interruption);
-      setVadThreshold(cfg.vad_threshold !== undefined ? cfg.vad_threshold : 0.15);
-      setVadNoiseSuppression(cfg.vad_noise_suppression !== undefined ? cfg.vad_noise_suppression : true);
+      if (cfg.voice_interruption !== undefined) setVoiceInterruption(cfg.voice_interruption);
+      if (cfg.vad_threshold !== undefined) setVadThreshold(cfg.vad_threshold);
+      if (cfg.vad_noise_suppression !== undefined) setVadNoiseSuppression(cfg.vad_noise_suppression);
 
-      setTtsLang(cfg.tts_lang || 'id-ID');
-      setSttLang(cfg.stt_lang || 'id-ID');
-      setTtsVoiceName(cfg.tts_voice_name || '');
-      setTtsSpeed(cfg.tts_speed || 1.0);
-      setTtsPitch(cfg.tts_pitch || 1.0);
+      setLang(cfg.lang || 'id');
+      if (cfg.tts_voice_name) setTtsVoiceName(cfg.tts_voice_name);
+      if (cfg.tts_speed !== undefined) setTtsSpeed(cfg.tts_speed);
 
-      setAvatarType(cfg.avatar_type);
-      setAlwaysOnTop(cfg.always_on_top);
+      if (cfg.avatar_type) setAvatarType(cfg.avatar_type);
+      if (cfg.always_on_top !== undefined) setAlwaysOnTop(cfg.always_on_top);
     }
     if (isComponentMounted) {
       await loadAssetInfoData();
@@ -164,9 +160,6 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
     }
   };
 
-  onMount(() => {
-    loadConfigData();
-  });
 
   const handleSave = async (e: Event) => {
     e.preventDefault();
@@ -184,11 +177,9 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       llm_base_url: llmBaseUrl().trim(),
       llm_model: llmModel().trim(),
       llm_api_key: llmApiKey().trim(),
-      tts_lang: ttsLang(),
-      stt_lang: sttLang(),
+      lang: lang(),
       tts_voice_name: ttsVoiceName(),
       tts_speed: ttsSpeed(),
-      tts_pitch: ttsPitch(),
       avatar_type: avatarType(),
       always_on_top: alwaysOnTop(),
     };
@@ -285,8 +276,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         </button>
       </div>
 
-      {/* Sub-Tab Content Sections */}
-      {activeSubTab() === 'persona_ai' && (
+      {/* Sub-Tab Content Sections (Persistent DOM) */}
+      <div class={activeSubTab() === 'persona_ai' ? 'block' : 'hidden'}>
         <PersonaAiSection
           assistantName={assistantName()}
           setAssistantName={setAssistantName}
@@ -304,21 +295,21 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           setLlmModel={setLlmModel}
           llmApiKey={llmApiKey()}
           setLlmApiKey={setLlmApiKey}
+          ttsVoiceName={ttsVoiceName()}
+          setTtsVoiceName={setTtsVoiceName}
         />
-      )}
+      </div>
 
-      {activeSubTab() === 'audio_tts' && (
+      <div class={activeSubTab() === 'audio_tts' ? 'block' : 'hidden'}>
         <AudioTtsSection
           assistantGender={assistantGender()}
           setAssistantGender={setAssistantGender}
-          sttLang={sttLang()}
-          setSttLang={setSttLang}
+          lang={lang()}
+          setLang={setLang}
           ttsVoiceName={ttsVoiceName()}
           setTtsVoiceName={setTtsVoiceName}
           ttsSpeed={ttsSpeed()}
           setTtsSpeed={setTtsSpeed}
-          ttsPitch={ttsPitch()}
-          setTtsPitch={setTtsPitch}
           voiceInterruption={voiceInterruption()}
           setVoiceInterruption={setVoiceInterruption}
           vadThreshold={vadThreshold()}
@@ -326,9 +317,9 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           vadNoiseSuppression={vadNoiseSuppression()}
           setVadNoiseSuppression={setVadNoiseSuppression}
         />
-      )}
+      </div>
 
-      {activeSubTab() === 'avatar_model' && (
+      <div class={activeSubTab() === 'avatar_model' ? 'block' : 'hidden'}>
         <AvatarModelSection
           avatarType={avatarType()}
           setAvatarType={setAvatarType}
@@ -341,14 +332,14 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           setSelectedAvatarSlot={setSelectedAvatarSlot}
           handleAvatarImageChange={handleAvatarImageChange}
         />
-      )}
+      </div>
 
-      {activeSubTab() === 'system_overlay' && (
+      <div class={activeSubTab() === 'system_overlay' ? 'block' : 'hidden'}>
         <SystemOverlaySection
           alwaysOnTop={alwaysOnTop()}
           setAlwaysOnTop={setAlwaysOnTop}
         />
-      )}
+      </div>
     </form>
   );
 };

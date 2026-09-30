@@ -1,10 +1,11 @@
-use super::{current_epoch_ms, ActiveWindowSnapshot, DesktopElement, WindowItem};
+use super::{ActiveWindowSnapshot, DesktopElement, WindowItem, current_epoch_ms};
 
 #[cfg(target_os = "windows")]
 pub fn get_focused_window_quick_info_windows() -> Option<(String, String)> {
     use std::path::Path;
     use windows::Win32::System::Threading::{
-        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
+        OpenProcess, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
+        QueryFullProcessImageNameW,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
@@ -60,16 +61,18 @@ pub fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
     use std::path::Path;
     use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
     use windows::Win32::System::Com::{
-        CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
+        CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx,
+        CoUninitialize,
     };
     use windows::Win32::System::Threading::{
-        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
+        OpenProcess, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
+        QueryFullProcessImageNameW,
     };
     use windows::Win32::UI::Accessibility::{
         CUIAutomation, IUIAutomation, TreeScope_Descendants, UIA_ButtonControlTypeId,
-        UIA_CheckBoxControlTypeId, UIA_DocumentControlTypeId, UIA_EditControlTypeId,
-        UIA_HyperlinkControlTypeId, UIA_MenuItemControlTypeId, UIA_RadioButtonControlTypeId,
-        UIA_TextControlTypeId, UIA_CONTROLTYPE_ID,
+        UIA_CONTROLTYPE_ID, UIA_CheckBoxControlTypeId, UIA_DocumentControlTypeId,
+        UIA_EditControlTypeId, UIA_HyperlinkControlTypeId, UIA_MenuItemControlTypeId,
+        UIA_RadioButtonControlTypeId, UIA_TextControlTypeId,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW,
@@ -96,7 +99,9 @@ pub fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
             let mut pid = 0u32;
             GetWindowThreadProcessId(fg_hwnd, Some(&mut pid));
             if pid != 0 {
-                if let Ok(process_handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+                if let Ok(process_handle) =
+                    OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+                {
                     let mut path_buf = [0u16; 1024];
                     let mut path_len = path_buf.len() as u32;
                     if QueryFullProcessImageNameW(
@@ -142,7 +147,9 @@ pub fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
                             GetWindowThreadProcessId(hwnd, Some(&mut pid));
                             let mut app_name = String::new();
                             if pid != 0 {
-                                if let Ok(proc) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+                                if let Ok(proc) =
+                                    OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+                                {
                                     let mut path_buf = [0u16; 512];
                                     let mut path_len = path_buf.len() as u32;
                                     if QueryFullProcessImageNameW(
@@ -154,7 +161,9 @@ pub fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
                                     .is_ok()
                                         && path_len > 0
                                     {
-                                        let full = String::from_utf16_lossy(&path_buf[..path_len as usize]);
+                                        let full = String::from_utf16_lossy(
+                                            &path_buf[..path_len as usize],
+                                        );
                                         app_name = Path::new(&full)
                                             .file_name()
                                             .and_then(|n| n.to_str())
@@ -187,7 +196,10 @@ pub fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
             counter: 1,
         };
 
-        let _ = EnumWindows(Some(enum_windows_callback), LPARAM(&mut enum_ctx as *mut _ as isize));
+        let _ = EnumWindows(
+            Some(enum_windows_callback),
+            LPARAM(&mut enum_ctx as *mut _ as isize),
+        );
         snapshot.windows = enum_ctx.windows;
 
         // 3. UI Automation untuk mengekstrak Buttons & Inputs dari Foreground Window
@@ -211,25 +223,28 @@ pub fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
                                             .unwrap_or_default()
                                             .trim()
                                             .to_string();
-                                        let control_type =
-                                            elem.CurrentControlType().unwrap_or(UIA_CONTROLTYPE_ID(0));
+                                        let control_type = elem
+                                            .CurrentControlType()
+                                            .unwrap_or(UIA_CONTROLTYPE_ID(0));
 
                                         if !name.is_empty() {
-                                            let (center, bbox) = if let Ok(rect) =
-                                                elem.CurrentBoundingRectangle()
-                                            {
-                                                let w = rect.right - rect.left;
-                                                let h = rect.bottom - rect.top;
-                                                if w > 0 && h > 0 {
-                                                    let cx = rect.left + w / 2;
-                                                    let cy = rect.top + h / 2;
-                                                    (Some([cx, cy]), Some([rect.left, rect.top, w, h]))
+                                            let (center, bbox) =
+                                                if let Ok(rect) = elem.CurrentBoundingRectangle() {
+                                                    let w = rect.right - rect.left;
+                                                    let h = rect.bottom - rect.top;
+                                                    if w > 0 && h > 0 {
+                                                        let cx = rect.left + w / 2;
+                                                        let cy = rect.top + h / 2;
+                                                        (
+                                                            Some([cx, cy]),
+                                                            Some([rect.left, rect.top, w, h]),
+                                                        )
+                                                    } else {
+                                                        (None, None)
+                                                    }
                                                 } else {
                                                     (None, None)
-                                                }
-                                            } else {
-                                                (None, None)
-                                            };
+                                                };
 
                                             #[allow(non_upper_case_globals)]
                                             match control_type {
@@ -259,6 +274,16 @@ pub fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
                                                 }
                                                 UIA_TextControlTypeId
                                                 | UIA_DocumentControlTypeId => {
+                                                    if center.is_some() {
+                                                        snapshot.buttons.push(DesktopElement {
+                                                            id: element_id,
+                                                            label: name.clone(),
+                                                            role: "text".to_string(),
+                                                            center,
+                                                            bbox,
+                                                        });
+                                                        element_id += 1;
+                                                    }
                                                     snapshot.texts.push(name);
                                                 }
                                                 _ => {}
@@ -305,7 +330,7 @@ pub fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
     }
 
     if snapshot.app_name.is_empty() {
-        snapshot.text_summary = "Tidak ada jendela aplikasi yang terfokus".to_string();
+        snapshot.text_summary = "No application window is focused".to_string();
     }
 
     let _ = snapshot.save_to_file();

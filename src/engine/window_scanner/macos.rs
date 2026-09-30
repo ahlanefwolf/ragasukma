@@ -1,5 +1,5 @@
 #[cfg(target_os = "macos")]
-use super::{current_epoch_ms, default_source, ActiveWindowSnapshot, DesktopElement, WindowItem};
+use super::{ActiveWindowSnapshot, DesktopElement, WindowItem, current_epoch_ms, default_source};
 
 #[cfg(target_os = "macos")]
 pub fn get_focused_window_quick_info_macos() -> Option<(String, String)> {
@@ -96,7 +96,7 @@ pub async fn scan_active_window_macos() -> Result<ActiveWindowSnapshot, String> 
     let output = std::process::Command::new("osascript")
         .args(["-e", script])
         .output()
-        .map_err(|e| format!("Gagal memanggil osascript: {e}"))?;
+        .map_err(|e| format!("Failed to call osascript: {e}"))?;
 
     let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let parts: Vec<&str> = raw.split("|||").collect();
@@ -115,8 +115,16 @@ pub async fn scan_active_window_macos() -> Result<ActiveWindowSnapshot, String> 
         if let Ok(wins) = serde_json::from_str::<Vec<serde_json::Value>>(parts[2]) {
             let mut counter = 1;
             for w in wins {
-                let app = w.get("app").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let title = w.get("title").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let app = w
+                    .get("app")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let title = w
+                    .get("title")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 let active = w.get("active").and_then(|v| v.as_bool()).unwrap_or(false);
                 if !app.is_empty() {
                     snapshot.windows.push(WindowItem {

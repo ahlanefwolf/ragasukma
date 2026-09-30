@@ -1,4 +1,4 @@
-/// Eksekusi perintah browser berbasis canonical action
+/// Execute browser commands based on canonical action
 pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, String)> {
     match action {
         "open" => {
@@ -13,8 +13,12 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
             } else {
                 format!("https://www.{val}.com")
             };
-            crate::services::browser_session_service::smart_open_or_switch_tab(&final_url, Some(val), None);
-            Some((format!("Buka Tab: {val}"), format!("Membuka tab {val}")))
+            crate::services::browser_session_service::smart_open_or_switch_tab(
+                &final_url,
+                Some(val),
+                None,
+            );
+            Some((format!("Open Tab: {val}"), format!("Opening tab {val}")))
         }
 
         "search" => {
@@ -46,7 +50,7 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
 
                 if let Some(tab) = matching_tab {
                     println!(
-                        "🔄 [Universal In-Page Search] Beralih ke tab aktif '{}' (ID: {}) dan mencari '{}'",
+                        "🔄 [Universal In-Page Search] Switching to active tab '{}' (ID: {}) and searching '{}'",
                         tab.title, tab.id, query
                     );
                     crate::services::browser_session_service::send_browser_command(
@@ -58,10 +62,17 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
                         },
                     );
                 } else {
-                    crate::services::browser_session_service::smart_open_or_switch_tab(&site_url, Some(query), Some(&domain));
+                    crate::services::browser_session_service::smart_open_or_switch_tab(
+                        &site_url,
+                        Some(query),
+                        Some(&domain),
+                    );
                 }
 
-                Some((format!("Cari di {site}: {query}"), format!("Mencari '{query}' di {site}")))
+                Some((
+                    format!("Search on {site}: {query}"),
+                    format!("Searching '{query}' on {site}"),
+                ))
             } else {
                 crate::services::browser_session_service::send_browser_command(
                     crate::services::browser_session_service::BrowserCommand {
@@ -70,7 +81,10 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
                         ..Default::default()
                     },
                 );
-                Some((format!("Cari di Halaman Web: {query}"), format!("Mencari '{query}' di halaman aktif")))
+                Some((
+                    format!("Search on Web Page: {query}"),
+                    format!("Searching '{query}' on active page"),
+                ))
             }
         }
 
@@ -83,7 +97,10 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
                     ..Default::default()
                 },
             );
-            Some((format!("Klik Tulisan: {sel}"), format!("Mengklik tulisan '{sel}' di browser")))
+            Some((
+                format!("Click Text: {sel}"),
+                format!("Clicking text '{sel}' in browser"),
+            ))
         }
 
         "click_button" => {
@@ -95,7 +112,10 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
                     ..Default::default()
                 },
             );
-            Some((format!("Klik Tombol: {sel}"), format!("Mengklik tombol '{sel}' di browser")))
+            Some((
+                format!("Click Button: {sel}"),
+                format!("Clicking button '{sel}' in browser"),
+            ))
         }
 
         "type" => {
@@ -112,7 +132,10 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
                     ..Default::default()
                 },
             );
-            Some((format!("Ketik Teks: {text}"), format!("Mengetikkan '{text}' di kolom web")))
+            Some((
+                format!("Type Text: {text}"),
+                format!("Typing '{text}' into web field"),
+            ))
         }
 
         "enter" => {
@@ -123,7 +146,10 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
                     ..Default::default()
                 },
             );
-            Some(("Tekan Enter".to_string(), "Menekan tombol Enter pada halaman web".to_string()))
+            Some((
+                "Press Enter".to_string(),
+                "Pressing Enter key on web page".to_string(),
+            ))
         }
 
         "scroll" => {
@@ -135,7 +161,10 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
                     ..Default::default()
                 },
             );
-            Some(("Scroll Halaman Web".to_string(), format!("Menggeser halaman sebesar {amount}px")))
+            Some((
+                "Scroll Web Page".to_string(),
+                format!("Scrolling page by {amount}px"),
+            ))
         }
 
         "switch" => {
@@ -147,7 +176,7 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
                     ..Default::default()
                 },
             );
-            Some((format!("Pindah Tab: {q}"), format!("Beralih ke tab '{q}'")))
+            Some((format!("Switch Tab: {q}"), format!("Switching to tab '{q}'")))
         }
 
         "close" => {
@@ -159,7 +188,7 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
                     ..Default::default()
                 },
             );
-            Some((format!("Tutup Tab: {q}"), format!("Menutup tab '{q}'")))
+            Some((format!("Close Tab: {q}"), format!("Closing tab '{q}'")))
         }
 
         "install_ext" | "open_ext_folder" => {
@@ -205,8 +234,8 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
             }
 
             Some((
-                "Buka Folder Ekstensi".to_string(),
-                format!("Membuka folder ekstensi ({abs_str})"),
+                "Open Extension Folder".to_string(),
+                format!("Opening extension folder ({abs_str})"),
             ))
         }
 

@@ -1,8 +1,8 @@
 use super::constants::*;
 use super::oauth::{complete_oauth_flow, ensure_project_id, refresh_account_token};
 use super::types::{
-    AntigravityAccount, AntigravityAccountInfo, AntigravityQuotaResponse,
-    current_timestamp_secs, generate_pseudo_uuid,
+    AntigravityAccount, AntigravityAccountInfo, AntigravityQuotaResponse, current_timestamp_secs,
+    generate_pseudo_uuid,
 };
 use crate::llm::types::ChatMessage;
 use anyhow::{Context, Result, bail};
@@ -249,9 +249,8 @@ impl AntigravityProvider {
 
     pub fn remove_account(&mut self, id_or_email: &str) -> bool {
         let initial_len = self.accounts.len();
-        self.accounts.retain(|a| {
-            a.id != id_or_email && a.email.as_deref().unwrap_or("") != id_or_email
-        });
+        self.accounts
+            .retain(|a| a.id != id_or_email && a.email.as_deref().unwrap_or("") != id_or_email);
         if self.accounts.len() != initial_len {
             let _ = self.save_accounts();
             true
@@ -472,7 +471,10 @@ impl AntigravityProvider {
     where
         F: FnMut(&str, &str) -> Result<()>,
     {
-        let endpoint = format!("{}/v1internal:streamGenerateContent?alt=sse", ANTIGRAVITY_BASE_URL);
+        let endpoint = format!(
+            "{}/v1internal:streamGenerateContent?alt=sse",
+            ANTIGRAVITY_BASE_URL
+        );
 
         let mut contents = Vec::new();
         for msg in messages {
@@ -619,9 +621,7 @@ impl AntigravityProvider {
 
         let clean_rest = crate::llm::cleaner::clean_ai_text(&current_sentence);
         if !clean_rest.is_empty() {
-            if let Some(emo) =
-                crate::ui::renderer::expressions::detect_emotion(&current_sentence)
-            {
+            if let Some(emo) = crate::ui::renderer::expressions::detect_emotion(&current_sentence) {
                 active_emotion = emo;
             }
             on_sentence(&clean_rest, active_emotion)?;

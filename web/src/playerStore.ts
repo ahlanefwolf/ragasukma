@@ -1,18 +1,14 @@
 import { createSignal } from 'solid-js';
 import { api, YtTrackInfo } from './api';
 
-export interface CurrentTrackState {
-  track: YtTrackInfo | null;
-  isPlaying: boolean;
-  isPaused: boolean;
-}
+const [currentTrack, setCurrentTrack] = createSignal<YtTrackInfo | null>(null);
+const [isPlaying, setIsPlaying] = createSignal(false);
+const [isPaused, setIsPaused] = createSignal(false);
+const [currentTime, setCurrentTime] = createSignal(0);
+const [duration, setDuration] = createSignal(0);
+const [volume, setVolume] = createSignal(1);
 
-export const [currentTrack, setCurrentTrack] = createSignal<YtTrackInfo | null>(null);
-export const [isPlaying, setIsPlaying] = createSignal(false);
-export const [isPaused, setIsPaused] = createSignal(false);
-export const [currentTime, setCurrentTime] = createSignal(0);
-export const [duration, setDuration] = createSignal(0);
-export const [volume, setVolume] = createSignal(1);
+export { currentTrack, isPlaying, isPaused, currentTime, duration, volume };
 
 // Bridge status untuk komponen BottomPlayer, PiP & UI
 export const globalStatus = () => ({

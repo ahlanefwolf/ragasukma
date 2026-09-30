@@ -33,7 +33,7 @@ pub fn install_ytdlp() -> Result<String, String> {
                 "--accept-package-agreements",
             ])
             .output()
-            .map_err(|e| format!("Gagal jalankan winget: {}", e))?;
+            .map_err(|e| format!("Failed to run winget: {}", e))?;
         if out.status.success() {
             Ok("yt-dlp berhasil diinstall via winget".to_string())
         } else {
@@ -45,7 +45,7 @@ pub fn install_ytdlp() -> Result<String, String> {
         let out = Command::new("brew")
             .args(["install", "yt-dlp"])
             .output()
-            .map_err(|e| format!("Gagal jalankan brew: {}", e))?;
+            .map_err(|e| format!("Failed to run brew: {}", e))?;
         if out.status.success() {
             Ok("yt-dlp berhasil diinstall via brew".to_string())
         } else {
@@ -62,7 +62,7 @@ pub fn install_ytdlp() -> Result<String, String> {
             .env_remove("LD_PRELOAD");
         let out = cmd
             .output()
-            .map_err(|e| format!("Gagal jalankan pip: {}", e))?;
+            .map_err(|e| format!("Failed to run pip: {}", e))?;
         if out.status.success() {
             Ok("yt-dlp berhasil diinstall via pip".to_string())
         } else {
@@ -75,7 +75,7 @@ pub fn install_ytdlp() -> Result<String, String> {
                 .env_remove("LD_PRELOAD");
             let out2 = cmd2
                 .output()
-                .map_err(|e| format!("Gagal jalankan pip3: {}", e))?;
+                .map_err(|e| format!("Failed to run pip3: {}", e))?;
             if out2.status.success() {
                 Ok("yt-dlp berhasil diinstall via pip3".to_string())
             } else {
@@ -85,7 +85,7 @@ pub fn install_ytdlp() -> Result<String, String> {
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
-        Err("OS tidak didukung untuk auto-install".to_string())
+        Err("OS not supported for auto-install".to_string())
     }
 }
 
@@ -271,7 +271,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
     };
 
     println!(
-        "[yt-dlp] Memulai download audio: {} ke {:?}",
+        "[yt-dlp] Starting audio download: {} to {:?}",
         target, abs_out_dir
     );
 
@@ -322,7 +322,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
                     let _ = child.kill();
                     clean_json_sidecars(&abs_out_dir);
                     anyhow::bail!(
-                        "Waktu download lagu habis (timeout 25 detik). Koneksi internet lambat."
+                        "Download timed out (25 second limit). Slow internet connection."
                     );
                 }
                 std::thread::sleep(poll_interval);
@@ -400,7 +400,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
                     } else {
                         None
                     };
-                    println!("[yt-dlp] File baru terdeteksi: {} ({})", title, name);
+                    println!("[yt-dlp] New file detected: {} ({})", title, name);
                     return Ok(YtTrackInfo {
                         id,
                         title,
@@ -464,7 +464,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
     }
 
     anyhow::bail!(
-        "Download selesai tapi file audio tidak ditemukan di {:?}",
+        "Download finished but audio file not found at {:?}",
         abs_out_dir
     )
 }

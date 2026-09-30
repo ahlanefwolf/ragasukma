@@ -9,7 +9,7 @@ export interface AntigravityAccount {
   rate_limited_seconds_left: number;
 }
 
-export interface ModelQuotaInfo {
+interface ModelQuotaInfo {
   model_id: string;
   display_name: string;
   remaining_fraction: number;

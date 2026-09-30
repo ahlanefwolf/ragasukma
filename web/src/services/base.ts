@@ -6,7 +6,7 @@ export const API_BASE = typeof window !== 'undefined' && window.location.origin 
   ? window.location.origin
   : 'http://127.0.0.1:42128';
 
-export const [isSessionKilled, setIsSessionKilled] = createSignal(false);
+const [isSessionKilled, setIsSessionKilled] = createSignal(false);
 
 export function killCurrentSession() {
   setIsSessionKilled(true);

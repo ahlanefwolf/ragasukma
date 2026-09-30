@@ -192,16 +192,12 @@ impl SpringBoneManager {
         }
     }
 
-    pub fn update(
-        &mut self,
-        delta_seconds: f32,
-        model: &VrmModelData,
-        globals: &mut [Mat4],
-    ) {
+    pub fn update(&mut self, delta_seconds: f32, model: &VrmModelData, globals: &mut [Mat4]) {
         let dt = delta_seconds.clamp(0.001, 0.05);
 
         // Precompute posisi bola collider di world space
-        let mut collider_spheres: Vec<Option<(Vec3, f32)>> = Vec::with_capacity(self.colliders.len());
+        let mut collider_spheres: Vec<Option<(Vec3, f32)>> =
+            Vec::with_capacity(self.colliders.len());
         for c in &self.colliders {
             if c.node_idx < globals.len() {
                 let center = globals[c.node_idx].transform_point3(c.offset);
@@ -287,7 +283,8 @@ impl SpringBoneManager {
             let local_tail_pos = inv_rest_world.transform_point3(next_tail);
             let local_tail_dir = local_tail_pos.normalize_or_zero();
 
-            if local_tail_dir.length_squared() > 0.0001 && joint.bone_axis.length_squared() > 0.0001 {
+            if local_tail_dir.length_squared() > 0.0001 && joint.bone_axis.length_squared() > 0.0001
+            {
                 let rot_from_axis = Quat::from_rotation_arc(joint.bone_axis, local_tail_dir);
                 let final_rotation = node.initial_rotation * rot_from_axis;
 
@@ -340,8 +337,7 @@ mod tests {
                     u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]) as usize;
                 if bytes.len() >= 20 + chunk0_len {
                     if let Ok(json_str) = std::str::from_utf8(&bytes[20..20 + chunk0_len]) {
-                        if let Ok(gltf_json) = serde_json::from_str::<serde_json::Value>(json_str)
-                        {
+                        if let Ok(gltf_json) = serde_json::from_str::<serde_json::Value>(json_str) {
                             let dummy_nodes = vec![
                                 NodeData {
                                     index: 0,

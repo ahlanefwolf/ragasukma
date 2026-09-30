@@ -122,11 +122,15 @@ impl LlmClient {
                         return Ok(reply);
                     }
                     Err(e) => {
-                        crate::term_err!("⚠️ [LLM Client] Local Engine error: {e}. Mencoba fallback...");
+                        crate::term_err!(
+                            "⚠️ [LLM Client] Local Engine error: {e}. Mencoba fallback..."
+                        );
                     }
                 }
             } else {
-                crate::term_log!("⚠️ [LLM Client] Provider diatur ke 'local', tapi belum ada akun engine lokal terhubung di pool.");
+                crate::term_log!(
+                    "⚠️ [LLM Client] Provider diatur ke 'local', tapi belum ada akun engine lokal terhubung di pool."
+                );
             }
         }
 
@@ -187,20 +191,32 @@ impl LlmClient {
                                     full_reply.push_str(delta);
                                     current_sentence.push_str(delta);
 
-                                    let has_skill_tag = current_sentence.contains("[SKILL:") || current_sentence.contains("[CMD:");
-                                    let has_skill_closed = has_skill_tag && current_sentence.contains(']');
+                                    let has_skill_tag = current_sentence.contains("[SKILL:")
+                                        || current_sentence.contains("[CMD:");
+                                    let has_skill_closed =
+                                        has_skill_tag && current_sentence.contains(']');
 
                                     if !has_skill_tag || has_skill_closed {
-                                        while let Some(pos) = current_sentence.find(['.', '?', '!', '\n']) {
-                                            if let Some(tag_idx) = current_sentence.find("[SKILL:").or_else(|| current_sentence.find("[CMD:")) {
+                                        while let Some(pos) =
+                                            current_sentence.find(['.', '?', '!', '\n'])
+                                        {
+                                            if let Some(tag_idx) = current_sentence
+                                                .find("[SKILL:")
+                                                .or_else(|| current_sentence.find("[CMD:"))
+                                            {
                                                 if pos > tag_idx {
                                                     break;
                                                 }
                                             }
                                             let sentence = current_sentence[..=pos].to_string();
-                                            current_sentence = current_sentence[pos + 1..].to_string();
+                                            current_sentence =
+                                                current_sentence[pos + 1..].to_string();
 
-                                            if let Some(emo) = crate::ui::renderer::expressions::detect_emotion(&sentence) {
+                                            if let Some(emo) =
+                                                crate::ui::renderer::expressions::detect_emotion(
+                                                    &sentence,
+                                                )
+                                            {
                                                 active_emotion = emo;
                                             }
 
@@ -217,7 +233,9 @@ impl LlmClient {
 
                     let clean_rest = clean_ai_text(&current_sentence);
                     if !clean_rest.is_empty() {
-                        if let Some(emo) = crate::ui::renderer::expressions::detect_emotion(&current_sentence) {
+                        if let Some(emo) =
+                            crate::ui::renderer::expressions::detect_emotion(&current_sentence)
+                        {
                             active_emotion = emo;
                         }
                         on_sentence(&clean_rest, active_emotion)?;
@@ -242,11 +260,18 @@ impl LlmClient {
                     return Ok(full_reply);
                 } else {
                     let err_text = response.text().unwrap_or_default();
-                    crate::term_err!("⚠️ [LLM Client] Custom endpoint status {}: {}", custom_endpoint, err_text);
+                    crate::term_err!(
+                        "⚠️ [LLM Client] Custom endpoint status {}: {}",
+                        custom_endpoint,
+                        err_text
+                    );
                 }
             }
             Err(e) => {
-                crate::term_err!("⚠️ [LLM Client] Gagal request streaming ke {}: {e}", custom_endpoint);
+                crate::term_err!(
+                    "⚠️ [LLM Client] Failed streaming request to {}: {e}",
+                    custom_endpoint
+                );
             }
         }
 
@@ -275,14 +300,14 @@ impl LlmClient {
             .post(&ollama_endpoint)
             .json(&req_body)
             .send()
-            .map_err(|e| anyhow::anyhow!("Gagal menghubungi Ollama ({ollama_endpoint}): {e}"))?;
+            .map_err(|e| anyhow::anyhow!("Failed to connect to Ollama ({ollama_endpoint}): {e}"))?;
 
         if !res.status().is_success() {
             let err_text = res.text().unwrap_or_default();
             anyhow::bail!("Ollama error: {err_text}");
         }
 
-        let chat_res: OllamaChatResponse = res.json().context("Gagal parse response Ollama")?;
+        let chat_res: OllamaChatResponse = res.json().context("Failed to parse Ollama response")?;
         let emo = crate::ui::renderer::expressions::detect_emotion_with_fallback(
             &chat_res.message.content,
         );

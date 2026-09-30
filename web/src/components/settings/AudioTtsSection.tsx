@@ -1,17 +1,83 @@
-import { Component, createSignal, onMount, onCleanup, createEffect } from 'solid-js';
-import { Mic, Volume2, Play, Square } from 'lucide-solid';
+import { Component, createSignal, onCleanup, createEffect } from 'solid-js';
+import { Mic, Volume2, Play, Square, Sparkles } from 'lucide-solid';
+import { API_BASE } from '../../services/base';
+
+interface SupertonicVoice {
+  id: string; // M1..M5, F1..F5
+  name: string;
+  label: string;
+  gender: 'male' | 'female';
+}
+
+const SUPERTONIC_VOICES: SupertonicVoice[] = [
+  { id: 'M1', name: 'Alex', label: 'Alex · Pria hangat', gender: 'male' },
+  { id: 'M2', name: 'James', label: 'James · Pria jernih', gender: 'male' },
+  { id: 'M3', name: 'Robert', label: 'Robert · Pria dalam', gender: 'male' },
+  { id: 'M4', name: 'Sam', label: 'Sam · Pria cerah', gender: 'male' },
+  { id: 'M5', name: 'Daniel', label: 'Daniel · Pria narator', gender: 'male' },
+  { id: 'F1', name: 'Sarah', label: 'Sarah · Wanita hangat', gender: 'female' },
+  { id: 'F2', name: 'Lily', label: 'Lily · Wanita jernih', gender: 'female' },
+  { id: 'F3', name: 'Jessica', label: 'Jessica · Wanita cerah', gender: 'female' },
+  { id: 'F4', name: 'Olivia', label: 'Olivia · Wanita narator', gender: 'female' },
+  { id: 'F5', name: 'Emily', label: 'Emily · Wanita lembut', gender: 'female' },
+];
+
+interface LanguageOption {
+  code: string;       // ISO-639-1 (Supertonic tag: <id>, <en>, <ja>, ...)
+  chromeCode: string; // BCP-47 untuk Chrome Web STT (id-ID, en-US, ja-JP, ...)
+  label: string;
+  flag: string;
+}
+
+const SUPPORTED_LANGUAGES: LanguageOption[] = [
+  { code: 'id', chromeCode: 'id-ID', label: 'Bahasa Indonesia', flag: '🇮🇩' },
+  { code: 'en', chromeCode: 'en-US', label: 'Bahasa Inggris', flag: '🇺🇸' },
+  { code: 'ja', chromeCode: 'ja-JP', label: 'Bahasa Jepang', flag: '🇯🇵' },
+  { code: 'ko', chromeCode: 'ko-KR', label: 'Bahasa Korea', flag: '🇰🇷' },
+  { code: 'ar', chromeCode: 'ar-SA', label: 'Bahasa Arab', flag: '🇸🇦' },
+  { code: 'bg', chromeCode: 'bg-BG', label: 'Bahasa Bulgaria', flag: '🇧🇬' },
+  { code: 'cs', chromeCode: 'cs-CZ', label: 'Bahasa Ceko', flag: '🇨🇿' },
+  { code: 'da', chromeCode: 'da-DK', label: 'Bahasa Denmark', flag: '🇩🇰' },
+  { code: 'de', chromeCode: 'de-DE', label: 'Bahasa Jerman', flag: '🇩🇪' },
+  { code: 'el', chromeCode: 'el-GR', label: 'Bahasa Yunani', flag: '🇬🇷' },
+  { code: 'es', chromeCode: 'es-ES', label: 'Bahasa Spanyol', flag: '🇪🇸' },
+  { code: 'et', chromeCode: 'et-EE', label: 'Bahasa Estonia', flag: '🇪🇪' },
+  { code: 'fi', chromeCode: 'fi-FI', label: 'Bahasa Finlandia', flag: '🇫🇮' },
+  { code: 'fr', chromeCode: 'fr-FR', label: 'Bahasa Prancis', flag: '🇫🇷' },
+  { code: 'hi', chromeCode: 'hi-IN', label: 'Bahasa Hindi', flag: '🇮🇳' },
+  { code: 'hr', chromeCode: 'hr-HR', label: 'Bahasa Kroasia', flag: '🇭🇷' },
+  { code: 'hu', chromeCode: 'hu-HU', label: 'Bahasa Hungaria', flag: '🇭🇺' },
+  { code: 'it', chromeCode: 'it-IT', label: 'Bahasa Italia', flag: '🇮🇹' },
+  { code: 'lt', chromeCode: 'lt-LT', label: 'Bahasa Lituania', flag: '🇱🇹' },
+  { code: 'lv', chromeCode: 'lv-LV', label: 'Bahasa Latvia', flag: '🇱🇻' },
+  { code: 'nl', chromeCode: 'nl-NL', label: 'Bahasa Belanda', flag: '🇳🇱' },
+  { code: 'pl', chromeCode: 'pl-PL', label: 'Bahasa Polandia', flag: '🇵🇱' },
+  { code: 'pt', chromeCode: 'pt-PT', label: 'Bahasa Portugis', flag: '🇵🇹' },
+  { code: 'ro', chromeCode: 'ro-RO', label: 'Bahasa Rumania', flag: '🇷🇴' },
+  { code: 'ru', chromeCode: 'ru-RU', label: 'Bahasa Rusia', flag: '🇷🇺' },
+  { code: 'sk', chromeCode: 'sk-SK', label: 'Bahasa Slovakia', flag: '🇸🇰' },
+  { code: 'sl', chromeCode: 'sl-SI', label: 'Bahasa Slovenia', flag: '🇸🇮' },
+  { code: 'sv', chromeCode: 'sv-SE', label: 'Bahasa Swedia', flag: '🇸🇪' },
+  { code: 'tr', chromeCode: 'tr-TR', label: 'Bahasa Turki', flag: '🇹🇷' },
+  { code: 'uk', chromeCode: 'uk-UA', label: 'Bahasa Ukraina', flag: '🇺🇦' },
+  { code: 'vi', chromeCode: 'vi-VN', label: 'Bahasa Vietnam', flag: '🇻🇳' },
+];
+
+const getChromeSttCode = (langCode: string): string => {
+  const clean = (langCode || 'id').toLowerCase().split('-')[0];
+  const found = SUPPORTED_LANGUAGES.find((l) => l.code === clean);
+  return found ? found.chromeCode : 'id-ID';
+};
 
 interface AudioTtsSectionProps {
   assistantGender: string;
   setAssistantGender?: (val: string) => void;
-  sttLang: string;
-  setSttLang: (val: string) => void;
+  lang: string;
+  setLang: (val: string) => void;
   ttsVoiceName: string;
   setTtsVoiceName: (val: string) => void;
   ttsSpeed: number;
   setTtsSpeed: (val: number) => void;
-  ttsPitch: number;
-  setTtsPitch: (val: number) => void;
   voiceInterruption: boolean;
   setVoiceInterruption: (val: boolean) => void;
   vadThreshold: number;
@@ -21,10 +87,13 @@ interface AudioTtsSectionProps {
 }
 
 export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
-  const [browserVoices, setBrowserVoices] = createSignal<SpeechSynthesisVoice[]>([]);
   const [isPlayingTest, setIsPlayingTest] = createSignal(false);
   const [testText, setTestText] = createSignal('Halo Mas! Aku adalah asisten AI Ragasukma.');
   const [genderFilter, setGenderFilter] = createSignal<'all' | 'female' | 'male'>('all');
+
+  let activeTestAudio: HTMLAudioElement | null = null;
+  let voiceSelectRef: HTMLSelectElement | undefined;
+  let langSelectRef: HTMLSelectElement | undefined;
 
   // 🎙️ Live VAD & Audio Level Meter State
   const [isMicTesting, setIsMicTesting] = createSignal(false);
@@ -32,6 +101,36 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
   let micAudioCtx: AudioContext | null = null;
   let micStream: MediaStream | null = null;
   let micAnimId: number | null = null;
+
+  const currentLangCode = () => {
+    return (props.lang || 'id').toLowerCase().split('-')[0];
+  };
+
+  const handleLanguageChange = (code: string) => {
+    const cleanCode = code.toLowerCase().split('-')[0];
+    props.setLang(cleanCode);
+  };
+
+  // Pastikan ref select bahasa selalu sinkron dengan state
+  createEffect(() => {
+    const code = currentLangCode();
+    if (langSelectRef && code) {
+      langSelectRef.value = code;
+    }
+  });
+
+  // Pastikan ref select suara & gender filter selalu sinkron dua arah tanpa revert
+  createEffect(() => {
+    const v = props.ttsVoiceName || 'F4';
+    if (voiceSelectRef) {
+      voiceSelectRef.value = v;
+    }
+    if (v.startsWith('M')) {
+      setGenderFilter('male');
+    } else if (v.startsWith('F')) {
+      setGenderFilter('female');
+    }
+  });
 
   const stopMicMeter = () => {
     if (micAnimId) {
@@ -81,7 +180,6 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
           sumSquares += norm * norm;
         }
         const rms = Math.sqrt(sumSquares / buffer.length);
-        // Kalibrasi level ke rentang 0 - 100% yang responsif
         const levelPct = Math.min(100, Math.round(rms * 250));
         setCurrentMicLevel(levelPct);
         micAnimId = requestAnimationFrame(loop);
@@ -101,160 +199,84 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
     }
   };
 
-  // Sinkronkan filter awal dengan gender asisten jika ada
-  createEffect(() => {
-    const g = (props.assistantGender || '').toLowerCase();
-    if (g.includes('wanita') || g.includes('female') || g.includes('cewek')) {
-      setGenderFilter('female');
-    } else if (g.includes('pria') || g.includes('male') || g.includes('cowok')) {
-      setGenderFilter('male');
-    } else {
-      setGenderFilter('all');
-    }
-  });
-
-  const MALE_KEYWORDS = [
-    'male', 'david', 'mark', 'george', 'james', 'richard', 'daniel', 'paul',
-    'ardi', 'guy', 'stefan', 'martin', 'claude', 'henri', 'pablo',
-    'alva', 'diego', 'jorge', 'cosimo', 'yuri', 'alex', 'fred', 'albert',
-    'bad news', 'bahh', 'bells', 'boing', 'bubbles', 'cellos', 'deranged',
-    'good news', 'hysterical', 'pipe organ', 'trinoids', 'whisper', 'zarvox',
-    'junior', 'ralph', 'bruce', 'oliver', 'liam', 'noah', 'william', 'lucas',
-    'tom', 'ken', 'hiroshi', 'ryo', 'min-ho', 'jun-seo'
-  ];
-
-  const FEMALE_KEYWORDS = [
-    'female', 'woman', 'girl', 'zira', 'susan', 'hazel', 'catherine',
-    'linda', 'heather', 'jenny', 'aria', 'sara', 'damayanti', 'siti',
-    'gadis', 'indonesian female', 'google bahasa indonesia', 'natural',
-    'victoria', 'samantha', 'karen', 'moira', 'tessa', 'fiona', 'veena',
-    'alice', 'amelie', 'anna', 'helena', 'kyoko', 'yuna', 'sin-ji', 'ting-ting',
-    'ayumi', 'haruka', 'sayaka', 'mei-ling', 'ji-young', 'so-yeon'
-  ];
-
-  const matchesGender = (voice: SpeechSynthesisVoice, gender: 'all' | 'female' | 'male'): boolean => {
-    if (gender === 'all') return true;
-    const nameLower = voice.name.toLowerCase();
-
-    if (gender === 'female') {
-      if (MALE_KEYWORDS.some(kw => nameLower.includes(kw))) return false;
-      if (FEMALE_KEYWORDS.some(hint => nameLower.includes(hint))) return true;
-      if (voice.lang.toLowerCase().includes('id')) return true; // Default Google Bahasa Indonesia adalah vokal cewek
-      return true; // Suara umum yang tidak terindikasi pria tetap diikutsertakan
-    }
-
-    if (gender === 'male') {
-      if (FEMALE_KEYWORDS.some(kw => nameLower.includes(kw))) return false;
-      if (MALE_KEYWORDS.some(hint => nameLower.includes(hint))) return true;
-      return false;
-    }
-
-    return true;
-  };
-
-  const isLocalLang = (code: string) => {
-    const c = (code || '').toLowerCase();
-    return c.includes('id') || c.includes('jv') || c.includes('su');
-  };
-
-  const filteredVoices = () => {
-    const all = browserVoices();
-    const filter = genderFilter();
-    const matched = all.filter(v => matchesGender(v, filter));
-    const list = matched.length > 0 ? matched : all;
-
-    return [...list].sort((a, b) => {
-      const aIsLocal = isLocalLang(a.lang);
-      const bIsLocal = isLocalLang(b.lang);
-      if (aIsLocal && !bIsLocal) return -1;
-      if (!aIsLocal && bIsLocal) return 1;
-      return a.name.localeCompare(b.name);
-    });
-  };
-
-  const updateVoiceList = () => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      const allVoices = window.speechSynthesis.getVoices();
-      if (allVoices.length > 0) {
-        setBrowserVoices(allVoices);
-
-        if (!props.ttsVoiceName) {
-          const idVoice = allVoices.find(v => isLocalLang(v.lang));
-          const defaultVoice = idVoice || allVoices[0];
-          props.setTtsVoiceName(defaultVoice.name);
-        }
-      }
-    }
-  };
-
-  onMount(() => {
-    updateVoiceList();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.onvoiceschanged = updateVoiceList;
-      // Polling voices selama 3 detik pertama untuk antisipasi Chromium delayed voice loading
-      const timer = setInterval(() => {
-        if (browserVoices().length === 0) {
-          updateVoiceList();
-        } else {
-          clearInterval(timer);
-        }
-      }, 300);
-      setTimeout(() => clearInterval(timer), 3000);
-    }
-  });
 
   onCleanup(() => {
     stopMicMeter();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+    if (activeTestAudio) {
+      activeTestAudio.pause();
+      activeTestAudio = null;
     }
   });
 
-  const handleTestVoice = () => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-
+  const handleTestVoice = async () => {
     if (isPlayingTest()) {
-      window.speechSynthesis.cancel();
+      if (activeTestAudio) {
+        activeTestAudio.pause();
+        activeTestAudio = null;
+      }
       setIsPlayingTest(false);
+      try {
+        window.dispatchEvent(new CustomEvent('ragasukma:test_voice', { detail: { active: false } }));
+      } catch {}
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(testText());
-    
-    // Pilih voice langsung dari browser
-    const voices = browserVoices();
-    const selected = voices.find(v => v.name === props.ttsVoiceName);
-    if (selected) {
-      utter.voice = selected;
-      utter.lang = selected.lang;
-    } else if (props.sttLang) {
-      utter.lang = props.sttLang;
+    setIsPlayingTest(true);
+    try {
+      window.dispatchEvent(new CustomEvent('ragasukma:test_voice', { detail: { active: true } }));
+    } catch {}
+
+    try {
+      const voice = props.ttsVoiceName || 'F4';
+      const lang = currentLangCode();
+      const speed = props.ttsSpeed || 1.05;
+
+      const res = await fetch(`${API_BASE}/api/tts/synthesize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: testText(),
+          voice,
+          lang,
+          speed,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Sintesis Supertonic HTTP ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+      activeTestAudio = audio;
+
+      audio.onended = () => {
+        setIsPlayingTest(false);
+        activeTestAudio = null;
+        URL.revokeObjectURL(audioUrl);
+        try {
+          window.dispatchEvent(new CustomEvent('ragasukma:test_voice', { detail: { active: false } }));
+        } catch {}
+      };
+
+      audio.onerror = () => {
+        setIsPlayingTest(false);
+        activeTestAudio = null;
+        URL.revokeObjectURL(audioUrl);
+        try {
+          window.dispatchEvent(new CustomEvent('ragasukma:test_voice', { detail: { active: false } }));
+        } catch {}
+      };
+
+      await audio.play();
+    } catch (err) {
+      console.warn('[Test Supertonic Error]:', err);
+      setIsPlayingTest(false);
+      try {
+        window.dispatchEvent(new CustomEvent('ragasukma:test_voice', { detail: { active: false } }));
+      } catch {}
     }
-
-    utter.rate = props.ttsSpeed || 1.0;
-    utter.pitch = props.ttsPitch || 1.0;
-
-    utter.onstart = () => {
-      setIsPlayingTest(true);
-      try {
-        window.dispatchEvent(new CustomEvent('ragasukma:test_voice', { detail: { active: true } }));
-      } catch {}
-    };
-    utter.onend = () => {
-      setIsPlayingTest(false);
-      try {
-        window.dispatchEvent(new CustomEvent('ragasukma:test_voice', { detail: { active: false } }));
-      } catch {}
-    };
-    utter.onerror = () => {
-      setIsPlayingTest(false);
-      try {
-        window.dispatchEvent(new CustomEvent('ragasukma:test_voice', { detail: { active: false } }));
-      } catch {}
-    };
-
-    window.speechSynthesis.speak(utter);
   };
 
   return (
@@ -263,65 +285,60 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
         <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2">
           <Mic size={18} />
-          3. Mikrofon & Speech-to-Text (Ekosistem Google Chrome)
+          3. Mikrofon & Bahasa Percakapan (STT Chrome + Supertonic)
         </h3>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
           <div class="space-y-1.5">
             <div class="flex justify-between items-center">
-              <label class="text-xs font-semibold text-theme-text/80">Bahasa Pengenalan Suara (STT)</label>
+              <label class="text-xs font-semibold text-theme-text/80">Pilih Bahasa (Tunggal & Sinkron)</label>
               <div class="flex gap-1">
                 <button
                   type="button"
-                  onClick={() => props.setSttLang('id-ID')}
+                  onClick={() => handleLanguageChange('id')}
                   class={`px-1.5 py-0.5 text-[10px] font-mono border ${
-                    props.sttLang === 'id-ID'
+                    currentLangCode() === 'id'
                       ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold'
                       : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-cyan'
                   }`}
                 >
-                  id-ID
+                  🇮🇩 id
                 </button>
                 <button
                   type="button"
-                  onClick={() => props.setSttLang('jv-ID')}
+                  onClick={() => handleLanguageChange('en')}
                   class={`px-1.5 py-0.5 text-[10px] font-mono border ${
-                    props.sttLang === 'jv-ID'
+                    currentLangCode() === 'en'
                       ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold'
                       : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-cyan'
                   }`}
                 >
-                  jv-ID (Jawa)
+                  🇺🇸 en
                 </button>
                 <button
                   type="button"
-                  onClick={() => props.setSttLang('su-ID')}
+                  onClick={() => handleLanguageChange('ja')}
                   class={`px-1.5 py-0.5 text-[10px] font-mono border ${
-                    props.sttLang === 'su-ID'
+                    currentLangCode() === 'ja'
                       ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold'
                       : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-cyan'
                   }`}
                 >
-                  su-ID (Sunda)
+                  🇯🇵 ja
                 </button>
               </div>
             </div>
             <select
-              value={props.sttLang || 'id-ID'}
-              onChange={(e) => props.setSttLang(e.currentTarget.value)}
+              ref={langSelectRef}
+              value={currentLangCode()}
+              onChange={(e) => handleLanguageChange(e.currentTarget.value)}
               class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
-              <option value="id-ID">🇮🇩 Bahasa Indonesia (id-ID)</option>
-              <option value="jv-ID">🇮🇩 Basa Jawa (jv-ID)</option>
-              <option value="su-ID">🇮🇩 Basa Sunda (su-ID)</option>
-              <option value="en-US">🇺🇸 English (en-US)</option>
-              <option value="ja-JP">🇯🇵 Japanese (ja-JP)</option>
-              {Array.from(new Set(browserVoices().map((v) => v.lang)))
-                .filter((l) => !['id-ID', 'jv-ID', 'su-ID', 'en-US', 'ja-JP'].includes(l))
-                .sort()
-                .map((lang) => (
-                  <option value={lang}>🌐 {lang}</option>
-                ))}
+              {SUPPORTED_LANGUAGES.map((l) => (
+                <option value={l.code}>
+                  {l.flag} {l.label} ({l.code} · STT {l.chromeCode})
+                </option>
+              ))}
             </select>
           </div>
 
@@ -379,7 +396,6 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
           {/* Meter Audio & Garis Threshold Line */}
           <div class="space-y-1.5">
             <div class="relative w-full h-8 bg-black/40 border border-theme-border overflow-hidden select-none">
-              {/* Audio Level Bar (Level Real-time) */}
               <div
                 class={`h-full transition-all duration-75 ${
                   currentMicLevel() >= Math.round((props.vadThreshold || 0.15) * 100)
@@ -389,16 +405,13 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 style={{ width: `${currentMicLevel()}%` }}
               ></div>
 
-              {/* Garis Penanda Ambang Batas (VAD Threshold Line) */}
               <div
                 class="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10 shadow-[0_0_8px_#fbbf24]"
                 style={{ left: `${Math.round((props.vadThreshold || 0.15) * 100)}%` }}
               >
-                {/* Pointer / Marker Pin */}
                 <div class="absolute -top-1 -left-1.5 w-3.5 h-3.5 bg-amber-400 rotate-45 border border-black shadow-sm"></div>
               </div>
 
-              {/* Text Overlay di dalam Bar */}
               <div class="absolute inset-0 flex items-center justify-between px-3 text-[11px] font-mono pointer-events-none">
                 <span class="text-white/60">
                   {isMicTesting() ? `Mic: ${currentMicLevel()}%` : 'Klik "Tes Suara Mic" untuk kalibrasi'}
@@ -417,7 +430,6 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
               </div>
             </div>
 
-            {/* Slider Pengatur Garis Ambang Batas */}
             <div class="flex items-center gap-3">
               <span class="text-[11px] font-mono text-theme-text/50">Sensitif (3%)</span>
               <input
@@ -433,7 +445,6 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             </div>
           </div>
 
-          {/* Toggle Noise Suppression */}
           <div class="flex items-center justify-between pt-2 border-t border-theme-border/60">
             <div>
               <label class="text-xs font-semibold text-theme-text block">🛡️ Peredam Bising (Noise Suppression)</label>
@@ -454,12 +465,12 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
         </div>
       </div>
 
-      {/* 4. Text-to-Speech (TTS Google Chrome Native) */}
+      {/* 4. Text-to-Speech (Supertonic-3 Neural TTS ONNX Runtime) */}
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
         <div class="flex items-center justify-between flex-wrap gap-2">
           <h3 class="text-base sm:text-lg font-bold text-theme-rose flex items-center gap-2">
             <Volume2 size={18} />
-            4. Suara Asisten (Speech Synthesis Google Chrome)
+            4. Suara Asisten (Supertonic-3 Neural TTS Native Rust)
           </h3>
           <div class="flex items-center gap-2">
             <span class="text-xs text-theme-text/60">Filter Suara:</span>
@@ -473,63 +484,84 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                     : 'text-theme-text/70 hover:text-theme-text'
                 }`}
               >
-                Semua ({browserVoices().length})
+                Semua (10)
               </button>
               <button
                 type="button"
-                onClick={() => setGenderFilter('female')}
+                onClick={() => {
+                  setGenderFilter('female');
+                  if (props.ttsVoiceName?.startsWith('M')) {
+                    props.setTtsVoiceName('F4');
+                  }
+                  props.setAssistantGender?.('female');
+                }}
                 class={`px-2 py-1 text-xs transition-colors ${
                   genderFilter() === 'female'
                     ? 'bg-theme-rose text-white font-bold'
                     : 'text-theme-text/70 hover:text-theme-text'
                 }`}
               >
-                👩 Wanita
+                👩 Wanita (5)
               </button>
               <button
                 type="button"
-                onClick={() => setGenderFilter('male')}
+                onClick={() => {
+                  setGenderFilter('male');
+                  if (props.ttsVoiceName?.startsWith('F')) {
+                    props.setTtsVoiceName('M1');
+                  }
+                  props.setAssistantGender?.('male');
+                }}
                 class={`px-2 py-1 text-xs transition-colors ${
                   genderFilter() === 'male'
                     ? 'bg-theme-blue text-white font-bold'
                     : 'text-theme-text/70 hover:text-theme-text'
                 }`}
               >
-                👨 Pria
+                👨 Pria (5)
               </button>
             </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
-          <div class="space-y-1.5 sm:col-span-1">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+          <div class="space-y-1.5">
             <div class="flex justify-between items-center">
-              <label class="text-xs font-semibold text-theme-text/80">Pilih Suara Vokal (Dari Browser)</label>
-              <span class="text-[10px] text-theme-text/50 font-mono">
-                {filteredVoices().length} suara
+              <label class="text-xs font-semibold text-theme-text/80">Pilih Karakter Suara Supertonic</label>
+              <span class="text-[10px] text-theme-rose font-mono flex items-center gap-1 font-bold">
+                <Sparkles size={11} /> 44.1kHz Hi-Fi
               </span>
             </div>
             <select
-              value={props.ttsVoiceName}
-              onChange={(e) => props.setTtsVoiceName(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
+              ref={voiceSelectRef}
+              value={props.ttsVoiceName || 'F4'}
+              onChange={(e) => {
+                const voiceId = e.currentTarget.value;
+                props.setTtsVoiceName(voiceId);
+                if (voiceId.startsWith('M')) {
+                  setGenderFilter('male');
+                  props.setAssistantGender?.('male');
+                } else if (voiceId.startsWith('F')) {
+                  setGenderFilter('female');
+                  props.setAssistantGender?.('female');
+                }
+              }}
+              class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-rose transition-colors font-medium"
             >
-              {filteredVoices().map((v) => {
-                const isIndo = isLocalLang(v.lang);
-                const isMale = matchesGender(v, 'male');
-                const icon = isMale ? '👨' : '👩';
-                return (
-                  <option
-                    value={v.name}
-                    class={isIndo ? 'font-bold text-theme-cyan' : ''}
-                  >
-                    {icon} {v.name} ({v.lang}){v.default ? ' — DEFAULT' : ''}
+              <optgroup label="👩 Suara Wanita (Female)">
+                {SUPERTONIC_VOICES.filter((v) => v.gender === 'female').map((v) => (
+                  <option value={v.id}>
+                    👩 {v.label} ({v.id})
                   </option>
-                );
-              })}
-              {filteredVoices().length === 0 && (
-                <option value="">Memuat suara browser...</option>
-              )}
+                ))}
+              </optgroup>
+              <optgroup label="👨 Suara Pria (Male)">
+                {SUPERTONIC_VOICES.filter((v) => v.gender === 'male').map((v) => (
+                  <option value={v.id}>
+                    👨 {v.label} ({v.id})
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </div>
 
@@ -537,7 +569,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             <div class="flex justify-between items-center text-xs font-semibold text-theme-text/80">
               <span>Kecepatan Bicara (Speed)</span>
               <span class="text-xs font-mono font-bold text-theme-cyan bg-theme-card px-2 py-0.5 border border-theme-border">
-                {(props.ttsSpeed || 1.0).toFixed(2)}x
+                {(props.ttsSpeed || 1.05).toFixed(2)}x
               </span>
             </div>
             <div class="h-[42px] px-3.5 bg-theme-card border border-theme-border flex items-center">
@@ -546,29 +578,9 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 min="0.5"
                 max="2.0"
                 step="0.05"
-                value={props.ttsSpeed || 1.0}
+                value={props.ttsSpeed || 1.05}
                 onInput={(e) => props.setTtsSpeed(parseFloat(e.currentTarget.value))}
-                class="w-full h-1.5 bg-theme-bg appearance-none cursor-pointer accent-theme-cyan"
-              />
-            </div>
-          </div>
-
-          <div class="space-y-1.5">
-            <div class="flex justify-between items-center text-xs font-semibold text-theme-text/80">
-              <span>Nada Suara (Pitch)</span>
-              <span class="text-xs font-mono font-bold text-theme-cyan bg-theme-card px-2 py-0.5 border border-theme-border">
-                {(props.ttsPitch || 1.0).toFixed(2)}x
-              </span>
-            </div>
-            <div class="h-[42px] px-3.5 bg-theme-card border border-theme-border flex items-center">
-              <input
-                type="range"
-                min="0.5"
-                max="2.0"
-                step="0.05"
-                value={props.ttsPitch || 1.0}
-                onInput={(e) => props.setTtsPitch(parseFloat(e.currentTarget.value))}
-                class="w-full h-1.5 bg-theme-bg appearance-none cursor-pointer accent-theme-cyan"
+                class="w-full h-1.5 bg-theme-bg appearance-none cursor-pointer accent-theme-rose"
               />
             </div>
           </div>
@@ -581,26 +593,26 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             value={testText()}
             onInput={(e) => setTestText(e.currentTarget.value)}
             placeholder="Tulis kalimat uji suara..."
-            class="w-full sm:flex-1 bg-theme-bg border border-theme-border px-3 py-2 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
+            class="w-full sm:flex-1 bg-theme-bg border border-theme-border px-3 py-2 text-sm text-theme-text outline-none focus:border-theme-rose transition-colors"
           />
           <button
             type="button"
             onClick={handleTestVoice}
             class={`w-full sm:w-auto px-4 py-2 text-xs font-semibold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
               isPlayingTest()
-                ? 'bg-red-500/20 text-red-400 border-red-500/40 hover:bg-red-500/30'
-                : 'bg-theme-cyan text-theme-card border-theme-cyan hover:opacity-90'
+                ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 hover:bg-rose-500/30 animate-pulse'
+                : 'bg-theme-rose text-white border-theme-rose hover:opacity-90'
             }`}
           >
             {isPlayingTest() ? (
               <>
                 <Square size={14} />
-                <span>Hentikan Tes</span>
+                <span>Hentikan Audio</span>
               </>
             ) : (
               <>
                 <Play size={14} />
-                <span>Uji Suara Chrome</span>
+                <span>Uji Suara Supertonic</span>
               </>
             )}
           </button>

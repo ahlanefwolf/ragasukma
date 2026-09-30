@@ -92,8 +92,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       setAssistantName(cfg.assistant_name);
       setTtsEngineName(
         cfg.tts_voice_name
-          ? `${cfg.tts_voice_name} (${cfg.tts_lang || 'id-ID'})`
-          : `Web Speech API (${cfg.tts_lang || 'id-ID'})`
+          ? `Supertonic ${cfg.tts_voice_name} (${cfg.lang || 'id'})`
+          : `Supertonic F4 (${cfg.lang || 'id'})`
       );
       setVoiceInterruption(Boolean(cfg.voice_interruption));
     }
@@ -106,11 +106,11 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       if (updated?.assistant_name) {
         setAssistantName(updated.assistant_name);
       }
-      if (updated?.tts_voice_name || updated?.tts_lang) {
+      if (updated?.tts_voice_name || updated?.lang) {
         setTtsEngineName(
           updated.tts_voice_name
-            ? `${updated.tts_voice_name} (${updated.tts_lang || 'id-ID'})`
-            : `Web Speech API (${updated.tts_lang || 'id-ID'})`
+            ? `Supertonic ${updated.tts_voice_name} (${updated.lang || 'id'})`
+            : `Supertonic F4 (${updated.lang || 'id'})`
         );
       }
     };

@@ -1,12 +1,11 @@
-use crate::llm::providers::antigravity::oauth::build_auth_url;
 use crate::llm::providers::antigravity::AntigravityProvider;
+use crate::llm::providers::antigravity::oauth::build_auth_url;
 use crate::server::send_json_response;
 use serde::Deserialize;
 use std::io::Write;
 use std::net::TcpStream;
 
-pub const OAUTH_REDIRECT_URI: &str =
-    "http://localhost:42128/api/llm/antigravity/oauth/callback";
+pub const OAUTH_REDIRECT_URI: &str = "http://localhost:42128/api/llm/antigravity/oauth/callback";
 
 #[derive(Deserialize)]
 struct AddAccountPayload {
@@ -31,7 +30,13 @@ struct ExchangeCodePayload {
 }
 
 pub fn handle_get_antigravity_auth_url(full_url: &str, stream: &mut TcpStream) {
-    let state = format!("ragasukma_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs());
+    let state = format!(
+        "ragasukma_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    );
     let auth_url = build_auth_url(OAUTH_REDIRECT_URI, &state);
 
     if full_url.contains("open=1") {
@@ -64,7 +69,7 @@ pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut TcpStream)
         let html = format!(
             r#"<!DOCTYPE html>
 <html>
-<head><title>OAuth Gagal</title><meta charset="utf-8"></head>
+<head><title>OAuth Failed</title><meta charset="utf-8"></head>
 <body style="font-family: sans-serif; background: #0f172a; color: #f87171; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
   <div style="text-align: center; padding: 32px; background: #1e293b; border-radius: 24px; border: 1px solid #ef4444;">
     <h2>❌ Otorisasi Google Gagal</h2>
@@ -84,7 +89,7 @@ pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut TcpStream)
         _ => {
             let html = r#"<!DOCTYPE html>
 <html>
-<head><title>Kode Tidak Valid</title><meta charset="utf-8"></head>
+<head><title>Invalid Code</title><meta charset="utf-8"></head>
 <body style="font-family: sans-serif; background: #0f172a; color: #f87171; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
   <div style="text-align: center; padding: 32px; background: #1e293b; border-radius: 24px; border: 1px solid #ef4444;">
     <h2>⚠️ Kode Otorisasi Tidak Ditemukan</h2>
@@ -156,7 +161,7 @@ pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut TcpStream)
 <body>
   <div class="card">
     <div style="font-size: 48px; margin-bottom: 12px;">🚀</div>
-    <h2 style="margin: 0 0 8px 0; color: #38bdf8;">Login Antigravity Berhasil!</h2>
+    <h2 style="margin: 0 0 8px 0; color: #38bdf8;">Antigravity Login Successful!</h2>
     <p style="color: #94a3b8; font-size: 14px; margin: 0 0 16px 0;">Akun <b>{}</b> telah terhubung ke pool LLM Ragasukma.</p>
     <a class="btn" href="http://localhost:42128">Kembali ke Dashboard</a>
   </div>
@@ -176,7 +181,7 @@ pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut TcpStream)
             let html = format!(
                 r#"<!DOCTYPE html>
 <html>
-<head><title>OAuth Gagal</title><meta charset="utf-8"></head>
+<head><title>OAuth Failed</title><meta charset="utf-8"></head>
 <body style="font-family: sans-serif; background: #0f172a; color: #f87171; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
   <div style="text-align: center; padding: 32px; background: #1e293b; border-radius: 24px; border: 1px solid #ef4444;">
     <h2>❌ Gagal Menghubungkan Akun</h2>

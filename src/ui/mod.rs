@@ -11,7 +11,7 @@ use winit::event_loop::EventLoopBuilder;
 use winit::platform::x11::EventLoopBuilderExtX11;
 
 pub fn run_native_overlay() {
-    println!("✨ Memulai Ragasukma 3D Native Overlay (Ultra Lightweight WGPU)...");
+    println!("✨ Starting Ragasukma 3D Native Overlay (Ultra Lightweight WGPU)...");
 
     let event_loop = {
         #[cfg(target_os = "linux")]
@@ -20,24 +20,24 @@ pub fn run_native_overlay() {
             EventLoopBuilder::new()
                 .build()
                 .or_else(|_| {
-                    println!("⚠️ [Wayland] Tidak terdeteksi atau koneksi ditolak, fallback ke X11 backend...");
+                    println!("⚠️ [Wayland] Not detected or connection refused, falling back to X11 backend...");
                     let mut b = EventLoopBuilder::new();
                     b.with_x11().build()
                 })
-                .expect("Gagal membuat winit event loop (Wayland & X11 fallback)")
+                .expect("Failed to create winit event loop (Wayland & X11 fallback)")
         }
         #[cfg(not(target_os = "linux"))]
         {
             EventLoopBuilder::new()
                 .build()
-                .expect("Gagal membuat winit event loop")
+                .expect("Failed to create winit event loop")
         }
     };
 
     let mut app = match pollster::block_on(app::App::new(&event_loop)) {
         Ok(a) => Box::new(a),
         Err(e) => {
-            eprintln!("❌ Gagal menginisialisasi Native App: {:?}", e);
+            eprintln!("❌ Failed to initialize Native App: {:?}", e);
             return;
         }
     };

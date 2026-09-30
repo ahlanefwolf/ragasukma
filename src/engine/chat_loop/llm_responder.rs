@@ -19,7 +19,7 @@ pub fn process_llm_response(
     crate::app_state::set_ai_speaking(false);
     TrayState::update(AssistantState::Thinking, "LLM Berpikir...");
     let llm_start = Instant::now();
-    crate::term_log!("\n[LLM] {} sedang merespons...", asst_name);
+    crate::term_log!("\n[LLM] {} is responding...", asst_name);
 
     let tts_clone = Arc::clone(tts);
     let mut first_token_time = None;

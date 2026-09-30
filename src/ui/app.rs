@@ -14,8 +14,6 @@ use crate::app_state::ServerSharedState;
 use crate::assets;
 use crate::server;
 
-
-
 pub struct App {
     pub window: Arc<Window>,
     pub renderer: Box<Renderer>,
@@ -176,11 +174,7 @@ impl App {
         })
     }
 
-    pub fn handle_window_event(
-        &mut self,
-        event: WindowEvent,
-        elwt: &EventLoopWindowTarget<()>,
-    ) {
+    pub fn handle_window_event(&mut self, event: WindowEvent, elwt: &EventLoopWindowTarget<()>) {
         match event {
             WindowEvent::Focused(focused) => {
                 self.is_window_focused = focused;
@@ -201,7 +195,7 @@ impl App {
                 self.is_right_mouse_down = false;
             }
             WindowEvent::CloseRequested => {
-                println!("🛑 Menutup aplikasi Ragasukma (Window Close)...");
+                println!("🛑 Closing Ragasukma (Window Close)...");
                 crate::app_state::trigger_app_shutdown();
                 crate::tray::TrayState::push_command("quit".to_string());
                 // Jeda 200ms agar browser menerima SSE event shutdown dan membersihkan seluruh resource/player
@@ -276,7 +270,7 @@ impl App {
                         if cur_y <= 28.0 {
                             // Tombol Close (✕)
                             if cur_x >= (w - 28.0) && cur_x <= (w - 4.0) {
-                                println!("🛑 Menutup aplikasi Ragasukma (Header Close)...");
+                                println!("🛑 Closing Ragasukma (Header Close)...");
                                 crate::app_state::trigger_app_shutdown();
                                 crate::tray::TrayState::push_command("quit".to_string());
                                 // Jeda 200ms agar browser menerima SSE event shutdown dan membersihkan seluruh resource/player
@@ -463,7 +457,8 @@ impl App {
                             lock.vrm_updated = false;
                         }
 
-                        let check_file = self.last_config_check.elapsed() >= std::time::Duration::from_millis(500);
+                        let check_file = self.last_config_check.elapsed()
+                            >= std::time::Duration::from_millis(500);
                         let file_changed = if check_file {
                             self.last_config_check = Instant::now();
                             let current_mtime = crate::config::get_config_modified_time();
@@ -482,13 +477,18 @@ impl App {
                             let old_avatar_type = self.renderer.avatar_type.clone();
                             self.renderer.avatar_type = cfg.avatar_type.clone();
 
-                            if !self.renderer.avatar_type.eq_ignore_ascii_case(&old_avatar_type) {
+                            if !self
+                                .renderer
+                                .avatar_type
+                                .eq_ignore_ascii_case(&old_avatar_type)
+                            {
                                 if self.renderer.avatar_type.eq_ignore_ascii_case("2d") {
                                     self.renderer.reload_2d_avatar_textures();
                                 } else if self.renderer.avatar_type.eq_ignore_ascii_case("vrm") {
                                     if !self.renderer.has_model() && self.vrm_loader_rx.is_none() {
                                         self.renderer.is_loading = true;
-                                        let (vrm_tx, vrm_rx) = std::sync::mpsc::channel::<Box<VrmModelData>>();
+                                        let (vrm_tx, vrm_rx) =
+                                            std::sync::mpsc::channel::<Box<VrmModelData>>();
                                         std::thread::spawn(move || {
                                             let vrm_candidates = [
                                                 assets::find_file_in_candidates("char.vrm"),
@@ -503,7 +503,9 @@ impl App {
                                                         "📂 [Async Asset Loader] Memuat model avatar di background: {:?}",
                                                         p
                                                     );
-                                                    if let Ok(model) = VrmModelData::load_from_file(p) {
+                                                    if let Ok(model) =
+                                                        VrmModelData::load_from_file(p)
+                                                    {
                                                         let _ = vrm_tx.send(model);
                                                         break;
                                                     }
@@ -526,19 +528,22 @@ impl App {
                     }
                 }
 
-                if self.pose_manager.current_state == crate::ui::pose_system::AssistantVisualState::Listening {
+                if self.pose_manager.current_state
+                    == crate::ui::pose_system::AssistantVisualState::Listening
+                {
                     self.listening_duration += delta;
                     // Watchdog: jika berada di state listening > 4.5s atau sesi asisten tidak aktif, paksa kembali ke Idle
                     if self.listening_duration > 4.5 || !crate::app_state::is_session_running() {
                         self.listening_duration = 0.0;
-                        self.pose_manager.current_state = crate::ui::pose_system::AssistantVisualState::Idle;
+                        self.pose_manager.current_state =
+                            crate::ui::pose_system::AssistantVisualState::Idle;
                         if let Ok(mut lock) = self.shared_server_state.lock() {
                             lock.current_state = crate::ui::pose_system::AssistantVisualState::Idle;
                             lock.state_version = lock.state_version.wrapping_add(1);
                         }
                         crate::tray::TrayState::update_with_emotion(
                             crate::services::tray_service::AssistantState::Idle,
-                            "Standby Siap",
+                            "Standby",
                             "neutral",
                         );
                     }

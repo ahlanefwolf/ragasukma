@@ -1,4 +1,4 @@
-import { Component, For } from 'solid-js';
+import { Component, For, createEffect } from 'solid-js';
 import { Brain, UserCheck, Cpu } from 'lucide-solid';
 import { ANTIGRAVITY_PRESET_MODELS } from '../../services';
 
@@ -19,10 +19,33 @@ interface PersonaAiSectionProps {
   setLlmModel: (val: string) => void;
   llmApiKey: string;
   setLlmApiKey: (val: string) => void;
+  ttsVoiceName?: string;
+  setTtsVoiceName?: (val: string) => void;
 }
 
-
 export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
+  let genderSelectRef: HTMLSelectElement | undefined;
+  let roleSelectRef: HTMLSelectElement | undefined;
+  let modelSelectRef: HTMLSelectElement | undefined;
+
+  createEffect(() => {
+    if (genderSelectRef && props.assistantGender) {
+      genderSelectRef.value = props.assistantGender;
+    }
+  });
+
+  createEffect(() => {
+    if (roleSelectRef && props.personalityRole) {
+      roleSelectRef.value = props.personalityRole;
+    }
+  });
+
+  createEffect(() => {
+    if (modelSelectRef && props.llmModel) {
+      modelSelectRef.value = props.llmModel;
+    }
+  });
+
   return (
     <div class="space-y-5 animate-in fade-in duration-200">
       {/* 1. Persona & Identitas */}
@@ -58,8 +81,17 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
           <div class="space-y-1.5">
             <label class="text-xs font-semibold text-theme-text/80">Gender Asisten</label>
             <select
+              ref={genderSelectRef}
               value={props.assistantGender || 'female'}
-              onChange={(e) => props.setAssistantGender(e.currentTarget.value)}
+              onChange={(e) => {
+                const g = e.currentTarget.value;
+                props.setAssistantGender(g);
+                if (g === 'male' && props.ttsVoiceName?.startsWith('F')) {
+                  props.setTtsVoiceName?.('M1');
+                } else if (g === 'female' && props.ttsVoiceName?.startsWith('M')) {
+                  props.setTtsVoiceName?.('F4');
+                }
+              }}
               class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
               <option value="female">Cewek (Female)</option>
@@ -70,7 +102,8 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
           <div class="space-y-1.5">
             <label class="text-xs font-semibold text-theme-text/80">Peran Kepribadian</label>
             <select
-              value={props.personalityRole}
+              ref={roleSelectRef}
+              value={props.personalityRole || 'partner'}
               onChange={(e) => props.setPersonalityRole(e.currentTarget.value)}
               class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
@@ -151,6 +184,7 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
                 </span>
               </label>
               <select
+                ref={modelSelectRef}
                 value={props.llmModel}
                 onChange={(e) => props.setLlmModel(e.currentTarget.value)}
                 class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text font-medium outline-none focus:border-theme-cyan transition-colors"

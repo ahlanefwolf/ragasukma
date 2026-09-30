@@ -105,7 +105,7 @@ impl Renderer {
                 force_fallback_adapter: false,
             })
             .await
-            .ok_or_else(|| anyhow::anyhow!("Gagal menemukan adapter GPU yang cocok"))?;
+            .ok_or_else(|| anyhow::anyhow!("Failed to find a suitable GPU adapter"))?;
 
         println!(
             "🎮 [WGPU Adapter] Menggunakan GPU: {}",

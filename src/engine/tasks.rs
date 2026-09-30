@@ -1,5 +1,5 @@
-use std::sync::mpsc::{Sender, channel};
 use std::sync::Mutex;
+use std::sync::mpsc::{Sender, channel};
 use std::thread;
 
 use crate::app_state::push_client_action;
@@ -41,7 +41,7 @@ pub fn init_background_task_worker() {
 
     builder
         .spawn(move || {
-            crate::term_log!("🚀 [Task Worker] Dedicated Background Task Engine siap.");
+            crate::term_log!("🚀 [Task Worker] Dedicated Background Task Engine ready.");
 
             while let Ok(task) = rx.recv() {
                 match task {
@@ -49,10 +49,10 @@ pub fn init_background_task_worker() {
                         set_current_task(Some(BackgroundTaskState {
                             is_busy: true,
                             task_type: "ytdlp_download".to_string(),
-                            description: format!("Mengunduh lagu: {query}"),
+                            description: format!("Downloading song: {query}"),
                         }));
 
-                        crate::term_log!("📥 [Task Worker: yt-dlp] Mengunduh di background: '{}'...", query);
+                        crate::term_log!("📥 [Task Worker: yt-dlp] Downloading in background: '{}'...", query);
                         TrayState::emit_event(
                             "task:started",
                             serde_json::json!({
@@ -66,7 +66,7 @@ pub fn init_background_task_worker() {
                         match download_audio(&query, &music_dir) {
                             Ok(track) => {
                                 crate::term_log!(
-                                    "✅ [Task Worker: yt-dlp] Selesai: '{}' -> Memutar langsung ke speaker!",
+                                    "✅ [Task Worker: yt-dlp] Done: '{}' -> Playing directly to speaker!",
                                     track.title
                                 );
 
@@ -88,13 +88,13 @@ pub fn init_background_task_worker() {
 
                                 // 3. Kirim sinyal ke asisten agar berbicara mengabari pengguna bahwa lagu telah selesai diunduh & diputar
                                 let notify_msg = format!(
-                                    "[STATUS SISTEM: Lagu '{}' telah berhasil diunduh dan sedang diputar. Beritahu pengguna dengan ramah dan sangat singkat!]",
+                                    "[SYSTEM STATUS: Song '{}' has been downloaded and is now playing automatically. Inform the user briefly and warmly. DO NOT include any [CMD:media:play] or other commands — music is already playing.]",
                                     track.title
                                 );
                                 crate::engine::remote_text::inject_remote_text(notify_msg);
                             }
                             Err(e) => {
-                                crate::term_err!("❌ [Task Worker: yt-dlp] Gagal mengunduh '{}': {e}", query);
+                                crate::term_err!("❌ [Task Worker: yt-dlp] Failed to download '{}': {e}", query);
                                 TrayState::emit_event(
                                     "task:failed",
                                     serde_json::json!({
@@ -107,7 +107,7 @@ pub fn init_background_task_worker() {
 
                                 // Kirim sinyal ke asisten agar memberi tahu pengguna bahwa unduhan gagal
                                 let err_msg = format!(
-                                    "[STATUS SISTEM: Gagal mengunduh lagu '{}'. Detail: {}. Beritahu pengguna dengan sopan dan singkat!]",
+                                    "[SYSTEM STATUS: Failed to download song '{}'. Detail: {}. Inform the user briefly and warmly. DO NOT include any commands.]",
                                     query, e
                                 );
                                 crate::engine::remote_text::inject_remote_text(err_msg);
@@ -146,7 +146,9 @@ pub fn queue_download_and_play(query: &str) -> bool {
 /// Mengetahui apakah background worker sedang sibuk memproses unduhan media
 pub fn is_ytdlp_busy() -> bool {
     if let Ok(lock) = CURRENT_TASK_INFO.lock() {
-        lock.as_ref().map(|t| t.is_busy && t.task_type == "ytdlp_download").unwrap_or(false)
+        lock.as_ref()
+            .map(|t| t.is_busy && t.task_type == "ytdlp_download")
+            .unwrap_or(false)
     } else {
         false
     }

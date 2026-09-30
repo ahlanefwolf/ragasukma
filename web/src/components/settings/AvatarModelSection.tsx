@@ -1,4 +1,4 @@
-import { Component } from 'solid-js';
+import { Component, createEffect } from 'solid-js';
 import { User, RefreshCw, Upload, Image as ImageIcon, CheckCircle2 } from 'lucide-solid';
 import { AssetInfo } from '../../api';
 
@@ -16,6 +16,21 @@ interface AvatarModelSectionProps {
 }
 
 export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) => {
+  let avatarTypeSelectRef: HTMLSelectElement | undefined;
+  let slotSelectRef: HTMLSelectElement | undefined;
+
+  createEffect(() => {
+    if (avatarTypeSelectRef && props.avatarType) {
+      avatarTypeSelectRef.value = props.avatarType;
+    }
+  });
+
+  createEffect(() => {
+    if (slotSelectRef && props.selectedAvatarSlot) {
+      slotSelectRef.value = props.selectedAvatarSlot;
+    }
+  });
+
   return (
     <div class="space-y-5 animate-in fade-in duration-200">
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-5">
@@ -40,7 +55,8 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
           <div class="space-y-1.5">
             <label class="text-xs font-semibold text-theme-text/80">Tipe Avatar Utama</label>
             <select
-              value={props.avatarType}
+              ref={avatarTypeSelectRef}
+              value={props.avatarType || 'vrm'}
               onChange={(e) => props.setAvatarType(e.currentTarget.value)}
               class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
@@ -135,7 +151,8 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
             <div class="space-y-1.5">
               <label class="text-xs font-semibold text-theme-text/80">Pilih Slot Ekspresi</label>
               <select
-                value={props.selectedAvatarSlot}
+                ref={slotSelectRef}
+                value={props.selectedAvatarSlot || 'idle'}
                 onChange={(e) => props.setSelectedAvatarSlot(e.currentTarget.value)}
                 class="w-full bg-theme-surface border border-theme-border px-3 py-2 text-xs text-theme-text outline-none focus:border-theme-rose transition-colors"
               >

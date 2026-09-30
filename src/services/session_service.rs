@@ -34,7 +34,11 @@ pub fn handle_session_claim(
 
         send_json_response(stream, 200, "{\"success\":true}");
     } else {
-        send_json_response(stream, 400, "{\"error\":\"Invalid payload, expected {token}\"}");
+        send_json_response(
+            stream,
+            400,
+            "{\"error\":\"Invalid payload, expected {token}\"}",
+        );
     }
 }
 

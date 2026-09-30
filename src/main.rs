@@ -22,7 +22,7 @@ fn init_dpi_awareness() {
     #[cfg(target_os = "windows")]
     unsafe {
         use windows::Win32::UI::HiDpi::{
-            SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
+            DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext,
         };
         // Mengatur proses menjadi Per-Monitor V2 DPI Aware agar koordinat
         // mouse (SetCursorPos), UI Automation (CurrentBoundingRectangle),
@@ -35,17 +35,25 @@ fn main() -> Result<()> {
     init_dpi_awareness();
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--scan-vision") {
-        println!("👁️ Menjalankan local perception scan via dedicated Vision Worker (PP-OCR + OmniParser Icon Detection)...");
+        println!(
+            "👁️ Running local perception scan via dedicated Vision Worker (PP-OCR + OmniParser Icon Detection)..."
+        );
         let result = engine::perception::request_vision_scan_sync();
-        println!("✅ Vision Scan Berhasil!");
+        println!("✅ Vision Scan Successful!");
         println!("  Total Elemen  : {} item", result.elements.len());
-        println!("  Tombol / Ikon : {} item", result.buttons.len());
+        println!("  Buttons / Icons: {} item", result.buttons.len());
         for b in result.buttons.iter().take(8) {
-            println!("    - [{}] \"{}\" pada center {:?}", b.role, b.label, b.center);
+            println!(
+                "    - [{}] \"{}\" pada center {:?}",
+                b.role, b.label, b.center
+            );
         }
         println!("  Input Fields  : {} item", result.inputs.len());
         for inp in result.inputs.iter().take(5) {
-            println!("    - [{}] \"{}\" pada center {:?}", inp.role, inp.label, inp.center);
+            println!(
+                "    - [{}] \"{}\" pada center {:?}",
+                inp.role, inp.label, inp.center
+            );
         }
         println!("  Teks Terbaca  : {} item", result.texts.len());
         for t in result.texts.iter().take(10) {
@@ -55,10 +63,10 @@ fn main() -> Result<()> {
         return Ok(());
     }
     if args.iter().any(|a| a == "--scan-window") {
-        println!("🔍 Menjalankan native OS accessibility scan...");
+        println!("🔍 Running native OS accessibility scan...");
         match engine::window_scanner::scan_active_window_sync() {
             Ok(snapshot) => {
-                println!("✅ Scan Berhasil!");
+                println!("✅ Scan Successful!");
                 println!("  App Name     : {}", snapshot.app_name);
                 println!("  Window Title : {}", snapshot.window_title);
                 println!("  Window ID    : {}", snapshot.window_id);
@@ -76,7 +84,7 @@ fn main() -> Result<()> {
                 }
 
                 if let Err(e) = snapshot.save_to_file() {
-                    eprintln!("❌ Gagal simpan ke file: {e}");
+                    eprintln!("❌ Failed to save to file: {e}");
                 } else {
                     println!("📁 File tersimpan di assets/active_window_app.json");
                 }
@@ -111,7 +119,7 @@ fn main() -> Result<()> {
             if is_ragasukma_instance {
                 println!("⚠️  [Single Instance] Ragasukma sudah berjalan di latar belakang!");
                 println!(
-                    "🌐 Membuka Dashboard yang sedang aktif di http://127.0.0.1:{} ...",
+                    "🌐 Opening active Dashboard at http://127.0.0.1:{} ...",
                     server_port
                 );
                 crate::assets::open_browser(&format!("http://127.0.0.1:{}", server_port));
@@ -151,6 +159,9 @@ fn main() -> Result<()> {
     // Inisialisasi dedicated background task worker thread
     crate::engine::init_background_task_worker();
 
+    // Inisialisasi Supertonic-3 Neural TTS engine di background thread
+    crate::audio::supertonic::init_engine_background();
+
     let config = AppConfig::load();
     let config_clone = config.clone();
 
@@ -175,7 +186,7 @@ fn main() -> Result<()> {
                 crate::term_err!("❌ [AppSession Init Error]: {:?}", e);
             }
         })
-        .expect("Gagal membuat session thread");
+        .expect("Failed to create session thread");
 
     // 🖥️ Jalankan 3D VRM Native Overlay di OS Main Thread (Thread 0)
     // Sesuai standar industri Cocoa/macOS, Windows, dan Linux X11/Wayland

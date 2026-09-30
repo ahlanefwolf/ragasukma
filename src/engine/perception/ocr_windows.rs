@@ -1,7 +1,9 @@
 use image::DynamicImage;
 
 #[cfg(target_os = "windows")]
-pub fn run_windows_native_ocr(image: &DynamicImage) -> Result<Vec<(String, [i32; 4], f32)>, String> {
+pub fn run_windows_native_ocr(
+    image: &DynamicImage,
+) -> Result<Vec<(String, [i32; 4], f32)>, String> {
     use windows::{
         Graphics::Imaging::BitmapDecoder,
         Media::Ocr::OcrEngine,
@@ -10,30 +12,34 @@ pub fn run_windows_native_ocr(image: &DynamicImage) -> Result<Vec<(String, [i32;
 
     let mut buffer = Vec::new();
     let mut cursor = std::io::Cursor::new(&mut buffer);
-    image.write_to(&mut cursor, image::ImageOutputFormat::Png)
+    image
+        .write_to(&mut cursor, image::ImageOutputFormat::Png)
         .map_err(|e| format!("PNG encode error: {e}"))?;
 
     let stream = InMemoryRandomAccessStream::new()
         .map_err(|e| format!("InMemoryRandomAccessStream error: {e}"))?;
-    let writer = DataWriter::CreateDataWriter(&stream)
-        .map_err(|e| format!("DataWriter error: {e}"))?;
-    writer.WriteBytes(&buffer)
+    let writer =
+        DataWriter::CreateDataWriter(&stream).map_err(|e| format!("DataWriter error: {e}"))?;
+    writer
+        .WriteBytes(&buffer)
         .map_err(|e| format!("WriteBytes error: {e}"))?;
-    writer.StoreAsync()
+    writer
+        .StoreAsync()
         .map_err(|e| format!("StoreAsync error: {e}"))?
         .get()
         .map_err(|e| format!("StoreAsync get error: {e}"))?;
-    writer.DetachStream()
+    writer
+        .DetachStream()
         .map_err(|e| format!("DetachStream error: {e}"))?;
-    stream.Seek(0)
-        .map_err(|e| format!("Seek error: {e}"))?;
+    stream.Seek(0).map_err(|e| format!("Seek error: {e}"))?;
 
     let decoder = BitmapDecoder::CreateAsync(&stream)
         .map_err(|e| format!("BitmapDecoder error: {e}"))?
         .get()
         .map_err(|e| format!("BitmapDecoder get error: {e}"))?;
 
-    let bitmap = decoder.GetSoftwareBitmapAsync()
+    let bitmap = decoder
+        .GetSoftwareBitmapAsync()
         .map_err(|e| format!("GetSoftwareBitmap error: {e}"))?
         .get()
         .map_err(|e| format!("GetSoftwareBitmap get error: {e}"))?;
@@ -41,12 +47,14 @@ pub fn run_windows_native_ocr(image: &DynamicImage) -> Result<Vec<(String, [i32;
     let engine = OcrEngine::TryCreateFromUserProfileLanguages()
         .map_err(|e| format!("OcrEngine TryCreateFromUserProfileLanguages error: {e}"))?;
 
-    let ocr_result = engine.RecognizeAsync(&bitmap)
+    let ocr_result = engine
+        .RecognizeAsync(&bitmap)
         .map_err(|e| format!("RecognizeAsync error: {e}"))?
         .get()
         .map_err(|e| format!("RecognizeAsync get error: {e}"))?;
 
-    let lines = ocr_result.Lines()
+    let lines = ocr_result
+        .Lines()
         .map_err(|e| format!("Lines error: {e}"))?;
 
     let mut detected = Vec::new();
@@ -56,7 +64,12 @@ pub fn run_windows_native_ocr(image: &DynamicImage) -> Result<Vec<(String, [i32;
             Err(_) => continue,
         };
         for word in words {
-            let text = word.Text().map(|h| h.to_string()).unwrap_or_default().trim().to_string();
+            let text = word
+                .Text()
+                .map(|h| h.to_string())
+                .unwrap_or_default()
+                .trim()
+                .to_string();
             if text.is_empty() {
                 continue;
             }
@@ -74,7 +87,9 @@ pub fn run_windows_native_ocr(image: &DynamicImage) -> Result<Vec<(String, [i32;
 }
 
 #[cfg(not(target_os = "windows"))]
-pub fn run_windows_native_ocr(_image: &DynamicImage) -> Result<Vec<(String, [i32; 4], f32)>, String> {
+pub fn run_windows_native_ocr(
+    _image: &DynamicImage,
+) -> Result<Vec<(String, [i32; 4], f32)>, String> {
     Err("Windows Native OCR hanya tersedia pada sistem operasi Windows 10/11.".to_string())
 }
 
@@ -85,6 +100,9 @@ mod tests {
     fn test_windows_native_ocr_engine_available() {
         use windows::Media::Ocr::OcrEngine;
         let engine = OcrEngine::TryCreateFromUserProfileLanguages();
-        assert!(engine.is_ok(), "Windows Native OcrEngine harus dapat diinisialisasi");
+        assert!(
+            engine.is_ok(),
+            "Windows Native OcrEngine must be initializable"
+        );
     }
 }

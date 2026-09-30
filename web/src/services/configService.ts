@@ -9,17 +9,53 @@ export interface UserConfig {
   llm_base_url: string;
   llm_model: string;
   llm_api_key: string;
-  tts_lang: string;
-  stt_lang?: string;
+  lang: string;
   tts_voice_name?: string;
   tts_speed: number;
-  tts_pitch?: number;
   avatar_type: string;
   always_on_top: boolean;
   voice_interruption: boolean;
   vad_threshold?: number;
   vad_noise_suppression?: boolean;
 }
+
+export const getChromeSttCode = (langCode: string): string => {
+  const clean = (langCode || 'id').toLowerCase().split('-')[0];
+  const map: Record<string, string> = {
+    id: 'id-ID',
+    en: 'en-US',
+    ja: 'ja-JP',
+    ko: 'ko-KR',
+    ar: 'ar-SA',
+    bg: 'bg-BG',
+    cs: 'cs-CZ',
+    da: 'da-DK',
+    de: 'de-DE',
+    el: 'el-GR',
+    es: 'es-ES',
+    et: 'et-EE',
+    fi: 'fi-FI',
+    fr: 'fr-FR',
+    hi: 'hi-IN',
+    hr: 'hr-HR',
+    hu: 'hu-HU',
+    it: 'it-IT',
+    lt: 'lt-LT',
+    lv: 'lv-LV',
+    nl: 'nl-NL',
+    pl: 'pl-PL',
+    pt: 'pt-PT',
+    ro: 'ro-RO',
+    ru: 'ru-RU',
+    sk: 'sk-SK',
+    sl: 'sl-SI',
+    sv: 'sv-SE',
+    tr: 'tr-TR',
+    uk: 'uk-UA',
+    vi: 'vi-VN',
+  };
+  return map[clean] || `${clean}-${clean.toUpperCase()}`;
+};
 
 let cachedConfig: UserConfig | null = null;
 let inflightConfigRequest: Promise<UserConfig | null> | null = null;

@@ -99,7 +99,7 @@ function stopStateSSEIfNoListeners() {
   }
 }
 
-export function forceCloseSSE() {
+function forceCloseSSE() {
   if (stateReconnectTimer) {
     clearTimeout(stateReconnectTimer);
     stateReconnectTimer = null;

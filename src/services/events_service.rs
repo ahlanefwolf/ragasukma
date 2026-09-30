@@ -108,7 +108,8 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
         }
 
         // 2. Cek apakah ada Aksi Perintah Baru dari AI (event: action) - Multi-Client Pub-Sub
-        let (pending_actions, new_last_id) = crate::app_state::get_client_actions_since(last_action_id);
+        let (pending_actions, new_last_id) =
+            crate::app_state::get_client_actions_since(last_action_id);
         last_action_id = new_last_id;
         for act in pending_actions {
             if let Ok(act_json) = serde_json::to_string(&act) {

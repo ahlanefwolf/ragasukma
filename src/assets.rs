@@ -148,10 +148,10 @@ pub fn ensure_default_user_assets() {
             }
             if let Some(embedded_file) = EmbeddedAssets::get(file_name) {
                 if let Err(e) = fs::write(&target_path, embedded_file.data) {
-                    eprintln!("⚠️ Gagal mengekstrak aset default '{}': {:?}", file_name, e);
+                    eprintln!("⚠️ Failed to extract default asset '{}': {:?}", file_name, e);
                 } else {
                     println!(
-                        "📦 [Assets Inisialisasi] Berhasil mengekstrak default aset: {:?}",
+                        "📦 [Assets] Successfully extracted default asset: {:?}",
                         target_path
                     );
                 }
@@ -213,11 +213,7 @@ pub fn open_browser(url: &str) {
         #[cfg(target_os = "windows")]
         {
             let mut opened = false;
-            let chrome_candidates = [
-                "chrome.exe",
-                "msedge.exe",
-                "brave.exe",
-            ];
+            let chrome_candidates = ["chrome.exe", "msedge.exe", "brave.exe"];
             for browser in chrome_candidates {
                 let mut cmd = std::process::Command::new(browser);
                 cmd.arg(&url);
@@ -260,7 +256,7 @@ pub fn open_browser(url: &str) {
                 cmd.env_remove("LD_PRELOAD");
 
                 if cmd.spawn().is_ok() {
-                    println!("🌐 [Browser Tab] Membuka tab baru via {}", bin);
+                    println!("🌐 [Browser Tab] Opening new tab via {}", bin);
                     opened = true;
                     break;
                 }

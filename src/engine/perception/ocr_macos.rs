@@ -26,7 +26,7 @@ pub fn run_macos_native_ocr(image: &DynamicImage) -> Result<Vec<(String, [i32; 4
 
     image
         .save(&temp_img_path)
-        .map_err(|e| format!("Gagal menyimpan screenshot sementara untuk macOS Vision: {e}"))?;
+        .map_err(|e| format!("Failed to save temporary screenshot for macOS Vision: {e}"))?;
 
     let swift_script = r#"
 import Foundation
@@ -41,7 +41,7 @@ guard CommandLine.arguments.count > 1 else {
 let imagePath = CommandLine.arguments[1]
 guard let image = NSImage(contentsOfFile: imagePath),
       let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-    print("{\"error\":\"Gagal membuka gambar cgImage\"}")
+    print("{\"error\":\"Failed to open cgImage\"}")
     exit(1)
 }
 
@@ -105,7 +105,7 @@ do {
 
     let _ = fs::remove_file(&temp_img_path);
 
-    let res = output.map_err(|e| format!("Gagal memanggil swift Apple Vision: {e}"))?;
+    let res = output.map_err(|e| format!("Failed to call swift Apple Vision: {e}"))?;
     let stdout_str = String::from_utf8_lossy(&res.stdout).trim().to_string();
 
     if let Ok(resp) = serde_json::from_str::<MacVisionResponse>(&stdout_str) {

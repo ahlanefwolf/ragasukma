@@ -1,6 +1,6 @@
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 static IS_PLAYING: AtomicBool = AtomicBool::new(false);
 static IS_PAUSED: AtomicBool = AtomicBool::new(false);
@@ -14,21 +14,24 @@ pub fn play_file(_path: impl AsRef<Path>, title: impl Into<String>) {
     if let Ok(mut lock) = CURRENT_TITLE.lock() {
         *lock = Some(t.clone());
     }
-    crate::term_log!("🎵 [Music Controller] Memutar trek '{}' via Web Dashboard & PiP stream", t);
+    crate::term_log!(
+        "🎵 [Music Controller] Playing track '{}' via Web Dashboard & PiP stream",
+        t
+    );
 }
 
 /// Jeda pemutaran musik
 pub fn pause() {
     IS_PLAYING.store(false, Ordering::SeqCst);
     IS_PAUSED.store(true, Ordering::SeqCst);
-    crate::term_log!("⏸️ [Music Controller] Musik dijeda.");
+    crate::term_log!("⏸️ [Music Controller] Music paused.");
 }
 
 /// Lanjutkan pemutaran musik
 pub fn resume() {
     IS_PLAYING.store(true, Ordering::SeqCst);
     IS_PAUSED.store(false, Ordering::SeqCst);
-    crate::term_log!("▶️ [Music Controller] Musik dilanjutkan.");
+    crate::term_log!("▶️ [Music Controller] Music resumed.");
 }
 
 /// Hentikan pemutaran musik
@@ -38,7 +41,7 @@ pub fn stop() {
     if let Ok(mut lock) = CURRENT_TITLE.lock() {
         *lock = None;
     }
-    crate::term_log!("⏹️ [Music Controller] Musik dihentikan.");
+    crate::term_log!("⏹️ [Music Controller] Music stopped.");
 }
 
 pub fn get_current_title() -> Option<String> {
@@ -47,4 +50,8 @@ pub fn get_current_title() -> Option<String> {
     } else {
         None
     }
+}
+
+pub fn is_playing() -> bool {
+    IS_PLAYING.load(Ordering::SeqCst)
 }

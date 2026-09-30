@@ -127,7 +127,10 @@ fn test_build_gemini_payload_attaches_thought_signature() {
     // Model turn must have functionCall with thoughtSignature
     let model_turn = contents.iter().find(|c| c["role"] == "model").unwrap();
     let parts = model_turn["parts"].as_array().unwrap();
-    let fc_part = parts.iter().find(|p| p.get("functionCall").is_some()).unwrap();
+    let fc_part = parts
+        .iter()
+        .find(|p| p.get("functionCall").is_some())
+        .unwrap();
 
     assert_eq!(
         fc_part["thoughtSignature"].as_str().unwrap(),

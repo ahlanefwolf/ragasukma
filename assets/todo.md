@@ -1,5 +1,5 @@
-# 📋 Daftar Tugas & Catatan
+# 📋 Task List & Notes
 
-## ⏳ Sedang Berjalan / To-Do
+## ⏳ In Progress / To-Do
 
-## ✅ Selesai
+## ✅ Done

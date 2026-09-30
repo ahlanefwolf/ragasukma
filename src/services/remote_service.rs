@@ -1,5 +1,5 @@
-use std::net::TcpStream;
 use serde_json::json;
+use std::net::TcpStream;
 
 use crate::engine::cloudflared::{
     get_tunnel_status, is_auth_key_valid, start_cloudflared_tunnel, stop_cloudflared_tunnel,
@@ -20,7 +20,11 @@ pub fn handle_tunnel_status(stream: &mut TcpStream) {
 pub fn handle_tunnel_start(stream: &mut TcpStream) {
     match start_cloudflared_tunnel(42128) {
         Ok((url, auth_key)) => {
-            let status = if url.is_empty() { "starting" } else { "running" };
+            let status = if url.is_empty() {
+                "starting"
+            } else {
+                "running"
+            };
             let resp = json!({
                 "status": status,
                 "url": if url.is_empty() { None } else { Some(url) },
@@ -65,7 +69,11 @@ pub fn handle_remote_text(full_url: &str, body_str: &str, stream: &mut TcpStream
     let key = extract_query_param(query, "key").unwrap_or("");
 
     if !is_auth_key_valid(key) {
-        send_json_response(stream, 401, "{\"error\":\"Unauthorized: invalid remote key\"}");
+        send_json_response(
+            stream,
+            401,
+            "{\"error\":\"Unauthorized: invalid remote key\"}",
+        );
         return;
     }
 
@@ -85,14 +93,26 @@ pub fn handle_remote_text(full_url: &str, body_str: &str, stream: &mut TcpStream
         if injected {
             // Mute mic & voice lokal desktop sesaat agar respon suara fokus mengalir ke HP
             crate::app_state::set_mic_muted(true);
-            crate::term_log!("📱 [Mobile Remote] Menerima teks dari HP: \"{}\"", clean);
-            send_json_response(stream, 200, "{\"success\":true,\"message\":\"Text sent to LLM\"}");
+            crate::term_log!("📱 [Mobile Remote] Received text from phone: \"{}\"", clean);
+            send_json_response(
+                stream,
+                200,
+                "{\"success\":true,\"message\":\"Text sent to LLM\"}",
+            );
         } else {
-            crate::term_log!("⚠️ [Mobile Web STT] Chat loop belum berjalan aktif!");
-            send_json_response(stream, 503, "{\"error\":\"Voice chat loop is not currently active\"}");
+            crate::term_log!("⚠️ [Mobile Web STT] Chat loop is not active!");
+            send_json_response(
+                stream,
+                503,
+                "{\"error\":\"Voice chat loop is not currently active\"}",
+            );
         }
     } else {
-        send_json_response(stream, 400, "{\"error\":\"Invalid payload, expected {text: string}\"}");
+        send_json_response(
+            stream,
+            400,
+            "{\"error\":\"Invalid payload, expected {text: string}\"}",
+        );
     }
 }
 
@@ -131,23 +151,38 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
         let injected = crate::engine::remote_text::inject_remote_text(clean.to_string());
         if injected {
             if ai_speaking && cfg.voice_interruption {
-                crate::term_log!("⚡ [Chrome Web STT] Interupsi suara memotong pembicaraan asisten: \"{}\"", clean);
+                crate::term_log!(
+                    "⚡ [Chrome Web STT] Interupsi suara memotong pembicaraan asisten: \"{}\"",
+                    clean
+                );
                 crate::app_state::trigger_interruption();
             } else {
-                crate::term_log!("🎙️ [Chrome Web STT] Transkrip diterima: \"{}\"", clean);
+                crate::term_log!("🎙️ [Chrome Web STT] Transcript received: \"{}\"", clean);
             }
             let asst_name = cfg.assistant_name;
             crate::tray::TrayState::update(
                 crate::services::tray_service::AssistantState::Thinking,
                 &format!("{asst_name} Berpikir..."),
             );
-            send_json_response(stream, 200, "{\"success\":true,\"message\":\"Transcript injected to LLM\"}");
+            send_json_response(
+                stream,
+                200,
+                "{\"success\":true,\"message\":\"Transcript injected to LLM\"}",
+            );
         } else {
-            crate::term_log!("⚠️ [Chrome Web STT] Chat loop belum berjalan aktif!");
-            send_json_response(stream, 503, "{\"error\":\"Voice chat loop is not currently active\"}");
+            crate::term_log!("⚠️ [Chrome Web STT] Chat loop is not active!");
+            send_json_response(
+                stream,
+                503,
+                "{\"error\":\"Voice chat loop is not currently active\"}",
+            );
         }
     } else {
-        send_json_response(stream, 400, "{\"error\":\"Invalid payload, expected {text: string} or {transcript: string}\"}");
+        send_json_response(
+            stream,
+            400,
+            "{\"error\":\"Invalid payload, expected {text: string} or {transcript: string}\"}",
+        );
     }
 }
 
@@ -227,7 +262,7 @@ pub fn handle_tts_state(
             crate::app_state::set_ai_speaking(false);
             crate::tray::TrayState::update_with_emotion(
                 crate::services::tray_service::AssistantState::Idle,
-                "Standby Siap",
+                "Standby",
                 "neutral",
             );
             if let Ok(mut lock) = shared.lock() {

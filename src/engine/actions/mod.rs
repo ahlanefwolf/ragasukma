@@ -39,14 +39,16 @@ pub fn execute_skill_by_identifier(identifier: &str) -> Option<(String, String)>
         ("todo", act) => todo_actions::execute_todo_action(act, payload),
         ("desktop" | "vision", act) => desktop::execute_desktop_action(act, payload),
         ("os" | "app", act) => os_apps::execute_os_or_app_action(namespace.as_str(), act, payload),
-        ("internal", "open_extension_installer") => browser::execute_browser_action("open_ext_folder", ""),
+        ("internal", "open_extension_installer") => {
+            browser::execute_browser_action("open_ext_folder", "")
+        }
         _ => {
             // Cek Custom Skills di skill-command.md
             let skills = parse_skills_markdown();
             for skill in skills {
                 if skill.name.eq_ignore_ascii_case(raw) {
                     match execute_command_by_os(&skill.command) {
-                        Ok(_) => return Some((skill.name, "Berhasil dijalankan".to_string())),
+                        Ok(_) => return Some((skill.name, "Executed successfully".to_string())),
                         Err(e) => return Some((skill.name, format!("Error: {e}"))),
                     }
                 }

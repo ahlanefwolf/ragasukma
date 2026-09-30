@@ -16,7 +16,9 @@ pub fn add_task_to_content(content: &str, task: &str) -> String {
     let mut insert_idx = None;
     for (i, line) in lines.iter().enumerate() {
         let l = line.to_lowercase();
-        if l.starts_with("## ") && (l.contains("sedang berjalan") || l.contains("to-do") || l.contains("todo")) {
+        if l.starts_with("## ")
+            && (l.contains("in progress") || l.contains("to-do") || l.contains("todo"))
+        {
             insert_idx = Some(i + 1);
             break;
         }
@@ -26,7 +28,7 @@ pub fn add_task_to_content(content: &str, task: &str) -> String {
         lines.insert(idx, target_item);
     } else {
         lines.push(String::new());
-        lines.push("## ⏳ Sedang Berjalan / To-Do".to_string());
+        lines.push("## ⏳ In Progress / To-Do".to_string());
         lines.push(target_item);
     }
 
@@ -59,6 +61,23 @@ pub fn complete_task_in_content(content: &str, query: &str) -> Option<(String, S
         }
     }
 
+    // Fallback: Fuzzy Similarity Matching for to-do items
+    if found_idx.is_none() {
+        let mut best_sim = 0.0f32;
+        for (i, line) in lines.iter().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("- [ ]") {
+                let task_text = trimmed.trim_start_matches("- [ ]").trim();
+                let sim = crate::engine::perception::string_similarity(query, task_text);
+                if sim >= 0.65 && sim > best_sim {
+                    best_sim = sim;
+                    found_idx = Some(i);
+                    matched_title = task_text.to_string();
+                }
+            }
+        }
+    }
+
     let found_idx = found_idx?;
     lines.remove(found_idx);
 
@@ -66,7 +85,7 @@ pub fn complete_task_in_content(content: &str, query: &str) -> Option<(String, S
     let mut done_idx = None;
     for (i, line) in lines.iter().enumerate() {
         let l = line.to_lowercase();
-        if l.starts_with("## ") && l.contains("selesai") {
+        if l.starts_with("## ") && l.contains("done") {
             done_idx = Some(i + 1);
             break;
         }
@@ -76,7 +95,7 @@ pub fn complete_task_in_content(content: &str, query: &str) -> Option<(String, S
         lines.insert(idx, completed_item);
     } else {
         lines.push(String::new());
-        lines.push("## ✅ Selesai".to_string());
+        lines.push("## ✅ Done".to_string());
         lines.push(completed_item);
     }
 
@@ -91,7 +110,7 @@ pub fn complete_task_in_content(content: &str, query: &str) -> Option<(String, S
 pub fn add_task(task_text: &str) -> std::io::Result<String> {
     let task = task_text.trim();
     if task.is_empty() {
-        return Ok("Teks tugas tidak boleh kosong".to_string());
+        return Ok("Task text must not be empty".to_string());
     }
 
     let path = get_todo_path();
@@ -99,32 +118,39 @@ pub fn add_task(task_text: &str) -> std::io::Result<String> {
         let _ = std::fs::create_dir_all(parent);
     }
 
-    let default_content = "# 📋 Daftar Tugas & Catatan\n\n## ⏳ Sedang Berjalan / To-Do\n\n## ✅ Selesai\n";
+    let default_content =
+        "# 📋 Tasks & Notes\n\n## ⏳ In Progress / To-Do\n\n## ✅ Done\n";
     let content = std::fs::read_to_string(&path).unwrap_or_else(|_| default_content.to_string());
 
     let new_content = add_task_to_content(&content, task);
     std::fs::write(&path, new_content)?;
-    Ok(format!("Tugas '{}' berhasil dicatat ke todo.md", task))
+    Ok(format!("Task '{}' successfully saved to todo.md", task))
 }
 
 pub fn complete_task(query: &str) -> std::io::Result<String> {
     let q = query.trim();
     if q.is_empty() {
-        return Ok("Kata kunci tugas tidak boleh kosong".to_string());
+        return Ok("Task keyword must not be empty".to_string());
     }
 
     let path = get_todo_path();
     if !path.exists() {
-        return Ok("Daftar to-do belum dibuat".to_string());
+        return Ok("To-do list has not been created yet".to_string());
     }
 
     let content = std::fs::read_to_string(&path)?;
     match complete_task_in_content(&content, q) {
         Some((new_content, matched)) => {
             std::fs::write(&path, new_content)?;
-            Ok(format!("Tugas '{}' berhasil ditandai selesai di todo.md", matched))
+            Ok(format!(
+                "Task '{}' successfully marked as done in todo.md",
+                matched
+            ))
         }
-        None => Ok(format!("Tugas dengan kata kunci '{}' tidak ditemukan di daftar aktif", q)),
+        None => Ok(format!(
+            "Task with keyword '{}' not found in the active list",
+            q
+        )),
     }
 }
 
@@ -134,15 +160,25 @@ mod tests {
 
     #[test]
     fn test_add_and_complete_todo() {
-        let initial = "# 📋 Daftar Tugas\n\n## ⏳ Sedang Berjalan / To-Do\n- [ ] Beli susu\n\n## ✅ Selesai\n";
+        let initial = "# 📋 Tasks\n\n## ⏳ In Progress / To-Do\n- [ ] Buy milk\n\n## ✅ Done\n";
         let updated = add_task_to_content(initial, "Undangan nikahan Yusuf");
         assert!(updated.contains("- [ ] Undangan nikahan Yusuf"));
-        assert!(updated.contains("- [ ] Beli susu"));
+        assert!(updated.contains("- [ ] Buy milk"));
 
-        let (done, matched) = complete_task_in_content(&updated, "nikahan").expect("should find task");
+        let (done, matched) =
+            complete_task_in_content(&updated, "nikahan").expect("should find task");
         assert_eq!(matched, "Undangan nikahan Yusuf");
         assert!(!done.contains("- [ ] Undangan nikahan Yusuf"));
         assert!(done.contains("- [x] Undangan nikahan Yusuf"));
-        assert!(done.contains("- [ ] Beli susu"));
+        assert!(done.contains("- [ ] Buy milk"));
+    }
+
+    #[test]
+    fn test_complete_todo_fuzzy() {
+        let initial = "# 📋 Tasks\n\n## ⏳ In Progress / To-Do\n- [ ] Pay electricity bill\n\n## ✅ Done\n";
+        let (done, matched) = complete_task_in_content(initial, "electricity bill")
+            .expect("should find task with fuzzy");
+        assert_eq!(matched, "Pay electricity bill");
+        assert!(done.contains("- [x] Pay electricity bill"));
     }
 }

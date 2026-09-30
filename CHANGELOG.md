@@ -9,38 +9,47 @@ Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/id/
 ## [v0.2.0] - 2026-09-20
 
 ### 🚀 Fitur Baru & Peningkatan Utama
-- **Pure Web Speech Engine (Zero Backend Audio Overhead)**:
-  - Seluruh inferensi STT dan sintesis TTS dialihkan murni ke Web Speech API bawaan Chromium (`webkitSpeechRecognition` & `window.speechSynthesis`).
-  - Menghapus total modul berat backend (`supertonic.rs`, `dsp.rs`, `recorder.rs`, `stt.rs`, dan buffer VAD berulang) sehingga backend 100% idle saat pengguna diam.
-  - Dukungan aksen pengenalan suara multi-bahasa lokal (`id-ID`, `jv-ID`, `su-ID`, dll.) serta kontrol vokal fleksibel (gender, pitch, speed, voice name).
-  - Web Audio API Spectrum & VU meter 60 FPS langsung di browser tanpa overhead jaringan.
-- **Strict Single-Tab Ownership & Clean Teardown**:
-  - Eliminasi total bug audio dobel: tab lama yang tereliminasi seketika memanggil `window.speechSynthesis.cancel()`, `recognition.abort()`, dan memutuskan SSE stream (`forceCloseSSE`).
-  - Deduplikasi incremental ID pada SSE action buffer untuk memastikan kalimat ucapan tidak pernah dieksekusi berulang.
-- **Ekspresi Wajah 3D & Lip-Sync Terpadu**:
-  - Penyelarasan parser emosi multi-bahasa (`*senang*`, `*malu*`, `*bingung*`, `*kaget*`, `*marah*`, `*semangat*`, `*sedih*`) langsung ke morph targets / blendshapes VRM di renderer WGPU desktop.
-  - Perbaikan aturan prompt LLM: melarang pengulangan pertanyaan basa-basi, membatasi obrolan santai tetap padat (1-2 kalimat lisan), namun tetap leluasa menjelaskan/merangkum konten web secara mendalam saat diminta.
-- **Penyempurnaan Companion Extension**:
-  - Ekstraktor DOM (`dom_extractor.js`) kini menyaring navigasi/header/footer dan fokus mengekstrak teks konten artikel / narasi aktual (`text_summary`).
-  - Pembaruan paket distribusi `assets/ragasukma-companion.zip`.
+- **Supertonic-3 Native Rust TTS Runtime (Pure ONNX, Zero Python)**:
+  - Mengintegrasikan engine sintesis suara Supertonic-3 secara native di Rust menggunakan `ort v2.0.0-rc.13` (ONNX Runtime) tanpa runtime/subproses Python.
+  - Memuat 10 gaya suara studio alami (5 Pria: M1..M5, 5 Wanita: F1..F5) dengan preloading memori untuk latensi instan.
+  - Menyediakan endpoint streaming audio WAV 24kHz (`/api/tts/audio` dan `/api/tts/synthesize`) yang disalurkan langsung ke frontend web dashboard dan smartphone client.
+  - Pembersihan total (100%) Google Chrome TTS (`window.speechSynthesis` & `SpeechSynthesisUtterance`), mengeliminasi bug PipeWire audio deadlock di Linux dan issue garbage collection V8 Chromium.
+- **Chromium Native Web STT & Sinkronisasi Bahasa Terpadu**:
+  - Mempertahankan akurasi tinggi Google Chrome Web Speech API (`webkitSpeechRecognition`) di sisi client dengan opsi bahasa tersinkronisasi via properti tunggal `lang` (`id-ID`, `en-US`, `ja-JP`, dll).
+  - Mekanisme VAD Barge-in instan yang memutus pemutaran audio WAV saat pengguna mulai berbicara kembali, serta filter anti-echolalia terpadu.
+- **Three-VRM Spring Bone Physics & Ekspresi Wajah 3D**:
+  - Implementasi penuh simulasi fisika pegas rambut dan pakaian (Verlet Spring Bone) di Rust (`src/ui/spring_bone.rs`) yang 1:1 kompatibel dengan spesifikasi Three-VRM.
+  - Evaluasi tabrakan dynamic sphere collider, gravitasi, stiffness, dan redaman (damping) langsung di pipeline rendering WGPU.
+  - Penyelarasan parser emosi kanonikal 8 emosi (`*senang*`, `*malu*`, `*semangat*`, `*kaget*`, `*mikir*`, `*sedih*`, `*marah*`, `*netral*`) dengan dynamic auto-blink dan lip-sync vokal AIUEO.
+- **Native OS OCR & Modular Perception Engine**:
+  - Menghapus total modul Python PaddleOCR (`ocr_paddle.rs`).
+  - Mengadopsi OCR native sistem operasi: Apple Vision OCR di macOS, Windows Media OCR di Windows, dan streaming pipa in-memory Tesseract TSV di Linux.
 - **Antigravity Pool & Local OpenAI-Compatible API Router (`:42128/v1`)**:
-  - Dukungan multi-akun Google Multi-OAuth dengan pooling otomatis dan failover kuota cerdas saat mencapai batas rate limit.
-  - Endpoint universal standar OpenAI-compatible (`http://127.0.0.1:42128/v1/chat/completions` & `/v1/models`) yang memungkinkan integrasi langsung dengan Cursor, VS Code, Cline, OpenWebUI, dan third-party tools lainnya.
-  - Antigravity Quota Manager, model catalog viewer, dan token management instan 1-klik di dashboard.
-- **In-Page Universal Browser DOM Automation & Precision Click Engine**:
-  - *Ground of Truth* active tab snapshot DOM reader yang menyaring konten layar aktif browser tanpa halusinasi.
-  - Engine klik cerdas (`click_engine.js`) dengan penelusuran hierarki DOM mendalam (shadow DOM traversal, closest `<a>` & `<button>` navigation, focus handling, dan fallback navigasi URL otomatis).
-  - Canonical actions chaining untuk mengetik teks dan mengeksekusi enter/search di web (`[CMD:browser:type]`, `[CMD:browser:enter]`, `[CMD:browser:click_text]`, `[CMD:browser:click_button]`).
+  - Dukungan multi-akun Google Multi-OAuth dengan pooling otomatis, caching thought signature, dan failover kuota cerdas saat mencapai batas rate limit.
+  - Endpoint universal standar OpenAI-compatible (`http://127.0.0.1:42128/v1/chat/completions` & `/v1/models`) yang kompatibel langsung dengan Cursor, VS Code, Cline, OpenWebUI, dan third-party tools.
+- **Multiplatform Desktop Precision Click & Fallback Visual OCR Engine**:
+  - Deteksi elemen antarmuka desktop berbasis accessibility tree (UI Automation di Windows, AT-SPI D-Bus di Linux, System Events di macOS) kini mengekstrak elemen tombol dan teks secara terpadu.
+  - Fallback otomatis ke Visual OCR perception scan (`request_vision_scan_sync`) jika accessibility tree tidak menyertakan koordinat absolut atau target berada pada UI non-native (canvas, game, electron tanpa bridge accessibility).
+  - Eksekusi aksi `[CMD:desktop:click_text|...]` dan `[CMD:desktop:click_button|...]` berakurasi tinggi dengan koordinat aktual pixel monitor dan toleransi typo berbasis fuzzy string similarity.
+- **Defensive LLM Tool Call Guard & Multi-Language System Prompt**:
+  - Pencegahan halusinasi format XML tool call (`<dots_function_call>`, `<invoke>`, `<parameter>`) dari model keluarga Claude/Anthropic di `prompt.rs`.
+  - Filter defensif `RE_XML_TOOL_CALL` di `cleaner.rs` untuk membersihkan tag XML tak terduga agar audio TTS bebas dari artefak kode.
+  - Standardisasi 100% system prompt internal ke Bahasa Inggris universal yang kompatibel dan adaptif terhadap 30 bahasa dunia di sisi percakapan pengguna.
+  - Sinkronisasi format `assets/todo.md` ke Bahasa Inggris (`## ⏳ In Progress / To-Do` & `## ✅ Done`) selaras 1:1 dengan parser engine Rust.
 - **HiDPI Retina Picture-in-Picture (PiP) Widescreen Mini-Player**:
   - Mini-player melayang berdesain horizontal widescreen (680 × 210 px) yang dirender pada resolusi **2x HiDPI / Retina (1360 × 420 px)** untuk teks dan artwork yang super jernih.
-  - Integrasi **Dedicated Web Worker Timer Loop (30 FPS)** yang kebal terhadap background tab throttling Chromium—membuat waveform equalizer, timeline progress, dan kontrol play/pause tetap tersinkronisasi 100% secara realtime saat browser diminimize atau dipindah ke background.
+  - Integrasi **Dedicated Web Worker Timer Loop (30 FPS)** yang kebal terhadap background tab throttling Chromium.
 - **Overhaul Desain Studio Zero-Border-Radius & Tipografi Premium**:
   - Transformasi total UI dashboard web dengan pendekatan *Zero Radius (Crisp Edges)* dan hairline border halus `#2F3B46`.
-  - Migrasi seluruh font sistem ke keluarga kelas dunia **IBM Plex Sans** (UI & Heading) dan **IBM Plex Mono** (Console log, durasi, status badge) untuk legibilitas maksimal dan estetika anti-AI slop.
+  - Migrasi seluruh font sistem ke keluarga **IBM Plex Sans** dan **IBM Plex Mono**.
+- **Standar Kualitas & Verifikasi Kode Terpadu (Docs & Linters 100% Bersih)**:
+  - Dokumentasi standar verifikasi kode di [`docs/quality.md`](docs/quality.md).
+  - Konfigurasi flat modern ESLint 9+ (`web/eslint.config.js`) dan deteksi dead code (`web/knip.json`).
+  - Lolos 100% pemeriksaan: `cargo clippy && cargo fmt --check && (cd web && npx eslint . && npx tsc --noEmit && npx knip && npx jscpd .)`.
 
 ### 🐛 Perbaikan Bug & Optimasi Performa
-- **Pembersihan Modul & Standarisasi Aset**: Pembersihan seluruh referensi usang `char-avatar-talking` ke standar `char-avatar-speaking`, serta penataan struktur internal `chat_loop`.
-- **Zero Race Condition Audio Pipeline**: Mengeliminasi ketergantungan audio decode ganda di backend dan mengandalkan single-source-of-truth streaming langsung ke frontend web & PiP.
+- **Pembersihan Modul Audio Usang**: Menghapus seluruh dependensi subprocess Python audio, speech synthesis worker browser lama, dan file duplikat.
+- **Zero Race Condition Audio Pipeline**: Mengeliminasi ketergantungan audio decode ganda di backend dan mengandalkan streaming WAV Supertonic single-source-of-truth langsung ke frontend web & mobile client.
 - **Pembersihan Elemen Dekoratif & Focus Outline**: Menghilangkan outline 2px tebal dan box shadow berlebih, menggantinya dengan border highlight 1px yang bersih dan responsif.
 - **Konsumsi Sumber Daya Minimal**: Render loop PiP dan Web Worker hanya mengonsumsi < 0.5% CPU dan ~3 MB RAM, dengan pembersihan memori otomatis (`terminate()`) saat ditutup.
 - **Kebersihan Kode**: Diagnostik proyek 0 error dan 0 warning di seluruh backend Rust dan frontend TypeScript.

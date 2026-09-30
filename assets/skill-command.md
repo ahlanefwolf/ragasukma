@@ -1,7 +1,7 @@
 # ⚡ Skill Command Registry
 
-Daftar perintah cepat dan otomasi sistem yang dapat dijalankan langsung melalui suara, menu, atau otomatisasi AI.
-File ini dapat diedit langsung atau dikelola melalui UI Skill Commands.
+List of quick commands and system automations that can be triggered directly via voice, menu, or AI automation.
+This file can be edited directly or managed via the Skill Commands UI.
 
-| Nama Skill | Deskripsi | Command / Script |
+| Skill Name | Description | Command / Script |
 | :--- | :--- | :--- |

@@ -1,4 +1,3 @@
-pub mod filters;
 pub mod input_listener;
 pub mod llm_responder;
 pub mod skill_runner;
@@ -9,7 +8,6 @@ use std::sync::Arc;
 use crate::engine::session::{AppSession, check_and_consume_cmd};
 use crate::tray::{AssistantState, TrayState};
 
-use self::filters::is_hallucination_text;
 use self::input_listener::{LoopAction, handle_paused_loop, wait_for_user_turn};
 use self::llm_responder::process_llm_response;
 use self::skill_runner::handle_skill_execution;
@@ -18,10 +16,10 @@ impl AppSession {
     /// Loop utama percakapan suara dan aksi asisten AI Ragasukma
     pub fn start_chat_loop(&mut self) -> Result<()> {
         crate::app_state::update_session_running(true);
-        TrayState::update(AssistantState::Idle, "Standby Siap");
+        TrayState::update(AssistantState::Idle, "Standby");
         crate::term_log!("====================================================");
         crate::term_log!("✨ SESI PERCAKAPAN RAGASUKMA DIMULAI");
-        crate::term_log!("   - Asisten : {}", self.config.assistant_name);
+        crate::term_log!("   - Assistant: {}", self.config.assistant_name);
         crate::term_log!("   - Dashboard: http://127.0.0.1:42128");
         crate::term_log!("====================================================\n");
 
@@ -36,13 +34,15 @@ impl AppSession {
                 if cmd == "stop_chat" || cmd == "quit" {
                     crate::app_state::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Standby");
-                    crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
+                    crate::term_log!("\n[DONE] Chat session stopped.");
                     return Ok(());
                 } else if cmd == "toggle_pause" {
                     is_paused = true;
-                } else if cmd == "reset_session" || cmd == "reset_chat" {
+                } else if cmd == "reset_session" {
                     self.llm.reset_history();
-                    crate::term_log!("🔄 [Reset Session] Riwayat memori obrolan AI berhasil di-reset!");
+                    crate::term_log!(
+                        "🔄 [Reset Session] AI conversation history has been reset!"
+                    );
                 }
             }
 
@@ -54,14 +54,14 @@ impl AppSession {
                 if should_exit {
                     crate::app_state::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Standby");
-                    crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
+                    crate::term_log!("\n[DONE] Chat session stopped.");
                     return Ok(());
                 }
                 is_paused = false;
             }
 
             if !crate::app_state::is_ai_speaking() {
-                TrayState::update(AssistantState::Idle, "Standby Siap");
+                TrayState::update(AssistantState::Idle, "Standby");
             }
 
             // 3. Tunggu giliran input teks dari Chrome Web Speech API / Mobile STT
@@ -69,7 +69,7 @@ impl AppSession {
                 LoopAction::Exit => {
                     crate::app_state::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Standby");
-                    crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
+                    crate::term_log!("\n[DONE] Chat session stopped.");
                     break;
                 }
                 LoopAction::Pause => {
@@ -84,7 +84,7 @@ impl AppSession {
                 if cmd == "stop_chat" || cmd == "quit" {
                     crate::app_state::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Menu Utama");
-                    crate::term_log!("\n[SELESAI] Sesi obrolan dihentikan.");
+                    crate::term_log!("\n[DONE] Chat session stopped.");
                     return Ok(());
                 } else if cmd == "toggle_pause" {
                     is_paused = true;
@@ -92,18 +92,11 @@ impl AppSession {
                 }
             }
 
-            // 4. Validasi teks dan filter halusinasi
+            // 4. Validasi teks
             if raw_text.is_empty() {
                 crate::term_log!("[INFO] (Suara tidak terdengar jelas / terlalu pelan)\n");
                 if !crate::app_state::is_ai_speaking() {
-                    TrayState::update(AssistantState::Idle, "Standby Siap");
-                }
-                continue;
-            }
-
-            if is_hallucination_text(&raw_text) {
-                if !crate::app_state::is_ai_speaking() {
-                    TrayState::update(AssistantState::Idle, "Standby Siap");
+                    TrayState::update(AssistantState::Idle, "Standby");
                 }
                 continue;
             }
@@ -125,18 +118,14 @@ impl AppSession {
 
             // 5. Inferensi LLM dan respons suara ke Google Chrome Web Speech API
             let tts_clone = Arc::clone(&self.tts);
-            let result = process_llm_response(
-                &mut self.llm,
-                &tts_clone,
-                &asst_name,
-                &effective_input,
-            );
+            let result =
+                process_llm_response(&mut self.llm, &tts_clone, &asst_name, &effective_input);
 
             let was_interrupted = crate::app_state::is_interruption_requested();
             crate::app_state::clear_interruption();
 
             if was_interrupted {
-                crate::term_log!("⚡ [Interupsi Diterima] Memproses giliran bicara baru...");
+                crate::term_log!("⚡ [Interrupt] Processing new speech turn...");
                 continue;
             }
 

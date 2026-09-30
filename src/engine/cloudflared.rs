@@ -54,7 +54,11 @@ pub fn get_tunnel_status() -> (String, Option<String>, String) {
         }
     }
 
-    (mgr.status.clone(), mgr.public_url.clone(), mgr.auth_key.clone())
+    (
+        mgr.status.clone(),
+        mgr.public_url.clone(),
+        mgr.auth_key.clone(),
+    )
 }
 
 pub fn is_auth_key_valid(key: &str) -> bool {
@@ -69,7 +73,11 @@ pub fn is_auth_key_valid(key: &str) -> bool {
 fn resolve_cloudflared_bin() -> std::path::PathBuf {
     if let Ok(path_var) = std::env::var("PATH") {
         for dir in std::env::split_paths(&path_var) {
-            let candidate = dir.join(if cfg!(windows) { "cloudflared.exe" } else { "cloudflared" });
+            let candidate = dir.join(if cfg!(windows) {
+                "cloudflared.exe"
+            } else {
+                "cloudflared"
+            });
             if candidate.is_file() {
                 return candidate;
             }
@@ -90,7 +98,11 @@ fn resolve_cloudflared_bin() -> std::path::PathBuf {
         }
     }
 
-    std::path::PathBuf::from(if cfg!(windows) { "cloudflared.exe" } else { "cloudflared" })
+    std::path::PathBuf::from(if cfg!(windows) {
+        "cloudflared.exe"
+    } else {
+        "cloudflared"
+    })
 }
 
 pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), String> {
@@ -103,7 +115,10 @@ pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), Str
     if let Some(ref mut child) = mgr.child {
         if let Ok(None) = child.try_wait() {
             // Already running
-            return Ok((mgr.public_url.clone().unwrap_or_default(), mgr.auth_key.clone()));
+            return Ok((
+                mgr.public_url.clone().unwrap_or_default(),
+                mgr.auth_key.clone(),
+            ));
         }
     }
 
@@ -115,9 +130,14 @@ pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), Str
     // Check cloudflared binary
     let bin_path = resolve_cloudflared_bin();
     let mut cmd = Command::new(bin_path);
-    cmd.args(["tunnel", "--url", &format!("http://127.0.0.1:{}", local_port), "--no-autoupdate"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    cmd.args([
+        "tunnel",
+        "--url",
+        &format!("http://127.0.0.1:{}", local_port),
+        "--no-autoupdate",
+    ])
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
 
     #[cfg(windows)]
     {
@@ -127,11 +147,20 @@ pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), Str
     }
 
     let mut child = cmd.spawn().map_err(|e| {
-        format!("Gagal menjalankan cloudflared: {}. Pastikan cloudflared terinstal dan ada di PATH.", e)
+        format!(
+            "Failed to run cloudflared: {}. Make sure cloudflared is installed and available in PATH.",
+            e
+        )
     })?;
 
-    let stderr = child.stderr.take().ok_or("Failed to capture cloudflared stderr")?;
-    let stdout = child.stdout.take().ok_or("Failed to capture cloudflared stdout")?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or("Failed to capture cloudflared stderr")?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or("Failed to capture cloudflared stdout")?;
     mgr.child = Some(child);
 
     // Read stderr & stdout in background threads to find trycloudflare.com URL

@@ -8,10 +8,11 @@ pub mod menu_service;
 pub mod music_service;
 pub mod openai_v1_service;
 pub mod poses_service;
+pub mod remote_service;
 pub mod session_service;
 pub mod skills_service;
 pub mod tray_service;
-pub mod remote_service;
+pub mod tts_service;
 
 pub use tray_service::{AssistantState, TrayState};
 
@@ -25,7 +26,7 @@ pub use menu_service::*;
 pub use music_service::*;
 pub use openai_v1_service::*;
 pub use poses_service::*;
+pub use remote_service::*;
 pub use session_service::*;
 pub use skills_service::*;
-pub use remote_service::*;
-
+pub use tts_service::*;

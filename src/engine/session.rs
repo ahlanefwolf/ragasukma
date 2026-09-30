@@ -21,13 +21,13 @@ impl AppSession {
     pub fn new(config: AppConfig) -> Result<Self> {
         let llm = LlmClient::new();
         crate::term_log!(
-            "🎀 Karakter {} (Imut & Pemalu) siap menemani {}.",
+            "🎀 Character {} (Cute & Shy) ready to accompany {}.",
             config.assistant_name,
             config.user_callsign
         );
 
         let tts = Arc::new(TextToSpeech::new());
-        crate::term_log!("🔊 Engine TTS: Google Chrome Web Speech API siap.");
+        crate::term_log!("🔊 TTS Engine: Google Chrome Web Speech API ready.");
 
         let last_config_mtime = crate::config::get_config_modified_time();
 
@@ -48,14 +48,13 @@ impl AppSession {
 
         let latest_config = AppConfig::load();
 
-        // Cek apakah konfigurasi audio / STT / TTS berubah
-        let stt_changed = latest_config.stt_lang != self.config.stt_lang;
+        // Cek apakah konfigurasi audio / bahasa / TTS berubah
+        let lang_changed = latest_config.lang != self.config.lang;
 
         let gender_changed = latest_config.assistant_gender != self.config.assistant_gender;
 
-        let tts_changed = latest_config.tts_lang != self.config.tts_lang
+        let tts_changed = lang_changed
             || (latest_config.tts_speed - self.config.tts_speed).abs() > 0.01
-            || (latest_config.tts_pitch - self.config.tts_pitch).abs() > 0.01
             || latest_config.tts_voice_name != self.config.tts_voice_name
             || gender_changed;
 
@@ -71,15 +70,13 @@ impl AppSession {
             || gender_changed;
 
         if interrup_changed {
-            crate::term_log!(
-                "🔄 [Reactive Update] Voice Interruption diupdate realtime!"
-            );
+            crate::term_log!("🔄 [Reactive Update] Voice interruption updated in realtime!");
         }
 
-        if stt_changed {
+        if lang_changed {
             crate::term_log!(
-                "🔄 [Reactive Update] STT Lang dialihkan ke: {}",
-                latest_config.stt_lang
+                "🔄 [Reactive Update] Bahasa percakapan dialihkan ke: {}",
+                latest_config.lang
             );
         }
 
@@ -119,18 +116,20 @@ impl AppSession {
             // Standby mode: menunggu komando dari Web Dashboard atau tombol Mulai
             if let Some(cmd) = check_and_consume_cmd() {
                 match cmd.as_str() {
-                    "start_chat" | "start" => {
+                    "start_chat" => {
                         TrayState::clear_commands();
                         let _ = self.start_chat_loop();
                     }
-                    "reset_session" | "reset_chat" => {
+                    "reset_session" => {
                         self.llm.reset_history();
-                        crate::term_log!("🔄 [Reset Session] Riwayat memori obrolan AI berhasil di-reset!");
+                        crate::term_log!(
+                            "🔄 [Reset Session] Riwayat memori obrolan AI berhasil di-reset!"
+                        );
                     }
                     "quit" => {
                         let _ = crate::engine::cloudflared::stop_cloudflared_tunnel();
                         TrayState::clear();
-                        crate::term_log!("\n👋 Program selesai. Sampai jumpa!");
+                        crate::term_log!("\n👋 Program finished. Goodbye!");
                         return Ok(());
                     }
                     _ => {}

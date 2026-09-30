@@ -1,7 +1,7 @@
 use super::constants::*;
 use super::oauth::{ensure_project_id, refresh_account_token};
 use super::types::{
-    current_timestamp_secs, AntigravityAccount, AntigravityQuotaResponse, ModelQuotaInfo,
+    AntigravityAccount, AntigravityQuotaResponse, ModelQuotaInfo, current_timestamp_secs,
 };
 use anyhow::Result;
 
@@ -152,7 +152,8 @@ pub fn fetch_account_quota(
                         if let Some(b_arr) = buckets {
                             for b in b_arr {
                                 let b_id = b.get("bucketId").and_then(|v| v.as_str()).unwrap_or("");
-                                let b_name = b.get("displayName").and_then(|v| v.as_str()).unwrap_or("");
+                                let b_name =
+                                    b.get("displayName").and_then(|v| v.as_str()).unwrap_or("");
                                 let b_text = format!("{b_id} {b_name}").to_lowercase();
                                 if !b_text.contains("weekly") {
                                     continue;
@@ -160,15 +161,22 @@ pub fn fetch_account_quota(
                                 if b.get("disabled").and_then(|v| v.as_bool()).unwrap_or(false) {
                                     continue;
                                 }
-                                if let Some(frac) = b.get("remainingFraction").and_then(|v| v.as_f64()) {
+                                if let Some(frac) =
+                                    b.get("remainingFraction").and_then(|v| v.as_f64())
+                                {
                                     let d_name = if g_name.to_lowercase().contains("gemini") {
                                         "Gemini (Weekly)".to_string()
-                                    } else if g_name.to_lowercase().contains("claude") || g_name.to_lowercase().contains("gpt") {
+                                    } else if g_name.to_lowercase().contains("claude")
+                                        || g_name.to_lowercase().contains("gpt")
+                                    {
                                         "Claude & GPT (Weekly)".to_string()
                                     } else {
                                         format!("{g_name} (Weekly)")
                                     };
-                                    let reset_time = b.get("resetTime").and_then(|v| v.as_str()).map(|s| s.to_string());
+                                    let reset_time = b
+                                        .get("resetTime")
+                                        .and_then(|v| v.as_str())
+                                        .map(|s| s.to_string());
                                     let pct = (frac * 1000.0).round() / 10.0;
                                     weekly_quota.push(ModelQuotaInfo {
                                         model_id: b_id.to_string(),

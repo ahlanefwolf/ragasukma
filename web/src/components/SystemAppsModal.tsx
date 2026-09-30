@@ -52,7 +52,6 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
     return apps().filter(
       (app) =>
         app.name.toLowerCase().includes(q) ||
-        (app.comment && app.comment.toLowerCase().includes(q)) ||
         app.exec.toLowerCase().includes(q)
     );
   };
@@ -154,11 +153,6 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
                       <div class="font-bold text-xs text-theme-text truncate flex items-center justify-between gap-1">
                         <span class="truncate">{app.name}</span>
                       </div>
-                      <Show when={app.comment}>
-                        <p class="text-[11px] text-theme-text/60 line-clamp-1">
-                          {app.comment}
-                        </p>
-                      </Show>
                     </div>
 
                     <div class="flex items-center justify-between gap-2 pt-1 border-t border-theme-border/50 text-[10px] font-mono text-theme-cyan">

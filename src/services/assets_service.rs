@@ -83,7 +83,7 @@ pub fn handle_upload_vrm(
             );
         }
         Err(e) => {
-            crate::term_err!("⚠️ [Asset Manager] Gagal menyimpan file VRM: {}", e);
+            crate::term_err!("⚠️ [Asset Manager] Failed to save VRM file: {}", e);
             send_json_response(stream, 500, &format!("{{\"error\":\"{}\"}}", e));
         }
     }
@@ -140,7 +140,7 @@ pub fn handle_upload_avatar(
             send_json_response(stream, 200, "{\"success\":true}");
         }
         Err(e) => {
-            crate::term_err!("⚠️ [Asset Manager] Gagal menyimpan avatar: {}", e);
+            crate::term_err!("⚠️ [Asset Manager] Failed to save avatar: {}", e);
             send_json_response(stream, 500, &format!("{{\"error\":\"{}\"}}", e));
         }
     }
