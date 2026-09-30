@@ -148,7 +148,10 @@ pub fn ensure_default_user_assets() {
             }
             if let Some(embedded_file) = EmbeddedAssets::get(file_name) {
                 if let Err(e) = fs::write(&target_path, embedded_file.data) {
-                    eprintln!("⚠️ Failed to extract default asset '{}': {:?}", file_name, e);
+                    eprintln!(
+                        "⚠️ Failed to extract default asset '{}': {:?}",
+                        file_name, e
+                    );
                 } else {
                     println!(
                         "📦 [Assets] Successfully extracted default asset: {:?}",

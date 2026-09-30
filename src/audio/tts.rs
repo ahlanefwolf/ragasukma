@@ -40,10 +40,12 @@ impl TextToSpeech {
         let audio_url = format!("/api/tts/audio?id={audio_id}");
 
         // Inisialisasi engine jika belum, dan sintesis audio Supertonic-3
+        let mut audio_bytes_opt: Option<Vec<u8>> = None;
         let synthesized = if let Some(engine) = crate::audio::supertonic::get_engine() {
             match engine.synthesize(&clean_text, &voice, &lang, speed) {
                 Ok(bytes) => {
-                    crate::audio::supertonic::set_last_audio_wav(audio_id.clone(), bytes);
+                    crate::audio::supertonic::set_last_audio_wav(audio_id.clone(), bytes.clone());
+                    audio_bytes_opt = Some(bytes);
                     true
                 }
                 Err(e) => {
@@ -54,7 +56,8 @@ impl TextToSpeech {
         } else if let Ok(engine) = crate::audio::supertonic::init_engine() {
             match engine.synthesize(&clean_text, &voice, &lang, speed) {
                 Ok(bytes) => {
-                    crate::audio::supertonic::set_last_audio_wav(audio_id.clone(), bytes);
+                    crate::audio::supertonic::set_last_audio_wav(audio_id.clone(), bytes.clone());
+                    audio_bytes_opt = Some(bytes);
                     true
                 }
                 Err(e) => {
@@ -66,35 +69,49 @@ impl TextToSpeech {
             false
         };
 
+        let mut native_played = false;
+        if let Some(bytes) = audio_bytes_opt {
+            if !crate::app_state::is_voice_muted() {
+                crate::audio::player::play_native_voice(bytes);
+                native_played = true;
+            }
+        }
+
         // 1. Alirkan kalimat respon, emosi, dan audio_url ke semua client (Desktop & Mobile) via SSE action
         let payload = serde_json::json!({
             "text": clean_text,
             "emotion": emotion,
             "audio_url": if synthesized { Some(audio_url) } else { None },
             "voice": voice,
-            "lang": lang
+            "lang": lang,
+            "native_played": native_played
         })
         .to_string();
         crate::app_state::push_client_action("assistant:speak", Some(&payload));
 
         // 2. Sinkronisasi status avatar & bibir AIUEO:
-        // Jika ada tab browser aktif yang memutar audio, browser yang akan mengirim notifikasi
-        // 'Speaking' tepat saat gelombang suara mulai berbunyi (audio.onplaying).
-        // Ini mencegah bibir bergerak mendahului suara saat proses sintesis ONNX berlangsung.
-        // Jika tidak ada browser terhubung (mode headless), aktifkan state Speaking di sini sebagai fallback.
-        let has_web_client = crate::app_state::ACTIVE_WEB_SESSION
-            .lock()
-            .ok()
-            .and_then(|s| s.as_ref().map(|_| true))
-            .unwrap_or(false);
-
-        if !has_web_client {
+        if native_played {
             TrayState::update_with_emotion(
                 AssistantState::Speaking,
                 &format!("{asst_name} Berbicara"),
                 emotion,
             );
             crate::app_state::set_ai_speaking(true);
+        } else {
+            let has_web_client = crate::app_state::ACTIVE_WEB_SESSION
+                .lock()
+                .ok()
+                .and_then(|s| s.as_ref().map(|_| true))
+                .unwrap_or(false);
+
+            if !has_web_client {
+                TrayState::update_with_emotion(
+                    AssistantState::Speaking,
+                    &format!("{asst_name} Berbicara"),
+                    emotion,
+                );
+                crate::app_state::set_ai_speaking(true);
+            }
         }
 
         // 3. Passive fail-safe watchdog: hanya aktif jika browser crash/tertutup saat berbicara (60 detik)
@@ -251,14 +268,7 @@ fn is_emotion_or_action_emote(emote: &str) -> bool {
     let lower = emote.trim().to_lowercase();
     matches!(
         lower.as_str(),
-        "happy"
-            | "shy"
-            | "excited"
-            | "surprised"
-            | "thinking"
-            | "sad"
-            | "angry"
-            | "neutral"
+        "happy" | "shy" | "excited" | "surprised" | "thinking" | "sad" | "angry" | "neutral"
     )
 }
 
@@ -484,7 +494,10 @@ mod tests {
             clean_text_for_speech("angry, kenapa begitu?"),
             "kenapa begitu."
         );
-        assert_eq!(clean_text_for_speech("*thinking* sebentar ya"), "sebentar ya");
+        assert_eq!(
+            clean_text_for_speech("*thinking* sebentar ya"),
+            "sebentar ya"
+        );
     }
 
     #[test]

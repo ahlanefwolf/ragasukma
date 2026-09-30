@@ -2,8 +2,8 @@ pub mod click;
 pub mod input;
 pub mod window;
 
-use std::fs;
 use crate::engine::window_scanner::ActiveWindowSnapshot;
+use std::fs;
 
 pub use click::{click_at_coordinates, click_desktop_button, find_target_button};
 pub use input::{press_key, type_text};
@@ -116,19 +116,13 @@ pub fn execute_desktop_action(action: &str, payload: &str) -> Option<(String, St
             if type_text(text) {
                 Some(("Type Text".to_string(), format!("Typed text: {text}")))
             } else {
-                Some((
-                    "Type Text".to_string(),
-                    "Failed to type text".to_string(),
-                ))
+                Some(("Type Text".to_string(), "Failed to type text".to_string()))
             }
         }
         "key" => {
             let key_name = payload.trim();
             if press_key(key_name) {
-                Some((
-                    "Press Key".to_string(),
-                    format!("Key '{key_name}' pressed"),
-                ))
+                Some(("Press Key".to_string(), format!("Key '{key_name}' pressed")))
             } else {
                 Some((
                     "Press Key".to_string(),

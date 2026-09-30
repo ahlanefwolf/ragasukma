@@ -1,4 +1,4 @@
-import { Component, createSignal, onMount, onCleanup, Show } from 'solid-js';
+import { Component, createSignal, createEffect, onMount, onCleanup, Show } from 'solid-js';
 import { Sidebar } from './components/Sidebar';
 import { MenuTab } from './components/MenuTab';
 
@@ -11,7 +11,7 @@ import { AntigravityTab } from './components/AntigravityTab';
 import { RemoteTab } from './components/RemoteTab';
 import { MobileClientView } from './components/MobileClientView';
 import { BottomPlayer } from './components/BottomPlayer';
-import { initGlobalAudio, killGlobalAudio } from './playerStore';
+import { initGlobalAudio, killGlobalAudio, currentTrack, isPlaying, isPaused } from './playerStore';
 import { Menu as MenuIcon } from 'lucide-solid';
 import { api, killCurrentSession } from './api';
 import { VoiceSessionManager } from './services/voiceSession';
@@ -63,14 +63,18 @@ const App: Component = () => {
   // Deteksi apakah tab saat ini adalah Remote Client HP (dibuka lewat scan QR / key auth)
   const isMobileClient = () => {
     try {
+      const search = window.location.search;
       const hash = window.location.hash.toLowerCase();
       const origin = window.location.origin.toLowerCase();
-      const search = window.location.search;
-      return (
-        hash.includes('remote') ||
-        origin.includes('trycloudflare.com') ||
-        search.includes('key=')
-      );
+      const hasKey = search.includes('key=') || hash.includes('key=');
+      // Hanya anggap mobile client jika memiliki key auth DAN berasal dari tunnel cloudflare / hash mobile
+      if (hasKey && (origin.includes('trycloudflare.com') || hash.includes('mobile'))) {
+        return true;
+      }
+      if (hash === '#mobile' || hash === '#mobile-client') {
+        return true;
+      }
+      return false;
     } catch {
       return false;
     }
@@ -105,6 +109,24 @@ const App: Component = () => {
   let activeBc: BroadcastChannel | null = null;
   let unsubStateFn: (() => void) | null = null;
   let unsubActionsFn: (() => void) | null = null;
+
+  // Sinkronisasi title tab browser desktop saat memutar musik
+  createEffect(() => {
+    if (isMobileClient()) return;
+
+    const track = currentTrack();
+    if (track && track.title) {
+      if (isPlaying()) {
+        document.title = `▶ ${track.title} - Ragasukma`;
+      } else if (isPaused()) {
+        document.title = `⏸ ${track.title} - Ragasukma`;
+      } else {
+        document.title = 'Ragasukma - Konfigurasi & Dashboard AI';
+      }
+    } else {
+      document.title = 'Ragasukma - Konfigurasi & Dashboard AI';
+    }
+  });
 
   const killThisTab = (reason: 'duplicate' | 'shutdown' = 'duplicate') => {
     if (isDead()) return;

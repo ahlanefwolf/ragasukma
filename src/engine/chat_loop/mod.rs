@@ -40,9 +40,7 @@ impl AppSession {
                     is_paused = true;
                 } else if cmd == "reset_session" {
                     self.llm.reset_history();
-                    crate::term_log!(
-                        "🔄 [Reset Session] AI conversation history has been reset!"
-                    );
+                    crate::term_log!("🔄 [Reset Session] AI conversation history has been reset!");
                 }
             }
 

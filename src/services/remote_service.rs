@@ -2,19 +2,51 @@ use serde_json::json;
 use std::net::TcpStream;
 
 use crate::engine::cloudflared::{
-    get_tunnel_status, is_auth_key_valid, start_cloudflared_tunnel, stop_cloudflared_tunnel,
+    check_cloudflared, get_tunnel_status, install_cloudflared, is_auth_key_valid,
+    start_cloudflared_tunnel, stop_cloudflared_tunnel,
 };
 use crate::server::send_json_response;
 
 pub fn handle_tunnel_status(stream: &mut TcpStream) {
     let (status, url, auth_key) = get_tunnel_status();
+    let cf_info = check_cloudflared();
     let resp = json!({
         "status": status,
         "url": url,
-        "auth_key": auth_key
+        "auth_key": auth_key,
+        "cloudflared": cf_info
     })
     .to_string();
     send_json_response(stream, 200, &resp);
+}
+
+pub fn handle_tunnel_check(stream: &mut TcpStream) {
+    let cf_info = check_cloudflared();
+    let resp = json!(cf_info).to_string();
+    send_json_response(stream, 200, &resp);
+}
+
+pub fn handle_tunnel_install(stream: &mut TcpStream) {
+    match install_cloudflared() {
+        Ok(msg) => {
+            let info = check_cloudflared();
+            let resp = json!({
+                "success": true,
+                "message": msg,
+                "info": info
+            })
+            .to_string();
+            send_json_response(stream, 200, &resp);
+        }
+        Err(err) => {
+            let resp = json!({
+                "success": false,
+                "message": err
+            })
+            .to_string();
+            send_json_response(stream, 500, &resp);
+        }
+    }
 }
 
 pub fn handle_tunnel_start(stream: &mut TcpStream) {

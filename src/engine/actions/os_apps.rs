@@ -123,11 +123,11 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
                     format!("Open {q_clean}"),
                     "Successfully launched application from system".to_string(),
                 ));
-                }
             }
         }
+    }
 
-        None
+    None
 }
 
 /// Mencari aplikasi terpasang dengan hierarki 4 lapis:
@@ -349,7 +349,7 @@ pub fn launch_linux_app(app: &crate::engine::app_scanner::InstalledApp) -> std::
         {
             if status.success() {
                 crate::term_log!(
-                    "🚀 [Linux Launcher] Opening '{}' via gtk-launch ({})" ,
+                    "🚀 [Linux Launcher] Opening '{}' via gtk-launch ({})",
                     app.name,
                     desktop_id
                 );

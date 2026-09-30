@@ -176,7 +176,10 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
                     ..Default::default()
                 },
             );
-            Some((format!("Switch Tab: {q}"), format!("Switching to tab '{q}'")))
+            Some((
+                format!("Switch Tab: {q}"),
+                format!("Switching to tab '{q}'"),
+            ))
         }
 
         "close" => {

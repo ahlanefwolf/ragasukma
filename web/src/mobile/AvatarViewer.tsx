@@ -1,5 +1,5 @@
 import { Component, Show, createSignal, onMount, onCleanup } from 'solid-js';
-import { Volume2, Mic, Brain, Sparkles, Loader2, RotateCcw, ZoomIn, ZoomOut } from 'lucide-solid';
+import { Volume2, Mic, Brain, Sparkles, Loader2, RotateCcw, ZoomIn, ZoomOut, Maximize, Minimize } from 'lucide-solid';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRM, VRMUtils } from '@pixiv/three-vrm';
@@ -55,6 +55,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
   const [isVrmLoaded, setIsVrmLoaded] = createSignal(false);
   const [vrmLoadError, setVrmLoadError] = createSignal(false);
   const [posesConfig, setPosesConfig] = createSignal<any>(null);
+  const [isFullscreen, setIsFullscreen] = createSignal(false);
 
   let scene: THREE.Scene | null = null;
   let camera: THREE.PerspectiveCamera | null = null;
@@ -74,8 +75,9 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
   // Smoothing transisi ekspresi wajah & bibir
   const currentExpressionWeights: Record<string, number> = {};
 
-  const defaultCamPos = new THREE.Vector3(0.0, 1.25, 1.15);
-  const defaultTarget = new THREE.Vector3(0.0, 1.20, 0.0);
+  // Posisi kamera default: Paling minimize / zoom-out menampung full-body karakter dari kepala sampai kaki secara proporsional
+  const defaultCamPos = new THREE.Vector3(0.0, 0.85, 3.4);
+  const defaultTarget = new THREE.Vector3(0.0, 0.85, 0.0);
 
   const avatarImages: Record<string, string> = {
     idle: '/api/assets/file/char-avatar-idle.png',
@@ -138,6 +140,16 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       const dir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
       camera.position.addScaledVector(dir, 0.25);
       controls.update();
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+      setIsFullscreen(false);
     }
   };
 
@@ -346,11 +358,12 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
     controls.target.copy(defaultTarget);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
-    controls.minDistance = 0.35; // zoom in maksimal dekat wajah
-    controls.maxDistance = 2.8;  // zoom out melihat seluruh badan
+    controls.minDistance = 0.35; // zoom in leluasa dekat wajah
+    controls.maxDistance = 6.5;  // zoom out jauh leluasa melihat karakter dari kejauhan
     controls.enableRotate = true;
     controls.enableZoom = true;
     controls.enablePan = true;
+    controls.screenSpacePanning = true; // Bisa digeser naik-turun leluasa di layar HP
     controls.touches = {
       ONE: THREE.TOUCH.ROTATE,
       TWO: THREE.TOUCH.DOLLY_PAN,
@@ -453,8 +466,8 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
 
             case 'excited':
             case 'semangat':
-              targetWeights['blinkLeft'] = 0.85;
-              targetWeights['happy'] = 0.70;
+              targetWeights['happy'] = 0.85;
+              targetWeights['surprised'] = 0.25;
               hasStrongEmotion = true;
               break;
 
@@ -575,6 +588,15 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
         }
       })
       .catch(() => {});
+
+    // Sinkronkan status fullscreen dengan event browser
+    const onFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    onCleanup(() => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+    });
   });
 
   onCleanup(() => {
@@ -582,63 +604,59 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
   });
 
   return (
-    <div class="relative w-full aspect-[4/3] max-h-64 rounded-2xl bg-gradient-to-b from-theme-card/80 to-theme-surface/90 border border-theme-border flex items-center justify-center overflow-hidden shadow-inner select-none touch-none">
-      {/* Status Badge Ringkas di Pojok Kiri Atas */}
-      <div class="absolute top-2.5 left-2.5 z-20 pointer-events-none">
-        {(() => {
-          const badge = getStatusBadge();
-          const Icon = badge.icon;
-          return (
-            <div class={`px-2.5 py-1 rounded-full text-[11px] font-mono font-bold border flex items-center gap-1.5 shadow-sm transition-all ${badge.color}`}>
-              <Icon size={12} class={props.state === 'speaking' || props.state === 'listening' ? 'animate-pulse' : ''} />
-              <span>{badge.label}</span>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* Toolbar Kontrol Kamera Minimalis Tanpa Teks di Pojok Kanan Bawah */}
+    <div class="relative w-full h-full flex items-center justify-center overflow-hidden select-none touch-none">
+      {/* Toolbar Kontrol Kamera Vertikal Sejajar dengan Pengaturan (Tanpa Box, Warna Coklat Tema) */}
       <Show when={avatarType() === 'vrm' && isVrmLoaded()}>
-        <div class="absolute bottom-2.5 right-2.5 z-20 flex items-center bg-theme-card/85 backdrop-blur-sm p-0.5 rounded-lg border border-theme-border/60 shadow-lg">
+        <div class="absolute top-14 right-4 z-20 flex flex-col items-center gap-0.5 pointer-events-auto select-none">
           <button
             type="button"
             onClick={zoomIn}
-            class="w-6 h-6 rounded-md hover:bg-theme-surface text-theme-text/70 hover:text-theme-cyan transition-all active:scale-90 flex items-center justify-center"
+            class="p-2 text-theme-muted hover:text-theme-text active:scale-85 transition-transform drop-shadow-sm cursor-pointer"
             title="Perbesar"
           >
-            <ZoomIn size={12} />
+            <ZoomIn size={22} class="stroke-[2.2]" />
           </button>
           <button
             type="button"
             onClick={zoomOut}
-            class="w-6 h-6 rounded-md hover:bg-theme-surface text-theme-text/70 hover:text-theme-cyan transition-all active:scale-90 flex items-center justify-center"
+            class="p-2 text-theme-muted hover:text-theme-text active:scale-85 transition-transform drop-shadow-sm cursor-pointer"
             title="Perkecil"
           >
-            <ZoomOut size={12} />
+            <ZoomOut size={22} class="stroke-[2.2]" />
           </button>
-          <div class="w-px h-3.5 bg-theme-border/60 my-auto mx-0.5" />
+          {/* Tombol Fullscreen Tepat di Atas Reset Kamera */}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            class="p-2 text-theme-muted hover:text-theme-text active:scale-85 transition-transform drop-shadow-sm cursor-pointer"
+            title={isFullscreen() ? 'Keluar Fullscreen' : 'Layar Penuh'}
+          >
+            <Show when={isFullscreen()} fallback={<Maximize size={20} class="stroke-[2.2]" />}>
+              <Minimize size={20} class="stroke-[2.2]" />
+            </Show>
+          </button>
           <button
             type="button"
             onClick={resetCameraView}
-            class="w-6 h-6 rounded-md hover:bg-theme-surface text-theme-text/70 hover:text-theme-cyan transition-all active:scale-90 flex items-center justify-center"
+            class="p-2 text-theme-muted hover:text-theme-text active:scale-85 transition-transform drop-shadow-sm cursor-pointer"
             title="Reset Sudut Kamera"
           >
-            <RotateCcw size={11} />
+            <RotateCcw size={20} class="stroke-[2.2]" />
           </button>
         </div>
       </Show>
 
       {/* Loading Overlay Saat Model VRM Sedang Diunduh */}
       <Show when={isLoading() && avatarType() === 'vrm'}>
-        <div class="absolute inset-0 z-30 bg-theme-bg/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 text-theme-cyan">
-          <Loader2 size={22} class="animate-spin text-theme-cyan" />
-          <span class="text-[11px] font-mono font-semibold">
-            {loadingProgress() > 0 ? `${loadingProgress()}%` : 'Memuat 3D...'}
+        <div class="absolute inset-0 z-30 bg-theme-bg/85 backdrop-blur-md flex flex-col items-center justify-center gap-3 text-theme-cyan">
+          <Loader2 size={28} class="animate-spin text-theme-cyan" />
+          <span class="text-xs font-mono font-semibold tracking-wide">
+            {loadingProgress() > 0 ? `Memuat Karakter 3D (${loadingProgress()}%)` : 'Menyiapkan 3D Engine...'}
           </span>
         </div>
       </Show>
 
-      {/* Kontainer 3D Canvas WebGL (Selalu ada di DOM agar Three.js bisa mount seketika) */}
+      {/* Kontainer 3D Canvas WebGL (Mengisi Penuh Layar) */}
       <div
         ref={canvasContainerRef}
         class="w-full h-full relative z-10 flex items-center justify-center touch-none"
@@ -647,11 +665,11 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
 
       {/* Fallback 2D Sprite jika mode 2D atau jika ada error fatal loading VRM */}
       <Show when={avatarType() === '2d' || vrmLoadError()}>
-        <div class="relative w-full h-full flex flex-col items-center justify-center p-4">
+        <div class="relative w-full h-full flex flex-col items-center justify-center p-6">
           <img
             src={avatarImages[props.state] || avatarImages.idle}
             alt="Avatar"
-            class={`max-h-48 max-w-full object-contain transition-all duration-300 ${getStatusBadge().glow}`}
+            class={`max-h-[70vh] max-w-full object-contain transition-all duration-300 ${getStatusBadge().glow}`}
           />
           <Show when={vrmLoadError()}>
             <button
@@ -661,9 +679,9 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
                 setIsLoading(true);
                 initThreeVrm();
               }}
-              class="mt-2 px-3 py-1 bg-theme-cyan/20 border border-theme-cyan/40 text-theme-cyan text-[10px] font-mono rounded-lg flex items-center gap-1 active:scale-95"
+              class="mt-3 px-4 py-2 bg-theme-cyan/20 border border-theme-cyan/40 text-theme-cyan text-xs font-mono rounded-xl flex items-center gap-1.5 shadow-md active:scale-95"
             >
-              <RotateCcw size={10} />
+              <RotateCcw size={12} />
               <span>Coba Muat Ulang 3D</span>
             </button>
           </Show>

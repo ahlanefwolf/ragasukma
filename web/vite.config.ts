@@ -5,7 +5,13 @@ export default defineConfig({
   plugins: [solidPlugin()],
   server: {
     port: 5173,
-    host: '0.0.0.0'
+    host: '0.0.0.0',
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:42128',
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     target: 'esnext',

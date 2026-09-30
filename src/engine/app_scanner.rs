@@ -67,7 +67,7 @@ fn is_terminal_word(w: &str) -> bool {
         | "терминал"           // ru, uk, bg
         | "终端" | "終端"       // zh
         | "टर्मिनल"            // hi
-        | "τερματικό"          // el
+        | "τερματικό" // el
     )
 }
 
@@ -96,7 +96,7 @@ fn is_browser_word(w: &str) -> bool {
         | "браузър"                     // bg
         | "浏览器" | "瀏覽器"           // zh
         | "ब्राउज़र"                    // hi
-        | "πρόγραμμα περιήγησης"        // el
+        | "πρόγραμμα περιήγησης" // el
     )
 }
 
@@ -120,7 +120,7 @@ fn is_editor_word(w: &str) -> bool {
         | "редактор"                    // ru, uk, bg
         | "编辑器" | "編輯器"           // zh
         | "संपादक"                      // hi
-        | "επεξεργαστής"                // el
+        | "επεξεργαστής" // el
     )
 }
 
@@ -151,7 +151,7 @@ fn is_filemanager_word(w: &str) -> bool {
         | "файлы" | "файл"              // ru, uk, bg
         | "文件" | "檔案"               // zh
         | "फ़ाइल"                       // hi
-        | "αρχεία" | "αρχείο"           // el
+        | "αρχεία" | "αρχείο" // el
     )
 }
 
@@ -269,7 +269,7 @@ pub fn is_app_mentioned_in_query(app: &InstalledApp, query: &str) -> bool {
             | "le" | "la" | "les" | "et"           // fr
             | "el" | "los" | "las" | "por"         // es
             | "van" | "voor"                        // nl
-            | "för"                                 // sv
+            | "för" // sv
         );
         if !is_noise && clean_part.len() >= 3 && query.contains(clean_part) {
             return true;
@@ -394,15 +394,15 @@ pub fn get_installed_applications() -> Vec<InstalledApp> {
 
         // Aplikasi bawaan Windows esensial (sebagai jaminan selalu ada & bisa dibuka langsung)
         let default_windows_apps = [
-            ("Calculator",    "calc.exe"),
-            ("Notepad",       "notepad.exe"),
-            ("Paint",         "mspaint.exe"),
-            ("Task Manager",  "taskmgr.exe"),
-            ("Settings",      "explorer.exe ms-settings:"),
+            ("Calculator", "calc.exe"),
+            ("Notepad", "notepad.exe"),
+            ("Paint", "mspaint.exe"),
+            ("Task Manager", "taskmgr.exe"),
+            ("Settings", "explorer.exe ms-settings:"),
             ("File Explorer", "explorer.exe"),
-            ("Command Prompt","cmd.exe"),
-            ("PowerShell",    "powershell.exe"),
-            ("Microsoft Edge","explorer.exe microsoft-edge:"),
+            ("Command Prompt", "cmd.exe"),
+            ("PowerShell", "powershell.exe"),
+            ("Microsoft Edge", "explorer.exe microsoft-edge:"),
         ];
 
         for (name, exec) in default_windows_apps {

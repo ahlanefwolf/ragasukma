@@ -20,11 +20,13 @@ export interface ClientAction {
 
 type StateListener = (state: CoreStatePayload) => void;
 type ActionListener = (action: ClientAction) => void;
+type LogListener = (log: any) => void;
 type ConnectionListener = (connected: boolean) => void;
 
 let stateEventSource: EventSource | null = null;
 const stateListeners = new Set<StateListener>();
 const actionListeners = new Set<ActionListener>();
+const logListeners = new Set<LogListener>();
 const connectionListeners = new Set<ConnectionListener>();
 let stateReconnectTimer: number | null = null;
 let lastKnownState: CoreStatePayload | null = null;
@@ -63,6 +65,16 @@ function startStateSSE() {
       }
     });
 
+    // Event: 'log' -> Aliran log aktivitas konsol real-time (Zero Polling)
+    stateEventSource.addEventListener('log', (event: MessageEvent) => {
+      try {
+        const logEntry = JSON.parse(event.data);
+        logListeners.forEach((cb) => cb(logEntry));
+      } catch (err) {
+        console.error('Failed to parse SSE log:', err);
+      }
+    });
+
     stateEventSource.onerror = () => {
       isConnected = false;
       connectionListeners.forEach((cb) => cb(false));
@@ -84,7 +96,7 @@ function startStateSSE() {
 }
 
 function stopStateSSEIfNoListeners() {
-  if (stateListeners.size === 0 && actionListeners.size === 0 && connectionListeners.size === 0) {
+  if (stateListeners.size === 0 && actionListeners.size === 0 && logListeners.size === 0 && connectionListeners.size === 0) {
     if (stateReconnectTimer) {
       clearTimeout(stateReconnectTimer);
       stateReconnectTimer = null;
@@ -106,6 +118,7 @@ function forceCloseSSE() {
   }
   stateListeners.clear();
   actionListeners.clear();
+  logListeners.clear();
   connectionListeners.clear();
   if (stateEventSource) {
     try {
@@ -176,6 +189,27 @@ export const eventsService = {
       actionListeners.delete(onAction);
       stopStateSSEIfNoListeners();
     };
+  },
+
+  // 3. Subscribe Live Logs via SSE (Realtime zero-polling console stream)
+  subscribeLogs(onLog: (log: any) => void): () => void {
+    logListeners.add(onLog);
+    startStateSSE();
+
+    return () => {
+      logListeners.delete(onLog);
+      stopStateSSEIfNoListeners();
+    };
+  },
+
+  isSSEConnected(): boolean {
+    return isConnected;
+  },
+
+  async getActionsSince(lastId: number): Promise<{ actions: ClientAction[]; last_id: number }> {
+    const res = await fetch(`${API_BASE}/api/actions/since?last_id=${lastId}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
   },
 
   forceCloseSSE,

@@ -1,10 +1,23 @@
 import { API_BASE, fetchWithTimeout } from './base';
 
+export interface CloudflaredInfo {
+  available: boolean;
+  version: string;
+  path?: string | null;
+}
+
 export interface TunnelStatusResponse {
   status: 'stopped' | 'starting' | 'running';
   url: string | null;
   auth_key: string;
   error?: string;
+  cloudflared?: CloudflaredInfo;
+}
+
+export interface CloudflaredInstallResponse {
+  success: boolean;
+  message: string;
+  info?: CloudflaredInfo;
 }
 
 export const remoteService = {
@@ -41,6 +54,30 @@ export const remoteService = {
     } catch (e) {
       console.error('[RemoteService] stopTunnel error:', e);
       return { status: 'stopped', url: null, auth_key: '', error: String(e) };
+    }
+  },
+
+  async checkCloudflared(): Promise<CloudflaredInfo> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/remote/tunnel/check`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.error('[RemoteService] checkCloudflared error:', e);
+    }
+    return { available: false, version: '' };
+  },
+
+  async installCloudflared(): Promise<CloudflaredInstallResponse> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/remote/tunnel/install`, {
+        method: 'POST',
+      }, 60000);
+      return await res.json();
+    } catch (e) {
+      console.error('[RemoteService] installCloudflared error:', e);
+      return { success: false, message: String(e) };
     }
   },
 

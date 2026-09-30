@@ -205,10 +205,34 @@ export class MobileAudioSyncManager {
     }
   }
 
-  public seekMusic(secs: number) {
+  private isDucked = false;
+  private preDuckVolume = 1.0;
+
+  /**
+   * Turunkan volume musik sementara saat AI asisten berbicara (audio ducking)
+   */
+  public duckMusic(duckLevel: number = 0.2) {
+    if (this.musicAudio && !this.musicAudio.paused && !this.isDucked) {
+      this.isDucked = true;
+      this.preDuckVolume = this.musicAudio.volume;
+      this.musicAudio.volume = Math.max(0, Math.min(1, duckLevel));
+    }
+  }
+
+  /**
+   * Pulihkan volume musik normal setelah AI asisten selesai berbicara
+   */
+  public unduckMusic() {
+    if (this.musicAudio && this.isDucked) {
+      this.isDucked = false;
+      this.musicAudio.volume = this.preDuckVolume;
+    }
+  }
+
+  public setVolume(vol: number) {
     if (this.musicAudio) {
-      this.musicAudio.currentTime = secs;
-      this.emitTrackState();
+      this.musicAudio.volume = Math.max(0, Math.min(1, vol));
+      this.preDuckVolume = this.musicAudio.volume;
     }
   }
 

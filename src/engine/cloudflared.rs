@@ -1,7 +1,15 @@
+use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CloudflaredInfo {
+    pub available: bool,
+    pub version: String,
+    pub path: Option<String>,
+}
 
 pub struct CloudflaredTunnelManager {
     child: Option<Child>,
@@ -103,6 +111,124 @@ fn resolve_cloudflared_bin() -> std::path::PathBuf {
     } else {
         "cloudflared"
     })
+}
+
+pub fn parse_cloudflared_version(stdout: &str) -> String {
+    let first_line = stdout.lines().next().unwrap_or("").trim();
+    let tokens: Vec<&str> = first_line.split_whitespace().collect();
+    let raw_version = if let Some(pos) = tokens.iter().position(|&t| t.eq_ignore_ascii_case("version")) {
+        tokens.get(pos + 1).copied().unwrap_or("")
+    } else {
+        tokens
+            .iter()
+            .find(|&&t| t.chars().any(|c| c.is_ascii_digit()))
+            .copied()
+            .unwrap_or("")
+    };
+    raw_version
+        .trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '.' && c != '-')
+        .to_string()
+}
+
+pub fn check_cloudflared() -> CloudflaredInfo {
+    let bin_path = resolve_cloudflared_bin();
+    let mut cmd = Command::new(&bin_path);
+    cmd.arg("--version");
+    match cmd.output() {
+        Ok(out) if out.status.success() => {
+            let full_out = String::from_utf8_lossy(&out.stdout);
+            let version = parse_cloudflared_version(&full_out);
+            CloudflaredInfo {
+                available: true,
+                version: if version.is_empty() {
+                    full_out.trim().to_string()
+                } else {
+                    version
+                },
+                path: Some(bin_path.to_string_lossy().to_string()),
+            }
+        }
+        _ => CloudflaredInfo {
+            available: false,
+            version: String::new(),
+            path: None,
+        },
+    }
+}
+
+pub fn install_cloudflared() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let out = Command::new("winget")
+            .args([
+                "install",
+                "--id",
+                "Cloudflare.cloudflared",
+                "-e",
+                "--accept-source-agreements",
+                "--accept-package-agreements",
+            ])
+            .output()
+            .map_err(|e| format!("Failed to run winget: {}", e))?;
+        if out.status.success() {
+            Ok("cloudflared berhasil diinstall via winget".to_string())
+        } else {
+            Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let out = Command::new("brew")
+            .args(["install", "cloudflared"])
+            .output()
+            .map_err(|e| format!("Failed to run brew: {}", e))?;
+        if out.status.success() {
+            Ok("cloudflared berhasil diinstall via brew".to_string())
+        } else {
+            Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let home = std::env::var("HOME")
+            .map_err(|_| "HOME environment variable tidak ditemukan".to_string())?;
+        let bin_dir = std::path::PathBuf::from(home).join(".local").join("bin");
+        std::fs::create_dir_all(&bin_dir)
+            .map_err(|e| format!("Gagal membuat folder ~/.local/bin: {}", e))?;
+        let target_path = bin_dir.join("cloudflared");
+
+        let arch = if cfg!(target_arch = "aarch64") {
+            "arm64"
+        } else {
+            "amd64"
+        };
+        let url = format!(
+            "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-{}",
+            arch
+        );
+
+        let out = Command::new("curl")
+            .args(["-L", "-o", target_path.to_str().unwrap(), &url])
+            .output()
+            .map_err(|e| format!("Gagal menjalankan curl: {}", e))?;
+
+        if !out.status.success() {
+            return Err("Gagal mengunduh binary cloudflared via curl".to_string());
+        }
+
+        let _ = Command::new("chmod")
+            .args(["+x", target_path.to_str().unwrap()])
+            .output();
+
+        Ok(format!(
+            "cloudflared berhasil diunduh ke {}",
+            target_path.display()
+        ))
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        Err("Sistem operasi tidak didukung untuk instalasi otomatis".to_string())
+    }
 }
 
 pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), String> {
@@ -253,5 +379,22 @@ impl Drop for CloudflaredTunnelManager {
                     .output();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_cloudflared_version() {
+        let sample1 = "cloudflared version 2026.8.3 (Checksum f29324fe934d1e100617484c78deef803c4dc2cd351d645bbde42e96b4fccc5e)";
+        assert_eq!(parse_cloudflared_version(sample1), "2026.8.3");
+
+        let sample2 = "cloudflared version 2024.1.5 (built 2024-01-15-1200)";
+        assert_eq!(parse_cloudflared_version(sample2), "2024.1.5");
+
+        let sample3 = "cloudflared 2023.10.0";
+        assert_eq!(parse_cloudflared_version(sample3), "2023.10.0");
     }
 }

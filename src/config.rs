@@ -46,11 +46,21 @@ pub fn push_log(level: &str, message: String) {
     }
 }
 
-pub fn get_all_logs() -> Vec<LogEntry> {
+pub fn get_logs_since(last_id: usize) -> (Vec<LogEntry>, usize) {
     if let Ok(buf) = LOG_BUFFER.lock() {
-        buf.iter().cloned().collect()
+        let items: Vec<LogEntry> = buf.iter().filter(|l| l.id > last_id).cloned().collect();
+        let new_last_id = buf.back().map_or(last_id, |l| l.id).max(last_id);
+        (items, new_last_id)
     } else {
-        Vec::new()
+        (Vec::new(), last_id)
+    }
+}
+
+pub fn get_latest_log_id() -> usize {
+    if let Ok(buf) = LOG_BUFFER.lock() {
+        buf.back().map_or(0, |l| l.id)
+    } else {
+        0
     }
 }
 

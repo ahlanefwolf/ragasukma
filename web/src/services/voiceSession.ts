@@ -590,11 +590,13 @@ export class VoiceSessionManager {
     let textToSpeak = '';
     let speakEmotion = 'neutral';
     let audioUrl: string | null = null;
+    let isNativePlayed = false;
     try {
       const parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;
       textToSpeak = parsed.text || '';
       speakEmotion = parsed.emotion || 'neutral';
       audioUrl = parsed.audio_url || null;
+      isNativePlayed = !!parsed.native_played;
     } catch {
       textToSpeak = typeof payload === 'string' ? payload : '';
     }
@@ -610,6 +612,16 @@ export class VoiceSessionManager {
       this.lastSpokenText = textToSpeak;
       this.lastSpokenTime = now;
       this.recordAssistantSpeech(textToSpeak);
+    }
+
+    if (isNativePlayed) {
+      // Backend memutar audio langsung ke hardware speaker PC (Zero duplicate/echo)
+      this.cancelListeningWatchdog();
+      this.isListeningActive = false;
+      try {
+        this.recognition?.abort();
+      } catch {}
+      return;
     }
 
     const sessionId = ++this.speakSessionId;

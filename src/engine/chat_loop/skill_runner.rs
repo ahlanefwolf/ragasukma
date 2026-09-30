@@ -20,7 +20,11 @@ pub fn handle_skill_execution(
 ) {
     let mut executed_skill_ids = std::collections::HashSet::new();
 
-    for cap in RE_SKILL.captures_iter(full_reply) {
+    // Universal normalization: map any raw tool-call blocks (<dots_function_call>, <invoke>, etc.)
+    // to canonical [CMD:...] so commands from any LLM model run reliably.
+    let normalized_reply = crate::llm::cleaner::normalize_tool_calls_to_commands(full_reply);
+
+    for cap in RE_SKILL.captures_iter(&normalized_reply) {
         if let Some(matched_id) = cap.get(1) {
             let id = matched_id.as_str().trim().to_string();
 
@@ -62,8 +66,7 @@ pub fn handle_skill_execution(
                     if let Ok(snap) = crate::engine::window_scanner::scan_active_window_sync() {
                         let _ = snap.save_to_file();
                     }
-                } else if id_lower.starts_with("desktop:focus")
-                    || id_lower.starts_with("app:open")
+                } else if id_lower.starts_with("desktop:focus") || id_lower.starts_with("app:open")
                 {
                     std::thread::sleep(std::time::Duration::from_millis(500));
                     if let Ok(snap) = crate::engine::window_scanner::scan_active_window_sync() {

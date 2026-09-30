@@ -3,7 +3,7 @@ use std::net::TcpStream;
 use crate::server::send_json_response;
 
 pub fn handle_get_logs(stream: &mut TcpStream) {
-    let logs = crate::config::get_all_logs();
+    let (logs, _) = crate::config::get_logs_since(0);
     let json = serde_json::to_string(&logs).unwrap_or_default();
     send_json_response(stream, 200, &json);
 }

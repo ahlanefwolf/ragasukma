@@ -11,7 +11,8 @@ import {
   RefreshCw,
   Sparkles
 } from 'lucide-solid';
-import { api } from '../api';
+import { api, CloudflaredInfo } from '../api';
+import { CloudflaredStatusCard } from './CloudflaredStatusCard';
 
 interface RemoteTabProps {
   showToast: (msg: string) => void;
@@ -25,18 +26,40 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
   const [copied, setCopied] = createSignal(false);
   const [qrDataUrl, setQrDataUrl] = createSignal<string>('');
 
+  // Status binary cloudflared (mirip yt-dlp di MusicTab)
+  const [cfInfo, setCfInfo] = createSignal<CloudflaredInfo | null>(null);
+  const [checkingCf, setCheckingCf] = createSignal(true);
+  const [installingCf, setInstallingCf] = createSignal(false);
+  const [installCfMsg, setInstallCfMsg] = createSignal<string | null>(null);
+  const [copiedCmd, setCopiedCmd] = createSignal<string | null>(null);
+
   let pollTimer: any = null;
+
+  const checkCloudflared = async (silent = false) => {
+    if (!silent) setCheckingCf(true);
+    try {
+      const info = await api.checkCloudflared();
+      setCfInfo(info);
+    } finally {
+      setCheckingCf(false);
+    }
+  };
 
   const fetchStatus = async () => {
     const res = await api.getTunnelStatus();
     setTunnelStatus(res.status);
     if (res.url) setTunnelUrl(res.url);
     if (res.auth_key) setAuthKey(res.auth_key);
+    if (res.cloudflared) {
+      setCfInfo(res.cloudflared);
+      setCheckingCf(false);
+    }
     return res;
   };
 
   onMount(() => {
     fetchStatus();
+    checkCloudflared(false);
   });
 
   onCleanup(() => {
@@ -44,6 +67,10 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
   });
 
   const handleStartTunnel = async () => {
+    if (cfInfo() && !cfInfo()!.available) {
+      props.showToast('⚠️ cloudflared belum terinstall di komputer ini. Silakan install terlebih dahulu.');
+      return;
+    }
     setLoading(true);
     props.showToast('Memulai cloudflared tunnel...');
     const res = await api.startTunnel();
@@ -89,7 +116,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
 
   const getFullRemoteUrl = () => {
     if (!tunnelUrl()) return '';
-    return `${tunnelUrl()}/?key=${encodeURIComponent(authKey())}#remote`;
+    return `${tunnelUrl()}/?key=${encodeURIComponent(authKey())}#mobile`;
   };
 
   createEffect(() => {
@@ -124,6 +151,28 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
     });
   };
 
+  const handleInstallCf = async () => {
+    setInstallingCf(true);
+    setInstallCfMsg(null);
+    const res = await api.installCloudflared();
+    setInstallingCf(false);
+    if (res.success) {
+      setInstallCfMsg(res.message);
+      if (res.info) setCfInfo(res.info);
+      props.showToast('cloudflared berhasil diinstall!');
+    } else {
+      setInstallCfMsg('Gagal: ' + res.message);
+      props.showToast('Gagal install cloudflared');
+    }
+  };
+
+  const handleCopyCmd = (cmd: string) => {
+    navigator.clipboard.writeText(cmd).then(() => {
+      setCopiedCmd(cmd);
+      setTimeout(() => setCopiedCmd(null), 2000);
+    });
+  };
+
   return (
     <div class="space-y-6 animate-in fade-in duration-200">
       {/* Header Info */}
@@ -143,7 +192,10 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
 
         <div class="flex items-center gap-3 shrink-0">
           <button
-            onClick={fetchStatus}
+            onClick={() => {
+              fetchStatus();
+              checkCloudflared(false);
+            }}
             class="p-2.5 bg-theme-card border border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/50 transition-colors"
             title="Refresh Status"
           >
@@ -155,7 +207,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
             fallback={
               <button
                 onClick={handleStartTunnel}
-                disabled={loading()}
+                disabled={loading() || (!checkingCf() && !cfInfo()?.available)}
                 class="px-5 py-2.5 bg-theme-cyan text-theme-card font-bold text-sm border border-theme-cyan hover:opacity-90 transition-all flex items-center gap-2 shadow-md anime-shadow-green disabled:opacity-50"
               >
                 <Radio size={16} />
@@ -174,6 +226,18 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
           </Show>
         </div>
       </div>
+
+      {/* Cloudflared Binary Status Card (Mirip yt-dlp di MusicTab) */}
+      <CloudflaredStatusCard
+        checking={checkingCf}
+        info={cfInfo}
+        onRefresh={() => checkCloudflared(false)}
+        onInstall={handleInstallCf}
+        installing={installingCf}
+        installMsg={installCfMsg}
+        copiedCmd={copiedCmd}
+        onCopyCmd={handleCopyCmd}
+      />
 
       {/* Cloudflared Status Banner */}
       <div class="p-5 bg-theme-card border border-theme-border space-y-4">

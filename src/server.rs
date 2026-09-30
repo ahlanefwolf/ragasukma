@@ -224,6 +224,8 @@ pub fn handle_api_route(
 
         // Cloudflared Remote Tunnel & Mobile Voice
         ("GET", "/api/remote/tunnel/status") => handle_tunnel_status(&mut stream),
+        ("GET", "/api/remote/tunnel/check") => handle_tunnel_check(&mut stream),
+        ("POST", "/api/remote/tunnel/install") => handle_tunnel_install(&mut stream),
         ("POST", "/api/remote/tunnel/start") => handle_tunnel_start(&mut stream),
         ("POST", "/api/remote/tunnel/stop") => handle_tunnel_stop(&mut stream),
         ("POST", "/api/remote/active") => {
@@ -555,18 +557,12 @@ pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
     thread::spawn(move || {
         let addr = "127.0.0.1:42128";
         let listener = if let Some(prebound) = take_prebound_listener() {
-            println!(
-                "🌐 [Web Dashboard & API Server] Running at http://{}",
-                addr
-            );
+            println!("🌐 [Web Dashboard & API Server] Running at http://{}", addr);
             prebound
         } else {
             match TcpListener::bind(addr) {
                 Ok(l) => {
-                    println!(
-                        "🌐 [Web Dashboard & API Server] Running at http://{}",
-                        addr
-                    );
+                    println!("🌐 [Web Dashboard & API Server] Running at http://{}", addr);
                     l
                 }
                 Err(e) => {

@@ -7,11 +7,11 @@ pub fn focus_window(target: &str) -> bool {
     {
         use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
         use windows::Win32::UI::Input::KeyboardAndMouse::{
-            keybd_event, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, VK_MENU,
+            KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, VK_MENU, keybd_event,
         };
         use windows::Win32::UI::WindowsAndMessaging::{
-            BringWindowToTop, GetForegroundWindow, GetWindowThreadProcessId, IsIconic,
-            SetForegroundWindow, ShowWindow, SW_RESTORE, SW_SHOW,
+            BringWindowToTop, GetForegroundWindow, GetWindowThreadProcessId, IsIconic, SW_RESTORE,
+            SW_SHOW, SetForegroundWindow, ShowWindow,
         };
 
         if let Some(hwnd) = resolve_hwnd(target) {
@@ -166,7 +166,7 @@ pub fn minimize_window(target: &str) -> bool {
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::UI::WindowsAndMessaging::{
-            GetForegroundWindow, ShowWindow, SW_MINIMIZE,
+            GetForegroundWindow, SW_MINIMIZE, ShowWindow,
         };
         let hwnd = if target.is_empty() {
             unsafe { GetForegroundWindow() }
@@ -212,7 +212,7 @@ pub fn maximize_window(target: &str) -> bool {
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::UI::WindowsAndMessaging::{
-            GetForegroundWindow, ShowWindow, SW_MAXIMIZE,
+            GetForegroundWindow, SW_MAXIMIZE, ShowWindow,
         };
         let hwnd = if target.is_empty() {
             unsafe { GetForegroundWindow() }

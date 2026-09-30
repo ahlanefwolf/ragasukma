@@ -55,23 +55,12 @@ pub fn execute_media_action(action: &str, payload: &str) -> Option<(String, Stri
             });
 
             if let Some(track) = found {
-                // Jangan restart lagu jika track yang sama sedang aktif diputar (misal dipicu respon unduhan)
-                if let Some(current_title) = crate::audio::player::get_current_title() {
-                    if current_title.eq_ignore_ascii_case(&track.title)
-                        && crate::audio::player::is_playing()
-                    {
-                        return Some((
-                            "Play Music".to_string(),
-                            format!("Music '{}' is already playing", track.title),
-                        ));
-                    }
-                }
-
                 let file_path = music_dir.join(&track.filename);
                 // 1. Putar langsung lewat speaker desktop (Native Audio Player)
                 crate::audio::player::play_file(&file_path, &track.title);
 
-                // 2. Sinkronkan event ke Web Dashboard
+                // 2. Sinkronkan event ke Web Dashboard & Smartphone Client
+                // Selalu pancarkan event music:play agar audio HP/web dipaksa jalan kembali jika sebelumnya sempat terhenti
                 crate::app_state::push_client_action("music:play", Some(&track.title));
                 return Some((
                     "Play Music".to_string(),

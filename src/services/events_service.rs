@@ -13,7 +13,9 @@ fn write_sse_header(stream: &mut TcpStream) -> bool {
     let _ = stream.set_read_timeout(None);
     let _ = stream.set_write_timeout(None);
 
-    let header = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache, no-transform\r\nConnection: keep-alive\r\nAccess-Control-Allow-Origin: *\r\nX-Accel-Buffering: no\r\n\r\n";
+    // Kirim header SSE lengkap + initial comment byte ': connected\n\n'
+    // Ini krusial untuk Cloudflare Tunnel agar tidak mem-buffer / memblokir SSE handshake
+    let header = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache, no-transform\r\nConnection: keep-alive\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: *\r\nX-Accel-Buffering: no\r\n\r\n: connected\n\n";
     if stream.write_all(header.as_bytes()).is_err() {
         return false;
     }
@@ -39,6 +41,10 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
         return;
     }
 
+    // Sambungan SSE aktif otomatis menandakan remote client sedang terkoneksi (mute mic desktop)
+    crate::app_state::touch_remote_active();
+    crate::app_state::set_mic_muted(true);
+
     let mut last_state = String::new();
     let mut last_emotion = String::new();
     let mut last_voice_muted = false;
@@ -47,6 +53,7 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
     let mut initial_sent = false;
     let mut ping_ticks: u32 = 0;
     let mut last_action_id = crate::app_state::get_latest_action_id();
+    let mut last_log_id = crate::config::get_latest_log_id();
 
     loop {
         let mut had_activity = false;
@@ -121,6 +128,19 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
             }
         }
 
+        // 3. Alirkan log aktivitas real-time ke web console (event: log) - Zero Polling
+        let (new_logs, new_log_id) = crate::config::get_logs_since(last_log_id);
+        last_log_id = new_log_id;
+        for entry in new_logs {
+            if let Ok(log_json) = serde_json::to_string(&entry) {
+                let msg = format!("event: log\ndata: {}\n\n", log_json);
+                if stream.write_all(msg.as_bytes()).is_err() || stream.flush().is_err() {
+                    return;
+                }
+                had_activity = true;
+            }
+        }
+
         if had_activity {
             ping_ticks = 0;
         } else {
@@ -128,6 +148,8 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
             // Ping heartbeat setiap ~3 detik (30 * 100ms)
             if ping_ticks >= 30 {
                 ping_ticks = 0;
+                // Jaga status remote client tetap aktif selama koneksi SSE terbuka
+                crate::app_state::touch_remote_active();
                 let ping = ": ping\n\n";
                 if stream.write_all(ping.as_bytes()).is_err() || stream.flush().is_err() {
                     break;
@@ -159,7 +181,12 @@ pub fn handle_get_actions_since(full_url: &str, stream: &mut TcpStream) {
         })
         .unwrap_or(0);
 
-    let (actions, new_last_id) = crate::app_state::get_client_actions_since(last_id);
+    let (actions, new_last_id) = if last_id == 0 {
+        // First connection / refresh: hanya ambil ID terbaru tanpa mengirim ulang aksi riwayat lama!
+        (Vec::new(), crate::app_state::get_latest_action_id())
+    } else {
+        crate::app_state::get_client_actions_since(last_id)
+    };
     let resp = serde_json::json!({
         "actions": actions,
         "last_id": new_last_id

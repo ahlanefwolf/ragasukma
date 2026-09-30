@@ -129,7 +129,10 @@ api.subscribeActions(async (act) => {
     const hash = window.location.hash.toLowerCase();
     const origin = window.location.origin.toLowerCase();
     const search = window.location.search;
-    if (hash.includes('remote') || origin.includes('trycloudflare.com') || search.includes('key=')) {
+    const isMobileClient =
+      (search.includes('key=') || hash.includes('key=')) &&
+      (origin.includes('trycloudflare.com') || hash.includes('mobile'));
+    if (isMobileClient || hash === '#mobile' || hash === '#mobile-client') {
       return;
     }
   } catch (_) {}

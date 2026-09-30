@@ -79,16 +79,16 @@ pub fn resolve_emotion_layers<'a>(
             }
         }
         "excited" => {
-            if let Some(wink) = find_first_matching(expressions, &["blinkleft", "wink"]) {
-                layers.push(ActiveExpressionLayer {
-                    expr: wink,
-                    weight: 0.85,
-                });
-            }
             if let Some(joy) = find_expression(expressions, "happy") {
                 layers.push(ActiveExpressionLayer {
                     expr: joy,
-                    weight: 0.70,
+                    weight: 0.85,
+                });
+            }
+            if let Some(sparkle) = find_expression(expressions, "surprised") {
+                layers.push(ActiveExpressionLayer {
+                    expr: sparkle,
+                    weight: 0.25,
                 });
             }
         }
@@ -292,10 +292,16 @@ mod tests {
         assert_eq!(detect_emotion("*shy* oh don't say that..."), Some("shy"));
         assert_eq!(detect_emotion("*excited* let's go!"), Some("excited"));
         assert_eq!(detect_emotion("*surprised* really?"), Some("surprised"));
-        assert_eq!(detect_emotion("*thinking* hmm give me a second..."), Some("thinking"));
+        assert_eq!(
+            detect_emotion("*thinking* hmm give me a second..."),
+            Some("thinking")
+        );
         assert_eq!(detect_emotion("*sad* sorry about that..."), Some("sad"));
         assert_eq!(detect_emotion("*angry* stop that!"), Some("angry"));
-        assert_eq!(detect_emotion("*neutral* here is the info."), Some("neutral"));
+        assert_eq!(
+            detect_emotion("*neutral* here is the info."),
+            Some("neutral")
+        );
 
         // Fallback or without tag
         assert_eq!(detect_emotion("hello there, how are you?"), None);

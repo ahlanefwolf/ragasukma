@@ -173,17 +173,31 @@ fn main() -> Result<()> {
     crate::term_log!("====================================================");
 
     // Perbesar stack size session thread (16 MB) agar aman di AppImage/portable Linux
+    // Dilengkapi auto-recovery loop agar panic internal (misal driver audio) tidak mematikan sesi
     let session_thread = std::thread::Builder::new()
         .name("ragasukma-session".to_string())
         .stack_size(16 * 1024 * 1024)
-        .spawn(move || match AppSession::new(config_clone) {
-            Ok(mut session) => {
-                if let Err(e) = session.run_interactive_menu() {
-                    crate::term_err!("❌ [Session Error]: {:?}", e);
+        .spawn(move || loop {
+            let cfg = config_clone.clone();
+            let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                match AppSession::new(cfg) {
+                    Ok(mut session) => {
+                        if let Err(e) = session.run_interactive_menu() {
+                            crate::term_err!("❌ [Session Error]: {:?}", e);
+                        }
+                    }
+                    Err(e) => {
+                        crate::term_err!("❌ [AppSession Init Error]: {:?}", e);
+                    }
                 }
-            }
-            Err(e) => {
-                crate::term_err!("❌ [AppSession Init Error]: {:?}", e);
+            }));
+            if res.is_err() {
+                crate::term_err!(
+                    "⚠️ [Session Auto-Recover] Session thread pulih dari error tak terduga, memulai ulang loop sesi..."
+                );
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            } else {
+                break;
             }
         })
         .expect("Failed to create session thread");

@@ -1,28 +1,16 @@
-import { Component, createSignal, onMount, onCleanup, createEffect, For, Show } from 'solid-js';
-import { 
-  Terminal, 
-  RefreshCw, 
-  Send, 
-  Trash2, 
-  CheckCircle2, 
-  Mic, 
-  MicOff, 
-  Volume2, 
-  VolumeX, 
-  Copy,
-  Monitor,
-  Smartphone,
-  Music,
-  Play,
-  Pause,
-  Square
-} from 'lucide-solid';
+import { Component, createSignal, onMount, onCleanup, createEffect } from 'solid-js';
 import { api, LogEntry } from '../api';
 import { API_BASE } from '../services/base';
+import { getChromeSttCode } from '../services/configService';
 import { AvatarViewer } from './AvatarViewer';
 import { MobileAudioSyncManager, MobileTrackState } from './AudioSyncManager';
-
-type MobileAudioMode = 'remote_desktop' | 'full_mobile';
+import { MobileAudioMode } from './components/MobileHeader';
+import { MobileTopBar } from './components/MobileTopBar';
+import { MobileSettingsSheet } from './components/MobileSettingsSheet';
+import { MobileFloatingMusic } from './components/MobileFloatingMusic';
+import { MobileInteractionDock } from './components/MobileInteractionDock';
+import { MobileLogsDrawer } from './components/MobileLogsDrawer';
+import { MobileAudioUnlockModal } from './components/MobileAudioUnlockModal';
 
 interface MobileAppProps {
   authKey: string;
@@ -33,6 +21,10 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   const [inputText, setInputText] = createSignal('');
   const [isSending, setIsSending] = createSignal(false);
   const [lastSentText, setLastSentText] = createSignal('');
+  const [showLogsDrawer, setShowLogsDrawer] = createSignal(false);
+  const [showSettings, setShowSettings] = createSignal(false);
+  const [showTextInput, setShowTextInput] = createSignal(false);
+  const [viewportHeight, setViewportHeight] = createSignal<string>('100dvh');
 
   // Status Karakter Realtime
   const [visualState, setVisualState] = createSignal<'idle' | 'listening' | 'speaking' | 'thinking'>('idle');
@@ -67,7 +59,6 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
 
   let logsContainerRef: HTMLDivElement | undefined;
   let isFetchingLogs = false;
-  let isPollingActions = false;
   let speechRec: any = null;
   const audioSync = new MobileAudioSyncManager();
   let lastActionId = 0;
@@ -88,61 +79,32 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     }
   };
 
-  // Heartbeat Polling State Fallback (Menembus buffering tunnel Cloudflare / proxy seluler)
-  const pollServerState = async () => {
-    if (document.hidden) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/state`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.state) {
-          const s = data.state.toLowerCase();
-          if (['idle', 'listening', 'speaking', 'thinking'].includes(s)) {
-            setVisualState(s as any);
-          }
-          if (data.emotion) {
-            setEmotion(data.emotion);
-          }
-        }
-      }
-    } catch (_) {}
-  };
-
-  // Polling Actions Resilient: Mengambil event assistant:speak & music:play meskipun SSE dibuffer Cloudflare
-  const pollServerActions = async () => {
-    if (isPollingActions || document.hidden) return;
-    isPollingActions = true;
-    try {
-      const res = await fetch(`${API_BASE}/api/actions/since?last_id=${lastActionId}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && Array.isArray(data.actions)) {
-          for (const act of data.actions) {
-            handleIncomingAction(act);
-          }
-          if (data.last_id && data.last_id > lastActionId) {
-            lastActionId = data.last_id;
-          }
-        }
-      }
-    } catch (_) {} finally {
-      isPollingActions = false;
-    }
-  };
-
   const notifyRemoteActive = () => {
     fetch(`${API_BASE}/api/remote/active`, { method: 'POST' }).catch(() => {});
   };
 
+  let activeVoiceAudio: HTMLAudioElement | null = null;
+
   const speakOnMobile = (text: string, em: string, audioUrl?: string | null) => {
     if (!isHpAudioActive()) return;
 
-    audioSync.stopAll();
+    // Hentikan suara TTS sebelumnya jika ada (jangan matikan musik!)
+    if (activeVoiceAudio) {
+      try {
+        activeVoiceAudio.pause();
+        activeVoiceAudio.currentTime = 0;
+      } catch {}
+      activeVoiceAudio = null;
+    }
+
+    // Audio Ducking: turunkan volume musik agar suara AI terdengar jelas
+    audioSync.duckMusic(0.25);
     setEmotion(em);
 
     const playAudio = (url: string, revokeOnEnd = false) => {
       const fullUrl = url.startsWith('http') || url.startsWith('blob:') ? url : `${API_BASE}${url}`;
       const audio = new Audio(fullUrl);
+      activeVoiceAudio = audio;
 
       let hasReportedSpeaking = false;
       const notifySpeaking = () => {
@@ -160,7 +122,13 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       audio.onplay = notifySpeaking;
 
       audio.onended = () => {
+        if (activeVoiceAudio === audio) {
+          activeVoiceAudio = null;
+        }
+        // Pulihkan volume musik normal
+        audioSync.unduckMusic();
         setVisualState('idle');
+        setEmotion('neutral');
         if (revokeOnEnd) {
           try { URL.revokeObjectURL(url); } catch {}
         }
@@ -173,12 +141,22 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
 
       audio.onerror = (e) => {
         console.warn('[Mobile Supertonic Audio] Playback error:', e);
+        if (activeVoiceAudio === audio) {
+          activeVoiceAudio = null;
+        }
+        audioSync.unduckMusic();
         setVisualState('idle');
+        setEmotion('neutral');
       };
 
       audio.play().catch((err) => {
         console.warn('[Mobile Supertonic Audio] Play blocked/interrupted:', err);
+        if (activeVoiceAudio === audio) {
+          activeVoiceAudio = null;
+        }
+        audioSync.unduckMusic();
         setVisualState('idle');
+        setEmotion('neutral');
       });
     };
 
@@ -189,6 +167,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
 
     if (!text.trim()) {
       setVisualState('idle');
+      setEmotion('neutral');
       return;
     }
 
@@ -213,6 +192,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       .catch((err) => {
         console.warn('[Mobile Supertonic Audio] Synthesize fetch error:', err);
         setVisualState('idle');
+        setEmotion('neutral');
       });
   };
 
@@ -246,25 +226,62 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       }
     }
 
-    // 2. Musik streaming dialirkan ke HP
-    if (act.action === 'music:play' && isHpAudioActive()) {
-      audioSync.playMusic(act.payload);
+    // 2. Musik streaming dialirkan ke HP atau dikontrol di PC
+    if (act.action === 'music:play') {
+      const trackTitle = typeof act.payload === 'string' ? act.payload : 'Lagu Desktop';
+      if (isHpAudioActive()) {
+        audioSync.playMusic(act.payload);
+      } else {
+        setMobileMusicState({
+          track: { id: '', title: trackTitle, uploader: 'Desktop Audio', duration: 0, filename: '' },
+          isPlaying: true,
+          isPaused: false,
+          currentTime: 0,
+          duration: 0,
+        });
+      }
     } else if (act.action === 'music:pause') {
-      audioSync.pauseMusic();
-    } else if (act.action === 'music:resume' && isHpAudioActive()) {
-      audioSync.resumeMusic();
+      if (isHpAudioActive()) {
+        audioSync.pauseMusic();
+      } else {
+        setMobileMusicState((prev) => ({ ...prev, isPlaying: false, isPaused: true }));
+      }
+    } else if (act.action === 'music:resume') {
+      if (isHpAudioActive()) {
+        audioSync.resumeMusic();
+      } else {
+        setMobileMusicState((prev) => ({ ...prev, isPlaying: true, isPaused: false }));
+      }
     } else if (act.action === 'music:stop') {
-      audioSync.stopMusic();
+      if (isHpAudioActive()) {
+        audioSync.stopMusic();
+      } else {
+        setMobileMusicState({
+          track: null,
+          isPlaying: false,
+          isPaused: false,
+          currentTime: 0,
+          duration: 0,
+        });
+      }
     }
   };
 
-  const setupSpeechRecognition = () => {
+  const [mobileLang, setMobileLang] = createSignal('id');
+
+  const setupSpeechRecognition = (langCode: string = 'id') => {
     if (typeof window === 'undefined') return;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
+    if (speechRec) {
+      try {
+        speechRec.stop();
+      } catch {}
+    }
+
     speechRec = new SpeechRecognition();
-    speechRec.lang = 'id-ID';
+    speechRec.lang = getChromeSttCode(langCode);
     speechRec.interimResults = false;
     speechRec.continuous = false;
 
@@ -326,34 +343,68 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
 
   const switchAudioMode = async (mode: MobileAudioMode) => {
     if (audioMode() === mode) return;
-    setAudioMode(mode);
     try {
       localStorage.setItem('ragasukma_audio_mode', mode);
     } catch {}
 
     if (mode === 'remote_desktop') {
       audioSync.stopAll();
-      await api.sendCommand('mode_remote_desktop');
-      props.showToast('🖥️ Mode Remote Desktop: Suara di Desktop, Mic PC Mute');
+      try {
+        await api.sendCommand('mode_remote_desktop');
+      } catch {}
+      props.showToast('🖥️ Beralih ke Mode Remote Desktop... memuat ulang');
     } else {
-      // Full HP: Suara TTS & musik dialihkan ke smartphone
-      if (!hasUnlockedAudio()) {
-        unlockAudioContext(true);
-      }
-      await api.sendCommand('mode_full_mobile');
-      props.showToast('📱 Mode Full Mobile: Suara di HP, Desktop Senyap');
+      try {
+        await api.sendCommand('mode_full_mobile');
+      } catch {}
+      props.showToast('📱 Beralih ke Mode Full Mobile... memuat ulang');
     }
+
+    // Refresh halaman agar AudioContext, SSE, dan state audio ter-reinitialisasi secara bersih
+    setTimeout(() => {
+      window.location.reload();
+    }, 250);
   };
 
   onMount(() => {
+    audioSync.setOnTrackStateChange((st) => {
+      setMobileMusicState(st);
+    });
+
     notifyRemoteActive();
     // Sinkronkan mode awal audio ke server (memastikan mic desktop langsung di-mute)
     const initMode = audioMode();
     api.sendCommand(initMode === 'full_mobile' ? 'mode_full_mobile' : 'mode_remote_desktop').catch(() => {});
-    setupSpeechRecognition();
+
+    // Sinkronkan bahasa STT dari config server secara dinamis
+    api.getConfig().then((cfg) => {
+      if (cfg && cfg.lang) {
+        setMobileLang(cfg.lang);
+        setupSpeechRecognition(cfg.lang);
+      } else {
+        setupSpeechRecognition('id');
+      }
+    }).catch(() => {
+      setupSpeechRecognition('id');
+    });
+
     fetchLogs();
-    pollServerState();
-    pollServerActions();
+
+    // Pantau Virtual Keyboard di HP via VisualViewport agar layout tidak tertutup keyboard
+    const updateViewport = () => {
+      if (window.visualViewport) {
+        setViewportHeight(`${window.visualViewport.height}px`);
+      } else {
+        setViewportHeight('100dvh');
+      }
+    };
+    updateViewport();
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewport);
+      window.visualViewport.addEventListener('scroll', updateViewport);
+    } else {
+      window.addEventListener('resize', updateViewport);
+    }
 
     // Auto-unlock audio HP pada sentuhan/interaksi pertama pengguna
     const handleFirstInteraction = () => {
@@ -364,49 +415,72 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     window.addEventListener('touchstart', handleFirstInteraction, { once: true, passive: true });
     window.addEventListener('click', handleFirstInteraction, { once: true });
 
-    // Loop polling log, state heartbeat, actions polling, dan remote keep-alive
-    const logsInterval = setInterval(fetchLogs, 2500);
-    const stateInterval = setInterval(pollServerState, 800);
-    const actionsInterval = setInterval(pollServerActions, 600);
-    const keepAliveInterval = setInterval(notifyRemoteActive, 10000);
+    // Polling Terpadu Super Cepat & Ringan (Murni Polling HTTP GET - 100% Kebal Blokir SSE)
+    let pollTick = 0;
+    const pollInterval = setInterval(async () => {
+      if (document.hidden) return;
+      pollTick++;
 
-    audioSync.setOnStateChange((st) => {
-      if (['idle', 'listening', 'speaking', 'thinking'].includes(st)) {
-        setVisualState(st as any);
-      }
-    });
-
-    audioSync.setOnTrackStateChange((st) => {
-      setMobileMusicState(st);
-    });
-
-    // 1. Subscribe Realtime SSE State
-    const unsubState = api.subscribeState((st) => {
-      if (st && st.state) {
-        const s = st.state.toLowerCase();
-        if (['idle', 'listening', 'speaking', 'thinking'].includes(s)) {
-          setVisualState(s as any);
+      // 1. Actions polling (assistant:speak & music:play) - Setiap 750ms
+      try {
+        const res = await api.getActionsSince(lastActionId);
+        if (res && res.actions && Array.isArray(res.actions)) {
+          if (lastActionId === 0 && res.last_id) {
+            lastActionId = res.last_id;
+          } else {
+            for (const act of res.actions) {
+              handleIncomingAction(act);
+            }
+            if (res.last_id) {
+              lastActionId = Math.max(lastActionId, res.last_id);
+            }
+          }
         }
-        if ((st as any).emotion) {
-          setEmotion((st as any).emotion);
-        }
-      }
-    });
+      } catch {}
 
-    // 2. Subscribe Action Events dari SSE
-    const unsubActions = api.subscribeActions((act) => {
-      handleIncomingAction(act);
-    });
+      // 2. State polling (idle, speaking, listening, thinking, emotion) - Setiap 750ms
+      try {
+        const stRes = await fetch(`${API_BASE}/api/state`);
+        if (stRes.ok) {
+          const st = await stRes.json();
+          if (st && st.state) {
+            const s = st.state.toLowerCase();
+            if (['idle', 'listening', 'speaking', 'thinking'].includes(s)) {
+              setVisualState(s as any);
+            }
+            if (st.emotion) {
+              setEmotion(st.emotion);
+            } else if (s === 'idle') {
+              setEmotion('neutral');
+            }
+          }
+        }
+      } catch {}
+
+      // 3. Logs polling (jika drawer log dibuka, poll setiap ~2.2s; jika tertutup poll setiap ~6s)
+      if (showLogsDrawer()) {
+        if (pollTick % 3 === 0) fetchLogs();
+      } else {
+        if (pollTick % 8 === 0) fetchLogs();
+      }
+
+      // 4. Remote active heartbeat ke host setiap ~10 detik
+      if (pollTick % 13 === 0) {
+        notifyRemoteActive();
+      }
+    }, 750);
 
     onCleanup(() => {
+      document.title = 'Ragasukma - Konfigurasi & Dashboard AI';
       window.removeEventListener('touchstart', handleFirstInteraction);
       window.removeEventListener('click', handleFirstInteraction);
-      clearInterval(logsInterval);
-      clearInterval(stateInterval);
-      clearInterval(actionsInterval);
-      clearInterval(keepAliveInterval);
-      unsubState();
-      unsubActions();
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewport);
+        window.visualViewport.removeEventListener('scroll', updateViewport);
+      } else {
+        window.removeEventListener('resize', updateViewport);
+      }
+      clearInterval(pollInterval);
       if (speechRec) {
         try {
           speechRec.onstart = null;
@@ -428,6 +502,22 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     }
   });
 
+  // Sinkronisasi title tab browser di mobile (Default: "Ragasukma", Saat musik: "▶ Judul - Ragasukma")
+  createEffect(() => {
+    const st = mobileMusicState();
+    if (st.track && st.track.title) {
+      if (st.isPlaying) {
+        document.title = `▶ ${st.track.title} - Ragasukma`;
+      } else if (st.isPaused) {
+        document.title = `⏸ ${st.track.title} - Ragasukma`;
+      } else {
+        document.title = 'Ragasukma';
+      }
+    } else {
+      document.title = 'Ragasukma';
+    }
+  });
+
   const sendTextToHost = async (customText?: string) => {
     if (!hasUnlockedAudio()) {
       unlockAudioContext(true);
@@ -445,8 +535,6 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         setInputText('');
         setVisualState('thinking');
         props.showToast(`✅ Terkirim: "${textToSend}"`);
-        setTimeout(fetchLogs, 300);
-        setTimeout(pollServerActions, 500);
       } else {
         props.showToast(`⚠️ ${res.error || 'Gagal mengirim pesan'}`);
       }
@@ -492,267 +580,109 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   };
 
   return (
-    <div class="relative flex flex-col h-full w-full bg-theme-bg select-text max-w-lg mx-auto shadow-2xl overflow-hidden">
-      {/* 1. Modal Overlay Sambutan: Aktifkan Audio HP (Hanya saat mode Full HP & belum unlock) */}
-      <Show when={isHpAudioActive() && !hasUnlockedAudio()}>
-        <div class="absolute inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-6 text-center select-none">
-          <div class="max-w-xs w-full bg-theme-surface border border-theme-cyan/50 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
-            <div class="w-16 h-16 rounded-full bg-theme-cyan/20 border border-theme-cyan/40 flex items-center justify-center text-theme-cyan shadow-[0_0_20px_var(--cyan)]">
-              <Volume2 size={32} />
-            </div>
+    <div
+      class="relative w-full bg-theme-bg select-text max-w-lg mx-auto shadow-2xl overflow-hidden flex flex-col justify-between"
+      style={{ height: viewportHeight() }}
+    >
+      {/* 1. Modal Unlock Audio HP (1x Interaksi) */}
+      <MobileAudioUnlockModal
+        show={isHpAudioActive() && !hasUnlockedAudio()}
+        onUnlock={() => unlockAudioContext(false)}
+      />
 
-            <div class="space-y-1">
-              <h2 class="text-base font-heading font-bold text-theme-text">
-                Hubungkan Audio HP
-              </h2>
-              <p class="text-xs text-theme-text/60 leading-relaxed">
-                Browser smartphone memerlukan 1x izin sentuhan agar suara asisten & musik otomatis dialihkan ke speaker smartphone ini.
-              </p>
-            </div>
+      {/* 2. Floating Top Controls (Ultra Clean: Floating Status Pill Kiri & Tombol Settings Kanan) */}
+      <MobileTopBar
+        visualState={visualState()}
+        onOpenSettings={() => setShowSettings(true)}
+        logsCount={logs().length}
+      />
 
-            <button
-              type="button"
-              onClick={() => unlockAudioContext(false)}
-              class="w-full py-3 px-4 bg-theme-cyan text-theme-card font-bold text-xs uppercase tracking-wider rounded-xl shadow-[0_0_15px_var(--cyan)] active:scale-95 transition-transform"
-            >
-              Aktifkan Audio HP
-            </button>
-          </div>
-        </div>
-      </Show>
+      {/* Sheet Pengaturan Companion */}
+      <MobileSettingsSheet
+        isOpen={showSettings()}
+        onClose={() => setShowSettings(false)}
+        audioMode={audioMode()}
+        onSwitchMode={switchAudioMode}
+        logsCount={logs().length}
+        onOpenLogs={() => setShowLogsDrawer(true)}
+        onUnlockAudio={() => unlockAudioContext(false)}
+      />
 
-      {/* 2. Top Bar Mobile */}
-      <header class="h-12 px-3 bg-theme-surface border-b border-theme-border flex items-center justify-between shrink-0 shadow-sm select-none z-10">
-        <div class="flex items-center gap-2">
-          <span class="w-2.5 h-2.5 rounded-full bg-theme-cyan shadow-[0_0_8px_var(--cyan)] animate-pulse" />
-          <h1 class="text-xs sm:text-sm font-heading font-bold text-theme-text tracking-wide">
-            Ragasukma Remote
-          </h1>
-        </div>
-
-        {/* Audio Mode Switcher: Remote Desktop vs Full Mobile */}
-        <div class="flex items-center bg-theme-card/90 p-0.5 rounded-lg border border-theme-border text-[10px] font-mono">
-          <button
-            type="button"
-            onClick={() => switchAudioMode('remote_desktop')}
-            class={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all ${
-              audioMode() === 'remote_desktop'
-                ? 'bg-theme-cyan text-theme-card font-bold shadow-sm'
-                : 'text-theme-text/60 hover:text-theme-text'
-            }`}
-            title="Mode Remote Desktop: Suara TTS & Musik di Desktop, Smartphone hening, Mic Desktop mute"
-          >
-            <Monitor size={12} />
-            <span>Remote PC</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => switchAudioMode('full_mobile')}
-            class={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all ${
-              audioMode() === 'full_mobile'
-                ? 'bg-emerald-500 text-white font-bold shadow-sm'
-                : 'text-theme-text/60 hover:text-theme-text'
-            }`}
-            title="Mode Full Mobile: Suara TTS & Musik di HP, Desktop senyap/mute, Mic Desktop mute"
-          >
-            <Smartphone size={12} />
-            <span>Full HP</span>
-          </button>
-        </div>
-      </header>
-
-      {/* 3. Avatar Karakter Area (3D VRM GPU dengan Pinch-to-Zoom & Orbit di HP) */}
-      <div class="p-3 bg-theme-surface/40 shrink-0">
-        <AvatarViewer 
-          state={visualState()} 
-          emotion={emotion()} 
-          isAudioStreaming={isHpAudioActive()} 
+      {/* 3. Karakter 3D VRM 100% Fullscreen Penuh Tanpa Terpotong Padding */}
+      <div class="absolute inset-0 z-0 w-full h-full">
+        <AvatarViewer
+          state={visualState()}
+          emotion={emotion()}
+          isAudioStreaming={isHpAudioActive()}
         />
       </div>
 
-      {/* 3b. Now Playing Music Player Mini Card (Hanya saat Full HP) */}
-      <Show when={isHpAudioActive() && mobileMusicState().track}>
-        <div class="px-3 py-2 bg-theme-card/90 border-y border-theme-border flex items-center justify-between gap-3 shrink-0">
-          <div class="flex items-center gap-2.5 min-w-0">
-            <div class="w-8 h-8 rounded-lg bg-theme-cyan/20 border border-theme-cyan/30 flex items-center justify-center shrink-0">
-              <Show when={mobileMusicState().isPlaying} fallback={<Music size={14} class="text-theme-cyan" />}>
-                <div class="flex items-end justify-center gap-0.5 h-3">
-                  <span class="w-1 bg-theme-cyan animate-[pulse_0.6s_ease-in-out_infinite] h-2" />
-                  <span class="w-1 bg-theme-rose animate-[pulse_0.9s_ease-in-out_infinite] h-3" />
-                  <span class="w-1 bg-theme-cyan animate-[pulse_0.7s_ease-in-out_infinite] h-2" />
-                </div>
-              </Show>
-            </div>
-            <div class="min-w-0">
-              <div class="flex items-center gap-1.5">
-                <span class="text-[9px] font-mono font-bold px-1.5 py-0.5 bg-theme-cyan/20 text-theme-cyan rounded">
-                  {mobileMusicState().isPlaying ? 'PLAYING' : 'PAUSED'}
-                </span>
-                <p class="text-xs font-bold text-theme-text truncate">
-                  {mobileMusicState().track?.title}
-                </p>
-              </div>
-              <p class="text-[10px] text-theme-text/50 truncate">
-                {mobileMusicState().track?.uploader || 'Local Library'}
-              </p>
-            </div>
-          </div>
+      {/* Spacer fleksibel tengah agar kontrol melayang di bawah */}
+      <div class="flex-1 min-h-0 pointer-events-none" />
 
-          <div class="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={() => {
+      {/* 4. Kontrol Bagian Bawah: Floating Music + Circular Interaction Dock */}
+      <div class="relative z-20 w-full max-w-md mx-auto pointer-events-auto flex flex-col gap-1.5">
+        {/* Floating Music Player Mini Card (Jika Ada Musik Diputar) */}
+        <div class="px-3">
+          <MobileFloatingMusic
+            trackState={mobileMusicState()}
+            isHpAudio={isHpAudioActive()}
+            onTogglePlay={async () => {
+              if (isHpAudioActive()) {
                 if (mobileMusicState().isPlaying) {
                   audioSync.pauseMusic();
                 } else {
                   audioSync.resumeMusic();
                 }
-              }}
-              class="p-2 rounded-lg bg-theme-surface hover:bg-theme-border border border-theme-border text-theme-cyan transition-all active:scale-95"
-              title={mobileMusicState().isPlaying ? 'Jeda' : 'Lanjutkan'}
-            >
-              <Show when={mobileMusicState().isPlaying} fallback={<Play size={13} class="fill-current" />}>
-                <Pause size={13} />
-              </Show>
-            </button>
-            <button
-              onClick={() => audioSync.stopMusic()}
-              class="p-2 rounded-lg bg-theme-surface hover:bg-theme-rose/20 border border-theme-border text-theme-text/60 hover:text-theme-rose transition-all active:scale-95"
-              title="Stop"
-            >
-              <Square size={13} />
-            </button>
-          </div>
-        </div>
-      </Show>
-
-      {/* 4. Text & Voice Input Section */}
-      <div class="p-3 bg-gradient-to-b from-theme-surface to-theme-bg border-y border-theme-border flex flex-col shrink-0 space-y-2.5">
-        <Show when={lastSentText()}>
-          <div class="w-full px-3 py-1.5 bg-theme-card border border-theme-border rounded-lg flex items-center gap-2 shadow-inner">
-            <CheckCircle2 size={13} class="text-theme-cyan shrink-0" />
-            <div class="min-w-0 flex-1">
-              <span class="text-[9px] text-theme-text/50 font-mono block">Perintah Terakhir:</span>
-              <p class="text-xs font-semibold text-theme-cyan truncate">
-                "{lastSentText()}"
-              </p>
-            </div>
-          </div>
-        </Show>
-
-        {/* Input Box & Action Buttons */}
-        <div class="relative w-full">
-          <textarea
-            value={inputText()}
-            onInput={(e) => setInputText(e.currentTarget.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ketik perintah atau gunakan suara..."
-            rows={2}
-            disabled={isSending()}
-            class="w-full p-2.5 pr-9 bg-theme-card border border-theme-border rounded-xl text-xs text-theme-text placeholder:text-theme-text/40 focus:outline-none focus:border-theme-cyan transition-colors resize-none shadow-inner leading-relaxed"
+              } else {
+                const nextPlaying = !mobileMusicState().isPlaying;
+                setMobileMusicState((prev) => ({ ...prev, isPlaying: nextPlaying, isPaused: !nextPlaying }));
+                await api.controlMusic(nextPlaying ? 'resume' : 'pause');
+              }
+            }}
+            onStop={async () => {
+              if (isHpAudioActive()) {
+                audioSync.stopMusic();
+              } else {
+                setMobileMusicState({ track: null, isPlaying: false, isPaused: false, currentTime: 0, duration: 0 });
+                await api.controlMusic('stop');
+              }
+            }}
           />
-
-          <Show when={inputText().length > 0}>
-            <button
-              type="button"
-              onClick={() => setInputText('')}
-              class="absolute top-2 right-2 p-1 text-theme-text/40 hover:text-theme-text transition-colors rounded-md"
-              title="Hapus teks"
-            >
-              <Trash2 size={13} />
-            </button>
-          </Show>
         </div>
 
-        <div class="flex items-center justify-between gap-2 select-none">
-          {/* Tombol Bicara PTT Suara Langsung HP */}
-          <button
-            type="button"
-            onClick={toggleHpMic}
-            class={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border shadow-sm ${
-              isHpMicListening()
-                ? 'bg-rose-500 text-white border-rose-400 animate-pulse shadow-[0_0_12px_rgba(244,63,94,0.5)]'
-                : 'bg-theme-card text-theme-text border-theme-border hover:border-theme-cyan/50'
-            }`}
-          >
-            {isHpMicListening() ? <MicOff size={14} /> : <Mic size={14} class="text-theme-cyan" />}
-            <span>{isHpMicListening() ? 'Mendengar...' : 'Bicara (Mic)'}</span>
-          </button>
-
-          {/* Tombol Kirim Teks */}
-          <button
-            type="button"
-            onClick={() => sendTextToHost()}
-            disabled={!inputText().trim() || isSending()}
-            class="flex-1 py-2 px-4 bg-theme-cyan text-theme-card rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all shadow-[0_0_12px_var(--cyan)]"
-          >
-            <Send size={13} class={isSending() ? 'animate-pulse' : ''} />
-            <span>{isSending() ? 'Mengirim...' : 'Kirim'}</span>
-          </button>
-        </div>
+        {/* Floating Circular Interaction Dock (Tombol Lingkaran Mic PTT & Toggle Input Pesan) */}
+        <MobileInteractionDock
+          inputText={inputText()}
+          onInputText={setInputText}
+          onSend={() => sendTextToHost()}
+          isSending={isSending()}
+          isListening={isHpMicListening()}
+          onToggleMic={toggleHpMic}
+          lastSentText={lastSentText()}
+          showInput={showTextInput()}
+          onToggleShowInput={() => setShowTextInput(!showTextInput())}
+          onDismissLastSent={() => setLastSentText('')}
+        />
       </div>
 
-      {/* 5. Live Console Logs Section */}
-      <div class="flex-1 flex flex-col min-h-0 bg-theme-surface">
-        <div class="h-8 px-3 bg-theme-surface border-b border-theme-border flex items-center justify-between shrink-0 select-none">
-          <div class="flex items-center gap-2 text-xs font-mono font-bold text-theme-text/80">
-            <Terminal size={12} class="text-theme-cyan" />
-            <span class="text-[11px]">CONSOLE LOGS</span>
-            <span class="text-[10px] text-theme-text/40 font-normal">({logs().length})</span>
-          </div>
-
-          <div class="flex items-center gap-1">
-            <button
-              onClick={() => {
-                const text = logs().map(l => `[${l.timestamp}] ${l.message}`).join('\n');
-                copyToClipboard(text);
-              }}
-              class="p-1 text-theme-text/50 hover:text-theme-text transition-colors"
-              title="Salin Semua Log"
-            >
-              <Copy size={12} />
-            </button>
-            <button
-              onClick={() => {
-                setIsRefreshingLogs(true);
-                fetchLogs();
-                setTimeout(() => setIsRefreshingLogs(false), 300);
-              }}
-              class="p-1 text-theme-text/50 hover:text-theme-text transition-colors"
-              title="Refresh Logs"
-            >
-              <RefreshCw size={12} class={isRefreshingLogs() ? 'animate-spin' : ''} />
-            </button>
-          </div>
-        </div>
-
-        {/* Scrollable Logs Body */}
-        <div
-          ref={logsContainerRef}
-          class="flex-1 overflow-y-auto p-2.5 font-mono text-[10.5px] leading-relaxed space-y-1 bg-theme-card/50 text-theme-text select-text"
-        >
-          <Show
-            when={logs().length > 0}
-            fallback={
-              <div class="h-full flex items-center justify-center text-xs text-theme-text/40">
-                Belum ada aktivitas log...
-              </div>
-            }
-          >
-            <For each={logs()}>
-              {(log) => (
-                <div class="break-words border-b border-theme-border/20 pb-1">
-                  <span class="text-[9.5px] text-theme-text/40 mr-1.5 font-mono">
-                    {log.timestamp ? log.timestamp.split(' ')[1] || log.timestamp : ''}
-                  </span>
-                  <span class={formatMessageStyle(log.message, log.level)}>
-                    {log.message}
-                  </span>
-                </div>
-              )}
-            </For>
-          </Show>
-        </div>
-      </div>
+      {/* 5. Slide-Up Bottom Sheet Console Logs */}
+      <MobileLogsDrawer
+        isOpen={showLogsDrawer()}
+        onClose={() => setShowLogsDrawer(false)}
+        logs={logs()}
+        onRefresh={async () => {
+          setIsRefreshingLogs(true);
+          await fetchLogs();
+          setTimeout(() => setIsRefreshingLogs(false), 300);
+        }}
+        isRefreshing={isRefreshingLogs()}
+        onCopy={() => {
+          const text = logs().map((l) => `[${l.timestamp}] ${l.message}`).join('\n');
+          copyToClipboard(text);
+        }}
+        formatStyle={formatMessageStyle}
+      />
     </div>
   );
 };

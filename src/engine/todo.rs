@@ -118,8 +118,7 @@ pub fn add_task(task_text: &str) -> std::io::Result<String> {
         let _ = std::fs::create_dir_all(parent);
     }
 
-    let default_content =
-        "# 📋 Tasks & Notes\n\n## ⏳ In Progress / To-Do\n\n## ✅ Done\n";
+    let default_content = "# 📋 Tasks & Notes\n\n## ⏳ In Progress / To-Do\n\n## ✅ Done\n";
     let content = std::fs::read_to_string(&path).unwrap_or_else(|_| default_content.to_string());
 
     let new_content = add_task_to_content(&content, task);
@@ -175,7 +174,8 @@ mod tests {
 
     #[test]
     fn test_complete_todo_fuzzy() {
-        let initial = "# 📋 Tasks\n\n## ⏳ In Progress / To-Do\n- [ ] Pay electricity bill\n\n## ✅ Done\n";
+        let initial =
+            "# 📋 Tasks\n\n## ⏳ In Progress / To-Do\n- [ ] Pay electricity bill\n\n## ✅ Done\n";
         let (done, matched) = complete_task_in_content(initial, "electricity bill")
             .expect("should find task with fuzzy");
         assert_eq!(matched, "Pay electricity bill");

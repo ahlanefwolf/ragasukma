@@ -51,6 +51,9 @@ export const api = {
   notifyActiveTab: eventsService.notifyActiveTab,
   subscribeState: eventsService.subscribeState,
   subscribeActions: eventsService.subscribeActions,
+  subscribeLogs: eventsService.subscribeLogs,
+  isSSEConnected: eventsService.isSSEConnected,
+  getActionsSince: eventsService.getActionsSince,
   forceCloseSSE: eventsService.forceCloseSSE,
 
   // Music Storage & Downloader Service
@@ -73,6 +76,8 @@ export const api = {
 
   // Remote Tunnel & Text Injection Service
   getTunnelStatus: remoteService.getTunnelStatus,
+  checkCloudflared: remoteService.checkCloudflared,
+  installCloudflared: remoteService.installCloudflared,
   startTunnel: remoteService.startTunnel,
   stopTunnel: remoteService.stopTunnel,
   sendRemoteText: remoteService.sendText,

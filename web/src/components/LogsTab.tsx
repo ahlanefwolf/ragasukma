@@ -73,9 +73,21 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
 
   onMount(() => {
     fetchLogs();
-    const interval = setInterval(fetchLogs, 4000);
+
+    // Subscribe ke live log stream via SSE (Zero polling spam)
+    const unsubLogs = api.subscribeLogs((newEntry) => {
+      if (!newEntry || !newEntry.id) return;
+      setLogs((prev) => {
+        if (prev.some((l) => l.id === newEntry.id)) return prev;
+        const updated = [...prev, newEntry];
+        const trimmed = updated.length > 250 ? updated.slice(updated.length - 250) : updated;
+        setCachedLogs(trimmed);
+        return trimmed;
+      });
+    });
+
     onCleanup(() => {
-      clearInterval(interval);
+      unsubLogs();
       if (scrollRafId) cancelAnimationFrame(scrollRafId);
     });
   });

@@ -97,31 +97,39 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
     File::open(&idx_path)?.read_to_string(&mut idx_str)?;
     let indexer: Vec<i64> = serde_json::from_str(&idx_str)?;
 
-    // 3. ONNX Sessions
+    // 3. ONNX Sessions (use Level1 optimization & bounded threads to minimize memory footprint)
     let text_enc_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .with_intra_threads(2)
+        .map_err(|e| anyhow!("{e}"))?
+        .with_optimization_level(GraphOptimizationLevel::Level1)
         .map_err(|e| anyhow!("{e}"))?
         .commit_from_file(model_dir.join("onnx/text_encoder.onnx"))
         .map_err(|e| anyhow!("{e}"))?;
 
     let dp_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .with_intra_threads(2)
+        .map_err(|e| anyhow!("{e}"))?
+        .with_optimization_level(GraphOptimizationLevel::Level1)
         .map_err(|e| anyhow!("{e}"))?
         .commit_from_file(model_dir.join("onnx/duration_predictor.onnx"))
         .map_err(|e| anyhow!("{e}"))?;
 
     let vec_est_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .with_intra_threads(2)
+        .map_err(|e| anyhow!("{e}"))?
+        .with_optimization_level(GraphOptimizationLevel::Level1)
         .map_err(|e| anyhow!("{e}"))?
         .commit_from_file(model_dir.join("onnx/vector_estimator.onnx"))
         .map_err(|e| anyhow!("{e}"))?;
 
     let vocoder_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .with_intra_threads(2)
+        .map_err(|e| anyhow!("{e}"))?
+        .with_optimization_level(GraphOptimizationLevel::Level1)
         .map_err(|e| anyhow!("{e}"))?
         .commit_from_file(model_dir.join("onnx/vocoder.onnx"))
         .map_err(|e| anyhow!("{e}"))?;
