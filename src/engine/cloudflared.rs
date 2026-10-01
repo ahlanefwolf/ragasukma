@@ -79,6 +79,28 @@ pub fn is_auth_key_valid(key: &str) -> bool {
 }
 
 fn resolve_cloudflared_bin() -> std::path::PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            let app_bin = std::path::PathBuf::from(local_app_data)
+                .join("ragasukma")
+                .join("bin")
+                .join("cloudflared.exe");
+            if app_bin.is_file() {
+                return app_bin;
+            }
+        }
+        if let Ok(user_profile) = std::env::var("USERPROFILE") {
+            let local_bin = std::path::PathBuf::from(user_profile)
+                .join(".local")
+                .join("bin")
+                .join("cloudflared.exe");
+            if local_bin.is_file() {
+                return local_bin;
+            }
+        }
+    }
+
     if let Ok(path_var) = std::env::var("PATH") {
         for dir in std::env::split_paths(&path_var) {
             let candidate = dir.join(if cfg!(windows) {
@@ -159,22 +181,55 @@ pub fn check_cloudflared() -> CloudflaredInfo {
 pub fn install_cloudflared() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
-        let out = Command::new("winget")
-            .args([
-                "install",
-                "--id",
-                "Cloudflare.cloudflared",
-                "-e",
-                "--accept-source-agreements",
-                "--accept-package-agreements",
-            ])
-            .output()
-            .map_err(|e| format!("Failed to run winget: {}", e))?;
-        if out.status.success() {
-            Ok("cloudflared berhasil diinstall via winget".to_string())
+        let local_app_data = std::env::var("LOCALAPPDATA")
+            .or_else(|_| std::env::var("USERPROFILE").map(|p| format!("{}\\AppData\\Local", p)))
+            .map_err(|_| "Environment variable LOCALAPPDATA / USERPROFILE tidak ditemukan".to_string())?;
+        let bin_dir = std::path::PathBuf::from(local_app_data)
+            .join("ragasukma")
+            .join("bin");
+        std::fs::create_dir_all(&bin_dir)
+            .map_err(|e| format!("Gagal membuat folder {}: {}", bin_dir.display(), e))?;
+        let target_path = bin_dir.join("cloudflared.exe");
+
+        let arch = if cfg!(target_arch = "x86") {
+            "386"
         } else {
-            Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+            "amd64"
+        };
+        let url = format!(
+            "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-{}.exe",
+            arch
+        );
+
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(180))
+            .build()
+            .map_err(|e| format!("Gagal membuat HTTP client: {}", e))?;
+
+        let resp = client
+            .get(&url)
+            .send()
+            .map_err(|e| format!("Gagal mengunduh cloudflared: {}", e))?;
+
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Gagal mengunduh cloudflared dari {}: status {}",
+                url,
+                resp.status()
+            ));
         }
+
+        let bytes = resp
+            .bytes()
+            .map_err(|e| format!("Gagal membaca payload cloudflared: {}", e))?;
+
+        std::fs::write(&target_path, bytes)
+            .map_err(|e| format!("Gagal menyimpan executable cloudflared: {}", e))?;
+
+        Ok(format!(
+            "cloudflared berhasil diunduh ke {}",
+            target_path.display()
+        ))
     }
     #[cfg(target_os = "macos")]
     {

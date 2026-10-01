@@ -82,23 +82,16 @@ pub fn capture_screen_image() -> Result<DynamicImage, String> {
         Ok(DynamicImage::ImageRgba8(img_buf))
     })();
 
-    match xcap_res {
-        Ok(img) => Ok(img),
-        Err(err) => {
-            #[cfg(target_os = "linux")]
-            {
-                crate::term_log!(
-                    "⚠️ [Perception] xcap gagal ({}). Menggunakan Linux capture fallback...",
-                    err
-                );
-                capture_screen_image_linux_fallback()
-            }
-            #[cfg(not(target_os = "linux"))]
-            {
-                Err(err)
-            }
-        }
-    }
+    #[cfg(target_os = "linux")]
+    let xcap_res = xcap_res.or_else(|err| {
+        crate::term_log!(
+            "⚠️ [Perception] xcap gagal ({}). Menggunakan Linux capture fallback...",
+            err
+        );
+        capture_screen_image_linux_fallback()
+    });
+
+    xcap_res
 }
 
 /// Capture specific active window image
