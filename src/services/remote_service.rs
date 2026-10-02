@@ -182,7 +182,7 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
         // tolak mentah-mentah transkrip agar tidak terjadi tumpang-tindih ucapan.
         if ai_speaking && !cfg.voice_interruption {
             crate::term_log!(
-                "🤫 [Chrome Web STT] Transkrip diabaikan karena asisten sedang berbicara (interupsi nonaktif): \"{}\"",
+                "🤫 [Chrome Web STT] Transcript ignored because assistant is speaking (interruption disabled): \"{}\"",
                 clean
             );
             send_json_response(
@@ -197,7 +197,7 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
         if injected {
             if ai_speaking && cfg.voice_interruption {
                 crate::term_log!(
-                    "⚡ [Chrome Web STT] Interupsi suara memotong pembicaraan asisten: \"{}\"",
+                    "⚡ [Chrome Web STT] Voice interruption cuts assistant speech: \"{}\"",
                     clean
                 );
                 crate::app_state::trigger_interruption();

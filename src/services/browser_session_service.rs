@@ -420,7 +420,7 @@ pub fn format_open_tabs_for_llm() -> String {
     let mut lines = Vec::new();
     lines.push("\n### 📑 DAFTAR TAB BROWSER TERBUKA:".to_string());
     for (i, t) in tabs.iter().take(8).enumerate() {
-        let active_mark = if t.active { " `[SEDANG DILIHAT]`" } else { "" };
+        let active_mark = if t.active { " `[ACTIVE_TAB]`" } else { "" };
         lines.push(format!(
             "{}. **{}**{} (URL: `{}`) [Tab ID: `{}`]",
             i + 1,

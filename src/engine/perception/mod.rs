@@ -65,7 +65,7 @@ impl PerceptionEngine {
                     Ok(detected) => Ok(detected),
                     Err(err) => {
                         eprintln!(
-                            "⚠️ [Perception] Windows Native OCR gagal ({err}), mencoba fallback Tesseract OCR..."
+                            "⚠️ [Perception] Windows Native OCR failed ({err}), attempting Tesseract OCR fallback..."
                         );
                         ocr_tesseract::run_tesseract_fallback(image)
                     }
@@ -79,7 +79,7 @@ impl PerceptionEngine {
                     Ok(detected) => Ok(detected),
                     Err(err) => {
                         eprintln!(
-                            "⚠️ [Perception] Apple Vision OCR gagal ({err}), mencoba fallback Tesseract OCR..."
+                            "⚠️ [Perception] Apple Vision OCR failed ({err}), attempting Tesseract OCR fallback..."
                         );
                         ocr_tesseract::run_tesseract_fallback(image)
                     }

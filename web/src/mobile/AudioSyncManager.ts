@@ -420,7 +420,7 @@ export class MobileAudioSyncManager {
       return zero;
     }
 
-    const mouthOpen = Math.min(1.0, Math.pow(Math.max(0, (rms - 0.015) * 6.5), 0.8) * 0.9);
+    const mouthOpen = Math.min(0.65, Math.pow(Math.max(0, (rms - 0.015) * 6.5), 0.85) * 0.65);
 
     // 2. Formant Energy Bands dari FFT Frequency Data:
     // (sampleRate ~44100-48000 Hz, fftSize 512 => 256 bins, lebar bin ~86-94 Hz)
@@ -443,12 +443,12 @@ export class MobileAudioSyncManager {
     const rMidHigh = eMidHigh / eTotal;
     const rHigh = eHigh / eTotal;
 
-    // Bobot viseme vokal AIUEO
-    const aa = Math.min(1.0, rMid * 1.55) * mouthOpen;
-    const ih = Math.min(1.0, rHigh * 1.85) * mouthOpen * 0.75;
-    const ou = Math.min(1.0, Math.max(0, rLow - rMid * 0.3) * 1.7) * mouthOpen * 0.70;
-    const ee = Math.min(1.0, rMidHigh * 1.75) * mouthOpen * 0.80;
-    const oh = Math.min(1.0, (rLow * 0.65 + rMid * 0.45) * 1.4) * mouthOpen * 0.85;
+    // Bobot viseme vokal AIUEO (proporsional anime, anti-mangap berlebihan)
+    const aa = Math.min(1.0, rMid * 1.3) * mouthOpen;
+    const ih = Math.min(1.0, rHigh * 1.6) * mouthOpen * 0.75;
+    const ou = Math.min(1.0, Math.max(0, rLow - rMid * 0.3) * 1.5) * mouthOpen * 0.70;
+    const ee = Math.min(1.0, rMidHigh * 1.5) * mouthOpen * 0.80;
+    const oh = Math.min(1.0, (rLow * 0.65 + rMid * 0.45) * 1.3) * mouthOpen * 0.85;
 
     return {
       aa,

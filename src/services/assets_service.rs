@@ -69,7 +69,7 @@ pub fn handle_upload_vrm(
     match fs::write(&target_path, body_bytes) {
         Ok(_) => {
             crate::term_log!(
-                "✨ [Asset Manager] Model VRM berhasil diunggah ({:.2} MB) ke {:?}",
+                "✨ [Asset Manager] VRM model successfully uploaded ({:.2} MB) to {:?}",
                 (body_bytes.len() as f32) / (1024.0 * 1024.0),
                 target_path
             );
@@ -130,7 +130,7 @@ pub fn handle_upload_avatar(
     match fs::write(&target_path, body_bytes) {
         Ok(_) => {
             crate::term_log!(
-                "✨ [Asset Manager] Gambar avatar slot '{}' tersimpan ({:?})",
+                "✨ [Asset Manager] Avatar image for slot '{}' saved to {:?}",
                 slot,
                 target_path
             );

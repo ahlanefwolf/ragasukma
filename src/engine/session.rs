@@ -75,7 +75,7 @@ impl AppSession {
 
         if lang_changed {
             crate::term_log!(
-                "🔄 [Reactive Update] Bahasa percakapan dialihkan ke: {}",
+                "🔄 [Reactive Update] Conversation language switched to: {}",
                 latest_config.lang
             );
         }
@@ -83,7 +83,7 @@ impl AppSession {
         if tts_changed {
             self.tts = Arc::new(TextToSpeech::new());
             crate::term_log!(
-                "🔄 [Reactive Update] Voice / Gender ({}) diperbarui.",
+                "🔄 [Reactive Update] Voice / Gender ({}) updated.",
                 latest_config.assistant_gender
             );
         }
@@ -91,7 +91,7 @@ impl AppSession {
         if llm_changed {
             self.llm = LlmClient::new();
             crate::term_log!(
-                "🔄 [Reactive Update] LLM Provider / Model / Persona dialihkan ke: {} / {} ({})",
+                "🔄 [Reactive Update] LLM Provider / Model / Persona switched to: {} / {} ({})",
                 latest_config.llm_provider,
                 latest_config.llm_model,
                 latest_config.assistant_name
@@ -123,7 +123,7 @@ impl AppSession {
                     "reset_session" => {
                         self.llm.reset_history();
                         crate::term_log!(
-                            "🔄 [Reset Session] Riwayat memori obrolan AI berhasil di-reset!"
+                            "🔄 [Reset Session] AI chat memory history successfully reset!"
                         );
                     }
                     "quit" => {

@@ -117,10 +117,10 @@ do {
         }
     }
 
-    Err("Output Apple Vision tidak sesuai format JSON yang diharapkan".to_string())
+    Err("Apple Vision output did not match expected JSON format".to_string())
 }
 
 #[cfg(not(target_os = "macos"))]
 pub fn run_macos_native_ocr(_image: &DynamicImage) -> Result<Vec<(String, [i32; 4], f32)>, String> {
-    Err("Apple Vision OCR hanya tersedia pada sistem operasi macOS.".to_string())
+    Err("Apple Vision OCR is only supported on macOS.".to_string())
 }

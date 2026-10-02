@@ -43,9 +43,9 @@ pub fn wait_for_user_turn(session: &mut AppSession, text_rx: &Receiver<String>) 
 
 /// Menangani loop saat asisten dalam kondisi dijeda (paused)
 pub fn handle_paused_loop(session: &mut AppSession) -> bool {
-    crate::tray::TrayState::update(crate::tray::AssistantState::Idle, "Dijeda");
+    crate::tray::TrayState::update(crate::tray::AssistantState::Idle, "Paused");
     crate::term_log!(
-        "\n[DIJEDA] {} berhenti mendengarkan sementara.",
+        "\n[PAUSED] {} paused listening.",
         session.config.assistant_name
     );
 

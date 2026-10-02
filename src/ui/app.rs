@@ -112,7 +112,7 @@ impl App {
                 for p in &candidates {
                     if p.exists() {
                         println!(
-                            "📂 [Async Asset Loader] Memuat model avatar di background: {:?}",
+                            "📂 [Async Asset Loader] Loading avatar model in background: {:?}",
                             p
                         );
                         if let Ok(model) = VrmModelData::load_from_file(p) {
@@ -442,7 +442,7 @@ impl App {
                                 for p in &vrm_candidates {
                                     if p.exists() {
                                         println!(
-                                            "📂 [Async Asset Loader] Memuat ulang model avatar di background: {:?}",
+                                            "📂 [Async Asset Loader] Reloading avatar model in background: {:?}",
                                             p
                                         );
                                         if let Ok(model) = VrmModelData::load_from_file(p) {
@@ -500,7 +500,7 @@ impl App {
                                             for p in &vrm_candidates {
                                                 if p.exists() {
                                                     println!(
-                                                        "📂 [Async Asset Loader] Memuat model avatar di background: {:?}",
+                                                        "📂 [Async Asset Loader] Loading avatar model in background: {:?}",
                                                         p
                                                     );
                                                     if let Ok(model) =

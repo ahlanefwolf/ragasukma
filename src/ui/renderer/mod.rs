@@ -108,7 +108,7 @@ impl Renderer {
             .ok_or_else(|| anyhow::anyhow!("Failed to find a suitable GPU adapter"))?;
 
         println!(
-            "🎮 [WGPU Adapter] Menggunakan GPU: {}",
+            "🎮 [WGPU Adapter] Using GPU: {}",
             adapter.get_info().name
         );
 

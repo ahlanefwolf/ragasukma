@@ -80,7 +80,7 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
     let model_dir =
         find_model_dir().ok_or_else(|| anyhow!("Supertonic-3 model directory not found"))?;
     crate::term_log!(
-        "🚀 [Supertonic TTS] Memuat model neural ONNX dari {:?}...",
+        "🚀 [Supertonic TTS] Loading ONNX neural model from {:?}...",
         model_dir
     );
     let start = std::time::Instant::now();
@@ -415,7 +415,7 @@ impl SupertonicEngine {
         }
 
         if all_samples.is_empty() {
-            return Err(anyhow!("Semua sub-chunk gagal disintesis"));
+            return Err(anyhow!("All audio sub-chunks failed to synthesize"));
         }
 
         Ok(samples_to_wav_bytes(&all_samples, self.cfg.ae.sample_rate))

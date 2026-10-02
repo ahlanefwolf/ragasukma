@@ -158,7 +158,7 @@ impl TextToSpeech {
                 // Jika durasi melebihi durasi audio aktual + buffer toleransi
                 if start.elapsed().as_secs() >= timeout_limit_secs {
                     crate::term_log!(
-                        "⏱️ [TTS Watchdog] Durasi audio selesai ({exact_audio_secs:.1}s), mengembalikan avatar ke Standby."
+                        "⏱️ [TTS Watchdog] Audio playback finished ({exact_audio_secs:.1}s), returning avatar to Standby."
                     );
                     crate::app_state::set_ai_speaking(false);
                     crate::tray::TrayState::update_with_emotion(
@@ -304,12 +304,44 @@ fn is_ignorable_tag(tag: &str) -> bool {
     ) || lower.chars().all(|c| c.is_ascii_digit())
 }
 
-fn is_emotion_or_action_emote(emote: &str) -> bool {
-    let lower = emote.trim().to_lowercase();
-    matches!(
-        lower.as_str(),
-        "happy" | "shy" | "excited" | "surprised" | "thinking" | "sad" | "angry" | "neutral"
-    )
+fn is_roleplay_or_ignorable_paren(content: &str) -> bool {
+    let lower = content.trim().to_lowercase();
+    if lower.is_empty() {
+        return true;
+    }
+    // Angka referensi footnote misal (1), (2)
+    if lower.chars().all(|c| c.is_ascii_digit()) {
+        return true;
+    }
+    // Emoticon smiley
+    if matches!(lower.as_str(), ":)" | ":d" | ":3" | "^^" | "^_^" | ":o" | ":(" | ";)") {
+        return true;
+    }
+    // Kata-kata aksi / roleplay umum
+    lower.starts_with("sambil ")
+        || matches!(
+            lower.as_str(),
+            "tersenyum"
+                | "tertawa"
+                | "tertawa kecil"
+                | "mengangguk"
+                | "menatap"
+                | "tersipu"
+                | "melirik"
+                | "kaget"
+                | "bingung"
+                | "giggle"
+                | "chuckle"
+                | "sigh"
+                | "whisper"
+                | "smile"
+                | "smiles"
+                | "laugh"
+                | "laughs"
+                | "nod"
+                | "nodding"
+                | "blushing"
+        )
 }
 
 pub fn clean_text_for_speech(text: &str) -> String {
@@ -373,7 +405,7 @@ pub fn clean_text_for_speech(text: &str) -> String {
             }
         }
 
-        // B. Bersihkan tag bintang *emosi* (*senang*, *mikir*, dsb.) tapi jaga bold text **teks** dan bullet point
+        // B. Bersihkan tag bintang *emosi/roleplay* (*malu-malu*, *senang*, *mikir*, dsb.) tapi jaga bold text **teks** dan bullet point
         if c == '*' {
             if chars.peek() == Some(&'*') {
                 // Bold markdown `**` -> cukup buang tanda bintang tanpa menghapus teksnya
@@ -389,7 +421,7 @@ pub fn clean_text_for_speech(text: &str) -> String {
                 continue;
             }
 
-            // Cek apakah ada bintang penutup pada kata/frasa emosi pendek (<= 30 char)
+            // Cek apakah ada bintang penutup pada kata/frasa emosi/roleplay (<= 60 char)
             let mut candidate = String::new();
             let mut found_close = false;
             let temp_chars = chars.clone();
@@ -398,14 +430,15 @@ pub fn clean_text_for_speech(text: &str) -> String {
                     found_close = true;
                     break;
                 }
-                if sc == '\n' || candidate.len() > 30 {
+                if sc == '\n' || candidate.len() > 60 {
                     break;
                 }
                 candidate.push(sc);
             }
 
-            if found_close && is_emotion_or_action_emote(&candidate) {
-                // Lewati kandidat emote sampai bintang penutup
+            if found_close {
+                // Semua kata/frasa di dalam sepasang bintang (*malu-malu*, *tersenyum*, *happy*, dll.)
+                // adalah tag emosi/roleplay yang tidak boleh disuarakan TTS! Lewati seluruhnya.
                 for sc in chars.by_ref() {
                     if sc == '*' {
                         break;
@@ -414,14 +447,43 @@ pub fn clean_text_for_speech(text: &str) -> String {
                 cleaned.push(' ');
                 continue;
             } else {
-                // Bukan emote resmi, pertahankan sebagai spasi agar teks berikutnya tetap terbaca
+                // Bukan bintang tertutup, pertahankan sebagai spasi
                 cleaned.push(' ');
                 continue;
             }
         }
 
-        // C. Bersihkan kurung biasa () jika hanya berisi emote atau smiley :)
-        if c == '(' || c == ')' {
+        // C. Bersihkan kurung biasa () jika berisi roleplay, emote, atau nomor referensi
+        if c == '(' {
+            let mut candidate = String::new();
+            let mut found_close = false;
+            let temp_chars = chars.clone();
+            for sc in temp_chars {
+                if sc == ')' {
+                    found_close = true;
+                    break;
+                }
+                if sc == '\n' || candidate.len() > 60 {
+                    break;
+                }
+                candidate.push(sc);
+            }
+
+            if found_close && is_roleplay_or_ignorable_paren(&candidate) {
+                for sc in chars.by_ref() {
+                    if sc == ')' {
+                        break;
+                    }
+                }
+                cleaned.push(' ');
+                continue;
+            } else {
+                // Jika bukan kurung roleplay, lewati kurung bukanya saja agar teks di dalamnya tetap terbaca
+                cleaned.push(' ');
+                continue;
+            }
+        }
+        if c == ')' {
             cleaned.push(' ');
             continue;
         }
@@ -552,6 +614,14 @@ mod tests {
         assert_eq!(
             clean_text_for_speech("*thinking* sebentar ya"),
             "sebentar ya"
+        );
+        assert_eq!(
+            clean_text_for_speech("*malu-malu* halo juga Kak"),
+            "halo juga Kak"
+        );
+        assert_eq!(
+            clean_text_for_speech("Iya dong (tersenyum) terima kasih"),
+            "Iya dong terima kasih"
         );
     }
 

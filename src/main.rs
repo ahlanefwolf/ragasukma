@@ -40,26 +40,26 @@ fn main() -> Result<()> {
         );
         let result = engine::perception::request_vision_scan_sync();
         println!("✅ Vision Scan Successful!");
-        println!("  Total Elemen  : {} item", result.elements.len());
-        println!("  Buttons / Icons: {} item", result.buttons.len());
+        println!("  Total Elements : {} items", result.elements.len());
+        println!("  Buttons / Icons: {} items", result.buttons.len());
         for b in result.buttons.iter().take(8) {
             println!(
-                "    - [{}] \"{}\" pada center {:?}",
+                "    - [{}] \"{}\" at center {:?}",
                 b.role, b.label, b.center
             );
         }
-        println!("  Input Fields  : {} item", result.inputs.len());
+        println!("  Input Fields   : {} items", result.inputs.len());
         for inp in result.inputs.iter().take(5) {
             println!(
-                "    - [{}] \"{}\" pada center {:?}",
+                "    - [{}] \"{}\" at center {:?}",
                 inp.role, inp.label, inp.center
             );
         }
-        println!("  Teks Terbaca  : {} item", result.texts.len());
+        println!("  Detected Texts : {} items", result.texts.len());
         for t in result.texts.iter().take(10) {
             println!("    - \"{}\"", t);
         }
-        println!("📁 File tersimpan di assets/active_window_app.json (source: vision_perception)");
+        println!("📁 File saved to assets/active_window_app.json (source: vision_perception)");
         return Ok(());
     }
     if args.iter().any(|a| a == "--scan-window") {
@@ -70,27 +70,26 @@ fn main() -> Result<()> {
                 println!("  App Name     : {}", snapshot.app_name);
                 println!("  Window Title : {}", snapshot.window_title);
                 println!("  Window ID    : {}", snapshot.window_id);
-                println!("  Tombol       : {} item", snapshot.buttons.len());
+                println!("  Buttons        : {} items", snapshot.buttons.len());
                 for b in snapshot.buttons.iter().take(5) {
                     println!("    - [Button #{}] {}", b.id, b.label);
                 }
-                println!("  Input Form   : {} item", snapshot.inputs.len());
+                println!("  Input Forms    : {} items", snapshot.inputs.len());
                 for inp in snapshot.inputs.iter().take(5) {
                     println!("    - [Input #{}] {}", inp.id, inp.label);
                 }
-                println!("  Label Teks   : {} item", snapshot.texts.len());
+                println!("  Text Labels    : {} items", snapshot.texts.len());
                 for t in snapshot.texts.iter().take(5) {
                     println!("    - {}", t);
                 }
-
-                if let Err(e) = snapshot.save_to_file() {
-                    eprintln!("❌ Failed to save to file: {e}");
+                if let Some(target) = args.get(2) {
+                    println!("📁 File saved to {}", target);
                 } else {
-                    println!("📁 File tersimpan di assets/active_window_app.json");
+                    println!("📁 File saved to assets/active_window_app.json");
                 }
             }
             Err(e) => {
-                eprintln!("❌ Error saat scan: {e}");
+                eprintln!("❌ Error during scan: {e}");
             }
         }
         return Ok(());
@@ -117,7 +116,7 @@ fn main() -> Result<()> {
                 .unwrap_or(false);
 
             if is_ragasukma_instance {
-                println!("⚠️  [Single Instance] Ragasukma sudah berjalan di latar belakang!");
+                println!("⚠️  [Single Instance] Ragasukma is already running in background!");
                 println!(
                     "🌐 Opening active Dashboard at http://127.0.0.1:{} ...",
                     server_port
@@ -126,14 +125,14 @@ fn main() -> Result<()> {
                 return Ok(());
             } else {
                 eprintln!(
-                    "⚠️  [Port Conflict] Port {} sedang dipakai oleh aplikasi lain bukan Ragasukma!",
+                    "⚠️  [Port Conflict] Port {} is in use by another application!",
                     server_port
                 );
                 eprintln!(
-                    "🛑 Harap tutup aplikasi yang menggunakan port {} tersebut.",
+                    "🛑 Please close the process using port {}.",
                     server_port
                 );
-                return Ok(());
+                return Err(anyhow::anyhow!("Port conflict: port {} already bound by another application", server_port));
             }
         }
     };
@@ -167,7 +166,7 @@ fn main() -> Result<()> {
 
     crate::term_log!("====================================================");
     crate::term_log!(
-        "  Ragasukma - Asisten Pribadi: {} (Anime ID)",
+        "  Ragasukma - Personal Assistant: {} (Anime ID)",
         config.assistant_name
     );
     crate::term_log!("====================================================");
@@ -193,7 +192,7 @@ fn main() -> Result<()> {
             }));
             if res.is_err() {
                 crate::term_err!(
-                    "⚠️ [Session Auto-Recover] Session thread pulih dari error tak terduga, memulai ulang loop sesi..."
+                    "⚠️ [Session Auto-Recover] Session thread recovered from unexpected error, restarting session loop..."
                 );
                 std::thread::sleep(std::time::Duration::from_millis(500));
             } else {

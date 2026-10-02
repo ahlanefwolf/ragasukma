@@ -241,7 +241,7 @@ pub fn load_user_config() -> UserConfig {
             std::thread::sleep(std::time::Duration::from_millis(15));
         }
         crate::term_err!(
-            "⚠️ [Config Load] File config-ai.json sedang dikunci/tidak terbaca, menggunakan fallback memori."
+            "⚠️ [Config Load] Failed to read config-ai.json (locked/unreadable), using in-memory fallback."
         );
         return UserConfig::default();
     }

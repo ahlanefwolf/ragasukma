@@ -120,7 +120,7 @@ impl ActiveWindowSnapshot {
     pub fn load_from_file() -> Result<Self, String> {
         let path = get_snapshot_path();
         if !path.exists() {
-            return Err("File active_window_app.json belum ada".to_string());
+            return Err("File active_window_app.json does not exist yet".to_string());
         }
 
         let content =

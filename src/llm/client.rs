@@ -123,13 +123,13 @@ impl LlmClient {
                     }
                     Err(e) => {
                         crate::term_err!(
-                            "⚠️ [LLM Client] Local Engine error: {e}. Mencoba fallback..."
+                            "⚠️ [LLM Client] Local Engine error: {e}. Attempting fallback..."
                         );
                     }
                 }
             } else {
                 crate::term_log!(
-                    "⚠️ [LLM Client] Provider diatur ke 'local', tapi belum ada akun engine lokal terhubung di pool."
+                    "⚠️ [LLM Client] Provider set to 'local', but no local engine account is connected to the pool."
                 );
             }
         }

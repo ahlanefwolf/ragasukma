@@ -129,7 +129,7 @@ pub fn get_current_lip_sync_weights() -> LipSyncWeights {
         return LipSyncWeights::default();
     }
 
-    let mouth_open = ((rms - 0.012) * 7.5).clamp(0.0, 1.0).powf(0.8) * 0.85;
+    let mouth_open = ((rms - 0.012) * 6.5).clamp(0.0, 1.0).powf(0.85) * 0.65;
 
     // 2. Goertzel Filter Power pada frekuensi formant vokal utama:
     // Low: ~450 Hz (U & O)
@@ -165,11 +165,11 @@ pub fn get_current_lip_sync_weights() -> LipSyncWeights {
     let r_midhigh = p_midhigh / p_total;
     let r_high = p_high / p_total;
 
-    let aa = (r_mid * 1.5).min(1.0) * mouth_open;
-    let ih = (r_high * 1.8).min(1.0) * mouth_open * 0.75;
-    let ou = ((r_low - r_mid * 0.3).max(0.0) * 1.7).clamp(0.0, 1.0) * mouth_open * 0.70;
-    let ee = (r_midhigh * 1.7).min(1.0) * mouth_open * 0.80;
-    let oh = ((r_low * 0.7 + r_mid * 0.4) * 1.4).min(1.0) * mouth_open * 0.85;
+    let aa = (r_mid * 1.3).min(1.0) * mouth_open;
+    let ih = (r_high * 1.6).min(1.0) * mouth_open * 0.75;
+    let ou = ((r_low - r_mid * 0.3).max(0.0) * 1.5).clamp(0.0, 1.0) * mouth_open * 0.70;
+    let ee = (r_midhigh * 1.5).min(1.0) * mouth_open * 0.80;
+    let oh = ((r_low * 0.7 + r_mid * 0.4) * 1.3).min(1.0) * mouth_open * 0.85;
 
     LipSyncWeights {
         aa,

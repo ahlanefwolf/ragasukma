@@ -1,51 +1,108 @@
-# 🧠 Rencana Pengembangan: Reasoning & Multi-Step Automation (Browser & Desktop)
+# Rencana Arsitektur: "Learn Once, Execute Locally" (Macro / Recipe System)
 
-Dokumen ini merangkum analisis arsitektur, komparasi industri, dan rencana implementasi kapabilitas **Reasoning & Multi-Step Action Chaining** pada **Ragasukma AI Voice Assistant**.
-
----
-
-## 1. Analisis Komparasi: Ragasukma vs JEV (Browser-Use)
-
-| Aspek | Browser-Use / JEV (`browser-use/jev-ultrafast`) | Ragasukma Browser Engine |
-| :--- | :--- | :--- |
-| **Lingkungan Eksekusi** | Browser terisolasi / headless via Playwright di server/sandbox. | Browser Chromium harian asli pengguna di desktop lokal. |
-| **Mekanisme Persepsi** | VLM berbasis screenshot visual piksel (Vision Model) yang memprediksi koordinat `(x, y)` elemen. | Snapshot Semantic DOM lokal (*Ground of Truth* tree: inputs, buttons, texts, form state). |
-| **Kecepatan / Latensi** | Bergantung pada kompresi gambar, upload ke cloud VLM, dan inferensi koordinat (~1–3 detik/langkah). | Sangat cepat (< 100ms) karena representasi teks DOM dievaluasi langsung di backend Rust lokal. |
-| **Keandalan Klik/Input** | Rentan meleset jika skala resolusi, scroll, atau rendering kanvas berubah. | 100% deterministik via shadow-DOM traversal, label matching, dan trigger event native browser. |
-| **Integrasi Asisten** | Standalone web automation agent (text/code-driven). | Terhubung langsung ke suara (STT/TTS 24kHz), 3D VRM Avatar lipsync, dan OS desktop control. |
+Dokumen ini menjelaskan arsitektur otomatisasi browser/desktop berbasis **Blueprint/Recipe**: LLM hanya berpikir sekali sampai tuntas untuk menyusun langkah (*recipe*), lalu disimpan lokal di `assets/recipes/` agar worker lokal bisa menjalankannya berulang kali dengan **0 token LLM** dan latensi instan.
 
 ---
 
-## 2. Karakteristik Kanal Automasi: Browser vs Desktop
+## 1. Aturan Dasar: Buka Tab Baru (Isolated Clean State)
 
-### A. Web Browser (High-Precision DOM Chaining)
-- **Kelebihan**: Akses langsung ke struktur DOM aktif (metadata elemen, ID, placeholder, teks tombol, nilai input).
-- **Kapabilitas Chaining**: Dapat langsung mengeksekusi multi-step reasoning dalam 1 turn tanpa jeda, misalnya:
-  ```text
-  [CMD:browser:click_text|Masuk] [CMD:browser:type|user@email.com] [CMD:browser:enter]
-  ```
-- **Kestabilan**: Tidak terpengaruh perubahan tata letak layar atau window focus OS.
+Setiap otomasi alur tugas web **wajib diawali dengan membuka Tab Baru** (atau navigasi bersih) ke URL target.
 
-### B. OS Desktop (OCR & Coordinate Perception)
-- **Tantangan**: Bergantung pada visual screenshot OCR / bounding box OS.
-- **Karakteristik**: Setelah satu klik dilakukan, tampilan layar (window baru/dialog) bisa berubah seketika.
-- **Strategi**: Membutuhkan jeda re-scan visual antar langkah (`desktop:scan_visual`) sebelum melangkah ke tindakan berikutnya.
+**Alasan krusial:**
+1. **Mencegah Tab Pengguna Terganggu**: Tidak menimpa tab WhatsApp, YouTube, atau pekerjaan user yang sedang aktif.
+2. **Kondisi Awal Bersih (Clean State)**: Memastikan elemen halaman mulai dari posisi awal yang deterministik (tidak terjebak di pop-up, modal, atau scroll tengah halaman sebelumnya).
+3. **Tracking Terisolasi**: Worker lokal memegang `tab_id` baru tersebut secara eksklusif untuk mengeksekusi step sampai selesai.
 
 ---
 
-## 3. Rencana Arsitektur Reasoning Multi-Step
+## 2. Alur Dua Mode (Two-Phase Execution)
 
-### 1. Silent Thought Preservation
-- Memanfaatkan token pemikiran model reasoning (misal `<think>...</think>` pada DeepSeek-R1 / Qwen-2.5 atau `reasoning_content` pada API).
-- Blok reasoning tetap dianalisis oleh LLM untuk menentukan urutan langkah, namun otomatis disaring agar **tidak dibacakan oleh suara TTS**.
-- Suara TTS hanya mengonfirmasi intisari tindakan dengan gaya percakapan yang hangat dan singkat.
+```mermaid
+graph TD
+    A[User Input: Perintah Otomasi] --> B{Apakah Recipe Sudah Ada di assets/recipes/?}
+    
+    %% Mode 2: Fast Path
+    B -- Ya (Cache Hit) --> C[Mode Eksekusi: Local Worker]
+    C --> C1[1. Buka Tab Baru ke Target URL]
+    C1 --> C2[2. Suntik Parameter Input User]
+    C2 --> C3[3. Eksekusi Step 1 -> 2 -> N]
+    C3 --> C4{Apakah Semua Step Sukses?}
+    C4 -- Sukses --> END[Selesai 0 Token & Instan]
+    C4 -- Gagal (UI Berubah) --> D[Fallback: Trigger Re-Learn]
 
-### 2. Sequential Action Chaining di Backend
-- Backend Rust (`skill_runner.rs`) telah mendukung chaining multi-command via regex iteratif `RE_SKILL.captures_iter()`.
-- Menambahkan jeda mikro dinamis (misal 50–150ms) antar aksi browser berantai agar event DOM (`input`, `change`, `focus`) tersinkronisasi sempurna dengan JavaScript frontend situs tujuan.
+    %% Mode 1: Slow Path
+    B -- Belum Ada / Gagal --> E[Mode Belajar: LLM Planner]
+    E --> E1[1. Buka Tab Baru Bersih]
+    E1 --> E2[2. LLM Analisis DOM & Susun Step Lengkap]
+    E2 --> E3[3. Simpan Blueprint ke assets/recipes/domain_task.json]
+    E3 --> C[Lanjut Eksekusi Worker]
+```
 
-### 3. Two-Step Feedback Loop (Action -> State Verification)
-- Untuk alur yang kompleks (misal pencarian lalu pemilihan link hasil):
-  1. **Langkah 1**: AI mengirim aksi browser / desktop.
-  2. **Langkah 2**: Snapshot DOM / window diperbarui seketika.
-  3. **Langkah 3**: Sistem memasukkan snapshot state baru ke memory konteks berikutnya untuk verifikasi keberhasilan aksi.
+---
+
+## 3. Struktur Penyimpanan: `assets/recipes/`
+
+Folder: `assets/recipes/`
+Contoh penamaan file:
+- `assets/recipes/tokopedia_beli_pulsa.json`
+- `assets/recipes/youtube_search_and_play.json`
+- `assets/recipes/traveloka_cari_tiket.json`
+
+### Contoh Skema JSON Recipe (`assets/recipes/tokopedia_beli_pulsa.json`):
+
+```json
+{
+  "recipe_id": "tokopedia_beli_pulsa",
+  "name": "Beli Pulsa di Tokopedia",
+  "domain": "www.tokopedia.com",
+  "version": 1,
+  "created_at": 1790917200000,
+  "required_params": ["phone_number"],
+  "initial_action": {
+    "action": "open_new_tab",
+    "url": "https://www.tokopedia.com/"
+  },
+  "steps": [
+    {
+      "step": 1,
+      "description": "Klik tombol menu Pulsa",
+      "action": "click",
+      "target_type": "button",
+      "selector": "button.css-15yotyh",
+      "fallback_candidates": ["pulsa", "top up pulsa"],
+      "wait_after_ms": 600
+    },
+    {
+      "step": 2,
+      "description": "Ketik nomor telepon pengguna",
+      "action": "type",
+      "target_type": "input",
+      "selector": "input[name='clientNumber']",
+      "fallback_candidates": ["masukan nomor", "nomor telepon"],
+      "value_template": "{{phone_number}}",
+      "wait_after_ms": 500
+    },
+    {
+      "step": 3,
+      "description": "Klik tombol Beli / Lanjutkan",
+      "action": "click",
+      "target_type": "button",
+      "selector": "button.css-1bbqckl-unf-btn",
+      "fallback_candidates": ["beli", "checkout", "lanjutkan"],
+      "wait_after_ms": 1000
+    }
+  ]
+}
+```
+
+---
+
+## 4. Keuntungan Konsep
+
+1. **Hemat Token Nyaris 100%**: LLM hanya dipanggil 1 kali seumur hidup per tugas (atau saat website update UI besar-besaran).
+2. **Kecepatan Eksekusi (Zero-Latency)**: Worker lokal Rust langsung menjalankan urutan step tanpa menunggu waktu respons API LLM.
+3. **Resilien dengan Fallback**:
+   - Selector utama (`selector`) dicoba pertama kali.
+   - Jika gagal, gunakan `fallback_candidates` lokal.
+   - Jika tetap gagal, barulah trigger LLM untuk memperbaiki (*re-learn*) resep tersebut (*self-healing*).
+4. **Aman untuk Pengguna**: Buka di tab baru memastikan sesi kerja user yang lain tidak pernah tertutup atau terganggu.

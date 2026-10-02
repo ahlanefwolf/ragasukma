@@ -670,7 +670,7 @@ impl VrmModelData {
             .map(std::sync::Mutex::new);
 
         println!(
-            "✨ [VRM Loader] Sukses memuat {} mesh parts, {} material layers, {} blend expressions",
+            "✨ [VRM Loader] Successfully loaded {} mesh parts, {} material layers, {} blend expressions",
             primitives.len(),
             materials.len(),
             expressions.len()

@@ -18,7 +18,7 @@ impl AppSession {
         crate::app_state::update_session_running(true);
         TrayState::update(AssistantState::Idle, "Standby");
         crate::term_log!("====================================================");
-        crate::term_log!("✨ SESI PERCAKAPAN RAGASUKMA DIMULAI");
+        crate::term_log!("✨ RAGASUKMA CHAT SESSION STARTED");
         crate::term_log!("   - Assistant: {}", self.config.assistant_name);
         crate::term_log!("   - Dashboard: http://127.0.0.1:42128");
         crate::term_log!("====================================================\n");
@@ -81,7 +81,7 @@ impl AppSession {
             if let Some(cmd) = check_and_consume_cmd() {
                 if cmd == "stop_chat" || cmd == "quit" {
                     crate::app_state::update_session_running(false);
-                    TrayState::update(AssistantState::Idle, "Menu Utama");
+                    TrayState::update(AssistantState::Idle, "Main Menu");
                     crate::term_log!("\n[DONE] Chat session stopped.");
                     return Ok(());
                 } else if cmd == "toggle_pause" {
@@ -92,7 +92,7 @@ impl AppSession {
 
             // 4. Validasi teks
             if raw_text.is_empty() {
-                crate::term_log!("[INFO] (Suara tidak terdengar jelas / terlalu pelan)\n");
+                crate::term_log!("[INFO] (Voice unclear or too low)\n");
                 if !crate::app_state::is_ai_speaking() {
                     TrayState::update(AssistantState::Idle, "Standby");
                 }
@@ -103,7 +103,7 @@ impl AppSession {
             let effective_input = user_transcript.clone();
             let asst_name = self.config.assistant_name.clone();
 
-            crate::term_log!("\n[User] Kamu [5.00ms]:");
+            crate::term_log!("\n[User] You [5.00ms]:");
             crate::term_log!("   \"{}\"", user_transcript);
 
             TrayState::emit_event(
@@ -141,7 +141,7 @@ impl AppSession {
             crate::term_log!("----------------------------------------------------\n");
 
             if let Err(err) = result {
-                crate::term_err!("[ERROR] Jaringan terganggu: {err}\n");
+                crate::term_err!("[ERROR] Network error: {err}\n");
             }
 
             std::thread::sleep(std::time::Duration::from_millis(300));

@@ -35,7 +35,7 @@ pub fn install_ytdlp() -> Result<String, String> {
             .output()
             .map_err(|e| format!("Failed to run winget: {}", e))?;
         if out.status.success() {
-            Ok("yt-dlp berhasil diinstall via winget".to_string())
+            Ok("yt-dlp successfully installed via winget".to_string())
         } else {
             Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
         }
@@ -47,7 +47,7 @@ pub fn install_ytdlp() -> Result<String, String> {
             .output()
             .map_err(|e| format!("Failed to run brew: {}", e))?;
         if out.status.success() {
-            Ok("yt-dlp berhasil diinstall via brew".to_string())
+            Ok("yt-dlp successfully installed via brew".to_string())
         } else {
             Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
         }
@@ -64,7 +64,7 @@ pub fn install_ytdlp() -> Result<String, String> {
             .output()
             .map_err(|e| format!("Failed to run pip: {}", e))?;
         if out.status.success() {
-            Ok("yt-dlp berhasil diinstall via pip".to_string())
+            Ok("yt-dlp successfully installed via pip".to_string())
         } else {
             // fallback pip3
             let mut cmd2 = Command::new("pip3");
@@ -77,7 +77,7 @@ pub fn install_ytdlp() -> Result<String, String> {
                 .output()
                 .map_err(|e| format!("Failed to run pip3: {}", e))?;
             if out2.status.success() {
-                Ok("yt-dlp berhasil diinstall via pip3".to_string())
+                Ok("yt-dlp successfully installed via pip3".to_string())
             } else {
                 Err(String::from_utf8_lossy(&out2.stderr).trim().to_string())
             }
@@ -363,7 +363,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
                 };
 
                 println!(
-                    "[yt-dlp] File berhasil disimpan & dimuat: {} ({})",
+                    "[yt-dlp] Audio file successfully saved & loaded: {} ({})",
                     title, filename
                 );
                 return Ok(YtTrackInfo {
@@ -449,7 +449,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
                 None
             };
             println!(
-                "[yt-dlp] Fallback ke file audio terbaru: {} ({})",
+                "[yt-dlp] Fallback to latest audio file: {} ({})",
                 title, filename
             );
             return Ok(YtTrackInfo {

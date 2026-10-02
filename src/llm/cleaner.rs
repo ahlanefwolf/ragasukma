@@ -164,57 +164,59 @@ fn map_tool_call_to_cmd(
     }
 }
 
-/// Clean AI text: strip action tags ([CMD:...], [SKILL:...]), XML tool-call blocks
-/// emitted by Claude models, and asterisk emotion markers — without cutting real content.
+static RE_BOLD: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\*\*([^\*\n]+?)\*\*").expect("valid bold regex")
+});
+
+static RE_SINGLE_STAR_EMOTE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\*[^\*\n]{1,60}\*").expect("valid single star emote regex")
+});
+
+static RE_ROLEPLAY_PARENS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\((?:tersenyum|tertawa|mengangguk|menatap|tersipu|melirik|sambil [^\)\n]{1,40}|giggle|chuckle|sigh|whisper|smiles?|laughs?|nodding?|blushing?)\)").expect("valid roleplay parens regex")
+});
+
+/// Clean AI text: strip action tags ([CMD:...], [SKILL:...]), XML tool-call blocks,
+/// bold markdown asterisks (**bold** -> bold), single-asterisk emotion/roleplay tags
+/// (*malu-malu*, *happy*, *tersenyum* -> removed), roleplay parentheses, and backticks.
 pub fn clean_ai_text(text: &str) -> String {
-    // First strip any XML tool-call blocks Claude may have emitted
+    // 1. Strip any XML tool-call blocks Claude may have emitted
     let text = RE_XML_TOOL_CALL.replace_all(text, "");
 
-    // Then strip [CMD:...] / [SKILL:...] tags
-    let text_clean = RE_SKILL.replace_all(&text, "");
+    // 2. Strip [CMD:...] / [SKILL:...] tags
+    let text = RE_SKILL.replace_all(&text, "");
 
-    let mut result = String::new();
-    let mut chars = text_clean.chars().peekable();
+    // 3. Normalisasi bold markdown: `**teks**` -> `teks`
+    let text = RE_BOLD.replace_all(&text, "$1");
 
-    while let Some(c) = chars.next() {
-        if c == '[' {
-            let mut inside = String::new();
-            inside.push('[');
-            while let Some(&next_c) = chars.peek() {
-                chars.next();
-                inside.push(next_c);
-                if next_c == ']' {
-                    break;
-                }
-            }
-            // Action tags must not be modified/deleted
-            result.push_str(&inside);
-            continue;
+    // 4. Buang tag bintang tunggal emosi/roleplay (*malu-malu*, *happy*, *tersenyum*, dsb.)
+    let text = RE_SINGLE_STAR_EMOTE.replace_all(&text, " ");
+
+    // 5. Buang kurung aksi roleplay umum: (tersenyum), (sambil tertawa), dll.
+    let text = RE_ROLEPLAY_PARENS.replace_all(&text, " ");
+
+    // 6. Buang backtick (`` ` ``) dan header markdown (`#`)
+    let mut cleaned = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '`' | '#' => cleaned.push(' '),
+            _ => cleaned.push(c),
         }
+    }
 
-        if c == '*' {
-            let mut inside = String::new();
-            let mut closed = false;
-            while let Some(&next_c) = chars.peek() {
-                chars.next();
-                if next_c == '*' {
-                    closed = true;
-                    if chars.peek() == Some(&'*') {
-                        chars.next();
-                    }
-                    break;
-                }
-                inside.push(next_c);
+    // 7. Rapikan multiple spaces
+    let mut result = String::with_capacity(cleaned.len());
+    let mut last_was_space = false;
+    for c in cleaned.chars() {
+        if c.is_whitespace() {
+            if !last_was_space {
+                result.push(' ');
+                last_was_space = true;
             }
-
-            if !closed {
-                result.push('*');
-                result.push_str(&inside);
-            }
-            continue;
+        } else {
+            result.push(c);
+            last_was_space = false;
         }
-
-        result.push(c);
     }
 
     result.trim().to_string()
@@ -243,5 +245,19 @@ mod tests {
         let raw = "*happy* Oke! <tool_call><invoke name=\"browser:open\"><parameter name=\"url\">youtube.com</parameter></invoke></tool_call>";
         let norm = normalize_tool_calls_to_commands(raw);
         assert!(norm.contains("[CMD:browser:open|youtube.com]"));
+    }
+
+    #[test]
+    fn test_clean_ai_text_removes_roleplay_and_bold() {
+        let raw = "*malu-malu* Halo Kak! Ini **sangat penting** lho! (tersenyum) `kode_rahasia`";
+        let cleaned = clean_ai_text(raw);
+        assert_eq!(cleaned, "Halo Kak! Ini sangat penting lho! kode_rahasia");
+    }
+
+    #[test]
+    fn test_clean_ai_text_strips_cmd_and_emotes() {
+        let raw = "*happy* Siap! [CMD:desktop:click_text|Save] *tersenyum manis*";
+        let cleaned = clean_ai_text(raw);
+        assert_eq!(cleaned, "Siap!");
     }
 }

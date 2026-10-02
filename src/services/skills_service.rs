@@ -99,7 +99,7 @@ pub fn handle_run_skill(body_str: &str, stream: &mut TcpStream) {
         // 1. Cek apakah ini aksi sistem bawaan, internal skill, atau perintah aplikasi
         if let Some((name, res)) = crate::engine::execute_skill_by_identifier(cmd) {
             println!(
-                "⚡ [Skill Run UI] Mengeksekusi internal skill '{}' -> {}",
+                "⚡ [Skill Run UI] Executing internal skill '{}' -> {}",
                 name, res
             );
             send_json_response(

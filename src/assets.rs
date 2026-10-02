@@ -202,7 +202,7 @@ StartupWMClass=ragasukma\n",
                 let _ = fs::set_permissions(&desktop_file, perms);
             }
             println!(
-                "🚀 [Desktop Integration] Menu shortcut aplikasi terpasang di ~/.local/share/applications/ragasukma.desktop"
+                "🚀 [Desktop Integration] Application shortcut created at ~/.local/share/applications/ragasukma.desktop"
             );
         }
     }

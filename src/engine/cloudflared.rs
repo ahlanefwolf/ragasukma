@@ -183,12 +183,12 @@ pub fn install_cloudflared() -> Result<String, String> {
     {
         let local_app_data = std::env::var("LOCALAPPDATA")
             .or_else(|_| std::env::var("USERPROFILE").map(|p| format!("{}\\AppData\\Local", p)))
-            .map_err(|_| "Environment variable LOCALAPPDATA / USERPROFILE tidak ditemukan".to_string())?;
+            .map_err(|_| "Environment variable LOCALAPPDATA / USERPROFILE not found".to_string())?;
         let bin_dir = std::path::PathBuf::from(local_app_data)
             .join("ragasukma")
             .join("bin");
         std::fs::create_dir_all(&bin_dir)
-            .map_err(|e| format!("Gagal membuat folder {}: {}", bin_dir.display(), e))?;
+            .map_err(|e| format!("Failed to create folder {}: {}", bin_dir.display(), e))?;
         let target_path = bin_dir.join("cloudflared.exe");
 
         let arch = if cfg!(target_arch = "x86") {
@@ -204,16 +204,16 @@ pub fn install_cloudflared() -> Result<String, String> {
         let client = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(180))
             .build()
-            .map_err(|e| format!("Gagal membuat HTTP client: {}", e))?;
+            .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
         let resp = client
             .get(&url)
             .send()
-            .map_err(|e| format!("Gagal mengunduh cloudflared: {}", e))?;
+            .map_err(|e| format!("Failed to download cloudflared: {}", e))?;
 
         if !resp.status().is_success() {
             return Err(format!(
-                "Gagal mengunduh cloudflared dari {}: status {}",
+                "Failed to download cloudflared from {}: status {}",
                 url,
                 resp.status()
             ));
@@ -221,13 +221,13 @@ pub fn install_cloudflared() -> Result<String, String> {
 
         let bytes = resp
             .bytes()
-            .map_err(|e| format!("Gagal membaca payload cloudflared: {}", e))?;
+            .map_err(|e| format!("Failed to read cloudflared payload: {}", e))?;
 
         std::fs::write(&target_path, bytes)
-            .map_err(|e| format!("Gagal menyimpan executable cloudflared: {}", e))?;
+            .map_err(|e| format!("Failed to write cloudflared binary: {}", e))?;
 
         Ok(format!(
-            "cloudflared berhasil diunduh ke {}",
+            "cloudflared successfully downloaded to {}",
             target_path.display()
         ))
     }
@@ -238,7 +238,7 @@ pub fn install_cloudflared() -> Result<String, String> {
             .output()
             .map_err(|e| format!("Failed to run brew: {}", e))?;
         if out.status.success() {
-            Ok("cloudflared berhasil diinstall via brew".to_string())
+            Ok("cloudflared successfully installed via brew".to_string())
         } else {
             Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
         }
@@ -246,10 +246,10 @@ pub fn install_cloudflared() -> Result<String, String> {
     #[cfg(target_os = "linux")]
     {
         let home = std::env::var("HOME")
-            .map_err(|_| "HOME environment variable tidak ditemukan".to_string())?;
+            .map_err(|_| "HOME environment variable not found".to_string())?;
         let bin_dir = std::path::PathBuf::from(home).join(".local").join("bin");
         std::fs::create_dir_all(&bin_dir)
-            .map_err(|e| format!("Gagal membuat folder ~/.local/bin: {}", e))?;
+            .map_err(|e| format!("Failed to create folder ~/.local/bin: {}", e))?;
         let target_path = bin_dir.join("cloudflared");
 
         let arch = if cfg!(target_arch = "aarch64") {
@@ -265,10 +265,10 @@ pub fn install_cloudflared() -> Result<String, String> {
         let out = Command::new("curl")
             .args(["-L", "-o", target_path.to_str().unwrap(), &url])
             .output()
-            .map_err(|e| format!("Gagal menjalankan curl: {}", e))?;
+            .map_err(|e| format!("Failed to run curl: {}", e))?;
 
         if !out.status.success() {
-            return Err("Gagal mengunduh binary cloudflared via curl".to_string());
+            return Err("Failed to download cloudflared binary via curl".to_string());
         }
 
         let _ = Command::new("chmod")
@@ -276,13 +276,13 @@ pub fn install_cloudflared() -> Result<String, String> {
             .output();
 
         Ok(format!(
-            "cloudflared berhasil diunduh ke {}",
+            "cloudflared successfully downloaded to {}",
             target_path.display()
         ))
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
-        Err("Sistem operasi tidak didukung untuk instalasi otomatis".to_string())
+        Err("Operating system not supported for automatic installation".to_string())
     }
 }
 

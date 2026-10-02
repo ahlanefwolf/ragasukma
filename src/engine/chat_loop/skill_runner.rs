@@ -45,7 +45,7 @@ pub fn handle_skill_execution(
 
             if let Some((skill_name, output)) = execute_skill_by_identifier(&id) {
                 crate::term_log!(
-                    "[SKILL BERHASIL: {} ({})] -> {}",
+                    "[SKILL SUCCESS: {} ({})] -> {}",
                     skill_name,
                     id,
                     output.trim()
@@ -75,7 +75,7 @@ pub fn handle_skill_execution(
                 }
             } else {
                 crate::term_err!(
-                    "[SKILL GAGAL]: Identifier '{}' tidak cocok di skill-command.md",
+                    "[SKILL FAILED]: Identifier '{}' not found in skill-command.md",
                     id
                 );
                 TrayState::emit_event(

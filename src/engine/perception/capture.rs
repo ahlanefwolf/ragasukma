@@ -85,7 +85,7 @@ pub fn capture_screen_image() -> Result<DynamicImage, String> {
     #[cfg(target_os = "linux")]
     let xcap_res = xcap_res.or_else(|err| {
         crate::term_log!(
-            "⚠️ [Perception] xcap gagal ({}). Menggunakan Linux capture fallback...",
+            "⚠️ [Perception] xcap failed ({}). Using Linux capture fallback...",
             err
         );
         capture_screen_image_linux_fallback()

@@ -17,7 +17,7 @@ pub fn process_llm_response(
 ) -> Result<String, anyhow::Error> {
     crate::app_state::clear_interruption();
     crate::app_state::set_ai_speaking(false);
-    TrayState::update(AssistantState::Thinking, "LLM Berpikir...");
+    TrayState::update(AssistantState::Thinking, "LLM Thinking...");
     let llm_start = Instant::now();
     crate::term_log!("\n[LLM] {} is responding...", asst_name);
 

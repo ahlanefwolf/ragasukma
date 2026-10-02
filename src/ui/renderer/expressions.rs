@@ -61,7 +61,7 @@ pub fn resolve_emotion_layers<'a>(
     match emo.as_str() {
         "happy" => {
             if let Some(expr) = find_expression(expressions, "happy") {
-                layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
+                layers.push(ActiveExpressionLayer { expr, weight: 0.75 });
             }
         }
         "shy" => {
@@ -82,19 +82,20 @@ pub fn resolve_emotion_layers<'a>(
             if let Some(joy) = find_expression(expressions, "happy") {
                 layers.push(ActiveExpressionLayer {
                     expr: joy,
-                    weight: 0.85,
+                    weight: 0.75,
                 });
             }
             if let Some(sparkle) = find_expression(expressions, "surprised") {
                 layers.push(ActiveExpressionLayer {
                     expr: sparkle,
-                    weight: 0.25,
+                    weight: 0.15,
                 });
             }
         }
         "surprised" => {
             if let Some(expr) = find_expression(expressions, "surprised") {
-                layers.push(ActiveExpressionLayer { expr, weight: 0.85 });
+                // Bobot proporsional agar ekspresi kaget tetap jelas tanpa merusak bentuk rahang
+                layers.push(ActiveExpressionLayer { expr, weight: 0.50 });
             }
         }
         "thinking" => {
@@ -135,22 +136,50 @@ pub fn resolve_emotion_layers<'a>(
     layers
 }
 
-const CANONICAL_EMOTIONS: [(&str, &str, &str); 8] = [
-    ("*happy*", "[happy]", "happy"),
-    ("*shy*", "[shy]", "shy"),
-    ("*excited*", "[excited]", "excited"),
-    ("*surprised*", "[surprised]", "surprised"),
-    ("*thinking*", "[thinking]", "thinking"),
-    ("*sad*", "[sad]", "sad"),
-    ("*angry*", "[angry]", "angry"),
-    ("*neutral*", "[neutral]", "neutral"),
+const CANONICAL_EMOTIONS: &[(&str, &str)] = &[
+    ("*happy*", "happy"),
+    ("[happy]", "happy"),
+    ("*senang*", "happy"),
+    ("[senang]", "happy"),
+    ("*gembira*", "happy"),
+    ("*shy*", "shy"),
+    ("[shy]", "shy"),
+    ("*malu*", "shy"),
+    ("[malu]", "shy"),
+    ("*malu-malu*", "shy"),
+    ("*tersipu*", "shy"),
+    ("*excited*", "excited"),
+    ("[excited]", "excited"),
+    ("*semangat*", "excited"),
+    ("*antusias*", "excited"),
+    ("*surprised*", "surprised"),
+    ("[surprised]", "surprised"),
+    ("*kaget*", "surprised"),
+    ("*terkejut*", "surprised"),
+    ("*thinking*", "thinking"),
+    ("[thinking]", "thinking"),
+    ("*mikir*", "thinking"),
+    ("*berpikir*", "thinking"),
+    ("*bingung*", "thinking"),
+    ("*sad*", "sad"),
+    ("[sad]", "sad"),
+    ("*sedih*", "sad"),
+    ("*kecewa*", "sad"),
+    ("*angry*", "angry"),
+    ("[angry]", "angry"),
+    ("*marah*", "angry"),
+    ("*kesal*", "angry"),
+    ("*neutral*", "neutral"),
+    ("[neutral]", "neutral"),
+    ("*biasa*", "neutral"),
+    ("*santai*", "neutral"),
 ];
 
-/// Ekstrak emosi dari tag eksplisit standar AI (*happy*, *shy*, *excited*, *surprised*, *thinking*, *sad*, *angry*, *neutral*)
+/// Ekstrak emosi dari tag eksplisit standar AI (*happy*, *shy*, *excited*, *surprised*, *thinking*, *sad*, *angry*, *neutral*, dll.)
 pub fn detect_emotion(text: &str) -> Option<&'static str> {
     let lower = text.to_lowercase();
-    for &(star, bracket, emo) in &CANONICAL_EMOTIONS {
-        if lower.contains(star) || lower.contains(bracket) {
+    for &(tag, emo) in CANONICAL_EMOTIONS {
+        if lower.contains(tag) {
             return Some(emo);
         }
     }
@@ -178,8 +207,26 @@ pub fn update_facial_expressions_and_lip_sync(
 
     // 1. Hitung layer emosi utama
     let emotion_layers = resolve_emotion_layers(&model.expressions, current_emotion);
-    let mut active_weights: Vec<(&VrmExpressionData, f32)> =
-        emotion_layers.iter().map(|l| (l.expr, l.weight)).collect();
+    let mut active_weights: Vec<(&VrmExpressionData, f32)> = emotion_layers
+        .iter()
+        .map(|l| {
+            // Saat berbicara (Speaking), redam emosi yang membuka rahang/mulut (surprised)
+            // agar tidak terjadi efek dobel (combo mangap ekstrem) bersamaan dengan Lip Sync vokal
+            let w = if current_state == AssistantVisualState::Speaking {
+                let name = l.expr.name.to_lowercase();
+                if name.contains("surprised") {
+                    (l.weight * 0.30).min(0.20)
+                } else if name.contains("happy") || name.contains("joy") {
+                    (l.weight * 0.70).min(0.50)
+                } else {
+                    l.weight
+                }
+            } else {
+                l.weight
+            };
+            (l.expr, w)
+        })
+        .collect();
 
     let has_strong_emotion = !active_weights.is_empty();
 
@@ -266,7 +313,8 @@ pub fn update_facial_expressions_and_lip_sync(
             prim.vertices[i].position = prim.base_vertices[i].position;
         }
 
-        // Terapkan seluruh layer bobot morph yang aktif
+        // Kumpulkan total bobot per target_index agar morph tidak menumpuk melebihi batas aman (anti-distorsi rahang)
+        let mut target_weights = vec![0.0f32; prim.morph_targets.len()];
         for &(expr_data, expr_weight) in &active_weights {
             if expr_weight <= 0.001 {
                 continue;
@@ -279,17 +327,25 @@ pub fn update_facial_expressions_and_lip_sync(
                 }
 
                 let target_idx = bind.target_index;
-                if target_idx < prim.morph_targets.len() {
-                    let morph = &prim.morph_targets[target_idx];
-                    let effective_weight = expr_weight * bind.weight;
-                    let count = vert_count.min(morph.position_displacements.len());
-                    for i in 0..count {
-                        let disp = morph.position_displacements[i];
-                        prim.vertices[i].position[0] += disp[0] * effective_weight;
-                        prim.vertices[i].position[1] += disp[1] * effective_weight;
-                        prim.vertices[i].position[2] += disp[2] * effective_weight;
-                    }
+                if target_idx < target_weights.len() {
+                    target_weights[target_idx] += expr_weight * bind.weight;
                 }
+            }
+        }
+
+        // Terapkan morph target dengan batas clamping estetis (maks 0.85) agar tidak over-stretch
+        for (target_idx, &raw_w) in target_weights.iter().enumerate() {
+            if raw_w <= 0.001 {
+                continue;
+            }
+            let effective_weight = raw_w.min(0.85);
+            let morph = &prim.morph_targets[target_idx];
+            let count = vert_count.min(morph.position_displacements.len());
+            for i in 0..count {
+                let disp = morph.position_displacements[i];
+                prim.vertices[i].position[0] += disp[0] * effective_weight;
+                prim.vertices[i].position[1] += disp[1] * effective_weight;
+                prim.vertices[i].position[2] += disp[2] * effective_weight;
             }
         }
 
@@ -324,6 +380,8 @@ mod tests {
             detect_emotion("*neutral* here is the info."),
             Some("neutral")
         );
+        assert_eq!(detect_emotion("*malu-malu* halo..."), Some("shy"));
+        assert_eq!(detect_emotion("*senang* akhirnya selesai!"), Some("happy"));
 
         // Fallback or without tag
         assert_eq!(detect_emotion("hello there, how are you?"), None);
@@ -385,7 +443,7 @@ mod tests {
 
         let happy_layers = resolve_emotion_layers(&expressions, "happy");
         assert_eq!(happy_layers.len(), 1);
-        assert!((happy_layers[0].weight - 0.85).abs() < 1e-4);
+        assert!((happy_layers[0].weight - 0.75).abs() < 1e-4);
 
         let shy_layers = resolve_emotion_layers(&expressions, "shy");
         assert_eq!(shy_layers.len(), 2);

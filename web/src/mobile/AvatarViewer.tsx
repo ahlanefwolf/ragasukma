@@ -454,7 +454,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
           switch (currentEmotion) {
             case 'happy':
             case 'senang':
-              targetWeights['happy'] = 0.85;
+              targetWeights['happy'] = 0.75;
               hasStrongEmotion = true;
               break;
 
@@ -467,14 +467,14 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
 
             case 'excited':
             case 'semangat':
-              targetWeights['happy'] = 0.85;
-              targetWeights['surprised'] = 0.25;
+              targetWeights['happy'] = 0.75;
+              targetWeights['surprised'] = 0.15;
               hasStrongEmotion = true;
               break;
 
             case 'surprised':
             case 'kaget':
-              targetWeights['surprised'] = 0.85;
+              targetWeights['surprised'] = 0.50;
               hasStrongEmotion = true;
               break;
 
@@ -525,6 +525,15 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
 
           // 2c. Audio-Driven Lip Sync Vokal Vowel (A, I, U, E, O) saat Speaking
           if (currentState === 'speaking') {
+            // Saat berbicara, redam emosi yang membuka rahang/mulut (surprised & happy)
+            // agar tidak dobel/combo mangap ekstrem dengan Lip Sync vokal
+            if (targetWeights['surprised']) {
+              targetWeights['surprised'] = Math.min(0.20, targetWeights['surprised'] * 0.30);
+            }
+            if (targetWeights['happy']) {
+              targetWeights['happy'] = Math.min(0.50, targetWeights['happy'] * 0.70);
+            }
+
             const lip = globalAudioSync.getVoiceLipWeights();
             if (lip.mouthOpen > 0.015) {
               // Suara aktif dari speaker HP: terapkan bobot formant AIUEO presisi
@@ -550,15 +559,16 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
           // Catatan: 'blink' diterapkan langsung mengikuti kurva sinus mulus tanpa lag dampening, agar mata menutup 100% sempurna persis seperti desktop
           const keysToUpdate = new Set([...allKnownKeys, ...Object.keys(currentExpressionWeights)]);
           for (const k of keysToUpdate) {
+            const clampedTarget = Math.min(0.85, targetWeights[k] || 0.0);
             if (k === 'blink') {
-              currentExpressionWeights[k] = targetWeights[k] || 0.0;
+              currentExpressionWeights[k] = clampedTarget;
             } else {
               const curVal = currentExpressionWeights[k] || 0.0;
-              const tgtVal = targetWeights[k] || 0.0;
+              const tgtVal = clampedTarget;
               const newVal = THREE.MathUtils.damp(curVal, tgtVal, 14.0, delta);
               currentExpressionWeights[k] = Math.abs(newVal) < 0.001 ? 0.0 : newVal;
             }
-            expressions.setValue(k, currentExpressionWeights[k]);
+            expressions.setValue(k, Math.min(0.85, currentExpressionWeights[k]));
           }
 
           expressions.update();
