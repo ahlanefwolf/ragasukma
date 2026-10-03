@@ -148,6 +148,7 @@ impl LlmClient {
             temperature: 0.5,
             max_tokens: 2048,
             stream: true,
+            response_format: None,
         };
 
         let mut req_builder = self
@@ -293,6 +294,7 @@ impl LlmClient {
             model: self.model.clone(),
             messages: self.history.clone(),
             stream: false,
+            format: None,
         };
 
         let res = self
@@ -332,6 +334,86 @@ impl LlmClient {
             &final_reply,
         );
 
+        Ok(chat_res.message.content)
+    }
+
+    /// Complete a prompt or message sequence silently without triggering audio playback or modifying chat history.
+    pub fn complete_messages_silent(&mut self, messages: &[ChatMessage]) -> Result<String> {
+        let is_local_engine = self.provider.eq_ignore_ascii_case("local")
+            || self.provider.eq_ignore_ascii_case("antigravity");
+
+        if is_local_engine && !self.antigravity.accounts.is_empty() {
+            let mut dummy_cb = |_text: &str, _emo: &str| -> Result<()> { Ok(()) };
+            if let Ok(reply) = self.antigravity.chat_stream(
+                &self.model,
+                messages,
+                0.2, // Low temperature for deterministic planning
+                4096,
+                &mut dummy_cb,
+            ) {
+                return Ok(reply);
+            }
+        }
+
+        // Custom OpenAI-compatible endpoint
+        let custom_endpoint = if self.base_url.ends_with("/chat/completions") {
+            self.base_url.clone()
+        } else {
+            format!("{}/chat/completions", self.base_url.trim_end_matches('/'))
+        };
+
+        let req_body = ChatRequest {
+            model: self.model.clone(),
+            messages: messages.to_vec(),
+            temperature: 0.2,
+            max_tokens: 4096,
+            stream: false,
+            response_format: Some(serde_json::json!({ "type": "json_object" })),
+        };
+
+        let mut req_builder = self
+            .client
+            .post(&custom_endpoint)
+            .header("Content-Type", "application/json");
+
+        if let Some(ref key) = self.api_key {
+            if !key.trim().is_empty() {
+                req_builder = req_builder.header("Authorization", format!("Bearer {key}"));
+            }
+        }
+
+        if let Ok(response) = req_builder.json(&req_body).send() {
+            if response.status().is_success() {
+                if let Ok(res_json) = response.json::<serde_json::Value>() {
+                    if let Some(reply) = res_json["choices"][0]["message"]["content"].as_str() {
+                        return Ok(reply.to_string());
+                    }
+                }
+            }
+        }
+
+        // Fallback to Ollama native format
+        let ollama_endpoint = if self.base_url.ends_with("/api/chat") {
+            self.base_url.clone()
+        } else {
+            format!("{}/api/chat", self.base_url.trim_end_matches('/'))
+        };
+
+        let req_body = OllamaChatRequest {
+            model: self.model.clone(),
+            messages: messages.to_vec(),
+            stream: false,
+            format: Some("json".to_string()),
+        };
+
+        let res = self
+            .client
+            .post(&ollama_endpoint)
+            .json(&req_body)
+            .send()
+            .map_err(|e| anyhow::anyhow!("Failed to connect to Ollama ({ollama_endpoint}): {e}"))?;
+
+        let chat_res: OllamaChatResponse = res.json().context("Failed to parse Ollama response")?;
         Ok(chat_res.message.content)
     }
 }

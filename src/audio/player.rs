@@ -2,10 +2,8 @@ use std::io::Cursor;
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 
-static IS_PLAYING: AtomicBool = AtomicBool::new(false);
-static IS_PAUSED: AtomicBool = AtomicBool::new(false);
 static CURRENT_TITLE: Mutex<Option<String>> = Mutex::new(None);
 
 static AUDIO_HANDLE: OnceLock<Option<rodio::OutputStreamHandle>> = OnceLock::new();
@@ -195,88 +193,173 @@ fn get_audio_handle() -> Option<rodio::OutputStreamHandle> {
         .clone()
 }
 
-/// Putar audio respon AI Supertonic (WAV bytes) langsung ke speaker native PC
-pub fn play_native_voice(wav_bytes: Vec<u8>) {
+#[derive(Clone, Copy, Debug)]
+struct VoiceStreamControl {
+    generation: u64,
+    is_completed: bool,
+}
+
+static VOICE_STREAM_CONTROL: Mutex<Option<VoiceStreamControl>> = Mutex::new(None);
+
+/// Putar chunk audio respon AI Supertonic secara streaming dan gapless ke speaker PC
+pub fn play_native_voice_chunk(chunk_idx: usize, total_chunks: usize, wav_bytes: Vec<u8>) {
     if crate::app_state::is_voice_muted() {
         return;
     }
 
-    // Ekstrak data sampel PCM dan sample_rate untuk sinkronisasi bibir AIUEO presisi
-    if let Some((samples, sr)) = parse_wav_samples(&wav_bytes) {
-        if let Ok(mut lock) = ACTIVE_VOICE_SPEECH.lock() {
-            *lock = Some(ActiveVoiceSpeech {
-                samples,
-                sample_rate: sr,
-                start_instant: std::time::Instant::now(),
+    if chunk_idx == 0 {
+        // Chunk pertama: inisialisasi sesi playback baru
+        let my_gen = VOICE_PLAYBACK_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+
+        if let Ok(mut ctrl) = VOICE_STREAM_CONTROL.lock() {
+            *ctrl = Some(VoiceStreamControl {
+                generation: my_gen,
+                is_completed: total_chunks <= 1,
             });
         }
-    }
 
-    let my_gen = VOICE_PLAYBACK_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+        // Ekstrak data sampel PCM dan sample_rate untuk sinkronisasi bibir AIUEO presisi
+        if let Some((samples, sr)) = parse_wav_samples(&wav_bytes) {
+            if let Ok(mut lock) = ACTIVE_VOICE_SPEECH.lock() {
+                *lock = Some(ActiveVoiceSpeech {
+                    samples,
+                    sample_rate: sr,
+                    start_instant: std::time::Instant::now(),
+                });
+            }
+        }
 
-    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
-        if let Some(handle) = get_audio_handle() {
-            if let Ok(decoder) = rodio::Decoder::new(Cursor::new(wav_bytes)) {
-                if let Ok(sink) = rodio::Sink::try_new(&handle) {
-                    // Duck musik native jika sedang berputar
-                    if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
-                        if let Some(ref m_sink) = *music_lock {
-                            m_sink.set_volume(0.25);
-                        }
-                    }
-                    sink.append(decoder);
-                    if let Ok(mut lock) = NATIVE_VOICE_SINK.lock() {
-                        if let Some(old) = lock.take() {
-                            old.stop();
-                        }
-                        *lock = Some(sink);
-                    }
-
-                    // Pulihkan volume musik setelah suara AI selesai dan kembalikan status avatar ke Idle
-                    // Generation ID guard mencegah race condition jika suara baru dimulai saat suara lama belum selesai
-                    std::thread::spawn(move || {
-                        loop {
-                            std::thread::sleep(std::time::Duration::from_millis(150));
-                            if VOICE_PLAYBACK_GEN.load(Ordering::SeqCst) != my_gen {
-                                // Thread suara baru telah mengambil alih, hentikan pengawas lama ini
-                                break;
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            if let Some(handle) = get_audio_handle() {
+                if let Ok(decoder) = rodio::Decoder::new(Cursor::new(wav_bytes)) {
+                    if let Ok(sink) = rodio::Sink::try_new(&handle) {
+                        // Duck musik native jika sedang berputar
+                        if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
+                            if let Some(ref m_sink) = *music_lock {
+                                m_sink.set_volume(0.25);
                             }
-                            let is_done = if let Ok(lock) = NATIVE_VOICE_SINK.lock() {
-                                lock.as_ref().map(|s| s.empty()).unwrap_or(true)
-                            } else {
-                                true
-                            };
-                            if is_done {
+                        }
+                        sink.append(decoder);
+                        if let Ok(mut lock) = NATIVE_VOICE_SINK.lock() {
+                            if let Some(old) = lock.take() {
+                                old.stop();
+                            }
+                            *lock = Some(sink);
+                        }
+
+                        // Pulihkan volume musik setelah semua chunk suara AI selesai dan kembalikan status avatar ke Idle
+                        std::thread::spawn(move || {
+                            let mut last_chunk_time = std::time::Instant::now();
+                            loop {
+                                std::thread::sleep(std::time::Duration::from_millis(100));
                                 if VOICE_PLAYBACK_GEN.load(Ordering::SeqCst) != my_gen {
+                                    // Thread suara baru atau stop telah mengambil alih
                                     break;
                                 }
-                                if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
-                                    if let Some(ref m_sink) = *music_lock {
-                                        m_sink.set_volume(1.0);
+
+                                let (is_completed, is_empty) = {
+                                    let empty = if let Ok(lock) = NATIVE_VOICE_SINK.lock() {
+                                        lock.as_ref().map(|s| s.empty()).unwrap_or(true)
+                                    } else {
+                                        true
+                                    };
+                                    let completed = if let Ok(ctrl) = VOICE_STREAM_CONTROL.lock() {
+                                        ctrl.as_ref().map(|c| c.is_completed).unwrap_or(true)
+                                    } else {
+                                        true
+                                    };
+                                    (completed, empty)
+                                };
+
+                                if !is_empty {
+                                    last_chunk_time = std::time::Instant::now();
+                                }
+
+                                // Pemutaran tuntas jika sink sudah kosong DAN semua chunk telah di-append,
+                                // atau jika stall melebihi 8 detik fail-safe
+                                if (is_empty && is_completed)
+                                    || (is_empty && last_chunk_time.elapsed().as_secs() >= 8)
+                                {
+                                    if VOICE_PLAYBACK_GEN.load(Ordering::SeqCst) != my_gen {
+                                        break;
                                     }
+                                    if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
+                                        if let Some(ref m_sink) = *music_lock {
+                                            m_sink.set_volume(1.0);
+                                        }
+                                    }
+                                    if let Ok(mut speech_lock) = ACTIVE_VOICE_SPEECH.lock() {
+                                        *speech_lock = None;
+                                    }
+                                    if let Ok(mut ctrl) = VOICE_STREAM_CONTROL.lock() {
+                                        *ctrl = None;
+                                    }
+                                    crate::app_state::set_ai_speaking(false);
+                                    crate::tray::TrayState::update_with_emotion(
+                                        crate::services::tray_service::AssistantState::Idle,
+                                        "Standby",
+                                        "neutral",
+                                    );
+                                    break;
                                 }
-                                if let Ok(mut speech_lock) = ACTIVE_VOICE_SPEECH.lock() {
-                                    *speech_lock = None;
-                                }
-                                crate::app_state::set_ai_speaking(false);
-                                crate::tray::TrayState::update_with_emotion(
-                                    crate::services::tray_service::AssistantState::Idle,
-                                    "Standby",
-                                    "neutral",
-                                );
-                                break;
                             }
-                        }
-                    });
+                        });
+                    }
+                }
+            }
+        }));
+    } else {
+        // Chunk berikutnya (> 0): periksa apakah masih dalam sesi playback aktif
+        let current_gen = if let Ok(ctrl) = VOICE_STREAM_CONTROL.lock() {
+            ctrl.as_ref().map(|c| c.generation)
+        } else {
+            None
+        };
+
+        let Some(stream_gen) = current_gen else {
+            return;
+        };
+
+        if VOICE_PLAYBACK_GEN.load(Ordering::SeqCst) != stream_gen {
+            return;
+        }
+
+        // Sambungkan sampel PCM ke buffer active voice agar lip-sync tetap sinkron
+        if let Some((new_samples, _)) = parse_wav_samples(&wav_bytes) {
+            if let Ok(mut lock) = ACTIVE_VOICE_SPEECH.lock() {
+                if let Some(ref mut speech) = *lock {
+                    speech.samples.extend(new_samples);
                 }
             }
         }
-    }));
+
+        // Antrekan audio langsung ke rodio Sink yang sedang memutar chunk sebelumnya
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            if let Ok(decoder) = rodio::Decoder::new(Cursor::new(wav_bytes)) {
+                if let Ok(lock) = NATIVE_VOICE_SINK.lock() {
+                    if let Some(ref sink) = *lock {
+                        sink.append(decoder);
+                    }
+                }
+            }
+        }));
+
+        if let Ok(mut ctrl) = VOICE_STREAM_CONTROL.lock() {
+            if let Some(ref mut c) = *ctrl {
+                if chunk_idx + 1 >= total_chunks {
+                    c.is_completed = true;
+                }
+            }
+        }
+    }
 }
 
 /// Hentikan pemutaran suara AI native (misal saat interupsi suara / VAD barge-in)
 pub fn stop_native_voice() {
     VOICE_PLAYBACK_GEN.fetch_add(1, Ordering::SeqCst);
+    if let Ok(mut ctrl) = VOICE_STREAM_CONTROL.lock() {
+        *ctrl = None;
+    }
     if let Ok(mut lock) = NATIVE_VOICE_SINK.lock() {
         if let Some(sink) = lock.take() {
             sink.stop();
@@ -294,19 +377,26 @@ pub fn stop_native_voice() {
 
 /// Mengecek apakah audio native voice sedang berputar di speaker PC
 pub fn is_native_voice_playing() -> bool {
-    if let Ok(lock) = NATIVE_VOICE_SINK.lock() {
+    let sink_active = if let Ok(lock) = NATIVE_VOICE_SINK.lock() {
         lock.as_ref().map(|s| !s.empty()).unwrap_or(false)
     } else {
         false
+    };
+    if sink_active {
+        return true;
     }
+    if let Ok(ctrl_lock) = VOICE_STREAM_CONTROL.lock() {
+        if let Some(ref ctrl) = *ctrl_lock {
+            return !ctrl.is_completed;
+        }
+    }
+    false
 }
 
 /// Kirim perintah putar file audio (sinkronisasi state & delegasi stream ke Web Dashboard & PiP)
 pub fn play_file(path: impl AsRef<Path>, title: impl Into<String>) {
     let t = title.into();
     let p = path.as_ref();
-    IS_PLAYING.store(true, Ordering::SeqCst);
-    IS_PAUSED.store(false, Ordering::SeqCst);
     if let Ok(mut lock) = CURRENT_TITLE.lock() {
         *lock = Some(t.clone());
     }
@@ -348,8 +438,6 @@ pub fn play_file(path: impl AsRef<Path>, title: impl Into<String>) {
 
 /// Jeda pemutaran musik
 pub fn pause() {
-    IS_PLAYING.store(false, Ordering::SeqCst);
-    IS_PAUSED.store(true, Ordering::SeqCst);
     if let Ok(lock) = NATIVE_MUSIC_SINK.lock() {
         if let Some(ref sink) = *lock {
             sink.pause();
@@ -360,8 +448,6 @@ pub fn pause() {
 
 /// Lanjutkan pemutaran musik
 pub fn resume() {
-    IS_PLAYING.store(true, Ordering::SeqCst);
-    IS_PAUSED.store(false, Ordering::SeqCst);
     if let Ok(lock) = NATIVE_MUSIC_SINK.lock() {
         if let Some(ref sink) = *lock {
             sink.play();
@@ -372,8 +458,6 @@ pub fn resume() {
 
 /// Hentikan pemutaran musik
 pub fn stop() {
-    IS_PLAYING.store(false, Ordering::SeqCst);
-    IS_PAUSED.store(false, Ordering::SeqCst);
     if let Ok(mut lock) = CURRENT_TITLE.lock() {
         *lock = None;
     }
@@ -391,9 +475,4 @@ pub fn get_current_title() -> Option<String> {
     } else {
         None
     }
-}
-
-#[allow(dead_code)]
-pub fn is_playing() -> bool {
-    IS_PLAYING.load(Ordering::SeqCst)
 }

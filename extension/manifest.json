@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Ragasukma AI Web Companion",
   "version": "1.0.0",
-  "description": "Jembatan ringan AI Voice Assistant untuk mengontrol dan membaca YouTube, YouTube Music, dan tab browser secara cerdas.",
+  "description": "Lightweight AI Voice Assistant web companion.",
   "icons": {
     "128": "icon.png"
   },
@@ -27,13 +27,7 @@
         "http://127.0.0.1:42128/*",
         "http://localhost:42128/*"
       ],
-      "js": [
-        "modules/click_engine.js",
-        "modules/dom_extractor.js",
-        "modules/input_engine.js",
-        "modules/media_controller.js",
-        "content.js"
-      ],
+      "js": ["content.js"],
       "run_at": "document_idle"
     }
   ]

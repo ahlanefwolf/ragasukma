@@ -180,7 +180,7 @@ impl VrmModelData {
     fn load_from_file_internal(path_buf: PathBuf) -> anyhow::Result<Self> {
         let path_ref = &path_buf;
         println!(
-            "📦 [VRM Loader] Membaca model VRM 1:1 Three.js: {:?}",
+            "📦 [VRM Loader] Reading Three.js 1:1 VRM model: {:?}",
             path_ref
         );
 
@@ -215,7 +215,7 @@ impl VrmModelData {
             let name = mat.name().unwrap_or("Material").to_string();
             let name_lower = name.to_lowercase();
 
-            let category = if name_lower.contains("hair") || name_lower.contains("rambut") {
+            let category = if name_lower.contains("hair") {
                 MaterialCategory::Hair
             } else if name_lower.contains("face")
                 || name_lower.contains("body")

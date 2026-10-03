@@ -172,13 +172,8 @@ static RE_SINGLE_STAR_EMOTE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\*[^\*\n]{1,60}\*").expect("valid single star emote regex")
 });
 
-static RE_ROLEPLAY_PARENS: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\((?:tersenyum|tertawa|mengangguk|menatap|tersipu|melirik|sambil [^\)\n]{1,40}|giggle|chuckle|sigh|whisper|smiles?|laughs?|nodding?|blushing?)\)").expect("valid roleplay parens regex")
-});
-
 /// Clean AI text: strip action tags ([CMD:...], [SKILL:...]), XML tool-call blocks,
-/// bold markdown asterisks (**bold** -> bold), single-asterisk emotion/roleplay tags
-/// (*malu-malu*, *happy*, *tersenyum* -> removed), roleplay parentheses, and backticks.
+/// bold markdown asterisks (**bold** -> bold), single-asterisk emotion tags, and backticks.
 pub fn clean_ai_text(text: &str) -> String {
     // 1. Strip any XML tool-call blocks Claude may have emitted
     let text = RE_XML_TOOL_CALL.replace_all(text, "");
@@ -189,13 +184,10 @@ pub fn clean_ai_text(text: &str) -> String {
     // 3. Normalisasi bold markdown: `**teks**` -> `teks`
     let text = RE_BOLD.replace_all(&text, "$1");
 
-    // 4. Buang tag bintang tunggal emosi/roleplay (*malu-malu*, *happy*, *tersenyum*, dsb.)
+    // 4. Buang tag bintang tunggal emosi (*malu-malu*, *happy*, dsb.)
     let text = RE_SINGLE_STAR_EMOTE.replace_all(&text, " ");
 
-    // 5. Buang kurung aksi roleplay umum: (tersenyum), (sambil tertawa), dll.
-    let text = RE_ROLEPLAY_PARENS.replace_all(&text, " ");
-
-    // 6. Buang backtick (`` ` ``) dan header markdown (`#`)
+    // 5. Buang backtick (`` ` ``) dan header markdown (`#`)
     let mut cleaned = String::with_capacity(text.len());
     for c in text.chars() {
         match c {
@@ -249,7 +241,7 @@ mod tests {
 
     #[test]
     fn test_clean_ai_text_removes_roleplay_and_bold() {
-        let raw = "*malu-malu* Halo Kak! Ini **sangat penting** lho! (tersenyum) `kode_rahasia`";
+        let raw = "*malu-malu* Halo Kak! Ini **sangat penting** lho! `kode_rahasia`";
         let cleaned = clean_ai_text(raw);
         assert_eq!(cleaned, "Halo Kak! Ini sangat penting lho! kode_rahasia");
     }

@@ -369,6 +369,22 @@ impl SupertonicEngine {
     }
 
     pub fn synthesize(&self, text: &str, voice: &str, lang: &str, speed: f32) -> Result<Vec<u8>> {
+        self.synthesize_stream(text, voice, lang, speed, |_, _, _| {})
+    }
+
+    /// Sintesis teks bertahap per chunk dan langsung kirimkan hasil WAV bytes ke channel sender (streaming TTS queue).
+    /// Mengembalikan total audio WAV bytes gabungan untuk keperluan caching dan mobile client.
+    pub fn synthesize_stream<F>(
+        &self,
+        text: &str,
+        voice: &str,
+        lang: &str,
+        speed: f32,
+        mut on_chunk_ready: F,
+    ) -> Result<Vec<u8>>
+    where
+        F: FnMut(usize, usize, Vec<u8>), // (chunk_idx, total_chunks, wav_bytes)
+    {
         let speed = if speed <= 0.2 {
             1.0
         } else {
@@ -386,19 +402,24 @@ impl SupertonicEngine {
             return Err(anyhow!("Teks kosong setelah pemecahan chunk"));
         }
 
-        if chunks.len() == 1 {
+        let total_chunks = chunks.len();
+        if total_chunks == 1 {
             let samples = self.synthesize_chunk(&chunks[0], style, &lang_code, speed)?;
-            return Ok(samples_to_wav_bytes(&samples, self.cfg.ae.sample_rate));
+            let wav_bytes = samples_to_wav_bytes(&samples, self.cfg.ae.sample_rate);
+            on_chunk_ready(0, 1, wav_bytes.clone());
+            return Ok(wav_bytes);
         }
 
         let mut all_samples = Vec::new();
-        // Jeda napas alami antar kalimat ~100ms (4410 sampel pada 44.1kHz)
         let pause_samples = (0.10 * self.cfg.ae.sample_rate as f32) as usize;
 
         for (i, chunk) in chunks.iter().enumerate() {
             match self.synthesize_chunk(chunk, style, &lang_code, speed) {
                 Ok(samples) => {
                     if !samples.is_empty() {
+                        let chunk_wav = samples_to_wav_bytes(&samples, self.cfg.ae.sample_rate);
+                        on_chunk_ready(i, total_chunks, chunk_wav);
+
                         if i > 0 && !all_samples.is_empty() {
                             all_samples.extend(std::iter::repeat_n(0.0f32, pause_samples));
                         }

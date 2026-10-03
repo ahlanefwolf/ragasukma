@@ -29,6 +29,8 @@ pub struct BrowserCommand {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selector: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_selectors: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub text_to_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub press_enter: Option<bool>,
@@ -53,6 +55,8 @@ pub struct DomElementInfo {
     pub href: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selector: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fallbacks: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aria_label: Option<String>,
 }
@@ -73,6 +77,12 @@ pub struct BrowserDomSnapshot {
     pub texts: Vec<String>,
     #[serde(default)]
     pub text_summary: String,
+    #[serde(default)]
+    pub is_loading: bool,
+    #[serde(default)]
+    pub pending_requests: u32,
+    #[serde(default)]
+    pub is_network_idle: bool,
 }
 
 pub enum BrowserSessionEvent {
@@ -214,6 +224,9 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                             inputs: Vec::new(),
                             texts: Vec::new(),
                             text_summary: String::new(),
+                            is_loading: false,
+                            pending_requests: 0,
+                            is_network_idle: true,
                         })
                 });
 
@@ -418,7 +431,7 @@ pub fn format_open_tabs_for_llm() -> String {
     }
 
     let mut lines = Vec::new();
-    lines.push("\n### 📑 DAFTAR TAB BROWSER TERBUKA:".to_string());
+    lines.push("\n### 📑 OPEN BROWSER TABS:".to_string());
     for (i, t) in tabs.iter().take(8).enumerate() {
         let active_mark = if t.active { " `[ACTIVE_TAB]`" } else { "" };
         lines.push(format!(
@@ -452,6 +465,9 @@ pub fn cleanup_browser_sessions_on_startup() {
         inputs: Vec::new(),
         texts: Vec::new(),
         text_summary: String::new(),
+        is_loading: false,
+        pending_requests: 0,
+        is_network_idle: true,
     };
     if let Ok(json_pretty) = serde_json::to_string_pretty(&initial_snap) {
         let _ = fs::write(&file, &json_pretty);

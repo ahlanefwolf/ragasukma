@@ -90,7 +90,7 @@ pub fn run_windows_native_ocr(
 pub fn run_windows_native_ocr(
     _image: &DynamicImage,
 ) -> Result<Vec<(String, [i32; 4], f32)>, String> {
-    Err("Windows Native OCR hanya tersedia pada sistem operasi Windows 10/11.".to_string())
+    Err("Windows Native OCR is only supported on Windows 10/11 operating systems.".to_string())
 }
 
 #[cfg(test)]

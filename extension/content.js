@@ -1,391 +1,367 @@
 /**
- * Ragasukma AI Web Companion - Content Script Main Coordinator
- * Merakit modul DOM Extractor, Click Engine, Input Engine, dan Media Controller.
+ * Ragasukma AI Companion - Content Script
+ * Minimal DOM Extractor, Click/Input Dispatcher, and Demonstration Recorder.
  */
 
-(function () {
-  // Cegah injeksi berulang di frame/subframe yang bukan window utama
-  if (window.top !== window.self) return;
+"use strict";
 
-  // Abaikan dan jangan jalankan companion di internal dashboard Ragasukma (127.0.0.1:42128)
+(function () {
+  if (window.top !== window.self) return;
   if (window.location.host === "127.0.0.1:42128" || window.location.host === "localhost:42128") return;
 
-  console.log("⚡ Ragasukma AI Companion aktif pada:", window.location.hostname);
+  const api = typeof chrome !== "undefined" ? chrome : (typeof browser !== "undefined" ? browser : null);
 
-  let lastSentUrl = "";
-  let lastSentTitle = "";
-  let debounceTimer = null;
-
-  let lastSnapshotHash = "";
-
-  function computeSimpleHash(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = ((hash << 5) - hash) + str.charCodeAt(i);
-      hash |= 0;
-    }
-    return String(hash);
+  function isVisible(el) {
+    if (!el) return false;
+    const style = window.getComputedStyle?.(el);
+    if (style && (style.display === "none" || style.visibility === "hidden" || style.opacity === "0")) return false;
+    const r = el.getBoundingClientRect?.();
+    return Boolean(r && r.width > 0 && r.height > 0);
   }
 
-  function sendSnapshot(force = false) {
-    try {
-      // Jika bukan force, HANYA kirim jika halaman saat ini sedang aktif & visible
-      if (!force && document.visibilityState !== "visible") {
-        return;
-      }
-      if (!window.RagasukmaDOM || typeof window.RagasukmaDOM.extractSnapshot !== "function") return;
-      const snapshot = window.RagasukmaDOM.extractSnapshot();
-      if (!snapshot) return;
+  function buildSelectorCandidates(el) {
+    if (!el) return { primary: "", fallbacks: [] };
+    const tag = el.tagName.toLowerCase();
+    const candidates = [];
 
-      const textsJoined = (snapshot.texts || []).join("|");
-      const currentHash = computeSimpleHash(snapshot.url + snapshot.title + textsJoined);
-
-      // Jika bukan force dan isi halaman sama persis, abaikan
-      if (!force && currentHash === lastSnapshotHash) {
-        return;
-      }
-
-      lastSentUrl = snapshot.url;
-      lastSentTitle = snapshot.title;
-      lastSnapshotHash = currentHash;
-      console.log("📸 [Ragasukma Extension] Mengirim snapshot:", snapshot.title, snapshot.url, `(${snapshot.texts?.length || 0} teks)`);
-
-      // Kirim HANYA via Background Service Worker (karena background script terbebas dari CSP HTTPS website)
-      const extApi = typeof chrome !== "undefined" && chrome.runtime ? chrome : (typeof browser !== "undefined" && browser.runtime ? browser : null);
-      if (extApi && extApi.runtime && extApi.runtime.id && extApi.runtime.sendMessage) {
+    // Priority 1: Semantic ID (jika bukan auto-generated hash)
+    if (el.id && typeof el.id === "string") {
+      const idTrim = el.id.trim();
+      const isRandomHash = /^(:r\w+:|[0-9_-]+|[a-z]{1,3}\d+[a-z\d]*)$/i.test(idTrim);
+      if (idTrim.length > 0 && !isRandomHash) {
         try {
-          extApi.runtime.sendMessage({ type: "DOM_SNAPSHOT", data: snapshot }, (resp) => {
-            if (extApi.runtime && extApi.runtime.lastError) {
-              // Ignore disconnected port/context invalidated quietly
-            } else {
-              console.log("💾 [Ragasukma Extension] Snapshot berhasil disimpan ke active_tab_browser.json");
-            }
-          });
+          if (document.querySelectorAll(`#${idTrim}`).length === 1) {
+            candidates.push(`#${idTrim}`);
+          }
         } catch (_) {}
       }
-    } catch (e) {
-      console.warn("⚠️ [Ragasukma Extension] Info snapshot:", e.message || e);
-    }
-  }
-
-  // JALANKAN SAAT CONTENT SCRIPT INJECT HANYA JIKA TAB SEDANG VISIBLE
-  if (document.visibilityState === "visible") {
-    sendSnapshot(true);
-  }
-
-  function triggerSnapshotDebounced(delay = 150, force = false) {
-    if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      sendSnapshot(force);
-    }, delay);
-  }
-
-  // User Interaction & Manual Activity Listeners (Klik manual, scroll, ketik user, fokus window/tab)
-  // Memastikan snapshot selalu segar saat user berinteraksi langsung di browser
-  window.addEventListener("focus", () => {
-    lastSnapshotHash = "";
-    sendSnapshot(true);
-  }, { passive: true });
-  window.addEventListener("click", () => triggerSnapshotDebounced(150, true), { passive: true });
-  window.addEventListener("keyup", () => triggerSnapshotDebounced(300, false), { passive: true });
-  window.addEventListener("scroll", () => triggerSnapshotDebounced(400, false), { passive: true });
-
-  // Event Listeners Lifecycle & Navigasi
-  if (document.readyState === "complete" || document.readyState === "interactive") {
-    triggerSnapshotDebounced(50, true);
-  } else {
-    window.addEventListener("DOMContentLoaded", () => triggerSnapshotDebounced(50, true));
-  }
-
-  window.addEventListener("load", () => triggerSnapshotDebounced(100, true));
-
-  // Intercept History API (pushState & replaceState) untuk SPA Universal (React, Vue, Next.js, Solid, Svelte)
-  try {
-    const originalPushState = history.pushState;
-    history.pushState = function (...args) {
-      originalPushState.apply(this, args);
-      lastSnapshotHash = "";
-      triggerSnapshotDebounced(150, true);
-    };
-
-    const originalReplaceState = history.replaceState;
-    history.replaceState = function (...args) {
-      originalReplaceState.apply(this, args);
-      lastSnapshotHash = "";
-      triggerSnapshotDebounced(250, true);
-    };
-  } catch (_) {}
-
-  // Intercept fetch & XMLHttpRequest untuk menangkap update data dinamis / API load di SPA
-  try {
-    const originalFetch = window.fetch;
-    if (originalFetch) {
-      window.fetch = async function (...args) {
-        try {
-          const response = await originalFetch.apply(this, args);
-          // HANYA trigger jika request bukan ke backend lokal Ragasukma
-          const urlStr = typeof args[0] === "string" ? args[0] : (args[0] && args[0].url ? args[0].url : "");
-          if (!urlStr.includes("42128") && !urlStr.includes("127.0.0.1") && document.visibilityState === "visible") {
-            triggerSnapshotDebounced(500, false);
-          }
-          return response;
-        } catch (err) {
-          throw err;
-        }
-      };
     }
 
-    const OriginalXHR = window.XMLHttpRequest;
-    if (OriginalXHR) {
-      const originalOpen = OriginalXHR.prototype.open;
-      const originalSend = OriginalXHR.prototype.send;
-
-      OriginalXHR.prototype.open = function (method, url, ...rest) {
-        this._ragasukma_url = typeof url === "string" ? url : "";
-        return originalOpen.call(this, method, url, ...rest);
-      };
-
-      OriginalXHR.prototype.send = function (...args) {
-        this.addEventListener("load", () => {
-          const url = this._ragasukma_url || "";
-          if (!url.includes("42128") && !url.includes("127.0.0.1") && document.visibilityState === "visible") {
-            triggerSnapshotDebounced(500, false);
-          }
-        }, { passive: true });
-        return originalSend.apply(this, args);
-      };
+    // Priority 2: Distinct Form / Accessibility attributes (aria-label, placeholder, name)
+    const aria = el.getAttribute?.("aria-label");
+    if (aria) {
+      const escapedAria = aria.replace(/'/g, "\\'");
+      candidates.push(`${tag}[aria-label='${escapedAria}']`);
+      candidates.push(`[aria-label='${escapedAria}']`);
     }
-  } catch (_) {}
 
-  // Universal SPA, YouTube/SPA Events, History, and Visibility Events
-  window.addEventListener("popstate", () => {
-    lastSnapshotHash = "";
-    triggerSnapshotDebounced(20, true);
-  });
-  window.addEventListener("hashchange", () => {
-    lastSnapshotHash = "";
-    triggerSnapshotDebounced(20, true);
-  });
-  window.addEventListener("pageshow", () => {
-    lastSnapshotHash = "";
-    sendSnapshot(true);
-  });
-  window.addEventListener("yt-navigate-finish", () => {
-    lastSnapshotHash = "";
-    triggerSnapshotDebounced(150, true);
-  });
-  window.addEventListener("yt-page-data-updated", () => {
-    lastSnapshotHash = "";
-    triggerSnapshotDebounced(200, true);
-  });
-  document.addEventListener("visibilitychange", () => {
-    lastSnapshotHash = "";
-    if (document.visibilityState === "visible") {
-      setTimeout(() => sendSnapshot(true), 30);
-      setTimeout(() => sendSnapshot(true), 250);
-    } else {
-      // BATALKAN SEMUA TIMER SAAT TAB MENJADI HIDDEN/BACKGROUND
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-        debounceTimer = null;
+    const placeholder = el.getAttribute?.("placeholder");
+    if (placeholder) {
+      const escapedPl = placeholder.replace(/'/g, "\\'");
+      candidates.push(`${tag}[placeholder='${escapedPl}']`);
+    }
+
+    if (el.name) {
+      candidates.push(`${tag}[name='${el.name}']`);
+    }
+
+    // Priority 3: Test ID / Action
+    const testId = el.getAttribute?.("data-testid") || el.getAttribute?.("data-action");
+    if (testId) candidates.push(`[data-testid='${testId}']`);
+
+    // Priority 4: Semantic Container & Web Component Hierarchy (membantu membedakan elemen dengan class sama di wadah berbeda)
+    let parentContainer = el.parentElement;
+    while (parentContainer && parentContainer !== document.body) {
+      if (
+        parentContainer.tagName.includes("-") ||
+        parentContainer.matches("article, [role='article'], li, [role='listitem'], [role='row'], form, [role='search'], [role='main'], h1, h2, h3, h4")
+      ) {
+        break;
       }
+      parentContainer = parentContainer.parentElement;
     }
-  });
 
-  // Reaktif terhadap perubahan DOM struktural & teks (HANYA jika tab sedang aktif/visible)
-  try {
-    const observer = new MutationObserver((mutations) => {
-      if (document.visibilityState !== "visible") return;
+    if (parentContainer && parentContainer !== el && parentContainer !== document.body) {
+      const pTag = parentContainer.tagName.toLowerCase();
+      const pId = parentContainer.id && !/^(:r\w+:|[0-9_-]+|[a-z]{1,3}\d+[a-z\d]*)$/i.test(parentContainer.id)
+        ? `#${parentContainer.id.trim()}`
+        : (parentContainer.getAttribute("aria-label") ? `${pTag}[aria-label='${parentContainer.getAttribute("aria-label").replace(/'/g, "\\'")}']` : pTag);
+      candidates.push(`${pId} ${tag}`);
+    }
 
-      // Filter mutasi: periksa penambahan/penghapusan node atau perubahan teks konten
-      let hasSignificantMutation = false;
-      for (const m of mutations) {
-        if (m.type === "childList" && (m.addedNodes.length > 0 || m.removedNodes.length > 0)) {
-          hasSignificantMutation = true;
-          break;
-        } else if (m.type === "characterData") {
-          hasSignificantMutation = true;
+    // Priority 5: Semantic Class (hindari class utilitas/state generik)
+    const cls = Array.from(el.classList || []).filter(c => 
+      c && !["btn", "button", "active", "focus", "selected", "disabled"].includes(c)
+    );
+    for (const c of cls.slice(0, 2)) {
+      candidates.push(`${tag}.${c}`);
+    }
+
+    if (candidates.length === 0) candidates.push(tag);
+
+    // Cari kandidat pertama yang benar-benar unik (matches === 1 di DOM) jika memungkinkan
+    const unique = Array.from(new Set(candidates));
+    let bestPrimary = unique[0] || tag;
+    for (const cand of unique) {
+      try {
+        if (document.querySelectorAll(cand).length === 1) {
+          bestPrimary = cand;
           break;
         }
-      }
+      } catch (_) {}
+    }
 
-      if (hasSignificantMutation) {
-        triggerSnapshotDebounced(500, false);
-      }
-    });
-
-    const observerConfig = {
-      childList: true,
-      subtree: true,
-      characterData: true
+    const fallbacks = unique.filter(c => c !== bestPrimary);
+    return {
+      primary: bestPrimary,
+      fallbacks: fallbacks
     };
+  }
 
-    if (document.body) {
-      observer.observe(document.body, observerConfig);
-    } else {
-      window.addEventListener("DOMContentLoaded", () => {
-        if (document.body) {
-          observer.observe(document.body, observerConfig);
-        }
+  function buildSelector(el) {
+    return buildSelectorCandidates(el).primary;
+  }
+
+  // --- Snapshot Extractor ---
+  function extractSnapshot() {
+    const buttons = [];
+    const btnNodes = document.querySelectorAll("button, [role='button'], [role='option'], [role='menuitem'], a, li[role='option'], input[type='button'], input[type='submit']");
+    for (const b of btnNodes) {
+      if (!isVisible(b)) continue;
+      const text = (b.innerText || b.getAttribute("aria-label") || b.value || "").trim();
+      if (text && text.length <= 100) {
+        const { primary, fallbacks } = buildSelectorCandidates(b);
+        buttons.push({
+          tag: b.tagName.toLowerCase(),
+          selector: primary,
+          fallbacks: fallbacks.length > 0 ? fallbacks : undefined,
+          text: text,
+          aria_label: b.getAttribute("aria-label") || undefined
+        });
+      }
+    }
+
+    const inputs = [];
+    const inpNodes = document.querySelectorAll("input:not([type='hidden']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']):not([type='checkbox']):not([type='radio']), textarea, [contenteditable='true']");
+    for (const inp of inpNodes) {
+      if (!isVisible(inp)) continue;
+      const val = inp.value ? inp.value.trim() : (inp.isContentEditable ? inp.innerText.trim() : "");
+      const placeholder = inp.placeholder || inp.getAttribute("aria-label") || "";
+      const { primary, fallbacks } = buildSelectorCandidates(inp);
+      inputs.push({
+        tag: inp.tagName.toLowerCase(),
+        selector: primary,
+        fallbacks: fallbacks.length > 0 ? fallbacks : undefined,
+        text: val || undefined,
+        placeholder: inp.placeholder || undefined,
+        aria_label: inp.getAttribute("aria-label") || undefined
       });
     }
-  } catch (_) {}
 
-  // Monitor perubahan URL & Judul secara realtime (HANYA jika tab sedang aktif/visible)
-  let lastObservedUrl = window.location.href;
-  let lastTitle = document.title;
-  setInterval(() => {
-    if (document.visibilityState !== "visible") return;
-    if (window.location.href !== lastObservedUrl || document.title !== lastTitle) {
-      lastObservedUrl = window.location.href;
-      lastTitle = document.title;
-      lastSnapshotHash = "";
-      triggerSnapshotDebounced(300, true);
+    const texts = [];
+    const textNodes = document.querySelectorAll("h1, h2, h3, h4, p, span, li, [role='article']");
+    for (const t of textNodes) {
+      if (!isVisible(t)) continue;
+      const str = (t.innerText || "").trim().replace(/\s+/g, " ");
+      if (str.length >= 10 && str.length <= 150 && !texts.includes(str)) texts.push(str);
     }
-  }, 500);
 
-    // Router Eksekusi Aksi dari Background Script
-    const extApi = typeof chrome !== "undefined" && chrome.runtime ? chrome : (typeof browser !== "undefined" && browser.runtime ? browser : null);
-    if (extApi && extApi.runtime && extApi.runtime.onMessage) {
-      extApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
-        if (message && message.type === "REQUEST_SNAPSHOT") {
-          lastSnapshotHash = "";
-          sendSnapshot(true);
-          sendResponse({ status: "ok" });
-          return;
+    return {
+      url: window.location.href,
+      domain: window.location.hostname,
+      title: document.title || window.location.hostname,
+      timestamp: Date.now(),
+      buttons,
+      inputs,
+      texts,
+      text_summary: texts.join("\n\n")
+    };
+  }
+
+  let lastHash = "";
+  function sendSnapshot() {
+    try {
+      if (!api?.runtime?.id) return;
+      const snap = extractSnapshot();
+      if (!snap) return;
+
+      // Hash representatif mencakup URL, Judul, Jumlah Elemen, sample text, serta nilai input
+      const sampleTexts = snap.texts.length > 0 ? (snap.texts[0] + snap.texts[snap.texts.length - 1]) : "";
+      const inputValues = snap.inputs.map(i => `${i.selector || ""}=${i.text || ""}`).join("|");
+      const hash = `${snap.url}::${snap.title}::${snap.texts.length}::${snap.buttons.length}::${snap.inputs.length}::${sampleTexts}::${inputValues}`;
+      if (hash === lastHash) return;
+      lastHash = hash;
+
+      const p = api.runtime.sendMessage({ type: "DOM_SNAPSHOT", data: snap }, () => {
+        if (api.runtime?.lastError) {
+          // Extension context reloaded
         }
-
-        if (message && message.type === "EXECUTE_BROWSER_ACTION" && message.command) {
-        const cmd = message.command;
-        console.log("🎮 [Ragasukma DOM Action] Menerima aksi:", cmd.action, cmd);
-
-        // 1. Pencarian In-Page Universal
-        if (cmd.action === "IN_PAGE_SEARCH") {
-          const query = cmd.query || "";
-          const newUrl = cmd.new_url || "";
-
-          console.log("🔍 [Ragasukma In-Page Search] Menjalankan pencarian universal:", query, newUrl);
-          const searchInput = window.RagasukmaInput.findBestSearchInput();
-
-          if (searchInput && query) {
-            try { searchInput.focus(); } catch (_) {}
-            try { searchInput.select(); } catch (_) {}
-            window.RagasukmaInput.setNativeInputValue(searchInput, query);
-            window.RagasukmaInput.triggerInputEvents(searchInput, query);
-
-            setTimeout(() => {
-              window.RagasukmaInput.triggerEnterSubmit(searchInput);
-            }, 80);
-          } else if (newUrl) {
-            window.location.href = newUrl;
-          }
-          sendResponse({ status: "ok", action: "IN_PAGE_SEARCH" });
-        } 
-        // 2. Media Controller
-        else if (cmd.action === "MEDIA_PAUSE") {
-          window.RagasukmaMedia.pause();
-          sendResponse({ status: "ok", action: "MEDIA_PAUSE" });
-        } else if (cmd.action === "MEDIA_PLAY") {
-          window.RagasukmaMedia.play();
-          sendResponse({ status: "ok", action: "MEDIA_PLAY" });
-        } else if (cmd.action === "MEDIA_TOGGLE") {
-          window.RagasukmaMedia.toggle();
-          sendResponse({ status: "ok", action: "MEDIA_TOGGLE" });
-        } else if (cmd.action === "MEDIA_NEXT") {
-          window.RagasukmaMedia.next();
-          sendResponse({ status: "ok", action: "MEDIA_NEXT" });
-        } else if (cmd.action === "MEDIA_PREV") {
-          window.RagasukmaMedia.prev();
-          sendResponse({ status: "ok", action: "MEDIA_PREV" });
-        } 
-        // 3. Click Engine (Klik Tulisan vs Klik Tombol vs Universal)
-        else if (cmd.action === "CLICK_TEXT") {
-          const rawSel = (cmd.selector || "").trim();
-          const target = window.RagasukmaClick.findText(rawSel) || 
-                         window.RagasukmaClick.findButton(rawSel) || 
-                         window.RagasukmaClick.findSmartElement(rawSel);
-
-          if (target) {
-            window.RagasukmaClick.triggerClick(target);
-            console.log("👆 [Ragasukma Click] Berhasil klik tulisan/link:", rawSel, target);
-            // Langsung ambil snapshot baru setelah eksekusi klik
-            setTimeout(() => sendSnapshot(true), 100);
-            setTimeout(() => sendSnapshot(true), 400);
-          } else {
-            console.warn("⚠️ [Ragasukma Click] Tulisan tidak ditemukan untuk klik:", rawSel);
-          }
-          sendResponse({ status: "ok", action: "CLICK_TEXT", found: Boolean(target) });
-        }
-        else if (cmd.action === "CLICK_BUTTON") {
-          const rawSel = (cmd.selector || "").trim();
-          const target = window.RagasukmaClick.findButton(rawSel) || 
-                         window.RagasukmaClick.findText(rawSel) || 
-                         window.RagasukmaClick.findSmartElement(rawSel);
-
-          if (target) {
-            window.RagasukmaClick.triggerClick(target);
-            console.log("👆 [Ragasukma Click] Berhasil klik tombol:", rawSel, target);
-            // Langsung ambil snapshot baru setelah eksekusi klik tombol
-            setTimeout(() => sendSnapshot(true), 100);
-            setTimeout(() => sendSnapshot(true), 400);
-          } else {
-            console.warn("⚠️ [Ragasukma Click] Tombol tidak ditemukan untuk klik:", rawSel);
-          }
-          sendResponse({ status: "ok", action: "CLICK_BUTTON", found: Boolean(target) });
-        }
-        else if (cmd.action === "CLICK_ELEMENT") {
-          const rawSel = (cmd.selector || "").trim();
-          const target = window.RagasukmaClick.findSmartElement(rawSel) || 
-                         window.RagasukmaClick.findText(rawSel) || 
-                         window.RagasukmaClick.findButton(rawSel);
-
-          if (target) {
-            window.RagasukmaClick.triggerClick(target);
-            console.log("👆 [Ragasukma Click] Berhasil klik elemen universal:", rawSel, target);
-            // Langsung ambil snapshot baru setelah eksekusi klik elemen
-            setTimeout(() => sendSnapshot(true), 100);
-            setTimeout(() => sendSnapshot(true), 400);
-          } else {
-            console.warn("⚠️ [Ragasukma Click] Elemen tidak ditemukan untuk klik:", rawSel);
-          }
-          sendResponse({ status: "ok", action: "CLICK_ELEMENT", found: Boolean(target) });
-        } 
-        // 4. Input Engine (Pengetikan Teks Tanpa Auto-Enter)
-        else if (cmd.action === "TYPE_TEXT") {
-          const sel = (cmd.selector || "").trim();
-          const text = cmd.text_to_type || "";
-          const found = window.RagasukmaInput.executeType(sel, text, false);
-          if (found) {
-            setTimeout(() => sendSnapshot(true), 100);
-          }
-          sendResponse({ status: "ok", action: "TYPE_TEXT", found: found });
-        } 
-        // 5. Tekan Tombol Enter
-        else if (cmd.action === "PRESS_ENTER") {
-          const activeEl = document.activeElement;
-          const searchInput = window.RagasukmaInput.findBestSearchInput();
-          const targetEl = (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.isContentEditable || activeEl.getAttribute("role") === "textbox")) ? activeEl : searchInput;
-
-          if (targetEl) {
-            window.RagasukmaInput.triggerEnterSubmit(targetEl);
-            console.log("⌨️ [Ragasukma Key] Berhasil kirim pesan/Enter pada:", targetEl);
-            setTimeout(() => sendSnapshot(true), 150);
-            setTimeout(() => sendSnapshot(true), 500);
-          } else {
-            console.warn("⚠️ [Ragasukma Key] Tidak ada input aktif untuk Enter.");
-          }
-          sendResponse({ status: "ok", action: "PRESS_ENTER" });
-        }
-        // 6. Scroll Halaman
-        else if (cmd.action === "SCROLL") {
-          const y = cmd.scroll_y || 400;
-          window.scrollBy({ top: y, behavior: "smooth" });
-          setTimeout(() => sendSnapshot(true), 250);
-          sendResponse({ status: "ok", action: "SCROLL" });
-        }
-        return true;
+      });
+      if (p && typeof p.catch === "function") {
+        p.catch(() => {});
       }
-      return false;
-    });
+    } catch (_) {}
+  }
+
+  // --- Interaction Execution ---
+  function ensureElementInView(el) {
+    if (!el) return;
+    try {
+      el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+      const rect = el.getBoundingClientRect();
+      // Jika tertutup fixed header (posisi Y negatif atau mepet ke atas)
+      if (rect.top < 60) {
+        window.scrollBy({ top: rect.top - 80, behavior: "smooth" });
+      }
+    } catch (_) {
+      el.scrollIntoView?.(true);
+    }
+  }
+
+  function clickElement(target) {
+    if (!target) return;
+    ensureElementInView(target);
+    target.focus?.();
+    const opts = { bubbles: true, cancelable: true, composed: true, view: window };
+    target.dispatchEvent(new MouseEvent("mousedown", opts));
+    target.dispatchEvent(new MouseEvent("mouseup", opts));
+    target.click();
+    setTimeout(sendSnapshot, 200);
+  }
+
+  function isWritable(el) {
+    if (!el) return false;
+    const tag = el.tagName.toLowerCase();
+    if (tag === "textarea" || el.isContentEditable) return true;
+    if (tag === "input") {
+      const type = (el.type || "text").toLowerCase();
+      return !["submit", "button", "reset", "checkbox", "radio", "hidden", "file", "image"].includes(type);
+    }
+    return false;
+  }
+
+  function typeElement(sel, text, fallbacks) {
+    let el = null;
+    if (sel) {
+      try {
+        const cand = document.querySelector(sel);
+        if (isWritable(cand)) el = cand;
+      } catch (_) {}
+    }
+    // Fallback Selectors jika selector utama tidak ditemukan atau bukan input yang bisa diketik
+    if (!el && Array.isArray(fallbacks)) {
+      for (const fb of fallbacks) {
+        try {
+          const cand = document.querySelector(fb);
+          if (isWritable(cand)) {
+            el = cand;
+            break;
+          }
+        } catch (_) {}
+      }
+    }
+    // Fallback Terakhir: Cari activeElement atau form input/textarea umum di halaman
+    if (!el) {
+      if (document.activeElement && isWritable(document.activeElement)) {
+        el = document.activeElement;
+      } else {
+        const genericInputs = document.querySelectorAll("textarea[name='q'], input[name='q'], input[type='search'], textarea, input[type='text'], input:not([type='hidden'])");
+        for (const cand of genericInputs) {
+          if (isWritable(cand) && isVisible(cand)) {
+            el = cand;
+            break;
+          }
+        }
+      }
+    }
+    if (!el) return false;
+    ensureElementInView(el);
+    el.focus?.();
+
+    if (el.isContentEditable) {
+      el.innerText = text;
+    } else {
+      const proto = el.tagName === "TEXTAREA" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+      if (setter) setter.call(el, text);
+      else el.value = text;
+    }
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    setTimeout(sendSnapshot, 100);
+    return true;
+  }
+
+  function enterElement() {
+    const el = document.activeElement || document.querySelector("input, textarea");
+    if (!el) return;
+    const ev = { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true, view: window };
+    el.dispatchEvent(new KeyboardEvent("keydown", ev));
+    el.dispatchEvent(new KeyboardEvent("keypress", ev));
+    el.dispatchEvent(new KeyboardEvent("keyup", ev));
+    el.form?.submit?.();
+    setTimeout(sendSnapshot, 200);
+  }
+
+  // --- Action Listener ---
+  api?.runtime?.onMessage?.addListener((msg, _sender, sendResponse) => {
+    if (msg?.type === "REQUEST_SNAPSHOT") {
+      lastHash = "";
+      sendSnapshot();
+      sendResponse({ status: "ok" });
+      return;
+    }
+
+    if (msg?.type === "EXECUTE_BROWSER_ACTION" && msg.command) {
+      const cmd = msg.command;
+      if (cmd.action.startsWith("CLICK_")) {
+        const sel = (cmd.selector || "").trim();
+        let el = null;
+        if (sel) {
+          try { el = document.querySelector(sel); } catch (_) {}
+        }
+        // Multi-strategy fallback selectors
+        if (!el && Array.isArray(cmd.fallback_selectors)) {
+          for (const fb of cmd.fallback_selectors) {
+            try {
+              el = document.querySelector(fb);
+              if (el) break;
+            } catch (_) {}
+          }
+        }
+        // Fallback by Text
+        if (!el && sel) {
+          el = Array.from(document.querySelectorAll("button, a, [role='button']"))
+            .find(b => (b.innerText || b.getAttribute("aria-label") || "").toLowerCase().includes(sel.toLowerCase()));
+        }
+        clickElement(el);
+      } else if (cmd.action === "TYPE_TEXT") {
+        typeElement(cmd.selector, cmd.text_to_type || "", cmd.fallback_selectors);
+      } else if (cmd.action === "PRESS_ENTER") {
+        enterElement();
+      } else if (cmd.action === "SCROLL") {
+        window.scrollBy({ top: cmd.scroll_y || 400, behavior: "smooth" });
+      }
+      sendResponse({ status: "ok" });
+    }
+  });
+
+  // Init & SPA Reactive Observers
+  sendSnapshot();
+  window.addEventListener("focus", sendSnapshot, { passive: true });
+
+  // Deteksi mutasi DOM di SPA dengan debounce ringan (500ms)
+  let domTimer = null;
+  const observer = new MutationObserver(() => {
+    clearTimeout(domTimer);
+    domTimer = setTimeout(sendSnapshot, 500);
+  });
+  if (document.body) {
+    observer.observe(document.body, { childList: true, subtree: true });
+  } else {
+    window.addEventListener("DOMContentLoaded", () => {
+      observer.observe(document.body, { childList: true, subtree: true });
+    }, { once: true });
+  }
+
+  // Deteksi perubahan URL di SPA (pushState & popstate)
+  window.addEventListener("popstate", () => setTimeout(sendSnapshot, 200), { passive: true });
+  const origPushState = history.pushState;
+  if (origPushState) {
+    history.pushState = function (...args) {
+      const res = origPushState.apply(this, args);
+      setTimeout(sendSnapshot, 250);
+      return res;
+    };
   }
 })();

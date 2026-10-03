@@ -409,12 +409,19 @@ impl App {
 
                 // Sync state & live poses reload dari Web HTTP Dashboard
                 if let Ok(mut lock) = self.shared_server_state.lock() {
+                    let state_changed = self.pose_manager.current_state != lock.current_state;
                     self.pose_manager.current_state = lock.current_state;
                     is_tuning = lock.tuning_mode;
                     is_previewing = lock.preview_poses.is_some();
                     live_tuner_emotion = lock.current_emotion.clone();
 
                     if is_tuning {
+                        // Di mode edit Tuner: snap seketika tanpa jeda/slowmotion slerp
+                        if state_changed {
+                            self.pose_manager.last_state = self.pose_manager.current_state;
+                            self.pose_manager.state_transition_t = 1.0;
+                            self.pose_manager.state_elapsed_time = 0.0;
+                        }
                         // Freeze animasi siklus, aplikasikan langsung live bone rotation dari tuner
                         self.pose_manager.apply_tuning_pose(&lock.live_tuning_bones);
                     } else {
@@ -528,7 +535,7 @@ impl App {
                     }
                 }
 
-                if self.pose_manager.current_state
+                if !is_tuning && !is_previewing && self.pose_manager.current_state
                     == crate::ui::pose_system::AssistantVisualState::Listening
                 {
                     self.listening_duration += delta;

@@ -211,12 +211,12 @@ pub fn is_button_like_text(text: &str) -> bool {
         return false;
     }
 
-    // 1. Tombol angka kalkulator & keypad numerik (0 s/d 9, 00, dll)
+    // 1. Calculator & numeric keypad digits (0-9, 00, etc.)
     if trimmed.chars().all(|c| c.is_ascii_digit()) && trimmed.len() <= 4 {
         return true;
     }
 
-    // 2. Tombol simbol matematika & tombol fungsi kalkulator
+    // 2. Calculator math & function symbols
     let math_symbols = [
         "+", "-", "*", "/", "x", "×", "÷", "=", "%", "±", "+/-", ".", ",", "c", "ce", "del", "mc",
         "mr", "m+", "m-", "ms", "m", "sqrt", "√", "x²", "1/x", "exp", "mod", "log", "ln", "(", ")",
@@ -229,25 +229,29 @@ pub fn is_button_like_text(text: &str) -> bool {
         }
     }
 
-    // 3. Kata kunci aksi tombol UI umum (Indonesia & Inggris)
-    let keywords = [
-        "ok", "cancel", "save", "open", "close", "submit", "apply", "next", "back", "yes", "no",
-        "kirim", "batal", "simpan", "buka", "tutup", "hapus", "cari", "search", "enter", "login",
-        "masuk", "daftar", "edit", "play", "pause", "stop", "download", "install", "menu", "help",
-        "home", "settings", "reload", "refresh", "copy", "cut", "paste", "undo", "redo",
-    ];
-
-    for kw in &keywords {
-        if lower == *kw || (lower.len() < 25 && lower.contains(kw)) {
-            return true;
-        }
-    }
-
-    // 4. Tombol pendek (1-2 karakter alfanumerik) biasanya adalah tombol keypad / navigasi
+    // 3. Very short action or navigation tokens (1-2 characters)
     if trimmed.len() <= 2
         && trimmed
             .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c.is_ascii_punctuation())
+            .all(|c| c.is_alphanumeric() || c.is_ascii_punctuation())
+    {
+        return true;
+    }
+
+    // 4. Universal UI button heuristics (language-agnostic):
+    // - Buttons are concise labels (typically 1 to 4 words, length <= 25 chars)
+    // - Cannot contain multiline breaks or paragraph punctuation (e.g. '.', ';', '?', '!')
+    // - Cannot be a long descriptive sentence
+    let char_count = trimmed.chars().count();
+    let word_count = trimmed.split_whitespace().count();
+
+    if char_count <= 25
+        && word_count <= 4
+        && !trimmed.contains('\n')
+        && !trimmed.ends_with('.')
+        && !trimmed.ends_with('?')
+        && !trimmed.ends_with('!')
+        && !trimmed.ends_with(';')
     {
         return true;
     }
@@ -422,57 +426,61 @@ mod tests {
     #[test]
     fn test_is_button_like_text() {
         assert!(is_button_like_text("OK"));
+        assert!(is_button_like_text("Save"));
         assert!(is_button_like_text("Batal"));
+        assert!(is_button_like_text("送信")); // Japanese: Submit
+        assert!(is_button_like_text("Guardar")); // Spanish: Save
         assert!(is_button_like_text("7"));
         assert!(is_button_like_text("+"));
         assert!(!is_button_like_text(
-            "Ini adalah paragraf deskripsi yang sangat panjang dan tidak mirip tombol"
+            "This is a very long descriptive paragraph that should not be detected as a button."
         ));
+        assert!(!is_button_like_text("Click here to proceed to the next step."));
     }
 
     #[test]
     fn test_string_similarity_phonetic_and_typo() {
-        // Kasus nyata yang dihadapi user:
+        // Real-world cases faced by users:
         // "skill kode.rd" vs "skillcode.md"
         let sim = string_similarity("skill kode.rd", "skillcode.md");
         assert!(
             sim >= 0.70,
-            "Kemiripan 'skill kode.rd' vs 'skillcode.md' harus >= 70%, didapat: {sim}"
+            "Similarity 'skill kode.rd' vs 'skillcode.md' should be >= 70%, got: {sim}"
         );
 
-        // Kasus musik: "tumhiana" vs "Tum Hi Aana"
+        // Music case: "tumhiana" vs "Tum Hi Aana"
         let sim_music = string_similarity("tumhiana", "Tum Hi Aana");
         assert!(
             sim_music >= 0.70,
-            "Kemiripan 'tumhiana' vs 'Tum Hi Aana' harus >= 70%, didapat: {sim_music}"
+            "Similarity 'tumhiana' vs 'Tum Hi Aana' should be >= 70%, got: {sim_music}"
         );
 
-        // Tidak mirip: "Simpan" vs "Batal"
+        // Not similar: "Simpan" vs "Batal"
         let sim_diff = string_similarity("Simpan", "Batal");
         assert!(sim_diff < 0.30);
     }
 
     #[test]
     fn test_string_similarity_token_and_subphrase() {
-        // Sub-query dengan typo vs judul to-do panjang
+        // Sub-query with typo vs long to-do title
         let sim_todo = string_similarity("tagian listrik", "Bayar tagihan listrik PLN");
         assert!(
             sim_todo >= 0.70,
-            "Kemiripan 'tagian listrik' vs 'Bayar tagihan listrik PLN' harus >= 70%, didapat: {sim_todo}"
+            "Similarity 'tagian listrik' vs 'Bayar tagihan listrik PLN' should be >= 70%, got: {sim_todo}"
         );
 
-        // Sub-query persis sebagian
+        // Partial exact sub-query
         let sim_bayar = string_similarity("bayar listrik", "Bayar tagihan listrik PLN");
         assert!(
             sim_bayar >= 0.70,
-            "Kemiripan 'bayar listrik' vs 'Bayar tagihan listrik PLN' harus >= 70%, didapat: {sim_bayar}"
+            "Similarity 'bayar listrik' vs 'Bayar tagihan listrik PLN' should be >= 70%, got: {sim_bayar}"
         );
 
-        // Musik lokal: nama lagu dengan typo vs file audio lengkap
+        // Local music: song title with typo vs full audio filename
         let sim_music = string_similarity("sepia", "01 - Sheila On 7 - Sephia (Remastered).mp3");
         assert!(
             sim_music >= 0.70,
-            "Kemiripan 'sepia' vs '01 - Sheila On 7 - Sephia (Remastered).mp3' harus >= 70%, didapat: {sim_music}"
+            "Similarity 'sepia' vs '01 - Sheila On 7 - Sephia (Remastered).mp3' should be >= 70%, got: {sim_music}"
         );
     }
 }

@@ -88,39 +88,80 @@ pub fn load_skills_summary() -> String {
         )
     };
 
+    // Load registered automation recipes from assets/recipes/*.json
+    let recipes = crate::engine::actions::recipe::load_all_recipes();
+    let mut recipe_lines = Vec::new();
+    for r in &recipes {
+        let params_example = if r.required_params.is_empty() {
+            format!("[CMD:recipe:run|{}]", r.recipe_id)
+        } else {
+            let sample_json: serde_json::Value = serde_json::Value::Object(
+                r.required_params
+                    .iter()
+                    .map(|p| (p.clone(), serde_json::Value::String(format!("value_{p}"))))
+                    .collect(),
+            );
+            format!("[CMD:recipe:run|{}|{}]", r.recipe_id, sample_json)
+        };
+        recipe_lines.push(format!(
+            "| `{}` | `{}` | {} |",
+            r.name, params_example, r.name
+        ));
+    }
+
+    let recipes_text = if recipe_lines.is_empty() {
+        "*(No recipes registered in assets/recipes/)*".to_string()
+    } else {
+        format!(
+            "| Recipe Name | Action Tag (Run Directly) | Description |\n| :--- | :--- | :--- |\n{}",
+            recipe_lines.join("\n")
+        )
+    };
+
     format!(
         "\nACTION TAG FORMAT (MANDATORY — NEVER DEVIATE):
 - Use ONLY the bracket format: [CMD:category:action|param] or [SKILL:name].
 - NEVER use XML, invoke, function_call, dots_function_call, tool_call, or JSON to trigger actions.
-- When user asks to click, press, or tap any text/button on screen or desktop (e.g. click text/button on screen, tap element on desktop):
-  You MUST include [CMD:desktop:click_text|X] or [CMD:desktop:click_button|X] at the end of your short speech!
-- Example: User: 'click on Settings on the screen' -> '*happy* Clicking Settings now! [CMD:desktop:click_text|Settings]'
-- Example: User: 'click the Ai Voice text on screen' -> '*happy* Clicking Ai Voice now! [CMD:desktop:click_text|Ai Voice]'
 
-ACTION & SKILL CATALOG:
+AUTOMATION RECIPES (LEARN ONCE, RUN REPETITIVELY — PRIORITY #1 FOR MULTI-STEP WEB TASKS):
+- When user requests an automation task matching a registered recipe below:
+  * Strict Parameter Rule: Look at the 'Action Tag' column in the table below.
+    - If the recipe requires dynamic input (e.g. query/keyword), you MUST supply the real user query in JSON: [CMD:recipe:run|recipe_id|{{\"query\": \"user_query\"}}]
+    - If the recipe requires NO parameters, you MUST trigger it directly without JSON: [CMD:recipe:run|recipe_id]
+- AI AGENTIC TRAINING MODE (TRAIN ONCE FOR ANY NEW WEB WORKFLOW):
+  * When user asks to learn, train, or automate a new web task or workflow:
+    You MUST initiate autonomous AI exploration: [CMD:recipe:train|target_url|user_goal] or [CMD:recipe:train|user_goal]
+    Examples:
+    - User asks to train/learn playing video: '*excited* Starting AI trainer for YouTube! [CMD:recipe:train|https://www.youtube.com|play video]'
+    - User asks to train product search: '*happy* AI trainer started! [CMD:recipe:train|https://www.tokopedia.com|search product]'
+{}
+
+GLOBAL UTILITY ACTION CATALOG:
 
 | Category | Action Tag | Example |
 | :--- | :--- | :--- |
+| Web Recipe | [CMD:recipe:train|url|goal] | '*excited* Training! [CMD:recipe:train|https://www.youtube.com|search music]' |
+| Web Recipe | [CMD:recipe:run|recipe_id] | '*happy* Running! [CMD:recipe:run|tokopedia_search]' |
 | Web Browser | [CMD:browser:open|url] | '*happy* Opening! [CMD:browser:open|youtube.com]' |
 | Web Browser | [CMD:browser:search|query] | '*excited* Searching! [CMD:browser:search|latest news]' |
 | Web Browser | [CMD:browser:search|site|query] | '*excited* Searching YouTube! [CMD:browser:search|youtube.com|lofi beats]' |
+| Web Browser | [CMD:browser:scroll|pixels] | '*happy* Scrolled! [CMD:browser:scroll|400]' |
 | Web Browser | [CMD:browser:switch|tab_name] | '*happy* Switched! [CMD:browser:switch|YouTube]' |
 | Web Browser | [CMD:browser:close|tab_name] | '*happy* Closed tab! [CMD:browser:close|YouTube]' |
-| Web Browser | [CMD:browser:scroll|pixels] | '*happy* Scrolled! [CMD:browser:scroll|400]' |
 | Web Element | [CMD:browser:click_text|text] | FORBIDDEN if user says 'on screen'. '*happy* Clicking! [CMD:browser:click_text|Play]' |
 | Web Element | [CMD:browser:click_button|name] | FORBIDDEN if user says 'button on screen'. '*happy* Clicked! [CMD:browser:click_button|Submit]' |
 | Web Element | [CMD:browser:type|text] | '*excited* Typing! [CMD:browser:type|cookie recipe]' |
 | Web Element | [CMD:browser:enter] | '*excited* Enter pressed! [CMD:browser:enter]' |
-| Desktop/Screen | [CMD:desktop:focus|app_name] | '*happy* Switching! [CMD:desktop:focus|Spotify]' |
+| Desktop/Window | [CMD:desktop:focus|app_name] | '*happy* Switching! [CMD:desktop:focus|Spotify]' |
 | Desktop/Screen | [CMD:desktop:click_button|label] | MANDATORY when user says 'button on screen/desktop'. '*happy* Clicked! [CMD:desktop:click_button|Save]' |
-| Desktop/Screen | [CMD:desktop:click_text|text] | MANDATORY when user says 'text/tulisan on screen/desktop/di layar'. Match exactly! '*happy* Clicking! [CMD:desktop:click_text|Pengaturan]' |
+| Desktop/Screen | [CMD:desktop:click_text|text] | MANDATORY when user says 'text/tulisan on screen/desktop/di layar'. Match exactly! '*happy* Clicking! [CMD:desktop:click_text|Setting]' |
 | Desktop/Screen | [CMD:desktop:click_at|x|y] | '*happy* Clicking coords! [CMD:desktop:click_at|1829|15]' |
 | Desktop/Screen | [CMD:desktop:type|text] | '*excited* Typed! [CMD:desktop:type|cargo build]' |
 | Desktop/Screen | [CMD:desktop:key|key_name] | '*excited* Key pressed! [CMD:desktop:key|enter]' |
 | Desktop/Screen | [CMD:desktop:scan_visual] | '*excited* Scanning! [CMD:desktop:scan_visual]' |
-| Desktop/Screen | [CMD:desktop:minimize] | '*happy* Minimized! [CMD:desktop:minimize]' |
-| Desktop/Screen | [CMD:desktop:maximize] | '*happy* Maximized! [CMD:desktop:maximize]' |
-| Desktop/Screen | [CMD:desktop:close] | '*happy* Closed! [CMD:desktop:close]' |
+| Desktop/Window | [CMD:desktop:minimize] | '*happy* Minimized! [CMD:desktop:minimize]' |
+| Desktop/Window | [CMD:desktop:maximize] | '*happy* Maximized! [CMD:desktop:maximize]' |
+| Desktop/Window | [CMD:desktop:close] | '*happy* Closed! [CMD:desktop:close]' |
 | OS Apps | [CMD:app:open|AppName] | '*happy* Opening! [CMD:app:open|Spotify]' |
 | System | [CMD:os:volume_up] | '*excited* Volume up! [CMD:os:volume_up]' |
 | System | [CMD:os:volume_down] | '*happy* Volume down! [CMD:os:volume_down]' |
@@ -139,7 +180,7 @@ REGISTERED CUSTOM SKILLS:
 {}
 
 RULE: Action tags [CMD:...] or [SKILL:...] run silently in background — NOT spoken aloud by TTS. For plain conversation, NEVER include command tags.",
-        custom_skills_text
+        recipes_text, custom_skills_text
     )
 }
 
@@ -163,7 +204,7 @@ pub fn load_active_browser_summary_indexed(_query: Option<&str>) -> String {
         parts.push(open_tabs);
     }
 
-    // 2. Snapshot of active web page DOM with Fuzzy Relevance Retrieval
+    // 2. Snapshot of active web page DOM with Ground of Truth Context
     if let Some(snapshot) = crate::services::get_latest_snapshot() {
         let mut summary = format!(
             "\n### 🌐 ACTIVE BROWSER PAGE CONTEXT (GROUND OF TRUTH):\n\
@@ -172,6 +213,26 @@ pub fn load_active_browser_summary_indexed(_query: Option<&str>) -> String {
             * **Domain:** {}\n",
             snapshot.title, snapshot.url, snapshot.domain
         );
+
+        if !snapshot.text_summary.is_empty() {
+            let clean_summary = snapshot.text_summary.trim();
+            let display_summary = if clean_summary.len() > 5000 {
+                let cut = clean_summary
+                    .char_indices()
+                    .take_while(|(i, _)| *i < 5000)
+                    .last()
+                    .map(|(i, c)| i + c.len_utf8())
+                    .unwrap_or(0);
+                format!("{}...", &clean_summary[..cut])
+            } else {
+                clean_summary.to_string()
+            };
+            summary.push_str(&format!(
+                "* **Page Content / Summary (Ground of Truth):**\n{}\n\
+                (Use this content whenever answering questions, explaining, or summarizing the active page)\n",
+                display_summary
+            ));
+        }
 
         if !snapshot.inputs.is_empty() {
             let inputs_str: Vec<String> = snapshot
@@ -261,26 +322,6 @@ pub fn load_active_browser_summary_indexed(_query: Option<&str>) -> String {
             summary.push_str(&format!(
                 "* **Text Content / Selected Elements:**\n  - {}\n",
                 final_texts.join("\n  - ")
-            ));
-        }
-
-        if !snapshot.text_summary.is_empty() {
-            let clean_summary = snapshot.text_summary.trim();
-            let display_summary = if clean_summary.len() > 1500 {
-                // Truncate on a char boundary to avoid splitting multi-byte UTF-8 sequences
-                let cut = clean_summary
-                    .char_indices()
-                    .take_while(|(i, _)| *i < 1500)
-                    .last()
-                    .map(|(i, c)| i + c.len_utf8())
-                    .unwrap_or(0);
-                format!("{}...", &clean_summary[..cut])
-            } else {
-                clean_summary.to_string()
-            };
-            summary.push_str(&format!(
-                "* **Page Narrative Content / Summary (Ground of Truth):**\n{}\n",
-                display_summary
             ));
         }
 
@@ -463,6 +504,7 @@ TEXT-TO-SPEECH (TTS) SPOKEN FORMAT RULES:
    - NEVER use ellipsis / consecutive dots ('...'). Use standard commas (',') or periods ('.').
    - NEVER write fake laughter sounds like 'ehehe', 'hehehe', 'ehe', or awkward fillers like 'um...', 'uh...'.
    - NEVER use markdown formatting like bold/italic (**text**), bullet points (- or *), numbered lists (1. 2.), or headers (#). Do not produce lists; speak fluently in conversational sentences.
+   - NEVER write stage directions, physical actions, emotional roleplay, or descriptive narration in parentheses or brackets in ANY language (e.g. NEVER write actions like (tersenyum), (smiles), (laughs), (微笑む), or ANY action in parentheses). Speak ONLY direct spoken dialogue.
    - NEVER repeat pleasantries or conversational loops at the end of sentences (e.g. 'Is there anything else I can help with?', 'What would you like to do next?', 'Can I help you with anything?'). Just answer warmly without forcing a question back.
 2. 3D Avatar Emotion Tag (CRITICAL — STRICT SINGLE CANONICAL EMOTION):
    - Every response MUST start with EXACTLY ONE canonical English emotion tag at the very beginning (index 0):
@@ -541,6 +583,9 @@ mod tests {
         let prompt = build_system_prompt();
         assert!(prompt.contains("TEXT-TO-SPEECH (TTS) SPOKEN FORMAT RULES:"));
         assert!(prompt.contains("ACTION TAG FORMAT"));
-        assert!(prompt.contains("[CMD:desktop:click_text|"));
+        assert!(prompt.contains("AUTOMATION RECIPES"));
+        assert!(prompt.contains("[CMD:recipe:run|"));
+        assert!(prompt.contains("[CMD:recipe:train|"));
+        assert!(prompt.contains("[CMD:desktop:focus|"));
     }
 }

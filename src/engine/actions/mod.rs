@@ -3,6 +3,7 @@ pub mod catalog;
 pub mod desktop;
 pub mod media;
 pub mod os_apps;
+pub mod recipe;
 pub mod todo_actions;
 
 pub use browser::execute_browser_action;
@@ -10,6 +11,7 @@ pub use catalog::{get_builtin_system_skills, open_url_by_os};
 pub use desktop::execute_desktop_action;
 pub use media::execute_media_action;
 pub use os_apps::{execute_app_action, execute_os_action, execute_os_or_app_action};
+pub use recipe::{execute_recipe, record_recipe_action};
 pub use todo_actions::execute_todo_action;
 
 use crate::engine::skills::{execute_command_by_os, parse_skills_markdown};
@@ -34,6 +36,8 @@ pub fn execute_skill_by_identifier(identifier: &str) -> Option<(String, String)>
     };
 
     match (namespace.as_str(), action.as_str()) {
+        ("recipe", "run") => recipe::execute_recipe(payload),
+        ("recipe", "train") | ("recipe", "learn") | ("recipe", "record") => recipe::record_recipe_action(payload),
         ("browser", act) => browser::execute_browser_action(act, payload),
         ("media", act) => media::execute_media_action(act, payload),
         ("todo", act) => todo_actions::execute_todo_action(act, payload),

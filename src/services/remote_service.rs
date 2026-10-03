@@ -163,7 +163,7 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
         // 1. Anti-Echolalia Protection: Tolak transkrip jika merupakan pantulan suara speaker asisten sendiri
         if crate::app_state::is_echo_of_last_spoken(clean) {
             crate::term_log!(
-                "🤫 [Anti-Echolalia] Transkrip pantulan speaker diabaikan: \"{}\"",
+                "🤫 [Anti-Echolalia] Echo transcript from assistant speaker ignored: \"{}\"",
                 clean
             );
             send_json_response(
@@ -207,7 +207,7 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
             let asst_name = cfg.assistant_name;
             crate::tray::TrayState::update(
                 crate::services::tray_service::AssistantState::Thinking,
-                &format!("{asst_name} Berpikir..."),
+                &format!("{asst_name} Thinking..."),
             );
             send_json_response(
                 stream,
@@ -265,7 +265,7 @@ pub fn handle_tts_state(
             let asst_name = crate::config::load_user_config().assistant_name;
             crate::tray::TrayState::update_with_emotion(
                 crate::services::tray_service::AssistantState::Speaking,
-                &format!("{asst_name} Berbicara"),
+                &format!("{asst_name} Speaking"),
                 &emotion,
             );
             if let Ok(mut lock) = shared.lock() {
@@ -284,7 +284,7 @@ pub fn handle_tts_state(
             let asst_name = crate::config::load_user_config().assistant_name;
             crate::tray::TrayState::update_with_emotion(
                 crate::services::tray_service::AssistantState::Listening,
-                &format!("{asst_name} Mendengarkan..."),
+                &format!("{asst_name} Listening..."),
                 &emotion,
             );
             if let Ok(mut lock) = shared.lock() {
@@ -297,7 +297,7 @@ pub fn handle_tts_state(
             let asst_name = crate::config::load_user_config().assistant_name;
             crate::tray::TrayState::update_with_emotion(
                 crate::services::tray_service::AssistantState::Thinking,
-                &format!("{asst_name} Berpikir..."),
+                &format!("{asst_name} Thinking..."),
                 &emotion,
             );
             if let Ok(mut lock) = shared.lock() {

@@ -139,40 +139,20 @@ pub fn resolve_emotion_layers<'a>(
 const CANONICAL_EMOTIONS: &[(&str, &str)] = &[
     ("*happy*", "happy"),
     ("[happy]", "happy"),
-    ("*senang*", "happy"),
-    ("[senang]", "happy"),
-    ("*gembira*", "happy"),
     ("*shy*", "shy"),
     ("[shy]", "shy"),
-    ("*malu*", "shy"),
-    ("[malu]", "shy"),
-    ("*malu-malu*", "shy"),
-    ("*tersipu*", "shy"),
     ("*excited*", "excited"),
     ("[excited]", "excited"),
-    ("*semangat*", "excited"),
-    ("*antusias*", "excited"),
     ("*surprised*", "surprised"),
     ("[surprised]", "surprised"),
-    ("*kaget*", "surprised"),
-    ("*terkejut*", "surprised"),
     ("*thinking*", "thinking"),
     ("[thinking]", "thinking"),
-    ("*mikir*", "thinking"),
-    ("*berpikir*", "thinking"),
-    ("*bingung*", "thinking"),
     ("*sad*", "sad"),
     ("[sad]", "sad"),
-    ("*sedih*", "sad"),
-    ("*kecewa*", "sad"),
     ("*angry*", "angry"),
     ("[angry]", "angry"),
-    ("*marah*", "angry"),
-    ("*kesal*", "angry"),
     ("*neutral*", "neutral"),
     ("[neutral]", "neutral"),
-    ("*biasa*", "neutral"),
-    ("*santai*", "neutral"),
 ];
 
 /// Ekstrak emosi dari tag eksplisit standar AI (*happy*, *shy*, *excited*, *surprised*, *thinking*, *sad*, *angry*, *neutral*, dll.)
@@ -380,8 +360,9 @@ mod tests {
             detect_emotion("*neutral* here is the info."),
             Some("neutral")
         );
-        assert_eq!(detect_emotion("*malu-malu* halo..."), Some("shy"));
-        assert_eq!(detect_emotion("*senang* akhirnya selesai!"), Some("happy"));
+        assert_eq!(detect_emotion("*shy* hello..."), Some("shy"));
+        assert_eq!(detect_emotion("*happy* finally done!"), Some("happy"));
+        assert_eq!(detect_emotion("[excited] Wow!"), Some("excited"));
 
         // Fallback or without tag
         assert_eq!(detect_emotion("hello there, how are you?"), None);
