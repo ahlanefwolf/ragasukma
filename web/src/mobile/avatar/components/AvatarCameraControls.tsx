@@ -1,17 +1,68 @@
 import { Component, Show } from 'solid-js';
-import { ZoomIn, ZoomOut, Maximize, Minimize, RotateCcw } from 'lucide-solid';
+import { ZoomIn, ZoomOut, Maximize, Minimize, RotateCcw, Glasses, Sparkles } from 'lucide-solid';
+import { RenderQuality } from '../types';
 
 interface AvatarCameraControlsProps {
   isFullscreen: boolean;
+  isArSupported: boolean;
+  quality: RenderQuality;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onToggleFullscreen: () => void;
   onResetCamera: () => void;
+  onStartAr: () => void;
+  onCycleQuality: () => void;
 }
 
 export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props) => {
+  const qualityLabel = () => {
+    switch (props.quality) {
+      case 'sd':
+        return 'SD';
+      case 'ultra':
+        return '4K';
+      case 'hd':
+      default:
+        return 'HD';
+    }
+  };
+
+  const qualityColor = () => {
+    switch (props.quality) {
+      case 'sd':
+        return 'text-amber-400 hover:text-amber-300';
+      case 'ultra':
+        return 'text-pink-400 hover:text-pink-300';
+      case 'hd':
+      default:
+        return 'text-theme-cyan hover:text-cyan-300';
+    }
+  };
+
   return (
     <div class="absolute top-14 right-4 z-20 flex flex-col items-center gap-0.5 pointer-events-auto select-none">
+      {/* AR Mode Button - Clean without box & border */}
+      <Show when={props.isArSupported}>
+        <button
+          type="button"
+          onClick={props.onStartAr}
+          class="p-2 text-theme-cyan hover:text-cyan-300 active:scale-85 transition-transform drop-shadow-sm cursor-pointer"
+          title="Open AR Mode (Real World)"
+        >
+          <Glasses size={22} class="stroke-[2.2]" />
+        </button>
+      </Show>
+
+      {/* Graphic Quality Button (SD -> HD -> 4K) */}
+      <button
+        type="button"
+        onClick={props.onCycleQuality}
+        class={`p-2 font-mono text-[11px] font-bold tracking-wider active:scale-85 transition-transform drop-shadow-sm cursor-pointer ${qualityColor()}`}
+        title={`Render Quality: ${qualityLabel()} (Tap to switch SD / HD / 4K)`}
+      >
+        <span>{qualityLabel()}</span>
+      </button>
+
       <button
         type="button"
         onClick={props.onZoomIn}

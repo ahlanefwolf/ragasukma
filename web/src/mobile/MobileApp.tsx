@@ -26,6 +26,8 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   const [showTextInput, setShowTextInput] = createSignal(false);
   const [viewportHeight, setViewportHeight] = createSignal<string>('100dvh');
 
+  const [isArActive, setIsArActive] = createSignal(false);
+
   // Status Karakter Realtime
   const [visualState, setVisualState] = createSignal<'idle' | 'listening' | 'speaking' | 'thinking'>('idle');
   const [emotion, setEmotion] = createSignal('neutral');
@@ -418,7 +420,9 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     // Monitor virtual keyboard on mobile via VisualViewport so layout is not obscured
     const updateViewport = () => {
       if (window.visualViewport) {
-        setViewportHeight(`${window.visualViewport.height}px`);
+        const height = window.visualViewport.height;
+        setViewportHeight(`${height}px`);
+        window.scrollTo(0, 0);
       } else {
         setViewportHeight('100dvh');
       }
@@ -686,14 +690,34 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
           state={visualState()}
           emotion={emotion()}
           isAudioStreaming={isHpAudioActive()}
+          onArStateChange={setIsArActive}
+          arBottomSlot={() => (
+            <div class="w-full max-w-md mx-auto pointer-events-auto">
+              <MobileInteractionDock
+                inputText={inputText()}
+                onInputText={setInputText}
+                onSend={() => sendTextToHost()}
+                isSending={isSending()}
+                isListening={isHpMicListening()}
+                onToggleMic={toggleHpMic}
+                lastSentText={lastSentText()}
+                showInput={showTextInput()}
+                onToggleShowInput={() => setShowTextInput(!showTextInput())}
+                onDismissLastSent={() => setLastSentText('')}
+              />
+            </div>
+          )}
         />
       </div>
 
       {/* Flexible center spacer for floating bottom controls */}
       <div class="flex-1 min-h-0 pointer-events-none" />
 
-      {/* 4. Bottom Controls: Floating Music + Circular Interaction Dock */}
-      <div class="relative z-20 w-full max-w-md mx-auto pointer-events-auto flex flex-col gap-1.5">
+      {/* 4. Bottom Controls: Floating Music + Circular Interaction Dock (Non-AR mode) */}
+      <div
+        class="relative z-20 w-full max-w-md mx-auto pointer-events-auto flex flex-col gap-1.5 transition-opacity duration-200"
+        style={{ display: isArActive() ? 'none' : 'flex' }}
+      >
         {/* Floating Music Player Mini Card (When Music Is Playing) */}
         <div class="px-3">
           <MobileFloatingMusic

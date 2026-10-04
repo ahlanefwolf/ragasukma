@@ -8,7 +8,7 @@ interface MobileClientViewProps {
 
 export const MobileClientView: Component<MobileClientViewProps> = (props) => {
   return (
-    <div class="h-full w-full overflow-hidden">
+    <div class="fixed inset-0 w-full h-full overflow-hidden touch-none select-none">
       <MobileApp authKey={props.authKey} showToast={props.showToast} />
     </div>
   );

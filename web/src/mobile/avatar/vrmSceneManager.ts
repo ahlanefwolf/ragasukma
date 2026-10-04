@@ -3,9 +3,10 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRM, VRMUtils } from '@pixiv/three-vrm';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DEFAULT_CAM_POS, DEFAULT_TARGET } from './constants';
-import { AvatarState, PosesConfig } from './types';
+import { AvatarState, PosesConfig, RenderQuality } from './types';
 import { VrmPoseAnimator } from './poseAnimator';
 import { VrmExpressionAnimator } from './expressionAnimator';
+import { WebXRArManager, ArStateListener } from './arManager';
 import { API_BASE } from '../../services/base';
 
 export interface VrmSceneCallbacks {
@@ -16,17 +17,66 @@ export interface VrmSceneCallbacks {
 }
 
 export class VrmSceneManager {
+  private container: HTMLDivElement | null = null;
   private scene: THREE.Scene | null = null;
   private camera: THREE.PerspectiveCamera | null = null;
   private renderer: THREE.WebGLRenderer | null = null;
   private controls: OrbitControls | null = null;
   private currentVrm: VRM | null = null;
+  private vrmAnchor = new THREE.Group();
+  private contactShadow: THREE.Mesh | null = null;
   private clock: THREE.Clock | null = null;
-  private animFrameId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
   private poseAnimator = new VrmPoseAnimator();
   private expressionAnimator = new VrmExpressionAnimator();
+  private arManager = new WebXRArManager();
+  private currentQuality: RenderQuality = 'hd';
+
+  constructor() {
+    this.arManager.setOnEndCallback(() => {
+      this.resetToNonAr();
+    });
+  }
+
+  public getArManager(): WebXRArManager {
+    return this.arManager;
+  }
+
+  public subscribeAr(listener: ArStateListener): () => void {
+    return this.arManager.subscribe(listener);
+  }
+
+  private createContactShadow(): THREE.Mesh {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+      gradient.addColorStop(0, 'rgba(0, 0, 0, 0.70)');
+      gradient.addColorStop(0.35, 'rgba(0, 0, 0, 0.45)');
+      gradient.addColorStop(0.70, 'rgba(0, 0, 0, 0.15)');
+      gradient.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 128, 128);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const geometry = new THREE.PlaneGeometry(0.85, 0.85);
+    geometry.rotateX(-Math.PI / 2);
+
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.65,
+      depthWrite: false,
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.y = 0.005; // Slightly above ground to prevent z-fighting
+    return mesh;
+  }
 
   public init(
     container: HTMLDivElement,
@@ -34,6 +84,7 @@ export class VrmSceneManager {
     callbacks: VrmSceneCallbacks = {}
   ): void {
     this.cleanup();
+    this.container = container;
 
     const width = container.clientWidth || 280;
     const height = container.clientHeight || 240;
@@ -44,12 +95,32 @@ export class VrmSceneManager {
     this.camera.position.copy(DEFAULT_CAM_POS);
     this.camera.lookAt(DEFAULT_TARGET);
 
-    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' });
+    this.renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+      powerPreference: 'high-performance',
+    });
     this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(this.getPixelRatioForQuality(this.currentQuality));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    // Linear tone mapping bawaan standar VRM agar saturasi dan rona warna kulit/baju tetap hidup & tidak pucat
+    this.renderer.toneMapping = THREE.LinearToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
+
     container.innerHTML = '';
     container.appendChild(this.renderer.domElement);
+
+    this.vrmAnchor.position.set(0, 0, 0);
+    this.vrmAnchor.rotation.set(0, 0, 0);
+    this.vrmAnchor.visible = true;
+
+    // Add soft contact shadow directly beneath avatar feet
+    this.contactShadow = this.createContactShadow();
+    this.vrmAnchor.add(this.contactShadow);
+
+    this.scene.add(this.vrmAnchor);
+    this.scene.add(this.arManager.getReticle());
 
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver((entries) => {
@@ -66,13 +137,12 @@ export class VrmSceneManager {
       this.resizeObserver.observe(container);
     }
 
-    // Attach OrbitControls for pinch-to-zoom and pan/rotate gestures on mobile
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.copy(DEFAULT_TARGET);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
-    this.controls.minDistance = 0.35; // zoom in freely near face
-    this.controls.maxDistance = 6.5;  // zoom out freely to view character from a distance
+    this.controls.minDistance = 0.35;
+    this.controls.maxDistance = 6.5;
     this.controls.enableRotate = true;
     this.controls.enableZoom = true;
     this.controls.enablePan = true;
@@ -82,10 +152,12 @@ export class VrmSceneManager {
       TWO: THREE.TOUCH.DOLLY_PAN,
     };
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.8);
+    // Pencahayaan standar VRM MToon yang cerah dan berwarna alami:
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.25);
     this.scene.add(ambientLight);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-    dirLight.position.set(0.0, 2.0, 2.0);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.15);
+    dirLight.position.set(0.5, 2.5, 1.8);
     this.scene.add(dirLight);
 
     this.clock = new THREE.Clock();
@@ -109,10 +181,15 @@ export class VrmSceneManager {
           VRMUtils.removeUnnecessaryJoints(gltf.scene);
         } catch (_) {}
 
-        // Three.js VRM model faces forward by default (+Z camera direction)
-        vrm.scene.rotation.y = 0.0;
+        if (vrm.springBoneManager) {
+          try {
+            vrm.springBoneManager.reset();
+          } catch (_) {}
+          vrm.springBoneManager = null as any;
+        }
 
-        this.scene?.add(vrm.scene);
+        vrm.scene.rotation.y = 0.0;
+        this.vrmAnchor.add(vrm.scene);
         this.currentVrm = vrm;
         callbacks.onLoaded?.();
       },
@@ -128,39 +205,160 @@ export class VrmSceneManager {
       }
     );
 
-    const animate = () => {
-      this.animFrameId = requestAnimationFrame(animate);
-      const delta = this.clock?.getDelta() || 0.016;
+    this.renderer.setAnimationLoop((_timestamp, frame) => {
+      const isXr = this.renderer?.xr.isPresenting;
+      const rawDelta = this.clock?.getDelta() || 0.016;
+      const delta = Math.min(rawDelta, 0.033);
 
-      if (this.controls) {
-        this.controls.update();
-      }
+      if (isXr) {
+        if (this.renderer && this.camera) {
+          this.arManager.update(frame, this.renderer, this.camera);
+        }
 
-      if (this.currentVrm) {
-        const { state, emotion, poses } = getState();
+        if (!this.arManager.isLocked() || !this.vrmAnchor.visible) {
+          if (this.renderer && this.scene && this.camera) {
+            this.renderer.render(this.scene, this.camera);
+          }
+          return;
+        }
 
-        // 1. Calculate & apply rotation of all humanoid bones FIRST
-        this.poseAnimator.update(this.currentVrm, delta, state, poses);
+        if (this.currentVrm) {
+          const { state, emotion, poses } = getState();
+          this.poseAnimator.update(this.currentVrm, delta, state, poses);
+          this.expressionAnimator.update(
+            this.currentVrm,
+            delta,
+            state,
+            emotion,
+            this.poseAnimator.getElapsedTime()
+          );
+          this.currentVrm.update(delta);
+        }
+      } else {
+        if (this.controls && this.controls.enabled) {
+          this.controls.update();
+        }
 
-        // 2. Facial expressions & vocal lip-sync
-        this.expressionAnimator.update(
-          this.currentVrm,
-          delta,
-          state,
-          emotion,
-          this.poseAnimator.getElapsedTime()
-        );
-
-        // 3. THEN sync normalized bones to raw mesh model & spring bones
-        this.currentVrm.update(delta);
+        if (this.currentVrm && this.vrmAnchor.visible) {
+          const { state, emotion, poses } = getState();
+          this.poseAnimator.update(this.currentVrm, delta, state, poses);
+          this.expressionAnimator.update(
+            this.currentVrm,
+            delta,
+            state,
+            emotion,
+            this.poseAnimator.getElapsedTime()
+          );
+          this.currentVrm.update(delta);
+        }
       }
 
       if (this.renderer && this.scene && this.camera) {
         this.renderer.render(this.scene, this.camera);
       }
-    };
+    });
+  }
 
-    animate();
+  public setRenderQuality(quality: RenderQuality): void {
+    this.currentQuality = quality;
+    if (!this.renderer || this.renderer.xr.isPresenting) return;
+    this.renderer.setPixelRatio(this.getPixelRatioForQuality(quality));
+  }
+
+  private getPixelRatioForQuality(quality: RenderQuality): number {
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    switch (quality) {
+      case 'sd':
+        return 1.0;
+      case 'ultra':
+        return Math.min(dpr, 2.75);
+      case 'hd':
+      default:
+        return Math.min(dpr, 1.6);
+    }
+  }
+
+  private getArScaleFactorForQuality(quality: RenderQuality): number {
+    switch (quality) {
+      case 'sd':
+        return 0.5;
+      case 'hd':
+        return 0.75;
+      case 'ultra':
+      default:
+        return 1.0;
+    }
+  }
+
+  public async startAr(domOverlayElement?: HTMLElement): Promise<void> {
+    if (!this.renderer) return;
+
+    if (this.controls) {
+      this.controls.enabled = false;
+    }
+
+    const arScaleFactor = this.getArScaleFactorForQuality(this.currentQuality);
+    try {
+      this.renderer.xr.setFramebufferScaleFactor(arScaleFactor);
+    } catch (_) {}
+
+    this.renderer.setPixelRatio(1.0);
+    this.vrmAnchor.visible = false;
+
+    // Hide normal non-AR DOM canvas container during AR session to avoid double rendering
+    if (this.container) {
+      this.container.style.visibility = 'hidden';
+    }
+
+    if (this.clock) {
+      this.clock.getDelta();
+    }
+
+    await this.arManager.startArSession(this.renderer, domOverlayElement);
+  }
+
+  public stopAr(): void {
+    if (!this.renderer) return;
+    this.arManager.stopArSession(this.renderer);
+  }
+
+  public lockAvatarInRealWorld(): boolean {
+    if (!this.camera) return false;
+    return this.arManager.lockAvatar(this.vrmAnchor, this.camera);
+  }
+
+  public unlockAvatarInRealWorld(): void {
+    this.arManager.unlockAvatar(this.vrmAnchor);
+  }
+
+  private resetToNonAr(): void {
+    if (this.controls) {
+      this.controls.enabled = true;
+    }
+
+    if (this.renderer && this.container) {
+      // Restore normal non-AR DOM container visibility
+      this.container.style.visibility = 'visible';
+
+      const w = this.container.clientWidth || 280;
+      const h = this.container.clientHeight || 240;
+      this.renderer.setPixelRatio(this.getPixelRatioForQuality(this.currentQuality));
+      this.renderer.setSize(w, h);
+
+      if (this.camera) {
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+      }
+    }
+
+    this.vrmAnchor.position.set(0, 0, 0);
+    this.vrmAnchor.rotation.set(0, 0, 0);
+    this.vrmAnchor.visible = true;
+    this.resetCameraView();
+
+    if (this.clock) {
+      this.clock.getDelta();
+    }
   }
 
   public resetCameraView(): void {
@@ -188,9 +386,9 @@ export class VrmSceneManager {
   }
 
   public cleanup(): void {
-    if (this.animFrameId !== null) {
-      cancelAnimationFrame(this.animFrameId);
-      this.animFrameId = null;
+    if (this.renderer) {
+      this.stopAr();
+      this.renderer.setAnimationLoop(null);
     }
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();

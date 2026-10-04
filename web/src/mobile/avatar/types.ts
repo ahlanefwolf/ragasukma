@@ -1,9 +1,15 @@
 export type AvatarState = 'idle' | 'listening' | 'speaking' | 'thinking';
 
+export type RenderQuality = 'sd' | 'hd' | 'ultra';
+
 export interface AvatarViewerProps {
   state: AvatarState;
   emotion?: string;
   isAudioStreaming?: boolean;
+  // Callback status AR untuk sinkronisasi dock interaksi di MobileApp
+  onArStateChange?: (isActive: boolean) => void;
+  // Slot custom untuk meletakkan mic/chat dock di dalam DOM Overlay AR
+  arBottomSlot?: () => any;
 }
 
 export interface PoseKeyframe {
