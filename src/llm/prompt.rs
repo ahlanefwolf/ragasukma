@@ -207,7 +207,7 @@ pub fn load_active_browser_summary_indexed(_query: Option<&str>) -> String {
     // 2. Snapshot of active web page DOM with Ground of Truth Context
     if let Some(snapshot) = crate::services::get_latest_snapshot() {
         let mut summary = format!(
-            "\n### 🌐 ACTIVE BROWSER PAGE CONTEXT (GROUND OF TRUTH):\n\
+            "\n###  ACTIVE BROWSER PAGE CONTEXT (GROUND OF TRUTH):\n\
             * **Page Title:** {}\n\
             * **URL:** {}\n\
             * **Domain:** {}\n",
@@ -338,7 +338,7 @@ pub fn load_active_window_summary_indexed(_query: Option<&str>) -> String {
         }
 
         let mut summary = format!(
-            "\n### 🖥️ ACTIVE DESKTOP WINDOW CONTEXT (GROUND OF TRUTH):\n\
+            "\n###  ACTIVE DESKTOP WINDOW CONTEXT (GROUND OF TRUTH):\n\
             * **Currently Active Window:** {} ({})\n\
             * **Data Source:** {}\n",
             snapshot.app_name, snapshot.window_title, snapshot.source

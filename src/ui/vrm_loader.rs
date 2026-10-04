@@ -129,7 +129,7 @@ fn extract_image_rgba(
 
     if let Some(mut img) = raw_img_opt {
         let (w, h) = img.dimensions();
-        // Optimasi Memori: Batasi resolusi tekstur ke 1024px
+        // Memory optimization: Clamp texture resolution to 1024px
         if w > 1024 || h > 1024 {
             let new_w = (w / 2).max(512);
             let new_h = (h / 2).max(512);
@@ -163,7 +163,7 @@ impl VrmModelData {
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Box<Self>> {
         let path_buf = path.as_ref().to_path_buf();
 
-        // Eksekusi parsing VRM & Texture Decoding di thread khusus ber-stack 32MB untuk mencegah stack overflow
+        // Execute VRM parsing and texture decoding in dedicated thread with 32MB stack to prevent stack overflow
         let handle = std::thread::Builder::new()
             .name("vrm-loader-worker".to_string())
             .stack_size(32 * 1024 * 1024)
@@ -180,7 +180,7 @@ impl VrmModelData {
     fn load_from_file_internal(path_buf: PathBuf) -> anyhow::Result<Self> {
         let path_ref = &path_buf;
         println!(
-            "📦 [VRM Loader] Reading Three.js 1:1 VRM model: {:?}",
+            "[VRM Loader] Reading Three.js 1:1 VRM model: {:?}",
             path_ref
         );
 
@@ -188,7 +188,7 @@ impl VrmModelData {
         let buffers = gltf::import_buffers(&gltf.document, path_ref.parent(), gltf.blob)?;
         let document = gltf.document;
 
-        // Baca raw JSON dari GLB untuk parsing extensions MToon & VRMC_vrm secara akurat
+        // Read raw JSON from GLB for accurate parsing of MToon and VRMC_vrm extensions
         let mut gltf_json: Option<serde_json::Value> = None;
         if let Ok(mut file) = File::open(path_ref) {
             let mut bytes = Vec::new();
@@ -260,7 +260,7 @@ impl VrmModelData {
                 None
             };
 
-            // MToon Parsing dari raw JSON
+            // MToon Parsing from raw JSON
             let mut shade_texture = None;
             let mut shade_color_factor = [1.0, 1.0, 1.0];
             let mut matcap_texture = None;
@@ -330,7 +330,7 @@ impl VrmModelData {
             }
 
             println!(
-                "  🎨 [Material] '{}' -> BaseTex: {}, ShadeTex: {}, EmissiveTex: {}, MatcapTex: {}",
+                "   [Material] '{}' -> BaseTex: {}, ShadeTex: {}, EmissiveTex: {}, MatcapTex: {}",
                 name,
                 base_color_texture.is_some(),
                 shade_texture.is_some(),
@@ -356,7 +356,7 @@ impl VrmModelData {
             });
         }
 
-        // 2. Ekstrak Node Hierarki & Bone Mapping
+        // 2. Ekstrak Node Hierarchy & Bone Mapping
         let mut nodes = Vec::new();
         let mut bone_mapping = HashMap::new();
 
@@ -392,7 +392,7 @@ impl VrmModelData {
             });
         }
 
-        // Mapping Humanoid Bones dari VRMC_vrm extension di raw JSON
+        // Mapping Humanoid Bones from VRMC_vrm extension in raw JSON
         if let Some(vrm_json) = gltf_json
             .as_ref()
             .and_then(|j| j.get("extensions"))
@@ -429,7 +429,7 @@ impl VrmModelData {
             }
         }
 
-        // 3. Ekstrak Mesh & Primitives dengan Relasi Node Mesh
+        // 3. Ekstrak Mesh & Primitives with Relasi Node Mesh
         let mut primitives = Vec::new();
         for node in &nodes {
             if let Some(mesh_idx) = node.mesh_index {
@@ -481,7 +481,7 @@ impl VrmModelData {
                             .map(|idx| idx.into_u32().collect())
                             .unwrap_or_else(|| (0..positions.len() as u32).collect());
 
-                        // Ekstrak Morph Targets (Blend Shapes untuk Facial Expression & Lip Sync)
+                        // Ekstrak Morph Targets (Blend Shapes for Facial Expression & Lip Sync)
                         let mut morph_targets = Vec::new();
                         for (pos_opt, _norm_opt, _tan_opt) in reader.read_morph_targets() {
                             if let Some(morph_pos_iter) = pos_opt {
@@ -626,7 +626,7 @@ impl VrmModelData {
             (0..nodes.len()).collect()
         };
 
-        // Precompute node_to_bone reverse mapping & known_mesh_indices untuk O(1) direct lookup saat render loop
+        // Precompute node_to_bone reverse mapping & known_mesh_indices for O(1) direct lookup when render loop
         let mut node_to_bone = vec![None; nodes.len()];
         for (bone_name, &node_idx) in &bone_mapping {
             if node_idx < node_to_bone.len() {
@@ -635,7 +635,7 @@ impl VrmModelData {
         }
         let known_mesh_indices: Vec<usize> = primitives.iter().map(|p| p.mesh_index).collect();
 
-        // Precompute parent indices dan rest world rotations untuk Three-VRM Normalized Rig
+        // Precompute parent indices and rest world rotations for Three-VRM Normalized Rig
         let mut parent_indices = vec![None; nodes.len()];
         for (i, node) in nodes.iter().enumerate() {
             for &child in &node.children {
@@ -670,7 +670,7 @@ impl VrmModelData {
             .map(std::sync::Mutex::new);
 
         println!(
-            "✨ [VRM Loader] Successfully loaded {} mesh parts, {} material layers, {} blend expressions",
+            "[VRM Loader] Successfully loaded {} mesh parts, {} material layers, {} blend expressions",
             primitives.len(),
             materials.len(),
             expressions.len()

@@ -50,7 +50,7 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
 
                 if let Some(tab) = matching_tab {
                     println!(
-                        "🔄 [Universal In-Page Search] Switching to active tab '{}' (ID: {}) and searching '{}'",
+                        "[Universal In-Page Search] Switching to active tab '{}' (ID: {}) and searching '{}'",
                         tab.title, tab.id, query
                     );
                     crate::services::browser_session_service::send_browser_command(

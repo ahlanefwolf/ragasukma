@@ -35,7 +35,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
     try {
       const data = await api.getLogs();
       if (data && Array.isArray(data)) {
-        // Ambil maksimal 250 log terakhir agar browser super responsif dan tidak membebani DOM
+        // Keep at most the last 250 logs so browser remains super responsive without DOM overhead
         const trimmed = data.length > 250 ? data.slice(data.length - 250) : data;
         setLogs(trimmed);
         setCachedLogs(trimmed);
@@ -57,7 +57,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
     const ok = await api.clearLogs();
     if (ok) {
       setLogs([]);
-      props.showToast('Log aktivitas berhasil dibersihkan');
+      props.showToast('Activity logs cleared successfully');
     }
   };
 
@@ -67,14 +67,14 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
       .join('\n');
     navigator.clipboard.writeText(rawText);
     setCopied(true);
-    props.showToast('Seluruh log berhasil disalin ke clipboard');
+    props.showToast('All logs copied to clipboard');
     setTimeout(() => setCopied(false), 2000);
   };
 
   onMount(() => {
     fetchLogs();
 
-    // Subscribe ke live log stream via SSE (Zero polling spam)
+    // Subscribe to live log stream via SSE
     const unsubLogs = api.subscribeLogs((newEntry) => {
       if (!newEntry || !newEntry.id) return;
       setLogs((prev) => {
@@ -104,7 +104,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
   };
 
   createEffect(() => {
-    // Auto-scroll halus saat log baru datang menggunakan requestAnimationFrame
+    // Smooth auto-scroll when new logs arrive using requestAnimationFrame
     filteredLogs();
     if (autoScroll() && logsContainerRef) {
       if (scrollRafId) cancelAnimationFrame(scrollRafId);
@@ -116,23 +116,27 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
     }
   });
 
+  const sanitizeLogText = (text: string) => {
+    return text.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{FE00}-\u{FE0F}\u{200D}]/gu, '');
+  };
+
   const formatMessageStyle = (msg: string, level: string) => {
-    if (level === 'error' || msg.includes('[ERROR]') || msg.includes('[STT Error]') || msg.includes('GAGAL')) {
+    if (level === 'error' || msg.includes('[ERROR]') || msg.includes('[STT Error]') || msg.includes('FAIL')) {
       return 'text-[#A84B4B] font-semibold';
     }
     if (msg.includes('[User]')) {
       return 'text-theme-cyan font-medium';
     }
-    if (msg.includes('[LLM]') || msg.includes('merespons')) {
+    if (msg.includes('[LLM]') || msg.includes('responding')) {
       return 'text-theme-rose font-medium';
     }
-    if (msg.includes('[SKILL BERHASIL') || msg.includes('[MEMPROSES SKILL]')) {
+    if (msg.includes('[SKILL SUCCESS') || msg.includes('[PROCESSING SKILL]')) {
       return 'text-theme-cyan font-medium';
     }
-    if (msg.includes('[DILANJUTKAN]') || msg.includes('✨') || msg.includes('▶️')) {
+    if (msg.includes('[RESUMED]') || msg.includes('[Music Controller]')) {
       return 'text-theme-cyan';
     }
-    if (msg.includes('[DIJEDA]') || msg.includes('[SELESAI]')) {
+    if (msg.includes('[PAUSED]') || msg.includes('[FINISHED]')) {
       return 'text-[#B08A4A]';
     }
     return 'text-theme-text/90';
@@ -154,11 +158,11 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
                   Live Console & System Logs
                 </h2>
                 <span class="text-xs px-2 py-0.5 font-mono font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
-                  {filteredLogs().length} baris
+                  {filteredLogs().length} lines
                 </span>
               </div>
               <p class="text-xs text-theme-text/60 mt-0.5">
-                Log percakapan AI, transkrip STT, pemanggilan skill, dan aktivitas sistem real-time
+                AI dialogue log, STT transcriptions, skill invocations, and realtime system events
               </p>
             </div>
           </div>
@@ -172,16 +176,16 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
           </div>
         </div>
 
-        {/* 2. Structured Action & Filter Toolbar (Between: Kiri = Search & Filter, Kanan = Actions) */}
+        {/* 2. Structured Action & Filter Toolbar */}
         <div class="p-2.5 bg-theme-bg border border-theme-border flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Sisi Kiri: Search Input & Level Filter Pills */}
+          {/* Left: Search Input & Level Filter Pills */}
           <div class="flex flex-col sm:flex-row sm:items-center gap-2.5 flex-1 max-w-full lg:max-w-xl">
             {/* Search Box */}
             <div class="relative flex-1">
               <Search size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text/40" />
               <input
                 type="text"
-                placeholder="Cari kata kunci log..."
+                placeholder="Search log keywords..."
                 value={searchQuery()}
                 onInput={(e) => setSearchQuery(e.currentTarget.value)}
                 class="w-full pl-8 pr-3 py-1.5 bg-theme-card border border-theme-border text-xs text-theme-text focus:border-theme-cyan focus:outline-none transition-all placeholder:text-theme-text/30 font-mono"
@@ -198,7 +202,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
                     : 'text-theme-text/70 hover:text-theme-text'
                 }`}
               >
-                Semua
+                All
               </button>
               <button
                 onClick={() => setLevelFilter('info')}
@@ -223,13 +227,13 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
             </div>
           </div>
 
-          {/* Sisi Kanan: Action Buttons Toolbar */}
+          {/* Right: Action Buttons Toolbar */}
           <div class="flex items-center flex-wrap gap-2 justify-end shrink-0">
             {/* Refresh Button */}
             <button
               onClick={handleManualRefresh}
               class="p-2 bg-theme-card text-theme-text/80 hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/50 transition-all"
-              title="Refresh Log"
+              title="Refresh Logs"
             >
               <RefreshCw size={14} class={isRefreshing() ? 'animate-spin text-theme-cyan' : ''} />
             </button>
@@ -253,7 +257,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
               class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-theme-card text-theme-text/80 hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/50 transition-all"
             >
               {copied() ? <Check size={13} class="text-theme-cyan" /> : <Copy size={13} />}
-              <span>{copied() ? 'Tersalin' : 'Salin Semua'}</span>
+              <span>{copied() ? 'Copied' : 'Copy All'}</span>
             </button>
 
             {/* Clear Logs */}
@@ -262,7 +266,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
               class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-theme-card hover:bg-[#A84B4B]/20 text-[#A84B4B] border border-[#A84B4B]/30 transition-all"
             >
               <Trash2 size={13} />
-              <span>Bersihkan</span>
+              <span>Clear</span>
             </button>
           </div>
         </div>
@@ -293,8 +297,8 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
             fallback={
               <div class="h-full flex flex-col items-center justify-center text-theme-text/40 py-16">
                 <Terminal size={40} class="mb-3 stroke-1 text-theme-text/20" />
-                <p class="text-sm font-semibold">Belum ada log aktivitas yang cocok.</p>
-                <p class="text-xs text-theme-text/30 mt-1">Mulai berbicara dengan avatar atau jalankan skill untuk melihat log.</p>
+                <p class="text-sm font-semibold">No matching activity logs found.</p>
+                <p class="text-xs text-theme-text/30 mt-1">Start speaking to the avatar or trigger a skill to inspect logs.</p>
               </div>
             }
           >
@@ -319,7 +323,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
 
                   {/* Message Content */}
                   <span class={`flex-1 break-words whitespace-pre-wrap ${formatMessageStyle(entry.message, entry.level)}`}>
-                    {entry.message}
+                    {sanitizeLogText(entry.message)}
                   </span>
                 </div>
               )}

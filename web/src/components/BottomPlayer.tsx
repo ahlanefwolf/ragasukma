@@ -72,7 +72,7 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
             <div
               class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer group"
               onClick={props.onOpenMusicTab}
-              title="Buka Tab Musik"
+              title="Open Music Tab"
             >
               <div class="relative shrink-0 w-11 h-11 bg-theme-card border border-theme-border group-hover:border-theme-cyan/60 transition-all shadow-md overflow-hidden">
                 <Show
@@ -120,7 +120,7 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
                 <button
                   onClick={prevTrack}
                   class="p-2 bg-theme-card hover:bg-theme-border text-theme-text hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/40 transition-all active:scale-95"
-                  title="Lagu Sebelumnya"
+                  title="Previous Track"
                   aria-label="Previous Track"
                 >
                   <SkipBack size={16} />
@@ -131,7 +131,7 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
                   <button
                     onClick={pauseMusic}
                     class="w-9 h-9 bg-theme-rose/20 hover:bg-theme-rose/30 text-theme-rose border border-theme-rose/50 transition-all flex items-center justify-center active:scale-95 shadow-sm"
-                    title="Jeda"
+                    title="Pause"
                     aria-label="Pause"
                   >
                     <Pause size={17} />
@@ -142,7 +142,7 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
                   <button
                     onClick={resumeMusic}
                     class="w-9 h-9 bg-theme-cyan hover:brightness-110 text-theme-bg font-bold transition-all flex items-center justify-center active:scale-95 shadow-md shadow-theme-cyan/20"
-                    title="Lanjutkan"
+                    title="Resume"
                     aria-label="Play"
                   >
                     <Play size={17} class="ml-0.5 fill-current" />
@@ -153,7 +153,7 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
                 <button
                   onClick={nextTrack}
                   class="p-2 bg-theme-card hover:bg-theme-border text-theme-text hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/40 transition-all active:scale-95"
-                  title="Lagu Berikutnya"
+                  title="Next Track"
                   aria-label="Next Track"
                 >
                   <SkipForward size={16} />
@@ -163,7 +163,7 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
                 <button
                   onClick={stopMusic}
                   class="p-2 bg-theme-card hover:bg-theme-rose/20 text-theme-text/70 hover:text-theme-rose border border-theme-border hover:border-theme-rose/40 transition-all active:scale-95"
-                  title="Hentikan Musik"
+                  title="Stop Music"
                   aria-label="Stop"
                 >
                   <Square size={15} />
@@ -204,7 +204,7 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
               <button
                 onClick={() => pipManager.togglePip()}
                 class="px-3.5 py-1.5 bg-theme-card hover:bg-theme-border text-theme-text hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/50 transition-all flex items-center gap-2 shadow-sm active:scale-95 text-xs font-semibold"
-                title="Picture-in-Picture (Layar Melayang)"
+                title="Picture-in-Picture (Floating Window)"
                 aria-label="Picture-in-Picture"
               >
                 <PictureInPicture2 size={16} class="text-theme-cyan shrink-0" />
@@ -214,9 +214,9 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
               <button
                 onClick={props.onOpenMusicTab}
                 class="px-3.5 py-1.5 bg-theme-card hover:bg-theme-border text-theme-cyan text-xs font-semibold border border-theme-border hover:border-theme-cyan/50 transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
-                title="Buka Tampilan Penuh Musik"
+                title="Open Music Tab"
               >
-                <span>Tab Musik</span>
+                <span>Music Tab</span>
                 <ExternalLink size={14} />
               </button>
             </div>

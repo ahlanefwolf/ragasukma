@@ -360,7 +360,7 @@ pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), Str
                     if let Some(ref mut mgr) = *lock {
                         mgr.public_url = Some(found_url.clone());
                         mgr.status = "running".to_string();
-                        crate::term_log!("🌐 [Cloudflared Tunnel Ready] {}", found_url);
+                        crate::term_log!("[Cloudflared Tunnel Ready] {}", found_url);
                     }
                 }
             }
@@ -380,7 +380,7 @@ pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), Str
                     if let Some(ref mut mgr) = *lock {
                         mgr.public_url = Some(found_url.clone());
                         mgr.status = "running".to_string();
-                        crate::term_log!("🌐 [Cloudflared Tunnel Ready] {}", found_url);
+                        crate::term_log!("[Cloudflared Tunnel Ready] {}", found_url);
                     }
                 }
             }
@@ -412,7 +412,7 @@ pub fn stop_cloudflared_tunnel() -> Result<(), String> {
         }
         mgr.public_url = None;
         mgr.status = "stopped".to_string();
-        crate::term_log!("🛑 [Cloudflared Tunnel Stopped]");
+        crate::term_log!("[Cloudflared Tunnel Stopped]");
     }
     Ok(())
 }

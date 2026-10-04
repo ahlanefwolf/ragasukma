@@ -8,7 +8,7 @@ interface SystemAppsModalProps {
   showToast: (msg: string) => void;
 }
 
-// Global cache agar data aplikasi tersimpan antar buka/tutup modal
+// Global cache to preserve application data across modal open/close
 const [cachedApps, setCachedApps] = createSignal<InstalledApp[]>([]);
 
 export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
@@ -26,20 +26,20 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
       setCachedApps(validList);
     } catch {
       if (apps().length === 0) setApps([]);
-      props.showToast('Gagal memuat daftar aplikasi sistem');
+      props.showToast('Failed to load system applications list');
     } finally {
       setLoading(false);
     }
   };
 
-  // Prefetch langsung saat aplikasi di-mount
+  // Prefetch immediately on component mount
   onMount(() => {
     if (cachedApps().length === 0) {
       loadApps();
     }
   });
 
-  // Reaktif memuat saat modal dibuka jika belum ada data
+  // Reactively fetch when opened if empty
   createEffect(() => {
     if (props.isOpen && apps().length === 0) {
       loadApps();
@@ -74,13 +74,13 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
               </div>
               <div>
                 <h3 class="text-sm sm:text-base font-bold text-theme-text font-heading flex items-center gap-2 m-0 leading-tight">
-                  <span>Daftar Aplikasi Sistem (OS)</span>
+                  <span>System Applications (OS)</span>
                   <span class="text-xs font-mono px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan font-bold">
-                    {apps().length} Terdeteksi
+                    {apps().length} Detected
                   </span>
                 </h3>
                 <p class="text-xs text-theme-text/70 mt-0.5">
-                  Aplikasi desktop yang dikenali AI dan dapat dibuka langsung via perintah suara (misal: "Buka Steam")
+                  Desktop apps recognized by the AI and directly openable via voice commands (e.g. "Open Steam")
                 </p>
               </div>
             </div>
@@ -90,7 +90,7 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
                 type="button"
                 onClick={() => loadApps(true)}
                 class="p-2 text-theme-text/60 hover:text-theme-cyan hover:bg-theme-card border border-transparent hover:border-theme-border transition-colors cursor-pointer"
-                title="Pindai Ulang Aplikasi"
+                title="Rescan Applications"
               >
                 <RefreshCw size={16} class={loading() ? 'animate-spin text-theme-cyan' : ''} />
               </button>
@@ -99,7 +99,7 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
                 type="button"
                 onClick={props.onClose}
                 class="p-2 text-theme-text/60 hover:text-theme-text hover:bg-theme-card border border-transparent hover:border-theme-border transition-colors cursor-pointer"
-                title="Tutup Modal"
+                title="Close Modal"
               >
                 <X size={18} />
               </button>
@@ -112,7 +112,7 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
               <Search size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text/50" />
               <input
                 type="text"
-                placeholder="Cari nama aplikasi atau executable..."
+                placeholder="Search app name or executable..."
                 value={search()}
                 onInput={(e) => setSearch(e.currentTarget.value)}
                 class="w-full pl-9 pr-3 py-2 bg-theme-bg border border-theme-border text-xs text-theme-text outline-none focus:border-theme-cyan transition-colors"
@@ -135,13 +135,13 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
             <Show when={loading() && apps().length === 0}>
               <div class="p-12 text-center text-xs text-theme-text/50 space-y-2">
                 <RefreshCw size={24} class="animate-spin text-theme-cyan mx-auto" />
-                <p>Memindai file desktop aplikasi sistem...</p>
+                <p>Scanning desktop entries in system...</p>
               </div>
             </Show>
 
             <Show when={!loading() && filtered().length === 0 && apps().length > 0}>
               <div class="p-8 text-center text-xs text-theme-text/60 bg-theme-bg border border-theme-border">
-                Tidak ada aplikasi yang cocok dengan kata kunci "{search()}"
+                No applications matching "{search()}"
               </div>
             </Show>
 
@@ -160,7 +160,7 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
                         cmd: {app.exec.split(' ')[0]}
                       </span>
                       <span class="text-theme-text/40 shrink-0">
-                        "Buka {app.name.split(' ')[0]}"
+                        "Open {app.name.split(' ')[0]}"
                       </span>
                     </div>
                   </div>
@@ -171,13 +171,13 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
 
           {/* Footer */}
           <div class="p-3.5 sm:p-4 bg-theme-bg border-t border-theme-border flex items-center justify-between text-xs text-theme-text/70 shrink-0">
-            <span>Daftar aplikasi yang terdaftar di sistem operasi (OS)</span>
+            <span>List of applications registered in operating system (OS)</span>
             <button
               type="button"
               onClick={props.onClose}
               class="px-4 py-1.5 bg-theme-card hover:bg-theme-surface border border-theme-border text-theme-text font-semibold transition-all cursor-pointer"
             >
-              Tutup
+              Close
             </button>
           </div>
         </div>

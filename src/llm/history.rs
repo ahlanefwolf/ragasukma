@@ -75,7 +75,7 @@ pub fn log_conversation_turn(
     let (date_str, time_str) = get_local_date_and_time();
     let histories_dir = crate::assets::get_assets_dir().join("histories");
     if let Err(e) = std::fs::create_dir_all(&histories_dir) {
-        crate::term_err!("⚠️ [History] Failed to create histories directory: {e}");
+        crate::term_err!("[History] Failed to create histories directory: {e}");
         return;
     }
 
@@ -90,7 +90,7 @@ pub fn log_conversation_turn(
         Ok(mut file) => {
             if is_new {
                 let header = format!(
-                    "# Riwayat Percakapan — {date_str}\n> Asisten: {assistant_name} ({role}) | Pengguna: {callsign}\n\n---\n\n"
+                    "# Conversation History — {date_str}\n> Assistant: {assistant_name} ({role}) | User: {callsign}\n\n---\n\n"
                 );
                 let _ = file.write_all(header.as_bytes());
             }
@@ -102,7 +102,7 @@ pub fn log_conversation_turn(
         }
         Err(e) => {
             crate::term_err!(
-                "⚠️ [History] Failed to write chat history to {:?}: {e}",
+                "[History] Failed to write chat history to {:?}: {e}",
                 file_path
             );
         }

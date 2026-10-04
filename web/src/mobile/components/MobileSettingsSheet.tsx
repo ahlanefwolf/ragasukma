@@ -16,22 +16,22 @@ interface MobileSettingsSheetProps {
 export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) => {
   return (
     <Show when={props.isOpen}>
-      {/* Backdrop Transparan Halus (Tidak Gelap Pekat) */}
+      {/* Backdrop Transparan Smooth (Not Gelap Pekat) */}
       <div
         class="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px] animate-in fade-in duration-150"
         onClick={props.onClose}
       />
 
-      {/* Floating Bottom Sheet Sesuai Tema Cerah & Bersih */}
+      {/* Floating Bottom Sheet Sesuai Tema Cerah & Clean */}
       <div class="fixed bottom-0 left-0 right-0 z-50 max-w-lg mx-auto p-4 animate-in slide-in-from-bottom duration-200 select-none">
         <div class="bg-theme-surface border border-theme-border p-5 shadow-2xl space-y-4">
-          {/* Header Tanpa Kotak-kotak (Icon Langsung Berwarna) */}
+          {/* Header Without Kotak-kotak (Icon Direct Berwarna) */}
           <div class="flex items-center justify-between pb-3 border-b border-theme-border/60">
             <div class="flex items-center gap-2.5">
               <Settings2 size={22} class="text-theme-cyan stroke-[2.2]" />
               <div>
                 <h3 class="text-sm font-bold text-theme-text font-heading leading-tight">
-                  Pengaturan Companion
+                  Companion Settings
                 </h3>
                 <p class="text-[11px] text-theme-muted font-mono">
                   Ragasukma Mobile Control
@@ -42,7 +42,7 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
               type="button"
               onClick={props.onClose}
               class="p-1.5 text-theme-muted hover:text-theme-text active:scale-95 transition-colors"
-              title="Tutup"
+              title="Close"
             >
               <X size={20} />
             </button>
@@ -51,10 +51,10 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
           {/* Section: Mode Audio & Input */}
           <div class="space-y-2">
             <label class="text-[11px] font-mono font-bold text-theme-muted uppercase tracking-wider block">
-              Mode Audio & Percakapan
+              Audio & Conversation Mode
             </label>
             <div class="grid grid-cols-2 gap-2.5">
-              {/* Tombol Remote PC */}
+              {/* Remote PC Button */}
               <button
                 type="button"
                 onClick={() => props.onSwitchMode('remote_desktop')}
@@ -67,16 +67,16 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
                 <div class="flex items-center justify-between">
                   <Monitor size={17} class={props.audioMode === 'remote_desktop' ? 'text-theme-bg' : 'text-theme-cyan'} />
                   <Show when={props.audioMode === 'remote_desktop'}>
-                    <span class="text-[10px] font-mono font-bold uppercase tracking-wider">AKTIF</span>
+                    <span class="text-[10px] font-mono font-bold uppercase tracking-wider">ACTIVE</span>
                   </Show>
                 </div>
                 <span class="text-xs font-bold mt-1">Remote PC</span>
                 <span class={`text-[10.5px] leading-tight ${props.audioMode === 'remote_desktop' ? 'opacity-90' : 'text-theme-muted'}`}>
-                  Suara & mic asisten di speaker PC
+                  Assistant voice & mic on PC speaker
                 </span>
               </button>
 
-              {/* Tombol Full HP */}
+              {/* Phone Only Button */}
               <button
                 type="button"
                 onClick={() => props.onSwitchMode('full_mobile')}
@@ -89,12 +89,12 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
                 <div class="flex items-center justify-between">
                   <Smartphone size={17} class={props.audioMode === 'full_mobile' ? 'text-theme-bg' : 'text-theme-cyan'} />
                   <Show when={props.audioMode === 'full_mobile'}>
-                    <span class="text-[10px] font-mono font-bold uppercase tracking-wider">AKTIF</span>
+                    <span class="text-[10px] font-mono font-bold uppercase tracking-wider">ACTIVE</span>
                   </Show>
                 </div>
                 <span class="text-xs font-bold mt-1">Full Mobile</span>
                 <span class={`text-[10.5px] leading-tight ${props.audioMode === 'full_mobile' ? 'opacity-90' : 'text-theme-muted'}`}>
-                  Suara & mic asisten di HP
+                  Assistant voice & mic on phone
                 </span>
               </button>
             </div>
@@ -114,11 +114,11 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
                 <Terminal size={17} class="text-theme-cyan" />
                 <div class="text-left">
                   <span class="text-xs font-bold block">Live System Logs</span>
-                  <span class="text-[10.5px] text-theme-muted">Pantau console & transkrip AI</span>
+                  <span class="text-[10.5px] text-theme-muted">Monitor console & AI transcripts</span>
                 </div>
               </div>
               <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-theme-surface text-theme-cyan border border-theme-border">
-                {props.logsCount} baris
+                {props.logsCount} lines
               </span>
             </button>
           </div>
@@ -133,11 +133,11 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
               }}
               class="w-full py-1.5 text-center text-[11px] font-mono text-theme-muted hover:text-theme-cyan transition-colors"
             >
-              Sinkronkan Ulang Audio HP
+              Re-sync Phone Audio
             </button>
           </Show>
 
-          {/* Section: Putuskan Sesi Remote */}
+          {/* Section: Putuskan Session Remote */}
           <Show when={props.onDisconnectRemote}>
             <div class="pt-2 border-t border-theme-border/60">
               <button
@@ -149,7 +149,7 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
                 class="w-full p-2.5 bg-theme-rose/10 hover:bg-theme-rose/20 text-theme-rose border border-theme-rose/30 flex items-center justify-center gap-2 text-xs font-bold transition-all active:scale-98"
               >
                 <Power size={15} />
-                <span>Putuskan Sesi Remote (Kembali ke PC)</span>
+                <span>Disconnect Remote Session (Return to PC)</span>
               </button>
             </div>
           </Show>

@@ -442,7 +442,7 @@ pub fn load_vrm_model_to_gpu(
         model_max_y = max_y;
         model_max_extent_x = min_x.abs().max(max_x.abs());
         println!(
-            "📐 [Model Bounds] Y: [{:.3} .. {:.3}], Extent X: {:.3}",
+            "[Model Bounds] Y: [{:.3} .. {:.3}], Extent X: {:.3}",
             min_y, max_y, model_max_extent_x
         );
     }

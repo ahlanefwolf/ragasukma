@@ -88,7 +88,7 @@ impl SpringBoneManager {
         let mut joints = Vec::new();
         if let Some(springs_arr) = sb.get("springs").and_then(|v| v.as_array()) {
             for spring in springs_arr {
-                // Kumpulkan seluruh collider yang relevan untuk rantai pegas ini
+                // Collect all relevant colliders for this spring chain
                 let mut spring_colliders = Vec::new();
                 if let Some(cg_indices) = spring.get("colliderGroups").and_then(|v| v.as_array()) {
                     for cg in cg_indices {
@@ -184,7 +184,7 @@ impl SpringBoneManager {
             None
         } else {
             println!(
-                "🍃 [SpringBone] Diinisialisasi: {} joints pegas dinamis, {} colliders tabrakan",
+                "[SpringBone] Initialized: {} dynamic spring joints, {} collision colliders",
                 joints.len(),
                 colliders.len()
             );
@@ -195,7 +195,7 @@ impl SpringBoneManager {
     pub fn update(&mut self, delta_seconds: f32, model: &VrmModelData, globals: &mut [Mat4]) {
         let dt = delta_seconds.clamp(0.001, 0.05);
 
-        // Precompute posisi bola collider di world space
+        // Precompute position bola collider in world space
         let mut collider_spheres: Vec<Option<(Vec3, f32)>> =
             Vec::with_capacity(self.colliders.len());
         for c in &self.colliders {
@@ -219,7 +219,7 @@ impl SpringBoneManager {
                 Mat4::IDENTITY
             };
 
-            // Rest world transform untuk joint ini
+            // Rest world transform for this joint
             let rest_local_mat = Mat4::from_scale_rotation_translation(
                 node.initial_scale,
                 node.initial_rotation,
@@ -231,7 +231,7 @@ impl SpringBoneManager {
                 .transform_vector3(joint.bone_axis)
                 .normalize_or_zero();
 
-            // Inisialisasi awal tail pada frame pertama
+            // Initialize start tail on frame pertama
             if !joint.initialized {
                 let init_pos = bone_world_pos + world_rest_dir * joint.bone_length;
                 joint.current_tail = init_pos;
@@ -239,13 +239,13 @@ impl SpringBoneManager {
                 joint.initialized = true;
             }
 
-            // 1. Verlet Integration (Inersia + Kekakuan Pegas + Gravitasi) - 100% Identik Three-VRM Pixiv Standard
+            // 1. Verlet Integration (Inertia + Spring Stiffness + Gravity) - 100% Identical to Three-VRM Pixiv Standard
             let inertia = (joint.current_tail - joint.prev_tail) * (1.0 - joint.drag_force);
             let stiffness_force = world_rest_dir * (joint.stiffness * dt);
             let gravity_force = joint.gravity_dir * (joint.gravity_power * dt);
             let mut next_tail = joint.current_tail + inertia + stiffness_force + gravity_force;
 
-            // 2. Length Constraint (Panjang ruas tulang pegas konsisten di world space)
+            // 2. Length Constraint (Consistent spring bone joint length in world space)
             let to_tail = next_tail - bone_world_pos;
             let dist = to_tail.length();
             if dist > 0.0001 {
@@ -254,7 +254,7 @@ impl SpringBoneManager {
                 next_tail = bone_world_pos + world_rest_dir * joint.bone_length;
             }
 
-            // 3. Collision Resolution (Cegah rambut/rok menembus bola collider kepala/dada)
+            // 3. Collision Resolution (Prevents hair/skirt clipping through head/chest colliders)
             for &c_idx in &joint.collider_indices {
                 if let Some(Some((sphere_center, sphere_radius))) = collider_spheres.get(c_idx) {
                     let r_sum = sphere_radius + joint.hit_radius;
@@ -264,7 +264,7 @@ impl SpringBoneManager {
                         let push_dir = diff / d;
                         next_tail = *sphere_center + push_dir * r_sum;
 
-                        // Rekalibrasi panjang tulang setelah dipantulkan collider
+                        // Recalibrate bone length after collider bounce
                         let to_tail2 = next_tail - bone_world_pos;
                         let dist2 = to_tail2.length();
                         if dist2 > 0.0001 {
@@ -274,11 +274,11 @@ impl SpringBoneManager {
                 }
             }
 
-            // 4. Update history posisi
+            // 4. Update history position
             joint.prev_tail = joint.current_tail;
             joint.current_tail = next_tail;
 
-            // 5. Arahkan rotasi tulang ke next_tail (100% Identik Three-VRM: setFromUnitVectors premultiply initialLocalRotation)
+            // 5. Direct bone rotation to next_tail (Identical to Three-VRM: setFromUnitVectors premultiply initialLocalRotation)
             let inv_rest_world = rest_world_mat.inverse();
             let local_tail_pos = inv_rest_world.transform_point3(next_tail);
             let local_tail_dir = local_tail_pos.normalize_or_zero();
@@ -296,7 +296,7 @@ impl SpringBoneManager {
                 let new_global = parent_mat * current_local;
                 globals[joint.node_idx] = new_global;
 
-                // Update seluruh hierarki anak dari tulang ini agar rantai rambut berikutnya mengikuti
+                // Update entire child hierarchy of this bone so subsequent hair chain follows
                 update_children_transforms(joint.node_idx, new_global, model, globals);
             }
         }

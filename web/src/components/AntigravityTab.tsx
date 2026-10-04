@@ -31,10 +31,10 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
   const [showAddModal, setShowAddModal] = createSignal(false);
   const [copiedModelId, setCopiedModelId] = createSignal<string | null>(null);
 
-  const copyToClipboard = (text: string, label = 'Teks') => {
+  const copyToClipboard = (text: string, label = 'Text') => {
     navigator.clipboard.writeText(text);
     setCopiedModelId(text);
-    props.showToast(`${label} disalin ke clipboard!`);
+    props.showToast(`${label} copied to clipboard!`);
     setTimeout(() => {
       if (copiedModelId() === text) setCopiedModelId(null);
     }, 2000);
@@ -46,10 +46,10 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
       const res = await api.getAntigravityAccountQuota(id);
       setAccountQuotas(prev => ({ ...prev, [id]: res }));
       if (res.status === 'error' && res.error) {
-        props.showToast(`Kuota: ${res.error}`);
+        props.showToast(`Quota: ${res.error}`);
       }
     } catch (err: any) {
-      props.showToast(err?.message || 'Gagal memuat kuota');
+      props.showToast(err?.message || 'Failed to load quota');
     } finally {
       setLoadingQuota(prev => ({ ...prev, [id]: false }));
     }
@@ -80,7 +80,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
 
     const handleMessage = (e: MessageEvent) => {
       if (e.data?.type === 'ANTIGRAVITY_OAUTH_SUCCESS') {
-        props.showToast('Login Google OAuth berhasil! Akun telah ditambahkan ke pool.');
+        props.showToast('Google OAuth login successful! Account added to pool.');
         loadAccounts(true);
       }
     };
@@ -94,7 +94,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
     try {
       const authUrl = await api.getAntigravityAuthUrl();
       if (!authUrl) {
-        props.showToast('Gagal membuat URL otorisasi Google OAuth');
+        props.showToast('Failed to generate Google OAuth authorization URL');
         return;
       }
 
@@ -113,7 +113,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
         window.location.href = authUrl;
       }
     } catch (err: any) {
-      props.showToast(err?.message || 'Gagal memulai login OAuth');
+      props.showToast(err?.message || 'Failed to initiate OAuth login');
     } finally {
       setIsOAuthLoading(false);
     }
@@ -123,32 +123,32 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
     try {
       const res = await api.addAntigravityAccount(refreshToken, email, projectId);
       if (res.status === 'success') {
-        props.showToast('Akun Antigravity berhasil ditambahkan!');
+        props.showToast('Antigravity account added successfully!');
         await loadAccounts();
         return true;
       } else {
-        props.showToast(res.error || 'Gagal menambahkan akun');
+        props.showToast(res.error || 'Failed to add account');
         return false;
       }
     } catch (err: any) {
-      props.showToast(err?.message || 'Terjadi kesalahan sistem');
+      props.showToast(err?.message || 'System error occurred');
       return false;
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Yakin ingin menghapus akun ini dari pool Antigravity?')) return;
+    if (!confirm('Are you sure you want to delete this account from the Antigravity pool?')) return;
     setActionLoading(id);
     try {
       const res = await api.deleteAntigravityAccount(id);
       if (res.status === 'success') {
-        props.showToast('Akun berhasil dihapus');
+        props.showToast('Account deleted successfully');
         await loadAccounts();
       } else {
-        props.showToast(res.error || 'Gagal menghapus akun');
+        props.showToast(res.error || 'Failed to delete account');
       }
     } catch (err: any) {
-      props.showToast(err?.message || 'Terjadi kesalahan');
+      props.showToast(err?.message || 'An error occurred');
     } finally {
       setActionLoading(null);
     }
@@ -159,13 +159,13 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
     try {
       const res = await api.refreshAntigravityAccount(id);
       if (res.status === 'success') {
-        props.showToast('Token & Project ID berhasil di-refresh!');
+        props.showToast('Token & Project ID refreshed successfully!');
         await loadAccounts();
       } else {
-        props.showToast(res.error || 'Refresh token gagal');
+        props.showToast(res.error || 'Token refresh failed');
       }
     } catch (err: any) {
-      props.showToast(err?.message || 'Gagal terhubung ke server');
+      props.showToast(err?.message || 'Failed to connect to server');
     } finally {
       setActionLoading(null);
     }
@@ -176,13 +176,13 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
     try {
       const res = await api.toggleAntigravityAccount(id);
       if (res.status === 'success') {
-        props.showToast(`Status akun diperbarui (${res.is_active ? 'Aktif' : 'Nonaktif'})`);
+        props.showToast(`Account status updated (${res.is_active ? 'Active' : 'Disabled'})`);
         await loadAccounts();
       } else {
-        props.showToast(res.error || 'Gagal memperbarui status');
+        props.showToast(res.error || 'Failed to update status');
       }
     } catch (err: any) {
-      props.showToast(err?.message || 'Terjadi kesalahan');
+      props.showToast(err?.message || 'An error occurred');
     } finally {
       setActionLoading(null);
     }
@@ -209,7 +209,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
               </span>
             </div>
             <p class="text-xs text-theme-text/60 mt-1 leading-relaxed">
-              Koneksikan akun Google OAuth Antigravity dengan 1-klik, auto failover & round-robin load balancing.
+              Connect Google OAuth accounts with 1-click, auto failover & round-robin load balancing.
             </p>
           </div>
         </div>
@@ -218,7 +218,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
           <button
             onClick={() => loadAccounts()}
             class="p-2.5 bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan hover:border-theme-cyan/50 transition-all flex items-center justify-center shrink-0"
-            title="Muat Ulang"
+            title="Reload Accounts"
           >
             <RefreshCw size={18} class={loading() ? 'animate-spin text-theme-cyan' : ''} />
           </button>
@@ -232,13 +232,13 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
             <Show when={isOAuthLoading()} fallback={<LogIn size={16} />}>
               <RefreshCw size={16} class="animate-spin" />
             </Show>
-            <span>Login Google (OAuth)</span>
+            <span>Google Login (OAuth)</span>
           </button>
 
           <button
             onClick={() => setShowAddModal(true)}
             class="whitespace-nowrap shrink-0 p-2.5 sm:px-3 sm:py-2.5 bg-theme-bg border border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/50 text-xs font-semibold transition-all flex items-center gap-1.5"
-            title="Input Token Manual"
+            title="Manual Token Input"
           >
             <Plus size={16} />
             <span class="inline">Manual</span>
@@ -258,10 +258,10 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
         <div class="flex items-center justify-between px-1">
           <h3 class="text-sm font-bold text-theme-text flex items-center gap-2">
             <ShieldCheck size={16} class="text-theme-cyan" />
-            Daftar Akun Antigravity
+            Antigravity Accounts Pool
           </h3>
           <span class="text-xs text-theme-text/40 font-mono">
-            Rotasi Otomatis Round-Robin
+            Automatic Round-Robin Rotation
           </span>
         </div>
 
@@ -269,7 +269,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
           when={!loading()}
           fallback={
             <div class="p-12 text-center text-xs text-theme-text/50 bg-theme-card border border-theme-border animate-pulse">
-              Memuat daftar akun Antigravity...
+              Loading Antigravity accounts...
             </div>
           }
         >
@@ -281,9 +281,9 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
                   <Rocket size={28} />
                 </div>
                 <div class="space-y-1">
-                  <div class="text-sm font-bold text-theme-text">Belum Ada Akun Antigravity Terhubung</div>
+                  <div class="text-sm font-bold text-theme-text">No Antigravity Accounts Connected</div>
                   <p class="text-xs text-theme-text/50 max-w-sm mx-auto">
-                    Klik tombol <b>Login Google (OAuth)</b> untuk menghubungkan akun Google Antigravity dalam 1 kali klik.
+                    Click <b>Google Login (OAuth)</b> to link a Google Antigravity account in 1 click.
                   </p>
                 </div>
                 <button
@@ -292,7 +292,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
                   class="px-5 py-2.5 bg-theme-cyan text-theme-card font-bold text-xs shadow-md anime-shadow-green hover:opacity-95 active:scale-95 transition-all inline-flex items-center gap-2"
                 >
                   <LogIn size={16} />
-                  <span>Login dengan Google Sekarang</span>
+                  <span>Login with Google Now</span>
                 </button>
               </div>
             }
@@ -334,7 +334,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
         </div>
 
         <p class="leading-relaxed text-theme-text/60">
-          Gunakan endpoint ini di aplikasi AI apapun (Zed Editor, Cline, Continue, Cursor, Aider, Claude Code, Python OpenAI SDK, dll) untuk menggunakan model Antigravity:
+          Use this endpoint in any AI tool (Zed Editor, Cline, Continue, Cursor, Aider, Claude Code, Python OpenAI SDK, etc.) to leverage Antigravity models:
         </p>
 
         <div class="p-3 bg-theme-bg/80 border border-theme-border font-mono text-xs flex items-center justify-between gap-2 overflow-x-auto">
@@ -345,17 +345,17 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
             onClick={() => copyToClipboard('http://127.0.0.1:42128/v1', 'Base URL')}
             class="px-2.5 py-1 bg-theme-card border border-theme-border text-theme-text/70 hover:text-theme-cyan hover:border-theme-cyan text-xs font-sans font-semibold shrink-0 transition-all"
           >
-            Salin URL
+            Copy URL
           </button>
         </div>
 
         <div class="pt-1 text-xs text-theme-text/50 flex flex-wrap items-center gap-2">
-          <span>Endpoint:</span>
+          <span>Endpoints:</span>
           <code class="px-1.5 py-0.5 bg-theme-bg border border-theme-border/60 text-theme-text/70">/v1/chat/completions</code>
           <code class="px-1.5 py-0.5 bg-theme-bg border border-theme-border/60 text-theme-text/70">/v1/models</code>
           <span class="text-theme-border">•</span>
           <span>API Key:</span>
-          <span class="text-theme-text/70 font-mono">Bebas (isi apa saja / sembarang)</span>
+          <span class="text-theme-text/70 font-mono">Any string (not required)</span>
         </div>
       </div>
 
@@ -365,7 +365,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
         onCopyModel={copyToClipboard}
       />
 
-      {/* Modal Tambah Akun Manual */}
+      {/* Manual Account Modal */}
       <AntigravityAddModal
         isOpen={showAddModal()}
         onClose={() => setShowAddModal(false)}

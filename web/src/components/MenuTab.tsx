@@ -55,7 +55,7 @@ async function getOrCreateWebAudioAnalyser(): Promise<AnalyserNode | null> {
     source.connect(sharedAnalyser);
     return sharedAnalyser;
   } catch (e) {
-    console.warn('Native Web Audio mic analyser tidak aktif / izin ditolak:', e);
+    console.warn('Native Web Audio mic analyser not active / permission denied:', e);
     return null;
   } finally {
     isAudioInitializing = false;
@@ -92,8 +92,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       setAssistantName(cfg.assistant_name);
       setTtsEngineName(
         cfg.tts_voice_name
-          ? `Supertonic ${cfg.tts_voice_name} (${cfg.lang || 'id'})`
-          : `Supertonic F4 (${cfg.lang || 'id'})`
+          ? `Supertonic ${cfg.tts_voice_name} (${cfg.lang || 'en'})`
+          : `Supertonic F4 (${cfg.lang || 'en'})`
       );
       setVoiceInterruption(Boolean(cfg.voice_interruption));
     }
@@ -109,14 +109,14 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       if (updated?.tts_voice_name || updated?.lang) {
         setTtsEngineName(
           updated.tts_voice_name
-            ? `Supertonic ${updated.tts_voice_name} (${updated.lang || 'id'})`
-            : `Supertonic F4 (${updated.lang || 'id'})`
+            ? `Supertonic ${updated.tts_voice_name} (${updated.lang || 'en'})`
+            : `Supertonic F4 (${updated.lang || 'en'})`
         );
       }
     };
     window.addEventListener('ragasukma:config_updated' as any, handleConfigUpdated);
 
-    // Ambil initial state kontrol 1x via GET /api/state
+    // Fetch initial control state 1x via GET /api/state
     api.getState().then((initState) => {
       if (initState) {
         setIsRunning(initState.is_running);
@@ -155,7 +155,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
 
     const freqData = new Uint8Array(32);
 
-    // 2. 60 FPS RequestAnimationFrame Loop Langsung dari Web Audio API
+    // 2. 60 FPS RequestAnimationFrame Loop directly from Web Audio API
     const renderLoop = () => {
       const activeAnalyser = localAnalyser || sharedAnalyser;
       if (micMuted() || !activeAnalyser) {
@@ -165,12 +165,10 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       } else {
         activeAnalyser.getByteFrequencyData(freqData);
 
-        // Hitung RMS & Peak level langsung dari byte frequency data
         let sum = 0;
         for (let i = 0; i < 24; i++) {
           const val = freqData[i] || 0;
           sum += val;
-          // Normalisasi 0 - 100%
           barsBuffer[i] = Math.round((val / 255) * 100);
         }
         const avg = Math.round((sum / (24 * 255)) * 100 * 1.5);
@@ -199,10 +197,10 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     setIsRunning(nextRunning);
     if (nextRunning) {
       await api.sendCommand('start_chat');
-      props.showToast('Voice Assistant diaktifkan');
+      props.showToast('Voice Assistant activated');
     } else {
       await api.sendCommand('stop_chat');
-      props.showToast('Voice Assistant dihentikan (Standby)');
+      props.showToast('Voice Assistant stopped (Standby)');
     }
   };
 
@@ -210,14 +208,14 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     const next = !voiceMuted();
     setVoiceMuted(next);
     await api.sendCommand(next ? 'mute_voice' : 'unmute_voice');
-    props.showToast(next ? 'Suara TTS Dinonaktifkan' : 'Suara TTS Diaktifkan');
+    props.showToast(next ? 'TTS Audio Muted' : 'TTS Audio Unmuted');
   };
 
   const toggleMic = async () => {
     const next = !micMuted();
     setMicMuted(next);
     await api.sendCommand(next ? 'mute_mic' : 'unmute_mic');
-    props.showToast(next ? 'Mikrofon STT Dinonaktifkan' : 'Mikrofon STT Diaktifkan');
+    props.showToast(next ? 'STT Microphone Muted' : 'STT Microphone Unmuted');
   };
 
   const toggleVoiceInterruption = async () => {
@@ -230,7 +228,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       try {
         window.dispatchEvent(new CustomEvent('ragasukma:config_updated', { detail: cfg }));
       } catch {}
-      props.showToast(next ? '⚡ Interupsi Suara (Barge-in) Aktif' : '🔇 Interupsi Suara Nonaktif');
+      props.showToast(next ? 'Voice Interruption (Barge-in) Active' : 'Voice Interruption Disabled');
     }
   };
 
@@ -241,7 +239,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     try {
       const res = await fetch('https://api.github.com/repos/ahlanefwolf/ragasukma/releases/latest');
       if (!res.ok) {
-        throw new Error('Gagal mengambil data rilis GitHub');
+        throw new Error('Failed to fetch GitHub release data');
       }
       const data = await res.json();
       const latestTag = (data.tag_name || '').trim();
@@ -255,28 +253,27 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
         currentVersion: CURRENT_APP_VERSION,
         latestVersion: latestTag || CURRENT_APP_VERSION,
         releaseName: data.name || latestTag,
-        releaseNotes: data.body || 'Tidak ada catatan rilis.',
+        releaseNotes: data.body || 'No release notes available.',
         releaseUrl: data.html_url || 'https://github.com/ahlanefwolf/ragasukma/releases',
       });
       setUpdateModalOpen(true);
 
       if (isNewer) {
-        props.showToast(`🎉 Versi baru tersedia: ${latestTag}!`);
+        props.showToast(`New version available: ${latestTag}!`);
       } else {
-        props.showToast(`✨ Ragasukma sudah versi terbaru (${CURRENT_APP_VERSION})`);
+        props.showToast(`Ragasukma is up to date (${CURRENT_APP_VERSION})`);
       }
     } catch (err: any) {
-      // Fallback modal / toast jika offline atau belum ada rilis di repo
       setUpdateInfo({
         hasUpdate: false,
         currentVersion: CURRENT_APP_VERSION,
         latestVersion: CURRENT_APP_VERSION,
         releaseName: `Ragasukma ${CURRENT_APP_VERSION}`,
-        releaseNotes: 'Aplikasi sudah menggunakan versi stabil terbaru.',
+        releaseNotes: 'The application is already running the latest stable release.',
         releaseUrl: 'https://github.com/ahlanefwolf/ragasukma/releases',
       });
       setUpdateModalOpen(true);
-      props.showToast(`✨ Ragasukma sudah versi terbaru (${CURRENT_APP_VERSION})`);
+      props.showToast(`Ragasukma is up to date (${CURRENT_APP_VERSION})`);
     } finally {
       setIsUpdating(false);
     }
@@ -284,7 +281,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
 
   const handleResetSession = async () => {
     await api.sendCommand('reset_session');
-    props.showToast('Memory session & context AI berhasil di-reset');
+    props.showToast('AI memory session & context successfully reset');
   };
 
   return (
@@ -323,11 +320,11 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             <button
               onClick={handleCheckUpdate}
               disabled={isUpdating()}
-              title="Cek Pembaruan Ragasukma"
+              title="Check for Ragasukma Updates"
               class="px-3.5 py-2 text-xs font-semibold bg-theme-bg hover:bg-theme-card text-theme-text hover:text-theme-cyan border border-theme-border flex items-center gap-2 transition-all"
             >
               <RefreshCw size={14} class={isUpdating() ? 'animate-spin text-theme-cyan' : ''} />
-              <span class="hidden sm:inline">{isUpdating() ? 'Cek...' : 'Update'}</span>
+              <span class="hidden sm:inline">{isUpdating() ? 'Checking...' : 'Update'}</span>
             </button>
           </div>
         </div>
@@ -344,12 +341,12 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
           {isRunning() ? (
             <>
               <Square size={18} class="fill-current" />
-              <span>Hentikan Voice Assistant</span>
+              <span>Stop Voice Assistant</span>
             </>
           ) : (
             <>
               <Play size={18} class="fill-current" />
-              <span>Mulai / Aktifkan Voice Assistant</span>
+              <span>Start Voice Assistant</span>
             </>
           )}
         </button>
@@ -365,7 +362,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             }`}
           >
             {voiceMuted() ? <VolumeX size={17} class="shrink-0" /> : <Volume2 size={17} class="text-theme-cyan shrink-0" />}
-            <span class="truncate">{voiceMuted() ? 'TTS: Muted' : 'TTS: Aktif'}</span>
+            <span class="truncate">{voiceMuted() ? 'TTS: Muted' : 'TTS: Active'}</span>
           </button>
 
           <button
@@ -377,12 +374,12 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             }`}
           >
             {micMuted() ? <MicOff size={17} class="shrink-0" /> : <Mic size={17} class="text-theme-cyan shrink-0" />}
-            <span class="truncate">{micMuted() ? 'Mic: Muted' : 'Mic: Aktif'}</span>
+            <span class="truncate">{micMuted() ? 'Mic: Muted' : 'Mic: Active'}</span>
           </button>
 
           <button
             onClick={toggleVoiceInterruption}
-            title={voiceInterruption() ? 'Fitur Interupsi Aktif: Kamu bisa langsung memotong saat AI berbicara' : 'Fitur Interupsi Nonaktif: AI akan menyelesaikan seluruh responnya'}
+            title={voiceInterruption() ? 'Interruption Active: You can interrupt while AI is speaking' : 'Interruption Disabled: AI will finish speaking its entire response'}
             class={`flex items-center justify-center gap-2.5 py-2.5 px-3 border text-xs sm:text-sm font-semibold transition-all ${
               voiceInterruption()
                 ? 'bg-theme-card border-theme-cyan/60 text-theme-cyan shadow-[0_0_10px_rgba(89,107,69,0.2)]'
@@ -390,12 +387,12 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             }`}
           >
             {voiceInterruption() ? <Zap size={17} class="shrink-0 fill-current" /> : <ZapOff size={17} class="shrink-0" />}
-            <span class="truncate">{voiceInterruption() ? 'Interupsi: ON' : 'Interupsi: OFF'}</span>
+            <span class="truncate">{voiceInterruption() ? 'Interruption: ON' : 'Interruption: OFF'}</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Realtime Input Mikrofon (VU Meter) Card */}
+      {/* 2. Realtime Microphone Spectrum (VU Meter) Card */}
       <div class="p-5 bg-theme-surface border border-theme-border shadow-sm space-y-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2.5">
@@ -430,10 +427,10 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                   micMuted()
                     ? 'var(--border)'
                     : height > 75
-                    ? '#B08A4A' /* Ochre untuk sinyal kuat/tinggi */
+                    ? '#B08A4A'
                     : height > 35
-                    ? '#596B45' /* Moss untuk suara aktif */
-                    : '#876447', /* Earth Brown untuk ambient/rendah */
+                    ? '#596B45'
+                    : '#876447',
                 'box-shadow': !micMuted() && height > 35 ? '0 0 8px rgba(89, 107, 69, 0.4)' : 'none',
                 opacity: micMuted() ? '0.3' : '0.95',
               }}
@@ -471,27 +468,27 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
         </div>
       </div>
 
-      {/* 3. Kartu Kapabilitas & Panduan Perintah AI */}
+      {/* 3. AI Capabilities & Voice Command Guide */}
       <AiCapabilitiesCard 
         onOpenExtensionModal={() => setExtensionModalOpen(true)}
         onOpenAppsModal={() => setAppsModalOpen(true)}
       />
 
-      {/* Modal Dialog Pasang Ekstensi Browser */}
+      {/* Browser Extension Modal */}
       <BrowserExtensionModal
         isOpen={extensionModalOpen()}
         onClose={() => setExtensionModalOpen(false)}
         showToast={props.showToast}
       />
 
-      {/* Modal Dialog Daftar Aplikasi OS */}
+      {/* System Apps Modal */}
       <SystemAppsModal
         isOpen={appsModalOpen()}
         onClose={() => setAppsModalOpen(false)}
         showToast={props.showToast}
       />
 
-      {/* Modal Dialog Cek Pembaruan & Release Notes */}
+      {/* Update & Release Notes Modal */}
       {updateModalOpen() && updateInfo() && (
         <div class="fixed inset-0 z-50 !mt-0 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
           <div class="bg-theme-surface border border-theme-border w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
@@ -503,12 +500,12 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                 </span>
                 <div>
                   <h3 class="text-lg font-bold text-theme-text tracking-wide m-0 leading-tight">
-                    {updateInfo()!.hasUpdate ? '🎉 Pembaruan Tersedia!' : '✨ Sistem Up-to-Date'}
+                    {updateInfo()!.hasUpdate ? 'Update Available!' : 'System Up-to-Date'}
                   </h3>
                   <div class="flex items-center gap-2 text-xs text-theme-text/70 mt-0.5">
-                    <span>Versi saat ini: <strong class="text-theme-text">{updateInfo()!.currentVersion}</strong></span>
+                    <span>Current version: <strong class="text-theme-text">{updateInfo()!.currentVersion}</strong></span>
                     <span>•</span>
-                    <span>Terbaru: <strong class="text-theme-cyan">{updateInfo()!.latestVersion}</strong></span>
+                    <span>Latest: <strong class="text-theme-cyan">{updateInfo()!.latestVersion}</strong></span>
                   </div>
                 </div>
               </div>
@@ -520,28 +517,28 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
               </button>
             </div>
 
-            {/* Isi Release Notes / Changelog */}
+            {/* Release Notes / Changelog */}
             <div class="p-5 overflow-y-auto space-y-4 flex-1 text-sm text-theme-text/90">
               <div class="p-3.5 bg-theme-bg border border-theme-border">
-                <h4 class="text-xs font-mono uppercase tracking-wider text-theme-cyan mb-1 font-bold">Nama Rilis</h4>
+                <h4 class="text-xs font-mono uppercase tracking-wider text-theme-cyan mb-1 font-bold">Release Title</h4>
                 <p class="font-bold text-base text-theme-text">{updateInfo()!.releaseName}</p>
               </div>
 
               <div>
-                <h4 class="text-xs font-mono uppercase tracking-wider text-theme-text/70 mb-2 font-bold">Catatan Pembaruan & Fitur Baru</h4>
+                <h4 class="text-xs font-mono uppercase tracking-wider text-theme-text/70 mb-2 font-bold">Release Notes & Features</h4>
                 <div class="p-3.5 bg-theme-bg border border-theme-border text-xs font-mono text-theme-text/90 whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto custom-scrollbar">
                   {updateInfo()!.releaseNotes}
                 </div>
               </div>
             </div>
 
-            {/* Footer Aksi */}
+            {/* Actions Footer */}
             <div class="p-4 border-t border-theme-border bg-theme-bg flex items-center justify-end gap-3">
               <button
                 onClick={() => setUpdateModalOpen(false)}
                 class="px-4 py-2.5 text-xs font-semibold bg-theme-card hover:bg-theme-border text-theme-text border border-theme-border transition-all"
               >
-                Tutup
+                Close
               </button>
 
               <a
@@ -555,7 +552,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                 }`}
               >
                 {updateInfo()!.hasUpdate ? <Download size={15} /> : <ExternalLink size={15} />}
-                <span>{updateInfo()!.hasUpdate ? 'Unduh Rilis Baru di GitHub' : 'Buka GitHub Releases'}</span>
+                <span>{updateInfo()!.hasUpdate ? 'Download Update on GitHub' : 'View GitHub Releases'}</span>
               </a>
             </div>
           </div>

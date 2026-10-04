@@ -72,7 +72,7 @@ pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut TcpStream)
 <head><title>OAuth Failed</title><meta charset="utf-8"></head>
 <body style="font-family: sans-serif; background: #0f172a; color: #f87171; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
   <div style="text-align: center; padding: 32px; background: #1e293b; border-radius: 24px; border: 1px solid #ef4444;">
-    <h2>❌ Google Authorization Failed</h2>
+    <h2> Google Authorization Failed</h2>
     <p style="color: #94a3b8;">{}</p>
     <a href="http://localhost:42128" style="color: #38bdf8; text-decoration: none; font-weight: bold;">Back to Dashboard</a>
   </div>
@@ -92,7 +92,7 @@ pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut TcpStream)
 <head><title>Invalid Code</title><meta charset="utf-8"></head>
 <body style="font-family: sans-serif; background: #0f172a; color: #f87171; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
   <div style="text-align: center; padding: 32px; background: #1e293b; border-radius: 24px; border: 1px solid #ef4444;">
-    <h2>⚠️ Authorization Code Not Found</h2>
+    <h2> Authorization Code Not Found</h2>
     <p style="color: #94a3b8;">Google did not return a valid authorization code.</p>
     <a href="http://localhost:42128" style="color: #38bdf8; text-decoration: none; font-weight: bold;">Back to Dashboard</a>
   </div>
@@ -160,7 +160,7 @@ pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut TcpStream)
 </head>
 <body>
   <div class="card">
-    <div style="font-size: 48px; margin-bottom: 12px;">🚀</div>
+    <div style="font-size: 48px; margin-bottom: 12px;"></div>
     <h2 style="margin: 0 0 8px 0; color: #38bdf8;">Antigravity Login Successful!</h2>
     <p style="color: #94a3b8; font-size: 14px; margin: 0 0 16px 0;">Account <b>{}</b> is now connected to Ragasukma LLM pool.</p>
     <a class="btn" href="http://localhost:42128">Back to Dashboard</a>
@@ -184,7 +184,7 @@ pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut TcpStream)
 <head><title>OAuth Failed</title><meta charset="utf-8"></head>
 <body style="font-family: sans-serif; background: #0f172a; color: #f87171; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
   <div style="text-align: center; padding: 32px; background: #1e293b; border-radius: 24px; border: 1px solid #ef4444;">
-    <h2>❌ Failed to Connect Account</h2>
+    <h2> Failed to Connect Account</h2>
     <p style="color: #94a3b8;">{}</p>
     <a href="http://localhost:42128" style="color: #38bdf8; text-decoration: none; font-weight: bold;">Back to Dashboard</a>
   </div>

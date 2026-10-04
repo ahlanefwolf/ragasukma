@@ -37,7 +37,7 @@ export const YtDlpStatusCard: Component<YtDlpStatusCardProps> = (props) => {
             class="text-xs px-3 py-1 bg-theme-card hover:bg-theme-border text-theme-text/80 hover:text-theme-cyan border border-theme-border transition-all flex items-center gap-1.5"
           >
             <RefreshCw size={13} />
-            <span>Cek Ulang</span>
+            <span>Recheck</span>
           </button>
         </Show>
       </div>
@@ -46,7 +46,7 @@ export const YtDlpStatusCard: Component<YtDlpStatusCardProps> = (props) => {
         <Show when={props.checking()}>
           <div class="flex items-center gap-2 text-xs text-theme-text/70">
             <Loader size={14} class="animate-spin" />
-            <span>Memeriksa yt-dlp...</span>
+            <span>Checking yt-dlp...</span>
           </div>
         </Show>
 
@@ -55,7 +55,7 @@ export const YtDlpStatusCard: Component<YtDlpStatusCardProps> = (props) => {
             <span class="px-3 py-1 text-xs font-bold bg-theme-cyan/20 text-[#29483A] border border-theme-cyan/40">
               ✓ yt-dlp v{props.info()!.version}
             </span>
-            <span class="text-xs text-theme-text/70">Siap digunakan</span>
+            <span class="text-xs text-theme-text/70">Ready to use</span>
           </div>
         </Show>
 
@@ -63,9 +63,9 @@ export const YtDlpStatusCard: Component<YtDlpStatusCardProps> = (props) => {
           <div class="space-y-3">
             <div class="flex items-center gap-2 text-xs text-[#A84B4B]">
               <AlertCircle size={14} />
-              <span class="font-semibold">yt-dlp tidak ditemukan.</span>
+              <span class="font-semibold">yt-dlp not found.</span>
             </div>
-            {/* Tombol Auto-Install */}
+            {/* Auto-Install Button */}
             <button
               onClick={props.onInstall}
               disabled={props.installing()}
@@ -74,12 +74,12 @@ export const YtDlpStatusCard: Component<YtDlpStatusCardProps> = (props) => {
               <Show when={props.installing()} fallback={<Download size={16} />}>
                 <Loader size={16} class="animate-spin" />
               </Show>
-              <span>{props.installing() ? 'Menginstall yt-dlp...' : 'Install Otomatis'}</span>
+              <span>{props.installing() ? 'Installing yt-dlp...' : 'Auto Install'}</span>
             </button>
             <Show when={props.installMsg()}>
               <p
                 class={`text-xs px-3 py-2 border font-medium ${
-                  props.installMsg()!.startsWith('Gagal')
+                  props.installMsg()!.toLowerCase().includes('failed')
                     ? 'bg-[#A84B4B]/10 border-[#A84B4B]/30 text-[#A84B4B]'
                     : 'bg-theme-cyan/15 border-theme-cyan/35 text-[#29483A]'
                 }`}
@@ -90,7 +90,7 @@ export const YtDlpStatusCard: Component<YtDlpStatusCardProps> = (props) => {
             {/* Fallback manual */}
             <details class="group">
               <summary class="text-xs text-theme-text/60 hover:text-theme-text cursor-pointer select-none">
-                Install manual (klik untuk lihat perintah)
+                Manual install (click to view commands)
               </summary>
               <div class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <For each={installCommands}>

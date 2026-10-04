@@ -52,7 +52,7 @@ export const AntigravityAccountCard: Component<AntigravityAccountCardProps> = (p
                 fallback={
                   <span class="text-xs font-bold px-2 py-0.5 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/40 flex items-center gap-1">
                     <span class="w-1.5 h-1.5 bg-theme-cyan animate-pulse" />
-                    Siap / Aktif
+                    Ready / Active
                   </span>
                 }
               >
@@ -65,7 +65,7 @@ export const AntigravityAccountCard: Component<AntigravityAccountCardProps> = (p
 
             <Show when={!props.account.is_active}>
               <span class="text-xs font-bold px-2 py-0.5 bg-theme-text/10 text-theme-text/50 border border-theme-border">
-                Dinonaktifkan
+                Disabled
               </span>
             </Show>
 
@@ -91,7 +91,7 @@ export const AntigravityAccountCard: Component<AntigravityAccountCardProps> = (p
 
         {/* Action Buttons */}
         <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
-          {/* Tombol Cek Kuota */}
+          {/* Quota Button */}
           <button
             onClick={() => props.onToggleQuota(props.account.id)}
             class={`px-3 py-2 border text-xs font-semibold transition-all flex items-center gap-1.5 ${
@@ -99,12 +99,12 @@ export const AntigravityAccountCard: Component<AntigravityAccountCardProps> = (p
                 ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold shadow-sm'
                 : 'bg-theme-bg border-theme-border text-theme-text/80 hover:text-theme-cyan hover:border-theme-cyan/50'
             }`}
-            title="Lihat Quota Akun"
+            title="View Account Quota"
           >
             <Show when={props.loadingQuota} fallback={<Gauge size={15} />}>
               <RefreshCw size={15} class="animate-spin text-theme-cyan" />
             </Show>
-            <span>Kuota</span>
+            <span>Quota</span>
             <Show when={props.isExpanded} fallback={<ChevronDown size={13} />}>
               <ChevronUp size={13} />
             </Show>
@@ -118,7 +118,7 @@ export const AntigravityAccountCard: Component<AntigravityAccountCardProps> = (p
                 ? 'bg-theme-bg border-theme-border text-theme-text/70 hover:text-theme-rose hover:border-theme-rose/50'
                 : 'bg-theme-cyan/15 border border-theme-cyan/30 text-theme-cyan hover:bg-theme-cyan/25'
             }`}
-            title={props.account.is_active ? 'Nonaktifkan Akun' : 'Aktifkan Akun'}
+            title={props.account.is_active ? 'Disable Account' : 'Enable Account'}
           >
             <Power size={16} />
           </button>
@@ -136,7 +136,7 @@ export const AntigravityAccountCard: Component<AntigravityAccountCardProps> = (p
             onClick={() => props.onDeleteAccount(props.account.id)}
             disabled={isBusy()}
             class="p-2 bg-theme-bg border border-theme-border text-theme-text/70 hover:text-theme-rose hover:border-theme-rose/50 transition-all"
-            title="Hapus Akun"
+            title="Delete Account"
           >
             <Trash2 size={16} />
           </button>

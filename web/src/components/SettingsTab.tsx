@@ -125,17 +125,17 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
     const file = target.files[0];
 
     setIsUploadingVrm(true);
-    props.showToast(`Mengunggah model VRM: ${file.name}...`);
+    props.showToast(`Uploading VRM model: ${file.name}...`);
 
     const res = await api.uploadVrm(file);
     setIsUploadingVrm(false);
     target.value = '';
 
     if (res.ok) {
-      props.showToast('✨ Model VRM berhasil diunggah & langsung aktif di layar!');
+      props.showToast('VRM model uploaded successfully & active on screen!');
       await loadAssetInfoData();
     } else {
-      props.showToast(`⚠️ ${res.message || 'Gagal mengunggah file VRM'}`);
+      props.showToast(res.message || 'Failed to upload VRM file');
     }
   };
 
@@ -146,17 +146,17 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
     const slot = selectedAvatarSlot();
 
     setIsUploadingAvatar(true);
-    props.showToast(`Mengunggah gambar avatar (${slot}): ${file.name}...`);
+    props.showToast(`Uploading avatar image (${slot}): ${file.name}...`);
 
     const ok = await api.uploadAvatarImage(slot, file);
     setIsUploadingAvatar(false);
     target.value = '';
 
     if (ok) {
-      props.showToast(`🎨 Gambar avatar [${slot}] berhasil disimpan ke assets/!`);
+      props.showToast(`Avatar image [${slot}] successfully saved to assets/!`);
       await loadAssetInfoData();
     } else {
-      props.showToast('⚠️ Gagal mengunggah gambar avatar');
+      props.showToast('Failed to upload avatar image');
     }
   };
 
@@ -187,11 +187,11 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
     const ok = await api.saveConfig(payload);
     setIsSaving(false);
     if (ok) {
-      // Siarkan update konfigurasi langsung ke runtime Chrome Web Speech API di App.tsx
+      // Broadcast configuration update directly to Chrome Web Speech API runtime in App.tsx
       window.dispatchEvent(new CustomEvent('ragasukma:config_updated', { detail: payload }));
-      props.showToast('Semua konfigurasi berhasil disimpan ke config-ai.json!');
+      props.showToast('All configurations saved to config-ai.json successfully!');
     } else {
-      props.showToast('Gagal menyimpan ke config-ai.json');
+      props.showToast('Failed to save to config-ai.json');
     }
   };
 
@@ -204,10 +204,10 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
             System & Engine Preferences
           </span>
           <h2 class="text-2xl sm:text-3xl font-heading tracking-tight text-theme-text mt-2">
-            Pengaturan Sistem
+            System Settings
           </h2>
           <p class="text-xs sm:text-sm text-theme-text/70 mt-1 max-w-xl">
-            Kelola persona AI, sensitivitas audio, model VRM 3D/2D, serta preferensi jendela overlay.
+            Configure AI persona, audio sensitivity, VRM 3D/2D models, and overlay window preferences.
           </p>
         </div>
 
@@ -217,7 +217,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           class="w-full sm:w-auto px-6 py-3 font-bold text-sm bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card shadow-md anime-shadow-green flex items-center justify-center gap-2 transition-all shrink-0"
         >
           <Save size={16} />
-          <span>{isSaving() ? 'Menyimpan...' : 'Simpan Semua'}</span>
+          <span>{isSaving() ? 'Saving...' : 'Save All'}</span>
         </button>
       </div>
 
@@ -272,7 +272,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           }`}
         >
           <Monitor size={16} class={activeSubTab() === 'system_overlay' ? 'text-theme-card' : 'text-theme-rose'} />
-          <span class="truncate">Jendela & Sistem</span>
+          <span class="truncate">Window & System</span>
         </button>
       </div>
 

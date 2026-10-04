@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use crate::app_state::{ACTIVE_WEB_SESSION, ActiveWebSession, ServerSharedState};
 use crate::server::send_json_response;
 
-/// Klaim kepemilikan sesi dashboard web tunggal (hanya dipanggil 1x saat tab dibuka / di-refresh)
+/// Claim ownership of single web dashboard session (called once when tab opens or refreshes)
 pub fn handle_session_claim(
     body_str: &str,
     stream: &mut TcpStream,
@@ -29,7 +29,7 @@ pub fn handle_session_claim(
         if let Ok(mut s) = shared.lock() {
             s.state_version = s.state_version.wrapping_add(1);
         }
-        // Kirim event session claim ke antrean agar semua SSE client terupdate instan
+        // Send event session claim to antrean so that all SSE client terupdate instan
         crate::app_state::push_client_action("session:claimed", Some(&payload.token));
 
         send_json_response(stream, 200, "{\"success\":true}");
@@ -42,7 +42,7 @@ pub fn handle_session_claim(
     }
 }
 
-/// Update active tab saat berpindah tab di dashboard
+/// Update active tab when berpindah tab in dashboard
 pub fn handle_session_tab(body_str: &str, stream: &mut TcpStream) {
     #[derive(Deserialize)]
     struct TabPayload {

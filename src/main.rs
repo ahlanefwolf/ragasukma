@@ -24,9 +24,9 @@ fn init_dpi_awareness() {
         use windows::Win32::UI::HiDpi::{
             DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext,
         };
-        // Mengatur proses menjadi Per-Monitor V2 DPI Aware agar koordinat
+        // Configure process to Per-Monitor V2 DPI Aware so coordinates
         // mouse (SetCursorPos), UI Automation (CurrentBoundingRectangle),
-        // dan screenshot monitor sinkron 1:1 tanpa offset akibat display scaling (125%, 150%, dst).
+        // and monitor screenshots remain 1:1 synchronized without display scaling offset (125%, 150%, etc).
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     }
 }
@@ -36,10 +36,10 @@ fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--scan-vision") {
         println!(
-            "👁️ Running local perception scan via dedicated Vision Worker (PP-OCR + OmniParser Icon Detection)..."
+            " Running local perception scan via dedicated Vision Worker (PP-OCR + OmniParser Icon Detection)..."
         );
         let result = engine::perception::request_vision_scan_sync();
-        println!("✅ Vision Scan Successful!");
+        println!(" Vision Scan Successful!");
         println!("  Total Elements : {} items", result.elements.len());
         println!("  Buttons / Icons: {} items", result.buttons.len());
         for b in result.buttons.iter().take(8) {
@@ -59,14 +59,14 @@ fn main() -> Result<()> {
         for t in result.texts.iter().take(10) {
             println!("    - \"{}\"", t);
         }
-        println!("📁 File saved to assets/active_window_app.json (source: vision_perception)");
+        println!(" File saved to assets/active_window_app.json (source: vision_perception)");
         return Ok(());
     }
     if args.iter().any(|a| a == "--scan-window") {
-        println!("🔍 Running native OS accessibility scan...");
+        println!(" Running native OS accessibility scan...");
         match engine::window_scanner::scan_active_window_sync() {
             Ok(snapshot) => {
-                println!("✅ Scan Successful!");
+                println!(" Scan Successful!");
                 println!("  App Name     : {}", snapshot.app_name);
                 println!("  Window Title : {}", snapshot.window_title);
                 println!("  Window ID    : {}", snapshot.window_id);
@@ -83,24 +83,24 @@ fn main() -> Result<()> {
                     println!("    - {}", t);
                 }
                 if let Some(target) = args.get(2) {
-                    println!("📁 File saved to {}", target);
+                    println!(" File saved to {}", target);
                 } else {
-                    println!("📁 File saved to assets/active_window_app.json");
+                    println!(" File saved to assets/active_window_app.json");
                 }
             }
             Err(e) => {
-                eprintln!("❌ Error during scan: {e}");
+                eprintln!(" Error during scan: {e}");
             }
         }
         return Ok(());
     }
 
-    // 🔒 Single Instance Check: Verifikasi port dan handshake identitas aplikasi
+    //  Single Instance Check: Verify port and application identity handshake
     let server_port = 42128;
     let single_instance_check = match std::net::TcpListener::bind(("127.0.0.1", server_port)) {
         Ok(listener) => listener,
         Err(_) => {
-            // Cek apakah port 42128 memang benar instance Ragasukma (Handshake verification)
+            // Check whether port 42128 is indeed the Ragasukma instance (Handshake verification)
             let is_ragasukma_instance = reqwest::blocking::Client::builder()
                 .timeout(std::time::Duration::from_millis(500))
                 .build()
@@ -116,20 +116,20 @@ fn main() -> Result<()> {
                 .unwrap_or(false);
 
             if is_ragasukma_instance {
-                println!("⚠️  [Single Instance] Ragasukma is already running in background!");
+                println!("[Single Instance] Ragasukma is already running in background!");
                 println!(
-                    "🌐 Opening active Dashboard at http://127.0.0.1:{} ...",
+                    " Opening active Dashboard at http://127.0.0.1:{} ...",
                     server_port
                 );
                 crate::assets::open_browser(&format!("http://127.0.0.1:{}", server_port));
                 return Ok(());
             } else {
                 eprintln!(
-                    "⚠️  [Port Conflict] Port {} is in use by another application!",
+                    "[Port Conflict] Port {} is in use by another application!",
                     server_port
                 );
                 eprintln!(
-                    "🛑 Please close the process using port {}.",
+                    " Please close the process using port {}.",
                     server_port
                 );
                 return Err(anyhow::anyhow!("Port conflict: port {} already bound by another application", server_port));
@@ -137,28 +137,28 @@ fn main() -> Result<()> {
         }
     };
 
-    // Pertahankan socket listener tanpa drop untuk mencegah celah TOCTOU (Time-of-Check to Time-of-Use)
+    // Retain socket listener without drop to prevent TOCTOU (Time-of-Check to Time-of-Use) race conditions
     crate::server::register_prebound_listener(single_instance_check);
 
-    // Salin otomatis semua aset default ke folder config pengguna (~/.config/ragasukma/assets)
+    // Automatically copy all default assets to user config folder (~/.config/ragasukma/assets)
     crate::assets::ensure_default_user_assets();
 
-    // 🧹 Reset bersih folder snapshot browser sessions dari sesi sebelumnya
+    //  Clean reset browser session snapshot folder from previous sessions
     crate::services::browser_session_service::cleanup_browser_sessions_on_startup();
 
-    // Inisialisasi dedicated BrowserSessionWorker untuk sinkronisasi non-blocking active_tab_browser.json
+    // Initialize dedicated BrowserSessionWorker for non-blocking active_tab_browser.json synchronization
     crate::services::browser_session_service::init_browser_session_worker();
 
-    // Inisialisasi native OS active window watcher (reaktif) untuk active_window_app.json
+    // Initialize reactive native OS active window watcher for active_window_app.json
     crate::engine::window_scanner::start_window_watcher();
 
-    // Inisialisasi standby dedicated vision worker thread (0% CPU idle)
+    // Initialize standby dedicated vision worker thread (0% CPU idle)
     crate::engine::perception::start_vision_worker();
 
-    // Inisialisasi dedicated background task worker thread
+    // Initialize dedicated background task worker thread
     crate::engine::init_background_task_worker();
 
-    // Inisialisasi Supertonic-3 Neural TTS engine di background thread
+    // Initialize Supertonic-3 Neural TTS engine in background thread
     crate::audio::supertonic::init_engine_background();
 
     let config = AppConfig::load();
@@ -171,8 +171,8 @@ fn main() -> Result<()> {
     );
     crate::term_log!("====================================================");
 
-    // Perbesar stack size session thread (16 MB) agar aman di AppImage/portable Linux
-    // Dilengkapi auto-recovery loop agar panic internal (misal driver audio) tidak mematikan sesi
+    // Expand session thread stack size (16 MB) for safety on AppImage/portable Linux
+    // Equipped with auto-recovery loop so internal panics (e.g. audio driver) do not kill the session
     let session_thread = std::thread::Builder::new()
         .name("ragasukma-session".to_string())
         .stack_size(16 * 1024 * 1024)
@@ -182,17 +182,17 @@ fn main() -> Result<()> {
                 match AppSession::new(cfg) {
                     Ok(mut session) => {
                         if let Err(e) = session.run_interactive_menu() {
-                            crate::term_err!("❌ [Session Error]: {:?}", e);
+                            crate::term_err!("[Session Error]: {:?}", e);
                         }
                     }
                     Err(e) => {
-                        crate::term_err!("❌ [AppSession Init Error]: {:?}", e);
+                        crate::term_err!("[AppSession Init Error]: {:?}", e);
                     }
                 }
             }));
             if res.is_err() {
                 crate::term_err!(
-                    "⚠️ [Session Auto-Recover] Session thread recovered from unexpected error, restarting session loop..."
+                    "[Session Auto-Recover] Session thread recovered from unexpected error, restarting session loop..."
                 );
                 std::thread::sleep(std::time::Duration::from_millis(500));
             } else {
@@ -201,11 +201,11 @@ fn main() -> Result<()> {
         })
         .expect("Failed to create session thread");
 
-    // 🖥️ Jalankan 3D VRM Native Overlay di OS Main Thread (Thread 0)
-    // Sesuai standar industri Cocoa/macOS, Windows, dan Linux X11/Wayland
+    //  Run 3D VRM Native Overlay on OS Main Thread (Thread 0)
+    // Following Cocoa/macOS, Windows, and Linux X11/Wayland industry standards
     ui::run_native_overlay();
 
-    // Kirim perintah quit ke session thread agar shutdown secara rapi (graceful shutdown)
+    // Send quit command to session thread for graceful shutdown
     let _ = engine::cloudflared::stop_cloudflared_tunnel();
     tray::TrayState::push_command("quit".to_string());
     let _ = session_thread.join();

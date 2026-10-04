@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js';
 
-// Di smartphone / remote tunnel, window.location.origin adalah https://xxx.trycloudflare.com
-// Jangan hardcode http://127.0.0.1:42128 karena HP tidak bisa menjangkau localhost laptop secara langsung!
+// In smartphone / remote tunnel, window.location.origin is https://xxx.trycloudflare.com
+// Do not hardcode http://127.0.0.1:42128 because mobile devices cannot directly access laptop localhost!
 export const API_BASE = typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('127.0.0.1') && !window.location.origin.includes('localhost')
   ? window.location.origin
   : 'http://127.0.0.1:42128';

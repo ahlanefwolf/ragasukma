@@ -3,7 +3,7 @@ use std::io::{Cursor, Write};
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
 
-/// Cache bahasa yang didukung oleh tesseract pada sistem (misal "eng+ind" atau "eng")
+/// Cache of languages supported by tesseract on system (e.g. "eng+ind" or "eng")
 static DETECTED_LANGS: OnceLock<String> = OnceLock::new();
 
 fn get_tesseract_languages() -> &'static str {
@@ -46,12 +46,12 @@ struct WordBox {
     text: String,
 }
 
-/// Fallback OCR universal menggunakan Tesseract OCR melalui streaming pipe (stdin -> stdout TSV).
-/// Bekerja di Linux (X11/Wayland), Windows, dan macOS tanpa file sementara di disk.
+/// Universal fallback OCR using Tesseract OCR via streaming pipe (stdin -> stdout TSV).
+/// Bekerja in Linux (X11/Wayland), Windows, and macOS without file sementara in disk.
 pub fn run_tesseract_fallback(
     image: &DynamicImage,
 ) -> Result<Vec<(String, [i32; 4], f32)>, String> {
-    // 1. Encode image ke memory buffer PNG tanpa menulis ke disk
+    // 1. Encode image to memory buffer PNG without menulis to disk
     let mut png_bytes = Vec::new();
     image
         .write_to(&mut Cursor::new(&mut png_bytes), image::ImageFormat::Png)
@@ -59,7 +59,7 @@ pub fn run_tesseract_fallback(
 
     let langs = get_tesseract_languages();
 
-    // 2. Spawn tesseract process dengan input stdin dan output stdout TSV
+    // 2. Spawn tesseract process with input stdin and output stdout TSV
     let mut child = Command::new("tesseract")
         .arg("stdin")
         .arg("stdout")
@@ -76,14 +76,14 @@ pub fn run_tesseract_fallback(
             )
         })?;
 
-    // 3. Tulis PNG bytes ke child stdin
+    // 3. Tulis PNG bytes to child stdin
     if let Some(mut stdin) = child.stdin.take() {
         stdin
             .write_all(&png_bytes)
             .map_err(|e| format!("Failed to send image buffer to tesseract stdin: {e}"))?;
     }
 
-    // 4. Tunggu eksekusi dan baca stdout TSV
+    // 4. Tunggu eksekusi and baca stdout TSV
     let output = child
         .wait_with_output()
         .map_err(|e| format!("Failed to read tesseract output: {e}"))?;
@@ -99,7 +99,7 @@ pub fn run_tesseract_fallback(
     Ok(parse_tsv_output(&tsv_text))
 }
 
-/// Parse TSV format output dari Tesseract dan kelompokkan kata berdekatan menjadi frasa UI
+/// Parses TSV output from Tesseract and groups adjacent words into UI phrases
 pub fn parse_tsv_output(tsv_text: &str) -> Vec<(String, [i32; 4], f32)> {
     let mut words = Vec::new();
 
@@ -122,7 +122,7 @@ pub fn parse_tsv_output(tsv_text: &str) -> Vec<(String, [i32; 4], f32)> {
         };
 
         let text = cols[11].trim();
-        // Filter noise: abaikan confidence sangat rendah (< 30.0%) atau teks kosong
+        // Noise filter: ignore very low confidence (< 30.0%) or empty text
         if conf < 30.0 || text.is_empty() {
             continue;
         }
@@ -146,7 +146,7 @@ pub fn parse_tsv_output(tsv_text: &str) -> Vec<(String, [i32; 4], f32)> {
         });
     }
 
-    // Kelompokkan kata-kata berdekatan pada baris yang sama menjadi frasa/elemen UI utuh
+    // Group adjacent words on the same line into coherent UI phrases/elements
     let mut phrases: Vec<(String, [i32; 4], f32)> = Vec::new();
     struct CurrentPhrase {
         block: i32,
@@ -176,7 +176,7 @@ pub fn parse_tsv_output(tsv_text: &str) -> Vec<(String, [i32; 4], f32)> {
                 continue;
             }
 
-            // Simpan frasa sebelumnya
+            // Save previous phrase
             let phrase_text = curr.texts.join(" ");
             let bbox = [curr.x1, curr.y1, curr.x2 - curr.x1, curr.y2 - curr.y1];
             let avg_conf = (curr.confs.iter().sum::<f32>() / curr.confs.len() as f32) / 100.0;

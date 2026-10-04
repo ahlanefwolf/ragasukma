@@ -30,7 +30,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   const [visualState, setVisualState] = createSignal<'idle' | 'listening' | 'speaking' | 'thinking'>('idle');
   const [emotion, setEmotion] = createSignal('neutral');
   
-  // Status Mode Audio & Mic di HP (Remote Desktop vs Full Mobile)
+  // Audio & Mic Mode Status on Mobile (Remote Desktop vs Full Mobile)
   const getInitialAudioMode = (): MobileAudioMode => {
     try {
       const saved = localStorage.getItem('ragasukma_audio_mode');
@@ -91,7 +91,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     if (!isHpAudioActive()) return;
     const mySeq = ++mobileSpeakSeq;
 
-    // Hentikan suara TTS sebelumnya jika ada (jangan matikan musik!)
+    // Stop previous TTS voice if any (do not stop music!)
     if (activeVoiceAudio) {
       try {
         activeVoiceAudio.pause();
@@ -100,15 +100,15 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       activeVoiceAudio = null;
     }
 
-    // Kunci status speaking segera agar avatar di HP langsung merespon & tidak prematur idle
+    // Lock speaking status immediately so mobile avatar responds without premature idle
     isVoiceSpeakingOnMobile = true;
     setVisualState('speaking');
     setEmotion(em);
 
-    // Audio Ducking: turunkan volume musik agar suara AI terdengar jelas
+    // Audio Ducking: lower music volume so AI voice is clearly audible
     audioSync.duckMusic(0.25);
 
-    // Beritahu backend bahwa mode speaking aktif
+    // Notify backend that speaking mode is active
     fetch(`${API_BASE}/api/tts/state`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -195,7 +195,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       });
   };
 
-  // Handler Terpusat Semua Aksi (SSE + Polling Fallback) dengan Deduplikasi ID
+  // Handler Terpusat All Aksi (SSE + Polling Fallback) with Deduplikasi ID
   const handleIncomingAction = (act: any) => {
     if (!act || !act.action) return;
 
@@ -204,7 +204,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       lastActionId = act.id;
     }
 
-    // 1. Suara respon Supertonic-3 Neural Audio (WAV stream)
+    // 1. Voice respon Supertonic-3 Neural Audio (WAV stream)
     if (act.action === 'assistant:speak') {
       let textToSpeak = '';
       let em = 'neutral';
@@ -225,9 +225,9 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       }
     }
 
-    // 2. Musik streaming dialirkan ke HP atau dikontrol di PC
+    // 2. Streaming music routed to phone or controlled on PC
     if (act.action === 'music:play') {
-      const trackTitle = typeof act.payload === 'string' ? act.payload : 'Lagu Desktop';
+      const trackTitle = typeof act.payload === 'string' ? act.payload : 'Desktop Audio';
       if (isHpAudioActive()) {
         audioSync.playMusic(act.payload);
       } else {
@@ -292,7 +292,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     speechRec.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
       if (transcript && transcript.trim()) {
-        // Segera rilis STT mic agar Android keluar dari Voice Telephony mode kembali ke Media Hi-Fi
+        // Release STT mic immediately so Android exits Voice Telephony mode back to Media Hi-Fi
         try {
           speechRec.abort();
         } catch {}
@@ -318,7 +318,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       unlockAudioContext(true);
     }
     if (!speechRec) {
-      props.showToast('Gunakan ikon mikrofon di keyboard HP Anda.');
+      props.showToast('Use the microphone key on your smartphone keyboard.');
       return;
     }
 
@@ -341,7 +341,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     setHasUnlockedAudio(true);
     notifyRemoteActive();
     if (!silent) {
-      props.showToast('🔊 Audio HP aktif & tersinkronisasi');
+      props.showToast('Phone audio active & synchronized');
     }
   };
 
@@ -356,15 +356,15 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       try {
         await api.sendCommand('mode_remote_desktop');
       } catch {}
-      props.showToast('🖥️ Beralih ke Mode Remote Desktop... memuat ulang');
+      props.showToast('Switching to Remote Desktop Mode... reloading');
     } else {
       try {
         await api.sendCommand('mode_full_mobile');
       } catch {}
-      props.showToast('📱 Beralih ke Mode Full Mobile... memuat ulang');
+      props.showToast('Switching to Full Mobile Mode... reloading');
     }
 
-    // Refresh halaman agar AudioContext, SSE, dan state audio ter-reinitialisasi secara bersih
+    // Refresh page to cleanly reinitialize AudioContext and SSE
     setTimeout(() => {
       window.location.reload();
     }, 250);
@@ -376,14 +376,14 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       localStorage.setItem('ragasukma_audio_mode', 'remote_desktop');
       setAudioMode('remote_desktop');
       await api.sendCommand('mode_reset_desktop');
-      props.showToast('🖥️ Sesi remote diputuskan, audio & mic dikembalikan penuh ke desktop.');
+      props.showToast('Remote session disconnected, audio & mic returned to desktop.');
       setShowSettings(false);
       setTimeout(() => {
         window.location.hash = '';
         window.location.reload();
       }, 400);
     } catch {
-      props.showToast('Gagal memutuskan remote.');
+      props.showToast('Failed to disconnect remote session.');
     }
   };
 
@@ -393,7 +393,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     });
 
     notifyRemoteActive();
-    // Sinkronkan mode aktif ke backend (jika Full HP, kirim mode_full_mobile; jika Remote PC, kirim mode_remote_desktop)
+    // Sync active mode to backend (if Full HP, send mode_full_mobile; if Remote PC, send mode_remote_desktop)
     const currentMode = audioMode();
     if (currentMode === 'full_mobile') {
       api.sendCommand('mode_full_mobile').catch(() => {});
@@ -401,7 +401,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       api.sendCommand('mode_remote_desktop').catch(() => {});
     }
 
-    // Sinkronkan bahasa STT dari config server secara dinamis
+    // Sync STT language dynamically from server config
     api.getConfig().then((cfg) => {
       if (cfg && cfg.lang) {
         setMobileLang(cfg.lang);
@@ -415,7 +415,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
 
     fetchLogs();
 
-    // Pantau Virtual Keyboard di HP via VisualViewport agar layout tidak tertutup keyboard
+    // Monitor virtual keyboard on mobile via VisualViewport so layout is not obscured
     const updateViewport = () => {
       if (window.visualViewport) {
         setViewportHeight(`${window.visualViewport.height}px`);
@@ -431,7 +431,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       window.addEventListener('resize', updateViewport);
     }
 
-    // Auto-unlock audio HP pada sentuhan/interaksi pertama pengguna
+    // Auto-unlock audio HP on sentuhan/interaksi pertama user
     const handleFirstInteraction = () => {
       if (!hasUnlockedAudio()) {
         unlockAudioContext(true);
@@ -440,13 +440,13 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     window.addEventListener('touchstart', handleFirstInteraction, { once: true, passive: true });
     window.addEventListener('click', handleFirstInteraction, { once: true });
 
-    // Polling Terpadu Super Cepat & Ringan (Murni Polling HTTP GET - 100% Kebal Blokir SSE)
+    // Polling Terpadu Super Fast & Ringan (Murni Polling HTTP GET - 100% Kebal Blokir SSE)
     let pollTick = 0;
     const pollInterval = setInterval(async () => {
       if (document.hidden) return;
       pollTick++;
 
-      // 1. Actions polling (assistant:speak & music:play) - Setiap 750ms
+      // 1. Actions polling (assistant:speak & music:play) - Every 750ms
       try {
         const res = await api.getActionsSince(lastActionId);
         if (res && res.actions && Array.isArray(res.actions)) {
@@ -463,15 +463,15 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         }
       } catch {}
 
-      // 2. State polling (idle, speaking, listening, thinking, emotion) - Setiap 750ms
+      // 2. State polling (idle, speaking, listening, thinking, emotion) - Every 750ms
       try {
         const stRes = await fetch(`${API_BASE}/api/state`);
         if (stRes.ok) {
           const st = await stRes.json();
           if (st && st.state) {
             const s = st.state.toLowerCase();
-            // JIKA HP sedang memutar suara TTS (activeVoiceAudio != null || isVoiceSpeakingOnMobile),
-            // KUNCI status speaking! Jangan biarkan backend menimpa menjadi idle secara prematur sampai audio onended.
+            // IF HP currently playing voice TTS (activeVoiceAudio != null || isVoiceSpeakingOnMobile),
+            // LOCK speaking status! Prevent premature idle overwrite until audio ends.
             if (activeVoiceAudio !== null || isVoiceSpeakingOnMobile) {
               setVisualState('speaking');
             } else if (isHpMicListening()) {
@@ -490,20 +490,20 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         }
       } catch {}
 
-      // 3. Logs polling (jika drawer log dibuka, poll setiap ~2.2s; jika tertutup poll setiap ~6s)
+      // 3. Logs polling (if log drawer open, poll every ~2.2s; if closed poll every ~6s)
       if (showLogsDrawer()) {
         if (pollTick % 3 === 0) fetchLogs();
       } else {
         if (pollTick % 8 === 0) fetchLogs();
       }
 
-      // 4. Remote active heartbeat ke host setiap ~10 detik
+      // 4. Remote active heartbeat to host every ~10s
       if (pollTick % 13 === 0) {
         notifyRemoteActive();
       }
     }, 750);
 
-    // Helper pemulihan sesi: kembalikan mic & voice penuh ke desktop saat HP ditutup
+    // Session recovery helper: restore full mic & voice to desktop on close
     const restoreDesktopSession = () => {
       try {
         const payload = JSON.stringify({ cmd: 'mode_reset_desktop' });
@@ -525,7 +525,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     window.addEventListener('pagehide', restoreDesktopSession);
 
     onCleanup(() => {
-      document.title = 'Ragasukma - Konfigurasi & Dashboard AI';
+      document.title = 'Ragasukma - AI Companion & Dashboard';
       window.removeEventListener('beforeunload', restoreDesktopSession);
       window.removeEventListener('pagehide', restoreDesktopSession);
       window.removeEventListener('touchstart', handleFirstInteraction);
@@ -559,7 +559,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     }
   });
 
-  // Sinkronisasi title tab browser di mobile (Default: "Ragasukma", Saat musik: "▶ Judul - Ragasukma")
+  // Synchronize browser tab title on mobile (Default: "Ragasukma", When music: "▶ Title - Ragasukma")
   createEffect(() => {
     const st = mobileMusicState();
     if (st.track && st.track.title) {
@@ -582,7 +582,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     const textToSend = (customText !== undefined ? customText : inputText()).trim();
     if (!textToSend || isSending()) return;
 
-    // Pastikan mic STT di HP telah terlepas agar speaker HP tidak terjebak di filter telepon/radio
+    // Ensure mobile STT mic is released so phone speaker is not trapped in telephony filter
     if (speechRec && isHpMicListening()) {
       try {
         speechRec.abort();
@@ -595,7 +595,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         activeVoiceAudio = null;
       } catch {}
     }
-    // Hentikan suara asisten jika sedang bicara (interupsi user), jangan matikan musik!
+    // Stop assistant voice if speaking (user interruption), do not stop music!
     audioSync.stopVoice();
 
     setIsSending(true);
@@ -605,9 +605,9 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         setLastSentText(textToSend);
         setInputText('');
         setVisualState('thinking');
-        props.showToast(`✅ Terkirim: "${textToSend}"`);
+        props.showToast(`Sent: "${textToSend}"`);
       } else {
-        props.showToast(`⚠️ ${res.error || 'Gagal mengirim pesan'}`);
+        props.showToast(res.error || 'Failed to send message');
       }
     } catch (err: any) {
       props.showToast(`Error: ${err.message || err}`);
@@ -628,23 +628,23 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(text);
       }
-      props.showToast('📋 Log berhasil disalin');
+      props.showToast('Logs copied to clipboard');
     } catch {
-      props.showToast('⚠️ Gagal menyalin');
+      props.showToast('Failed to copy to clipboard');
     }
   };
 
   const formatMessageStyle = (msg: string, level: string) => {
-    if (level === 'error' || msg.includes('[ERROR]') || msg.includes('GAGAL')) {
+    if (level === 'error' || msg.includes('[ERROR]') || msg.includes('FAIL')) {
       return 'text-red-400 font-semibold';
     }
     if (msg.includes('[User]')) {
       return 'text-theme-cyan font-bold';
     }
-    if (msg.includes('[LLM]') || msg.includes('merespons')) {
+    if (msg.includes('[LLM]') || msg.includes('responding')) {
       return 'text-theme-rose font-medium';
     }
-    if (msg.includes('✨') || msg.includes('▶️')) {
+    if (msg.includes('[RESUMED]') || msg.includes('[Music Controller]')) {
       return 'text-theme-cyan';
     }
     return 'text-theme-text/80';
@@ -661,14 +661,14 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         onUnlock={() => unlockAudioContext(false)}
       />
 
-      {/* 2. Floating Top Controls (Ultra Clean: Floating Status Pill Kiri & Tombol Settings Kanan) */}
+      {/* 2. Floating Top Controls (Ultra Clean: Left Floating Status Pill & Right Settings Button) */}
       <MobileTopBar
         visualState={visualState()}
         onOpenSettings={() => setShowSettings(true)}
         logsCount={logs().length}
       />
 
-      {/* Sheet Pengaturan Companion */}
+      {/* Sheet Companion Settings */}
       <MobileSettingsSheet
         isOpen={showSettings()}
         onClose={() => setShowSettings(false)}
@@ -680,7 +680,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         onDisconnectRemote={handleDisconnectRemote}
       />
 
-      {/* 3. Karakter 3D VRM 100% Fullscreen Penuh Tanpa Terpotong Padding */}
+      {/* 3. Karakter 3D VRM 100% Fullscreen Full Without Terpotong Padding */}
       <div class="absolute inset-0 z-0 w-full h-full">
         <AvatarViewer
           state={visualState()}
@@ -689,12 +689,12 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         />
       </div>
 
-      {/* Spacer fleksibel tengah agar kontrol melayang di bawah */}
+      {/* Flexible center spacer for floating bottom controls */}
       <div class="flex-1 min-h-0 pointer-events-none" />
 
-      {/* 4. Kontrol Bagian Bawah: Floating Music + Circular Interaction Dock */}
+      {/* 4. Bottom Controls: Floating Music + Circular Interaction Dock */}
       <div class="relative z-20 w-full max-w-md mx-auto pointer-events-auto flex flex-col gap-1.5">
-        {/* Floating Music Player Mini Card (Jika Ada Musik Diputar) */}
+        {/* Floating Music Player Mini Card (When Music Is Playing) */}
         <div class="px-3">
           <MobileFloatingMusic
             trackState={mobileMusicState()}
@@ -726,7 +726,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
           />
         </div>
 
-        {/* Floating Circular Interaction Dock (Tombol Lingkaran Mic PTT & Toggle Input Pesan) */}
+        {/* Floating Circular Interaction Dock (Circular Mic PTT Button & Message Input Toggle) */}
         <MobileInteractionDock
           inputText={inputText()}
           onInputText={setInputText}

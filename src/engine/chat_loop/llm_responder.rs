@@ -35,7 +35,7 @@ pub fn process_llm_response(
             return Err(anyhow::anyhow!("Interrupted by user"));
         }
 
-        // Update emosi avatar real-time ke renderer 3D
+        // Update emotion avatar real-time to renderer 3D
         TrayState::update_with_emotion(
             AssistantState::Thinking,
             &format!("{asst_name} Berpikir"),
@@ -80,7 +80,7 @@ pub fn process_llm_response(
             txt.clone()
         }
         Err(e) => {
-            crate::term_err!("⚠️ [LLM Error]: {e}");
+            crate::term_err!("[LLM Error]: {e}");
             String::new()
         }
     };

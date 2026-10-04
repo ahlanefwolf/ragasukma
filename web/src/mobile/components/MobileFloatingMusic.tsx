@@ -45,7 +45,7 @@ export const MobileFloatingMusic: Component<MobileFloatingMusicProps> = (props) 
             type="button"
             onClick={props.onTogglePlay}
             class="p-2 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-cyan transition-colors active:scale-95 shadow-sm"
-            title={props.trackState.isPlaying ? 'Jeda' : 'Lanjutkan'}
+            title={props.trackState.isPlaying ? 'Pause' : 'Play'}
           >
             <Show when={props.trackState.isPlaying} fallback={<Play size={13} class="fill-current" />}>
               <Pause size={13} />
@@ -55,7 +55,7 @@ export const MobileFloatingMusic: Component<MobileFloatingMusicProps> = (props) 
             type="button"
             onClick={props.onStop}
             class="p-2 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-muted hover:text-rose-500 transition-colors active:scale-95 shadow-sm"
-            title="Hentikan Musik"
+            title="Stop Music"
           >
             <Square size={13} />
           </button>

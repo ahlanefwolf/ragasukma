@@ -22,7 +22,7 @@ async fn get_or_init_atspi_conn() -> Option<atspi::connection::AccessibilityConn
         }
         Err(_e) => {
             #[cfg(debug_assertions)]
-            eprintln!("⚠️  [Desktop Scanner] AT-SPI D-Bus init error: {_e}");
+            eprintln!("[Desktop Scanner] AT-SPI D-Bus init error: {_e}");
             None
         }
     }

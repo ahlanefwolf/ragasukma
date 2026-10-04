@@ -1,5 +1,5 @@
 import { Component, createSignal, onCleanup, createEffect } from 'solid-js';
-import { Mic, Volume2, Play, Square, Sparkles } from 'lucide-solid';
+import { Mic, Volume2, Play, Square, Sparkles, Zap, Shield, Flame, User } from 'lucide-solid';
 import { API_BASE } from '../../services/base';
 
 interface SupertonicVoice {
@@ -10,57 +10,56 @@ interface SupertonicVoice {
 }
 
 const SUPERTONIC_VOICES: SupertonicVoice[] = [
-  { id: 'M1', name: 'Alex', label: 'Alex · Pria hangat', gender: 'male' },
-  { id: 'M2', name: 'James', label: 'James · Pria jernih', gender: 'male' },
-  { id: 'M3', name: 'Robert', label: 'Robert · Pria dalam', gender: 'male' },
-  { id: 'M4', name: 'Sam', label: 'Sam · Pria cerah', gender: 'male' },
-  { id: 'M5', name: 'Daniel', label: 'Daniel · Pria narator', gender: 'male' },
-  { id: 'F1', name: 'Sarah', label: 'Sarah · Wanita hangat', gender: 'female' },
-  { id: 'F2', name: 'Lily', label: 'Lily · Wanita jernih', gender: 'female' },
-  { id: 'F3', name: 'Jessica', label: 'Jessica · Wanita cerah', gender: 'female' },
-  { id: 'F4', name: 'Olivia', label: 'Olivia · Wanita narator', gender: 'female' },
-  { id: 'F5', name: 'Emily', label: 'Emily · Wanita lembut', gender: 'female' },
+  { id: 'M1', name: 'Alex', label: 'Alex · Warm Male', gender: 'male' },
+  { id: 'M2', name: 'James', label: 'James · Clear Male', gender: 'male' },
+  { id: 'M3', name: 'Robert', label: 'Robert · Deep Male', gender: 'male' },
+  { id: 'M4', name: 'Sam', label: 'Sam · Bright Male', gender: 'male' },
+  { id: 'M5', name: 'Daniel', label: 'Daniel · Narrator Male', gender: 'male' },
+  { id: 'F1', name: 'Sarah', label: 'Sarah · Warm Female', gender: 'female' },
+  { id: 'F2', name: 'Lily', label: 'Lily · Clear Female', gender: 'female' },
+  { id: 'F3', name: 'Jessica', label: 'Jessica · Bright Female', gender: 'female' },
+  { id: 'F4', name: 'Olivia', label: 'Olivia · Narrator Female', gender: 'female' },
+  { id: 'F5', name: 'Emily', label: 'Emily · Soft Female', gender: 'female' },
 ];
 
 interface LanguageOption {
   code: string;       // ISO-639-1 (Supertonic tag: <id>, <en>, <ja>, ...)
-  chromeCode: string; // BCP-47 untuk Chrome Web STT (id-ID, en-US, ja-JP, ...)
+  chromeCode: string; // BCP-47 for Chrome Web STT (id-ID, en-US, ja-JP, ...)
   label: string;
-  flag: string;
 }
 
 const SUPPORTED_LANGUAGES: LanguageOption[] = [
-  { code: 'id', chromeCode: 'id-ID', label: 'Bahasa Indonesia', flag: '🇮🇩' },
-  { code: 'en', chromeCode: 'en-US', label: 'Bahasa Inggris', flag: '🇺🇸' },
-  { code: 'ja', chromeCode: 'ja-JP', label: 'Bahasa Jepang', flag: '🇯🇵' },
-  { code: 'ko', chromeCode: 'ko-KR', label: 'Bahasa Korea', flag: '🇰🇷' },
-  { code: 'ar', chromeCode: 'ar-SA', label: 'Bahasa Arab', flag: '🇸🇦' },
-  { code: 'bg', chromeCode: 'bg-BG', label: 'Bahasa Bulgaria', flag: '🇧🇬' },
-  { code: 'cs', chromeCode: 'cs-CZ', label: 'Bahasa Ceko', flag: '🇨🇿' },
-  { code: 'da', chromeCode: 'da-DK', label: 'Bahasa Denmark', flag: '🇩🇰' },
-  { code: 'de', chromeCode: 'de-DE', label: 'Bahasa Jerman', flag: '🇩🇪' },
-  { code: 'el', chromeCode: 'el-GR', label: 'Bahasa Yunani', flag: '🇬🇷' },
-  { code: 'es', chromeCode: 'es-ES', label: 'Bahasa Spanyol', flag: '🇪🇸' },
-  { code: 'et', chromeCode: 'et-EE', label: 'Bahasa Estonia', flag: '🇪🇪' },
-  { code: 'fi', chromeCode: 'fi-FI', label: 'Bahasa Finlandia', flag: '🇫🇮' },
-  { code: 'fr', chromeCode: 'fr-FR', label: 'Bahasa Prancis', flag: '🇫🇷' },
-  { code: 'hi', chromeCode: 'hi-IN', label: 'Bahasa Hindi', flag: '🇮🇳' },
-  { code: 'hr', chromeCode: 'hr-HR', label: 'Bahasa Kroasia', flag: '🇭🇷' },
-  { code: 'hu', chromeCode: 'hu-HU', label: 'Bahasa Hungaria', flag: '🇭🇺' },
-  { code: 'it', chromeCode: 'it-IT', label: 'Bahasa Italia', flag: '🇮🇹' },
-  { code: 'lt', chromeCode: 'lt-LT', label: 'Bahasa Lituania', flag: '🇱🇹' },
-  { code: 'lv', chromeCode: 'lv-LV', label: 'Bahasa Latvia', flag: '🇱🇻' },
-  { code: 'nl', chromeCode: 'nl-NL', label: 'Bahasa Belanda', flag: '🇳🇱' },
-  { code: 'pl', chromeCode: 'pl-PL', label: 'Bahasa Polandia', flag: '🇵🇱' },
-  { code: 'pt', chromeCode: 'pt-PT', label: 'Bahasa Portugis', flag: '🇵🇹' },
-  { code: 'ro', chromeCode: 'ro-RO', label: 'Bahasa Rumania', flag: '🇷🇴' },
-  { code: 'ru', chromeCode: 'ru-RU', label: 'Bahasa Rusia', flag: '🇷🇺' },
-  { code: 'sk', chromeCode: 'sk-SK', label: 'Bahasa Slovakia', flag: '🇸🇰' },
-  { code: 'sl', chromeCode: 'sl-SI', label: 'Bahasa Slovenia', flag: '🇸🇮' },
-  { code: 'sv', chromeCode: 'sv-SE', label: 'Bahasa Swedia', flag: '🇸🇪' },
-  { code: 'tr', chromeCode: 'tr-TR', label: 'Bahasa Turki', flag: '🇹🇷' },
-  { code: 'uk', chromeCode: 'uk-UA', label: 'Bahasa Ukraina', flag: '🇺🇦' },
-  { code: 'vi', chromeCode: 'vi-VN', label: 'Bahasa Vietnam', flag: '🇻🇳' },
+  { code: 'id', chromeCode: 'id-ID', label: 'Indonesian' },
+  { code: 'en', chromeCode: 'en-US', label: 'English' },
+  { code: 'ja', chromeCode: 'ja-JP', label: 'Japanese' },
+  { code: 'ko', chromeCode: 'ko-KR', label: 'Korean' },
+  { code: 'ar', chromeCode: 'ar-SA', label: 'Arabic' },
+  { code: 'bg', chromeCode: 'bg-BG', label: 'Bulgarian' },
+  { code: 'cs', chromeCode: 'cs-CZ', label: 'Czech' },
+  { code: 'da', chromeCode: 'da-DK', label: 'Danish' },
+  { code: 'de', chromeCode: 'de-DE', label: 'German' },
+  { code: 'el', chromeCode: 'el-GR', label: 'Greek' },
+  { code: 'es', chromeCode: 'es-ES', label: 'Spanish' },
+  { code: 'et', chromeCode: 'et-EE', label: 'Estonian' },
+  { code: 'fi', chromeCode: 'fi-FI', label: 'Finnish' },
+  { code: 'fr', chromeCode: 'fr-FR', label: 'French' },
+  { code: 'hi', chromeCode: 'hi-IN', label: 'Hindi' },
+  { code: 'hr', chromeCode: 'hr-HR', label: 'Croatian' },
+  { code: 'hu', chromeCode: 'hu-HU', label: 'Hungarian' },
+  { code: 'it', chromeCode: 'it-IT', label: 'Italian' },
+  { code: 'lt', chromeCode: 'lt-LT', label: 'Lithuanian' },
+  { code: 'lv', chromeCode: 'lv-LV', label: 'Latvian' },
+  { code: 'nl', chromeCode: 'nl-NL', label: 'Dutch' },
+  { code: 'pl', chromeCode: 'pl-PL', label: 'Polish' },
+  { code: 'pt', chromeCode: 'pt-PT', label: 'Portuguese' },
+  { code: 'ro', chromeCode: 'ro-RO', label: 'Romanian' },
+  { code: 'ru', chromeCode: 'ru-RU', label: 'Russian' },
+  { code: 'sk', chromeCode: 'sk-SK', label: 'Slovak' },
+  { code: 'sl', chromeCode: 'sl-SI', label: 'Slovenian' },
+  { code: 'sv', chromeCode: 'sv-SE', label: 'Swedish' },
+  { code: 'tr', chromeCode: 'tr-TR', label: 'Turkish' },
+  { code: 'uk', chromeCode: 'uk-UA', label: 'Ukrainian' },
+  { code: 'vi', chromeCode: 'vi-VN', label: 'Vietnamese' },
 ];
 
 const getChromeSttCode = (langCode: string): string => {
@@ -88,7 +87,7 @@ interface AudioTtsSectionProps {
 
 export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
   const [isPlayingTest, setIsPlayingTest] = createSignal(false);
-  const [testText, setTestText] = createSignal('Halo Mas! Aku adalah asisten AI Ragasukma.');
+  const [testText, setTestText] = createSignal('Hello! I am your AI assistant Ragasukma.');
   const [genderFilter, setGenderFilter] = createSignal<'all' | 'female' | 'male'>('all');
 
   let activeTestAudio: HTMLAudioElement | null = null;
@@ -111,7 +110,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
     props.setLang(cleanCode);
   };
 
-  // Pastikan ref select bahasa selalu sinkron dengan state
+  // Ensure language select ref always syncs with state
   createEffect(() => {
     const code = currentLangCode();
     if (langSelectRef && code) {
@@ -119,7 +118,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
     }
   });
 
-  // Pastikan ref select suara & gender filter selalu sinkron dua arah tanpa revert
+  // Ensure voice select ref & gender filter are always synchronized bidirectionally without revert
   createEffect(() => {
     const v = props.ttsVoiceName || 'F4';
     if (voiceSelectRef) {
@@ -186,7 +185,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
       };
       loop();
     } catch (err) {
-      console.warn('[VAD Meter] Gagal akses mic:', err);
+      console.warn('[VAD Meter] Failed to access microphone:', err);
       setIsMicTesting(false);
     }
   };
@@ -285,13 +284,13 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
         <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2">
           <Mic size={18} />
-          3. Mikrofon & Bahasa Percakapan (STT Chrome + Supertonic)
+          3. Microphone & Spoken Language (Chrome STT + Supertonic)
         </h3>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
           <div class="space-y-1.5">
             <div class="flex justify-between items-center">
-              <label class="text-xs font-semibold text-theme-text/80">Pilih Bahasa (Tunggal & Sinkron)</label>
+              <label class="text-xs font-semibold text-theme-text/80">Select Language (Unified & Synced)</label>
               <div class="flex gap-1">
                 <button
                   type="button"
@@ -302,7 +301,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                       : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-cyan'
                   }`}
                 >
-                  🇮🇩 id
+                  id
                 </button>
                 <button
                   type="button"
@@ -313,7 +312,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                       : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-cyan'
                   }`}
                 >
-                  🇺🇸 en
+                  en
                 </button>
                 <button
                   type="button"
@@ -324,7 +323,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                       : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-cyan'
                   }`}
                 >
-                  🇯🇵 ja
+                  ja
                 </button>
               </div>
             </div>
@@ -336,7 +335,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             >
               {SUPPORTED_LANGUAGES.map((l) => (
                 <option value={l.code}>
-                  {l.flag} {l.label} ({l.code} · STT {l.chromeCode})
+                  {l.label} ({l.code} · STT {l.chromeCode})
                 </option>
               ))}
             </select>
@@ -344,9 +343,12 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
 
           <div class="p-3 bg-theme-card border border-theme-border flex items-center justify-between gap-4">
             <div>
-              <label class="text-xs sm:text-sm font-semibold text-theme-text block">⚡ Interupsi Suara (Barge-in)</label>
+              <label class="text-xs sm:text-sm font-semibold text-theme-text flex items-center gap-1.5">
+                <Zap size={14} class="text-theme-cyan" />
+                <span>Voice Interruption (Barge-in)</span>
+              </label>
               <p class="text-xs text-theme-text/60 mt-0.5">
-                Potong pembicaraan asisten seketika saat kamu bicara.
+                Instantly interrupt assistant speech when you speak.
               </p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer shrink-0">
@@ -368,14 +370,14 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
               <div class="flex items-center gap-2">
                 <span class="text-xs sm:text-sm font-bold text-theme-text flex items-center gap-1.5">
                   <Mic size={14} class="text-theme-cyan" />
-                  Garis Ambang Batas Suara (VAD Noise Gate)
+                  Voice Threshold (VAD Noise Gate)
                 </span>
                 <span class="text-[10px] px-1.5 py-0.5 border border-theme-cyan/40 bg-theme-cyan/10 text-theme-cyan font-mono font-bold">
                   {Math.round((props.vadThreshold || 0.15) * 100)}%
                 </span>
               </div>
               <p class="text-xs text-theme-text/60 mt-0.5">
-                Hanya suara di atas garis yang memicu interupsi. Suara speaker laptop / noise kipas di bawah garis otomatis diabaikan.
+                Only sounds above the threshold trigger interruptions. Background fan/speaker noise below the line is automatically filtered.
               </p>
             </div>
 
@@ -389,7 +391,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
               }`}
             >
               <Mic size={13} />
-              {isMicTesting() ? 'Hentikan Uji Mic' : 'Tes Suara Mic Live'}
+              {isMicTesting() ? 'Stop Mic Test' : 'Live Mic Test'}
             </button>
           </div>
 
@@ -414,7 +416,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
 
               <div class="absolute inset-0 flex items-center justify-between px-3 text-[11px] font-mono pointer-events-none">
                 <span class="text-white/60">
-                  {isMicTesting() ? `Mic: ${currentMicLevel()}%` : 'Klik "Tes Suara Mic" untuk kalibrasi'}
+                  {isMicTesting() ? `Mic: ${currentMicLevel()}%` : 'Click "Live Mic Test" to calibrate'}
                 </span>
                 <span
                   class={`font-bold transition-colors ${
@@ -424,14 +426,14 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                   }`}
                 >
                   {currentMicLevel() >= Math.round((props.vadThreshold || 0.15) * 100) && isMicTesting()
-                    ? '🔥 MELEWATI GARIS (TRIGGER)'
-                    : `Garis: ${Math.round((props.vadThreshold || 0.15) * 100)}%`}
+                    ? 'ABOVE THRESHOLD (TRIGGER)'
+                    : `Threshold: ${Math.round((props.vadThreshold || 0.15) * 100)}%`}
                 </span>
               </div>
             </div>
 
             <div class="flex items-center gap-3">
-              <span class="text-[11px] font-mono text-theme-text/50">Sensitif (3%)</span>
+              <span class="text-[11px] font-mono text-theme-text/50">Sensitive (3%)</span>
               <input
                 type="range"
                 min="0.03"
@@ -441,15 +443,18 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 onInput={(e) => props.setVadThreshold(parseFloat(e.currentTarget.value))}
                 class="flex-1 accent-amber-400 cursor-pointer h-1.5 bg-theme-border rounded-none"
               />
-              <span class="text-[11px] font-mono text-theme-text/50">Ketat (50%)</span>
+              <span class="text-[11px] font-mono text-theme-text/50">Strict (50%)</span>
             </div>
           </div>
 
           <div class="flex items-center justify-between pt-2 border-t border-theme-border/60">
             <div>
-              <label class="text-xs font-semibold text-theme-text block">🛡️ Peredam Bising (Noise Suppression)</label>
+              <label class="text-xs font-semibold text-theme-text flex items-center gap-1.5">
+                <Shield size={14} class="text-theme-cyan" />
+                <span>Noise Suppression</span>
+              </label>
               <p class="text-[11px] text-theme-text/60">
-                Filter bawaan WebRTC untuk meredam desis kipas laptop dan pantulan suara ruangan.
+                WebRTC filter to suppress laptop fan hum and room reverb.
               </p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer shrink-0">
@@ -470,10 +475,10 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
         <div class="flex items-center justify-between flex-wrap gap-2">
           <h3 class="text-base sm:text-lg font-bold text-theme-rose flex items-center gap-2">
             <Volume2 size={18} />
-            4. Suara Asisten (Supertonic-3 Neural TTS Native Rust)
+            4. Assistant Voice (Supertonic-3 Neural TTS Native Rust)
           </h3>
           <div class="flex items-center gap-2">
-            <span class="text-xs text-theme-text/60">Filter Suara:</span>
+            <span class="text-xs text-theme-text/60">Voice Filter:</span>
             <div class="inline-flex border border-theme-border bg-theme-card">
               <button
                 type="button"
@@ -484,7 +489,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                     : 'text-theme-text/70 hover:text-theme-text'
                 }`}
               >
-                Semua (10)
+                All (10)
               </button>
               <button
                 type="button"
@@ -501,7 +506,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                     : 'text-theme-text/70 hover:text-theme-text'
                 }`}
               >
-                👩 Wanita (5)
+                Female (5)
               </button>
               <button
                 type="button"
@@ -518,7 +523,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                     : 'text-theme-text/70 hover:text-theme-text'
                 }`}
               >
-                👨 Pria (5)
+                Male (5)
               </button>
             </div>
           </div>
@@ -527,7 +532,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
           <div class="space-y-1.5">
             <div class="flex justify-between items-center">
-              <label class="text-xs font-semibold text-theme-text/80">Pilih Karakter Suara Supertonic</label>
+              <label class="text-xs font-semibold text-theme-text/80">Select Supertonic Voice Character</label>
               <span class="text-[10px] text-theme-rose font-mono flex items-center gap-1 font-bold">
                 <Sparkles size={11} /> 44.1kHz Hi-Fi
               </span>
@@ -548,17 +553,17 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
               }}
               class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-rose transition-colors font-medium"
             >
-              <optgroup label="👩 Suara Wanita (Female)">
+              <optgroup label="Female Voices">
                 {SUPERTONIC_VOICES.filter((v) => v.gender === 'female').map((v) => (
                   <option value={v.id}>
-                    👩 {v.label} ({v.id})
+                    {v.label} ({v.id})
                   </option>
                 ))}
               </optgroup>
-              <optgroup label="👨 Suara Pria (Male)">
+              <optgroup label="Male Voices">
                 {SUPERTONIC_VOICES.filter((v) => v.gender === 'male').map((v) => (
                   <option value={v.id}>
-                    👨 {v.label} ({v.id})
+                    {v.label} ({v.id})
                   </option>
                 ))}
               </optgroup>
@@ -567,7 +572,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
 
           <div class="space-y-1.5">
             <div class="flex justify-between items-center text-xs font-semibold text-theme-text/80">
-              <span>Kecepatan Bicara (Speed)</span>
+              <span>Speech Speed</span>
               <span class="text-xs font-mono font-bold text-theme-cyan bg-theme-card px-2 py-0.5 border border-theme-border">
                 {(props.ttsSpeed || 1.05).toFixed(2)}x
               </span>
@@ -586,13 +591,13 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
           </div>
         </div>
 
-        {/* Test Suara Banner */}
+        {/* Test Voice Banner */}
         <div class="p-3.5 bg-theme-card border border-theme-border flex flex-col sm:flex-row items-center gap-3 justify-between">
           <input
             type="text"
             value={testText()}
             onInput={(e) => setTestText(e.currentTarget.value)}
-            placeholder="Tulis kalimat uji suara..."
+            placeholder="Write a test sentence..."
             class="w-full sm:flex-1 bg-theme-bg border border-theme-border px-3 py-2 text-sm text-theme-text outline-none focus:border-theme-rose transition-colors"
           />
           <button
@@ -607,12 +612,12 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             {isPlayingTest() ? (
               <>
                 <Square size={14} />
-                <span>Hentikan Audio</span>
+                <span>Stop Audio</span>
               </>
             ) : (
               <>
                 <Play size={14} />
-                <span>Uji Suara Supertonic</span>
+                <span>Test Supertonic Voice</span>
               </>
             )}
           </button>

@@ -18,8 +18,8 @@ export const SystemOverlaySection: Component<SystemOverlaySectionProps> = (props
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="flex items-center justify-between p-4 bg-theme-card border border-theme-border">
             <div>
-              <span class="block text-sm font-bold text-theme-text">Always On Top (Selalu di Depan)</span>
-              <span class="text-xs text-theme-text/60">Overlay 3D avatar tetap berada di atas jendela aplikasi lain</span>
+              <span class="block text-sm font-bold text-theme-text">Always On Top</span>
+              <span class="text-xs text-theme-text/60">Keep 3D avatar overlay above all other application windows</span>
             </div>
             <button
               type="button"
@@ -38,8 +38,8 @@ export const SystemOverlaySection: Component<SystemOverlaySectionProps> = (props
         <div class="p-3.5 bg-theme-card border border-theme-border flex items-start gap-3 text-xs text-theme-text/70 leading-relaxed">
           <Info size={16} class="text-theme-cyan shrink-0 mt-0.5" />
           <div>
-            <span class="font-bold text-theme-text block mb-0.5">Catatan Performa GPU & Rendering</span>
-            Aplikasi menggunakan backend grafis native (DirectX 12 / Vulkan / Metal) dengan konsumsi VRAM minimal. Pengaturan jendela otomatis disinkronkan ke config lokal.
+            <span class="font-bold text-theme-text block mb-0.5">GPU & Rendering Performance Note</span>
+            Application runs on native graphics backends (DirectX 12 / Vulkan / Metal) with minimal VRAM footprint. Window settings automatically sync to local config.
           </div>
         </div>
       </div>

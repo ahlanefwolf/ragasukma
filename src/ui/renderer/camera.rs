@@ -90,7 +90,7 @@ pub fn update_camera_and_bones(
 
     let fov_rad = 28.0_f32.to_radians();
 
-    // 1. Titik tengah dan tinggi aktual model
+    // 1. The actual center point and height of the model
     let center_y = (model_min_y + model_max_y) * 0.5;
     let model_height = (model_max_y - model_min_y).max(1.2);
 
@@ -100,7 +100,7 @@ pub fn update_camera_and_bones(
     let dist_v = (fit_height / 2.0) / (fov_rad / 2.0).tan();
     let radius = dist_v / cam.camera_zoom.clamp(0.15, 6.0);
 
-    // 2. Transformasi Kamera Orbit RH Standar (Yaw & Pitch)
+    // 2. Standard RH Orbit Camera Transformation (Yaw & Pitch)
     let cos_pitch = cam.camera_pitch.cos();
     let sin_pitch = cam.camera_pitch.sin();
     let sin_yaw = cam.camera_yaw.sin();
@@ -126,7 +126,7 @@ pub fn update_camera_and_bones(
     };
     queue.write_buffer(camera_buffer, 0, bytemuck::cast_slice(&[camera_uniform]));
 
-    // Update Matrix Tulang (Hierarki Pose Three.js) - 0 Allocation
+    // Bone Matrix Update (Three.js Pose Hierarchy) - 0 Allocation
     if let Some(model) = model_opt {
         if global_transforms.len() != model.nodes.len() {
             global_transforms.resize(model.nodes.len(), Mat4::IDENTITY);
@@ -144,7 +144,7 @@ pub fn update_camera_and_bones(
             );
         }
 
-        // 🍃 VRM SpringBone Verlet Physics (Rambut, Poni, Rok bergoyang dinamis)
+        // VRM SpringBone Verlet Physics (Hair, Bangs, Dynamic swaying skirt)
         if let Some(sb_mutex) = &model.spring_bone_manager {
             if let Ok(mut sb) = sb_mutex.lock() {
                 sb.update(delta_seconds, model, global_transforms);

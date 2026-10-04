@@ -18,7 +18,7 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
       const resetDate = new Date(isoString);
       const now = new Date();
       const diffMs = resetDate.getTime() - now.getTime();
-      if (diffMs <= 0) return 'Telah di-reset';
+      if (diffMs <= 0) return 'Reset completed';
 
       const diffMins = Math.floor(diffMs / 60000);
       const diffHours = Math.floor(diffMins / 60);
@@ -27,12 +27,12 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
 
       if (diffDays > 0) {
         const remainingHours = diffHours % 24;
-        return `Reset dlm ${diffDays}h ${remainingHours}j`;
+        return `Resets in ${diffDays}d ${remainingHours}h`;
       }
       if (diffHours > 0) {
-        return `Reset dlm ${diffHours}j ${remainingMins}m`;
+        return `Resets in ${diffHours}h ${remainingMins}m`;
       }
-      return `Reset dlm ${diffMins}m`;
+      return `Resets in ${diffMins}m`;
     } catch {
       return isoString;
     }
@@ -66,7 +66,7 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
       <div class="flex items-center justify-between gap-2 flex-wrap pb-1">
         <div class="flex items-center gap-2">
           <Gauge size={15} class="text-theme-cyan" />
-          <span class="text-xs font-bold text-theme-text">Status Kuota Antigravity</span>
+          <span class="text-xs font-bold text-theme-text">Antigravity Quota Status</span>
           <Show when={props.quotaData?.plan}>
             <span class="text-xs font-mono px-2 py-0.5 bg-theme-cyan/10 text-theme-cyan border border-theme-cyan/20 font-bold">
               {props.quotaData?.plan}
@@ -78,10 +78,10 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
           onClick={() => props.onRefresh(props.accountId)}
           disabled={props.isLoading}
           class="px-2.5 py-1 bg-theme-card border border-theme-border text-theme-text/70 hover:text-theme-cyan hover:border-theme-cyan text-xs font-medium transition-all flex items-center gap-1.5"
-          title="Perbarui data kuota terkini"
+          title="Refresh live quota data"
         >
           <RefreshCw size={12} class={props.isLoading ? 'animate-spin text-theme-cyan' : ''} />
-          <span>{props.isLoading ? 'Memuat...' : 'Refresh Kuota'}</span>
+          <span>{props.isLoading ? 'Loading...' : 'Refresh Quota'}</span>
         </button>
       </div>
 
@@ -89,7 +89,7 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
       <Show when={props.isLoading && !props.quotaData}>
         <div class="p-6 text-center bg-theme-card/50 border border-theme-border flex items-center justify-center gap-3">
           <RefreshCw size={16} class="animate-spin text-theme-cyan" />
-          <span class="text-xs text-theme-text/60">Mengambil data kuota dari Google Cloud Code API...</span>
+          <span class="text-xs text-theme-text/60">Fetching quota data from Google Cloud Code API...</span>
         </div>
       </Show>
 
@@ -98,13 +98,13 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
         <div class="p-3.5 bg-rose-500/10 border border-rose-500/30 text-xs text-rose-400 flex items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <AlertTriangle size={16} class="shrink-0" />
-            <span>{props.quotaData?.error || 'Gagal membaca kuota akun.'}</span>
+            <span>{props.quotaData?.error || 'Failed to read account quota.'}</span>
           </div>
           <button
             onClick={() => props.onRefresh(props.accountId)}
             class="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold shrink-0 transition-colors"
           >
-            Coba Lagi
+            Retry
           </button>
         </div>
       </Show>
@@ -116,7 +116,7 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
           <div class="space-y-1.5">
             <h3 class="text-sm font-bold text-theme-text/80 flex items-center gap-1.5">
               <Clock size={14} class="text-amber-400" />
-              <span>Kuota Mingguan (Weekly Cap)</span>
+              <span>Weekly Quota (Weekly Cap)</span>
             </h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <For each={props.quotaData!.weekly}>
@@ -127,7 +127,7 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
                       <div class="flex items-center justify-between gap-2">
                         <span class="text-xs font-bold text-theme-text truncate">{item.display_name}</span>
                         <span class={`text-xs font-mono font-bold px-2 py-0.5 border ${colors.badge}`}>
-                          {item.remaining_percentage}% Tersedia
+                          {item.remaining_percentage}% Available
                         </span>
                       </div>
                       <div class="w-full h-1.5 bg-theme-bg overflow-hidden border border-theme-border/40">
@@ -155,7 +155,7 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
           <div class="space-y-1.5 pt-1">
             <h3 class="text-sm font-bold text-theme-text/80 flex items-center gap-1.5">
               <Zap size={14} class="text-theme-cyan" />
-              <span>Kuota Model (Jendela 5 Jam)</span>
+              <span>Model Quota (5-Hour Window)</span>
             </h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               <For each={props.quotaData!.models}>
@@ -176,11 +176,11 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
                           </span>
                         </div>
 
-                        {/* Klik untuk Copy Model ID */}
+                        {/* Click to Copy Model ID */}
                         <div
                           onClick={() => props.onCopyModel(fullModelId(), `Model ID ${fullModelId()}`)}
                           class="flex items-center justify-between gap-1.5 px-2 py-1 bg-theme-bg/80 border border-theme-border/60 hover:border-theme-cyan/50 cursor-pointer transition-colors"
-                          title="Klik untuk menyalin Model ID dengan trafik ag/*"
+                          title="Click to copy Model ID with ag/* prefix"
                         >
                           <code class="text-xs font-mono text-theme-cyan truncate font-semibold select-all">
                             {fullModelId()}
@@ -223,7 +223,7 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
       {/* Empty Quota Info */}
       <Show when={props.quotaData && props.quotaData.status !== 'error' && (!props.quotaData.weekly || props.quotaData.weekly.length === 0) && (!props.quotaData.models || props.quotaData.models.length === 0)}>
         <div class="p-4 text-center bg-theme-card/50 border border-theme-border text-xs text-theme-text/50">
-          Tidak ada informasi kuota aktif untuk akun ini. Pastikan Google Cloud Project telah terhubung.
+          No active quota information found for this account. Ensure a Google Cloud Project is connected.
         </div>
       </Show>
     </div>

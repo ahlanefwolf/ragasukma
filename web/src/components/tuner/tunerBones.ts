@@ -7,17 +7,17 @@ export interface BoneCategory {
 export const BONE_CATEGORIES: BoneCategory[] = [
   { 
     id: 'body', 
-    label: 'Badan', 
+    label: 'Body', 
     bones: ['head', 'chest', 'spine', 'hips'] 
   },
   { 
     id: 'leftArm', 
-    label: 'Lengan Kiri', 
+    label: 'Left Arm', 
     bones: ['leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand'] 
   },
   { 
     id: 'leftFingers', 
-    label: 'Jari Kiri', 
+    label: 'Left Fingers', 
     bones: [
       'leftThumb',
       'leftIndex',
@@ -28,12 +28,12 @@ export const BONE_CATEGORIES: BoneCategory[] = [
   },
   { 
     id: 'rightArm', 
-    label: 'Lengan Kanan', 
+    label: 'Right Arm', 
     bones: ['rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand'] 
   },
   { 
     id: 'rightFingers', 
-    label: 'Jari Kanan', 
+    label: 'Right Fingers', 
     bones: [
       'rightThumb',
       'rightIndex',
@@ -44,7 +44,7 @@ export const BONE_CATEGORIES: BoneCategory[] = [
   },
   { 
     id: 'legs', 
-    label: 'Kaki (L & R)', 
+    label: 'Legs (L & R)', 
     bones: [
       'leftUpperLeg', 'leftLowerLeg', 'leftFoot',
       'rightUpperLeg', 'rightLowerLeg', 'rightFoot'
@@ -53,37 +53,37 @@ export const BONE_CATEGORIES: BoneCategory[] = [
 ];
 
 export const BONE_LABELS: Record<string, string> = {
-  head: 'Kepala (Head)',
-  chest: 'Dada (Chest)',
-  spine: 'Punggung (Spine)',
-  hips: 'Pinggul (Hips)',
+  head: 'Head',
+  chest: 'Chest',
+  spine: 'Spine',
+  hips: 'Hips',
 
-  leftShoulder: 'Bahu Kiri (L-Shoulder)',
-  leftUpperArm: 'Lengan Atas Kiri (L-UpperArm)',
-  leftLowerArm: 'Lengan Bawah Kiri (L-LowerArm)',
-  leftHand: 'Telapak Tangan Kiri (L-Hand)',
-  leftThumb: 'Jempol Kiri (L-Thumb)',
-  leftIndex: 'Telunjuk Kiri (L-Index)',
-  leftMiddle: 'Jari Tengah Kiri (L-Middle)',
-  leftRing: 'Jari Manis Kiri (L-Ring)',
-  leftLittle: 'Kelingking Kiri (L-Pinky)',
+  leftShoulder: 'Left Shoulder',
+  leftUpperArm: 'Left Upper Arm',
+  leftLowerArm: 'Left Lower Arm',
+  leftHand: 'Left Hand',
+  leftThumb: 'Left Thumb',
+  leftIndex: 'Left Index',
+  leftMiddle: 'Left Middle',
+  leftRing: 'Left Ring',
+  leftLittle: 'Left Pinky',
 
-  rightShoulder: 'Bahu Kanan (R-Shoulder)',
-  rightUpperArm: 'Lengan Atas Kanan (R-UpperArm)',
-  rightLowerArm: 'Lengan Bawah Kanan (R-LowerArm)',
-  rightHand: 'Telapak Tangan Kanan (R-Hand)',
-  rightThumb: 'Jempol Kanan (R-Thumb)',
-  rightIndex: 'Telunjuk Kanan (R-Index)',
-  rightMiddle: 'Jari Tengah Kanan (R-Middle)',
-  rightRing: 'Jari Manis Kanan (R-Ring)',
-  rightLittle: 'Kelingking Kanan (R-Pinky)',
+  rightShoulder: 'Right Shoulder',
+  rightUpperArm: 'Right Upper Arm',
+  rightLowerArm: 'Right Lower Arm',
+  rightHand: 'Right Hand',
+  rightThumb: 'Right Thumb',
+  rightIndex: 'Right Index',
+  rightMiddle: 'Right Middle',
+  rightRing: 'Right Ring',
+  rightLittle: 'Right Pinky',
 
-  leftUpperLeg: 'Paha Kiri (L-UpperLeg)',
-  leftLowerLeg: 'Betis Kiri (L-LowerLeg)',
-  leftFoot: 'Kaki Kiri (L-Foot)',
-  rightUpperLeg: 'Paha Kanan (R-UpperLeg)',
-  rightLowerLeg: 'Betis Kanan (R-LowerLeg)',
-  rightFoot: 'Kaki Kanan (R-Foot)',
+  leftUpperLeg: 'Left Upper Leg',
+  leftLowerLeg: 'Left Lower Leg',
+  leftFoot: 'Left Foot',
+  rightUpperLeg: 'Right Upper Leg',
+  rightLowerLeg: 'Right Lower Leg',
+  rightFoot: 'Right Foot',
 };
 
 export const MIRROR_MAP: Record<string, string> = {

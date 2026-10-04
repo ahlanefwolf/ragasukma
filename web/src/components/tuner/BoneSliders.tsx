@@ -55,7 +55,7 @@ export const BoneSliders: Component<BoneSlidersProps> = (props) => {
                   <button
                     onClick={() => props.onResetSingleBone(boneName)}
                     class="px-2.5 py-1 text-xs font-semibold bg-theme-card hover:bg-theme-rose/20 text-theme-rose border border-theme-rose/30 flex items-center gap-1 transition-all"
-                    title="Reset bone ini ke [0, 0, 0]"
+                    title="Reset this bone to [0, 0, 0]"
                   >
                     <RotateCcw size={11} />
                     <span>Reset</span>
@@ -66,7 +66,7 @@ export const BoneSliders: Component<BoneSlidersProps> = (props) => {
                 <div class="space-y-1">
                   <div class="flex items-center justify-between text-xs">
                     <span class="text-theme-rose font-bold">
-                      Rotasi X (Pitch)
+                      Rotation X (Pitch)
                     </span>
                     <div class="flex items-center gap-1.5">
                       <input
@@ -81,7 +81,7 @@ export const BoneSliders: Component<BoneSlidersProps> = (props) => {
                       <button
                         onClick={() => props.onResetSingleAxis(boneName, 0)}
                         class="px-2 py-1 text-xs font-bold bg-theme-card hover:bg-theme-rose/30 text-theme-rose border border-theme-border transition-colors"
-                        title="Reset X ke 0.00"
+                        title="Reset X to 0.00"
                       >
                         0
                       </button>
@@ -102,7 +102,7 @@ export const BoneSliders: Component<BoneSlidersProps> = (props) => {
                 <div class="space-y-1">
                   <div class="flex items-center justify-between text-xs">
                     <span class="text-theme-cyan font-bold">
-                      Rotasi Y (Yaw)
+                      Rotation Y (Yaw)
                     </span>
                     <div class="flex items-center gap-1.5">
                       <input
@@ -117,7 +117,7 @@ export const BoneSliders: Component<BoneSlidersProps> = (props) => {
                       <button
                         onClick={() => props.onResetSingleAxis(boneName, 1)}
                         class="px-2 py-1 text-xs font-bold bg-theme-card hover:bg-theme-cyan/30 text-theme-cyan border border-theme-border transition-colors"
-                        title="Reset Y ke 0.00"
+                        title="Reset Y to 0.00"
                       >
                         0
                       </button>
@@ -138,7 +138,7 @@ export const BoneSliders: Component<BoneSlidersProps> = (props) => {
                 <div class="space-y-1">
                   <div class="flex items-center justify-between text-xs">
                     <span class="text-theme-text font-bold">
-                      Rotasi Z (Roll)
+                      Rotation Z (Roll)
                     </span>
                     <div class="flex items-center gap-1.5">
                       <input
@@ -153,7 +153,7 @@ export const BoneSliders: Component<BoneSlidersProps> = (props) => {
                       <button
                         onClick={() => props.onResetSingleAxis(boneName, 2)}
                         class="px-2 py-1 text-xs font-bold bg-theme-card hover:bg-theme-text/30 text-theme-text border border-theme-border transition-colors"
-                        title="Reset Z ke 0.00"
+                        title="Reset Z to 0.00"
                       >
                         0
                       </button>

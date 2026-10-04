@@ -30,10 +30,10 @@ export const musicService = {
   async installYtDlp(): Promise<{ success: boolean; message: string; info?: YtDlpInfo }> {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/music/install-ytdlp`, { method: 'POST' }, 120000);
-      if (!res.ok) return { success: false, message: 'Gagal install' };
+      if (!res.ok) return { success: false, message: 'Failed to install' };
       return await res.json();
     } catch (e: any) {
-      return { success: false, message: e?.message || 'Koneksi error' };
+      return { success: false, message: e?.message || 'Connection error' };
     }
   },
 
@@ -75,10 +75,10 @@ export const musicService = {
         },
         60000
       );
-      if (!res.ok) return { success: false, error: 'Gagal mendownload' };
+      if (!res.ok) return { success: false, error: 'Failed to download' };
       return await res.json();
     } catch (e: any) {
-      return { success: false, error: e?.message || 'Koneksi error' };
+      return { success: false, error: e?.message || 'Connection error' };
     }
   },
 

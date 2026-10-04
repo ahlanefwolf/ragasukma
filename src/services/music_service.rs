@@ -100,11 +100,11 @@ fn decode_url_component(input: &str) -> String {
 pub fn handle_music_stream(full_url: &str, header_str: &str, stream: &mut TcpStream) {
     let url_without_query = full_url.split_once('?').map(|(p, _)| p).unwrap_or(full_url);
 
-    // 1. Coba ambil nama file dari path direct /music/<filename>
+    // 1. Coba take name file from path direct /music/<filename>
     let filename = if let Some(stripped) = url_without_query.strip_prefix("/music/") {
         decode_url_component(stripped)
     } else {
-        // 2. Fallback query param ?filename=... atau ?file=...
+        // 2. Fallback query param ?filename=... or ?file=...
         let query_str = full_url.split_once('?').map(|(_, q)| q).unwrap_or("");
         form_urlencoded::parse(query_str.as_bytes())
             .find(|(k, _)| k == "filename" || k == "file")

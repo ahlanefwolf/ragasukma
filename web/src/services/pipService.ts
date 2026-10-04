@@ -27,7 +27,7 @@ class PipManager {
     if (this.canvas) return;
 
     this.canvas = document.createElement('canvas');
-    // Render pada buffer 2x HiDPI / Retina agar font, border, dan gambar super tajam (HD)
+    // Render on buffer 2x HiDPI / Retina so that font, border, and image super tajam (HD)
     const dpr = 2;
     this.canvas.width = 680 * dpr;
     this.canvas.height = 210 * dpr;
@@ -37,7 +37,7 @@ class PipManager {
     this.video.muted = true;
     this.video.autoplay = true;
     this.video.playsInline = true;
-    // Pasang video ke DOM secara invisible agar browser tidak men-throttle
+    // Attach video to DOM invisibly so the browser does not throttle it
     this.video.style.position = 'fixed';
     this.video.style.width = '1px';
     this.video.style.height = '1px';
@@ -46,13 +46,13 @@ class PipManager {
     this.video.style.top = '-9999px';
     document.body.appendChild(this.video);
 
-    // Sinkronisasi status PiP saat user menutup jendela PiP secara manual
+    // Synchronize PiP status when user manually closes the PiP window
     this.video.addEventListener('leavepictureinpicture', () => {
       this.isPipActive = false;
       this.stopRenderLoop();
     });
 
-    // Sinkronisasi saat user menekan Play/Pause di floating PiP window
+    // Synchronize when user clicks Play/Pause in floating PiP window
     this.video.addEventListener('pause', () => {
       if (this.isSyncing) return;
       if (isPlaying()) {
@@ -95,7 +95,7 @@ class PipManager {
     }
   }
 
-  // Dipanggil langsung dari playerStore saat audio play
+  // Dipanggil direct from playerStore when audio play
   onAudioPlay() {
     this.updateMediaSession(true);
     if (this.video && this.video.paused && !this.isSyncing) {
@@ -106,7 +106,7 @@ class PipManager {
     }
   }
 
-  // Dipanggil langsung dari playerStore saat audio pause
+  // Dipanggil direct from playerStore when audio pause
   onAudioPause() {
     this.updateMediaSession(false);
     if (this.video && !this.video.paused && !this.isSyncing) {
@@ -249,10 +249,23 @@ class PipManager {
       ctx.fillRect(coverX, coverY, coverSize, coverSize);
 
       ctx.fillStyle = '#596B45';
-      ctx.font = 'bold 32px "Plus Jakarta Sans", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🎵', coverX + coverSize / 2, coverY + coverSize / 2 - 12);
+
+      // Clean vector music note
+      const mx = coverX + coverSize / 2;
+      const my = coverY + coverSize / 2 - 12;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(mx - 8, my + 8, 5, 0, Math.PI * 2);
+      ctx.arc(mx + 8, my + 4, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.rect(mx - 4, my - 12, 3, 20);
+      ctx.rect(mx + 12, my - 16, 3, 20);
+      ctx.rect(mx - 4, my - 16, 19, 5);
+      ctx.fill();
+      ctx.restore();
 
       ctx.fillStyle = '#634936';
       ctx.font = '600 12px "Plus Jakarta Sans", sans-serif';
@@ -304,7 +317,7 @@ class PipManager {
     ctx.save();
     const badgeH = 26;
     const badgeY = 22;
-    const statusText = isPlaying ? 'SEDANG DIPUTAR' : 'PLAYBACK DIJEDA';
+    const statusText = isPlaying ? 'NOW PLAYING' : 'PAUSED';
 
     ctx.font = '700 11px "Plus Jakarta Sans", sans-serif';
     const textMetrics = ctx.measureText(statusText);
@@ -417,7 +430,7 @@ class PipManager {
     ctx.textBaseline = 'bottom';
     ctx.font = '500 11px "Plus Jakarta Sans", sans-serif';
     ctx.fillStyle = 'rgba(41, 72, 58, 0.45)';
-    ctx.fillText('Tekan Space / Gunakan Kontrol Media OS untuk Play & Pause', contentX, h - 18);
+    ctx.fillText('Press Space / Use OS Media Controls to Play & Pause', contentX, h - 18);
     ctx.restore();
 
     ctx.restore(); // Restore HiDPI scale
@@ -435,9 +448,9 @@ class PipManager {
     render();
 
     // ── Web Worker Timer ──
-    // Browser Chromium secara agresif membekukan requestAnimationFrame dan men-throttle setInterval biasa
-    // saat tab web diminimize atau berada di background. Web Worker timer berjalan di thread terpisah
-    // sehingga render loop PiP tetap berjalan 30 FPS konstan dan realtime tanpa freeze!
+    // Chromium aggressively freezes requestAnimationFrame and throttles standard setInterval
+    // when web tab is minimized or in the background. Web Worker timer runs in a separate thread
+    // so PiP render loop maintains a constant real-time 30 FPS without freezing!
     try {
       const blob = new Blob(
         [`let t = null; self.onmessage = function(e) { if(e.data === 'start') { t = setInterval(function() { postMessage('tick'); }, 1000/30); } else if(e.data === 'stop') { clearInterval(t); } };`],
@@ -452,7 +465,7 @@ class PipManager {
       };
       this.workerTimer.postMessage('start');
     } catch {
-      // Fallback standard interval jika Web Worker tidak diizinkan
+      // Fallback standard interval if Web Worker is not permitted
       this.timerId = setInterval(() => {
         if (this.isPipActive) {
           render();
@@ -488,7 +501,7 @@ class PipManager {
 
     try {
       this.drawFrame();
-      // Stream canvas ke video element
+      // Stream canvas to video element
       if (!(this.video as any).srcObject) {
         const stream = (this.canvas as any).captureStream ? (this.canvas as any).captureStream(30) : null;
         if (stream) {
@@ -518,7 +531,7 @@ class PipManager {
 
 export const pipManager = new PipManager();
 
-// Sinkronkan otomatis saat status playback berubah
+// Automatically synchronize when playback status changes
 onPlayStateChange((playing) => {
   if (playing) {
     pipManager.onAudioPlay();

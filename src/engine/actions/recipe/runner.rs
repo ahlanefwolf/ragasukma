@@ -8,7 +8,7 @@ use crate::services::browser_session_service::{
 
 use super::types::{ClickTarget, RecipeStep, find_recipe};
 
-/// Menghitung kesamaan sederhana antara dua teks (case-insensitive substring & token match)
+/// Calculates simple similarity between two texts (case-insensitive substring & token match)
 pub fn match_element_score(element_text: &str, candidate: &str) -> f32 {
     let el = element_text.trim().to_lowercase();
     let cand = candidate.trim().to_lowercase();
@@ -36,12 +36,12 @@ pub fn match_element_score(element_text: &str, candidate: &str) -> f32 {
     0.0
 }
 
-/// Cari target klik terbaik dengan prioritas:
-/// Cari target klik terbaik dengan prioritas:
-/// 1. Cari dulu di `snapshot.buttons` menggunakan selector_primary.
-/// 2. Jika tidak ditemukan, coba cari setiap kandidat di `fallback_selectors` pada buttons.
-/// 3. Jika belum ditemukan, cari kecocokan label di `snapshot.buttons` (Buttons First).
-/// 4. Jika masih tidak ada yang cocok di buttons, cari di `snapshot.texts` (Texts Fallback).
+/// Search target klik terbaik with prioritas:
+/// Search target klik terbaik with prioritas:
+/// 1. Search dulu in `snapshot.buttons` using selector_primary.
+/// 2. If not found, search each candidate in `fallback_selectors` on buttons.
+/// 3. If not found yet, search for matching label in `snapshot.buttons` (Buttons First).
+/// 4. If still no match in buttons, search in `snapshot.texts` (Texts Fallback).
 pub fn resolve_best_click_target(
     snap: Option<&BrowserDomSnapshot>,
     selector_primary: &str,
@@ -86,7 +86,7 @@ pub fn resolve_best_click_target(
             }
         }
 
-        // --- 1c. TARGET_TEXT PADA BUTTONS ---
+        // --- 1c. TARGET_TEXT ON BUTTONS ---
         if let Some(txt) = target_text {
             let clean_target = txt.trim();
             if !clean_target.is_empty() {
@@ -113,7 +113,7 @@ pub fn resolve_best_click_target(
             }
         }
 
-        // --- 2. TEXTS FALLBACK (Gunakan target_text untuk klik teks) ---
+        // --- 2. TEXTS FALLBACK (Use target_text to click text) ---
         if let Some(txt) = target_text {
             let clean_target = txt.trim();
             if !clean_target.is_empty() {
@@ -151,7 +151,7 @@ pub fn resolve_best_click_target(
     }
 }
 
-/// Cari selector elemen terbaik dari snapshot aktif jika selector utama tidak ditemukan atau berubah (khusus input/elemen spesifik)
+/// Search selector elemen terbaik from snapshot active if selector utama not found or berubah (khusus input/elemen spesifik)
 pub fn resolve_best_element_selector(
     elements: &[DomElementInfo],
     selector_primary: &str,
@@ -168,7 +168,7 @@ pub fn resolve_best_element_selector(
         }
     }
 
-    // Cek setiap selector alternatif di fallback_selectors
+    // Check each alternative selector in fallback_selectors
     for fb in fallback_selectors {
         if !fb.is_empty() {
             if let Some(matched) = elements.iter().find(|e| {
@@ -210,7 +210,7 @@ pub fn resolve_best_element_selector(
     }
 }
 
-/// Tunggu hingga browser melaporkan snapshot baru atau halaman sesuai domain target termuat
+/// Waits until browser reports new snapshot or page matching target domain loads
 pub fn wait_for_target_page(expected_domain: &str, previous_ts: u64, timeout_secs: u64) -> Option<BrowserDomSnapshot> {
     let start = Instant::now();
     let timeout = Duration::from_secs(timeout_secs);
@@ -223,7 +223,7 @@ pub fn wait_for_target_page(expected_domain: &str, previous_ts: u64, timeout_sec
 
             if snap.timestamp > previous_ts && domain_match {
                 crate::term_log!(
-                    "🌐 [Recipe Runner] Page ready: '{}' (url: {})",
+                    "[Recipe Runner] Page ready: '{}' (url: {})",
                     snap.title,
                     snap.url
                 );
@@ -235,8 +235,8 @@ pub fn wait_for_target_page(expected_domain: &str, previous_ts: u64, timeout_sec
     get_latest_snapshot()
 }
 
-/// Menunggu secara reaktif hingga elemen target untuk step ini muncul di snapshot DOM.
-/// Polling hingga timeout (misal 6 detik). Jika langsung ada, lanjut seketika tanpa jeda!
+/// Reactively waits until the target element for this step appears in DOM snapshot.
+/// Poll until timeout (e.g. 6s). If already available, continue immediately without delay!
 pub fn wait_for_target_ready(step: &RecipeStep, timeout_secs: u64) -> Option<BrowserDomSnapshot> {
     let start = Instant::now();
     let max_dur = Duration::from_secs(timeout_secs);
@@ -324,15 +324,15 @@ pub fn wait_for_target_ready(step: &RecipeStep, timeout_secs: u64) -> Option<Bro
     get_latest_snapshot()
 }
 
-/// Tunggu secara reaktif dan ping-pong dengan browser:
-/// Mengirim REFRESH_SNAPSHOT ke ekstensi, lalu menunggu hingga timestamp snapshot > previous_ts
-/// serta halaman dalam kondisi settled (tidak loading dan pending requests = 0).
+/// Reactively wait and ping-pong with browser:
+/// Send REFRESH_SNAPSHOT to extension, then wait until snapshot timestamp > previous_ts
+/// and page is in settled state (not loading and pending requests = 0).
 pub fn wait_for_dom_change(previous_ts: u64, max_wait_ms: u64) -> Option<BrowserDomSnapshot> {
     let start = Instant::now();
     let timeout = Duration::from_millis(max_wait_ms);
     let mut last_ping = Instant::now();
 
-    // Langsung tembak REFRESH_SNAPSHOT pertama (Ping)
+    // Direct tembak REFRESH_SNAPSHOT pertama (Ping)
     crate::services::browser_session_service::send_browser_command(
         crate::services::browser_session_service::BrowserCommand {
             action: "REFRESH_SNAPSHOT".to_string(),
@@ -341,7 +341,7 @@ pub fn wait_for_dom_change(previous_ts: u64, max_wait_ms: u64) -> Option<Browser
     );
 
     while start.elapsed() < timeout {
-        // Ping ulang setiap 250ms jika browser belum merespon
+        // Re-ping every 250ms if browser has not responded yet
         if last_ping.elapsed() >= Duration::from_millis(250) {
             crate::services::browser_session_service::send_browser_command(
                 crate::services::browser_session_service::BrowserCommand {
@@ -363,7 +363,7 @@ pub fn wait_for_dom_change(previous_ts: u64, max_wait_ms: u64) -> Option<Browser
     get_latest_snapshot()
 }
 
-/// Eksekusi satu langkah otomasi browser
+/// Executes a single browser automation step
 pub fn execute_single_step(
     step: &RecipeStep,
     params: &HashMap<String, String>,
@@ -386,7 +386,7 @@ pub fn execute_single_step(
 
             match target {
                 Some(ClickTarget::Button(sel)) => {
-                    crate::term_log!("  🖱️ [Click Target: Button] {}", sel);
+                    crate::term_log!("   [Click Target: Button] {}", sel);
                     crate::services::browser_session_service::send_browser_command(
                         crate::services::browser_session_service::BrowserCommand {
                             action: "CLICK_BUTTON".to_string(),
@@ -397,7 +397,7 @@ pub fn execute_single_step(
                     );
                 }
                 Some(ClickTarget::Text(txt)) => {
-                    crate::term_log!("  🖱️ [Click Target: Text Fallback] \"{}\"", txt);
+                    crate::term_log!("   [Click Target: Text Fallback] \"{}\"", txt);
                     crate::services::browser_session_service::send_browser_command(
                         crate::services::browser_session_service::BrowserCommand {
                             action: "CLICK_TEXT".to_string(),
@@ -408,7 +408,7 @@ pub fn execute_single_step(
                     );
                 }
                 None => {
-                    crate::term_err!("⚠️ [Step Executor] No button or text found for step");
+                    crate::term_err!("[Step Executor] No button or text found for step");
                 }
             }
         }
@@ -483,13 +483,13 @@ pub fn execute_single_step(
         }
 
         other => {
-            crate::term_err!("⚠️ [Step Executor] Unknown step action: {}", other);
+            crate::term_err!("[Step Executor] Unknown step action: {}", other);
         }
     }
 }
 
-/// Eksekusi resep otomasi secara mandiri (Local Repetitive Worker)
-/// Payload format: `recipe_id` atau `recipe_id|{"param1": "value1"}`
+/// Executes automation recipe autonomously (Local Repetitive Worker)
+/// Payload format: `recipe_id` or `recipe_id|{"param1": "value1"}`
 pub fn execute_recipe(payload: &str) -> Option<(String, String)> {
     let clean = payload.trim();
     if clean.is_empty() {
@@ -505,7 +505,7 @@ pub fn execute_recipe(payload: &str) -> Option<(String, String)> {
     let recipe = match find_recipe(recipe_id) {
         Some(r) => r,
         None => {
-            crate::term_err!("⚠️ [Recipe Runner] Recipe '{}' not found in assets/recipes/", recipe_id);
+            crate::term_err!("[Recipe Runner] Recipe '{}' not found in assets/recipes/", recipe_id);
             return Some((
                 format!("Recipe Not Found: {recipe_id}"),
                 format!("Recipe '{recipe_id}' is not registered"),
@@ -513,7 +513,7 @@ pub fn execute_recipe(payload: &str) -> Option<(String, String)> {
         }
     };
 
-    // Parse parameter dinamis (jika ada)
+    // Parse dynamic parameters (if any)
     let params: HashMap<String, String> = if !raw_json.is_empty() {
         if let Ok(val) = serde_json::from_str::<serde_json::Value>(raw_json) {
             if let Some(obj) = val.as_object() {
@@ -554,7 +554,7 @@ pub fn execute_recipe(payload: &str) -> Option<(String, String)> {
 
         if provided.is_none() {
             crate::term_err!(
-                "⚠️ [Recipe Runner] Recipe '{}' requires parameter '{}', but it was missing in payload: '{}'",
+                "[Recipe Runner] Recipe '{}' requires parameter '{}', but it was missing in payload: '{}'",
                 recipe.recipe_id,
                 req,
                 clean
@@ -570,7 +570,7 @@ pub fn execute_recipe(payload: &str) -> Option<(String, String)> {
     }
 
     crate::term_log!(
-        "⚡ [Recipe Runner] Executing recipe '{}' ({}) with {} params...",
+        "[Recipe Runner] Executing recipe '{}' ({}) with {} params...",
         recipe.recipe_id,
         recipe.name,
         params.len()
@@ -579,47 +579,47 @@ pub fn execute_recipe(payload: &str) -> Option<(String, String)> {
     let recipe_name = recipe.name.clone();
     let recipe_id_clone = recipe.recipe_id.clone();
 
-    // Jalankan eksekusi langkah-langkah di background thread agar tidak memblokir chat loop utama (Silent Worker)
+    // Execute steps in background thread without blocking main chat loop (Silent Worker)
     thread::spawn(move || {
         let initial_ts = get_latest_snapshot().map(|s| s.timestamp).unwrap_or(0);
 
-        // Step 0: Buka Tab Baru (Isolated Clean State) sesuai aturan mandatory
+        // Step 0: Open Tab New (Isolated Clean State) sesuai aturan mandatory
         if recipe.initial_action.action == "open_new_tab" {
             let initial_url = &recipe.initial_action.url;
-            crate::term_log!("🌐 [Recipe Runner] Opening new tab to: {}", initial_url);
+            crate::term_log!("[Recipe Runner] Opening new tab to: {}", initial_url);
             crate::services::browser_session_service::smart_open_or_switch_tab(
                 initial_url,
                 None,
                 None,
             );
-            // Tunggu snapshot aktif terbaru dari active_tab_browser.json
+            // Tunggu snapshot active terbaru from active_tab_browser.json
             wait_for_target_page(&recipe.domain, initial_ts, 6);
         }
 
         let total_steps = recipe.steps.len();
 
-        // Jalankan setiap langkah secara berurutan secara senyap di background
+        // Execute each step sequentially and quietly in the background
         for (idx, step) in recipe.steps.iter().enumerate() {
             let target_label = step.target_text.as_deref().unwrap_or(&step.selector);
             crate::term_log!(
-                "  ▶️ Step {}/{}: {} ({})",
+                "  ▶ Step {}/{}: {} ({})",
                 step.step,
                 total_steps,
                 step.action,
                 target_label
             );
 
-            // Tunggu elemen target ready di DOM sebelum mengeksekusi aksi
+            // Wait for target element to be ready in DOM before executing action
             let snap = wait_for_target_ready(step, 8);
             let before_step_ts = snap.as_ref().map(|s| s.timestamp).unwrap_or(0);
 
             execute_single_step(step, &params, snap.as_ref());
 
-            // 1. PING-PONG REAKTIF: Minta paksa snapshot baru dan tunggu DOM merespon
+            // 1. PING-PONG REAKTIF: Minta paksa snapshot new and tunggu DOM merespon
             let _updated_snap = wait_for_dom_change(before_step_ts, 2500);
 
             // 2. VERIFIKASI HASIL EKSEKUSI (Loop Check ping-pong):
-            // Jika aksi adalah "type", pastikan input di DOM benar-benar sudah berisi nilai teks yang diketikkan
+            // If action is "type", ensure DOM input strictly contains the typed text value
             if step.action == "type" {
                 let mut expected_val = step.value.clone().unwrap_or_default();
                 for (k, v) in &params {
@@ -642,7 +642,7 @@ pub fn execute_recipe(payload: &str) -> Option<(String, String)> {
                         if input_filled {
                             break;
                         }
-                        // Refresh snapshot ulang jika belum sinkron
+                        // Refresh snapshot repeat if not yet sync
                         crate::services::browser_session_service::send_browser_command(
                             crate::services::browser_session_service::BrowserCommand {
                                 action: "REFRESH_SNAPSHOT".to_string(),
@@ -654,14 +654,14 @@ pub fn execute_recipe(payload: &str) -> Option<(String, String)> {
                 }
             }
 
-            // 3. ANTI RACE CONDITION: Jika ada langkah berikutnya, verifikasi bahwa elemen langkah berikutnya
-            // benar-benar sudah muncul di DOM sebelum kita mengumumkan langkah ini selesai dan mengeksekusi langkah depan!
+            // 3. ANTI RACE CONDITION: If there is a subsequent step, verify that the subsequent element
+            // has strictly appeared in DOM before declaring this step complete and proceeding!
             if let Some(next_step) = recipe.steps.get(idx + 1) {
                 let _ = wait_for_target_ready(next_step, 6);
             }
         }
 
-        crate::term_log!("✨ [Recipe Runner] Recipe '{}' completed successfully in background!", recipe_id_clone);
+        crate::term_log!("[Recipe Runner] Recipe '{}' completed successfully in background!", recipe_id_clone);
     });
 
     Some((

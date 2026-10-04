@@ -46,7 +46,7 @@ export class VoiceSessionManager {
     this.isMobileClient = options.isMobileClient;
 
     if (!this.isMobileClient() && typeof window !== 'undefined') {
-      // Inisialisasi SpeechRecognition secara sinkron sejak detik 0
+      // Synchronously initialize SpeechRecognition from start
       this.initSpeechRecognition();
       this.setupGlobalGestureListeners();
     }
@@ -54,15 +54,15 @@ export class VoiceSessionManager {
 
   private setupGlobalGestureListeners() {
     const onUserGesture = () => {
-      // 1. Resume Web Audio context jika sempat suspended oleh autoplay policy
+      // 1. Resume Web Audio context if sempat suspended oleh autoplay policy
       if (this.vadAudioCtx && this.vadAudioCtx.state === 'suspended') {
         this.vadAudioCtx.resume().catch(() => {});
       }
 
-      // 2. Jika pengenalan suara sempat tertahan izin browser (not-allowed / gesture required)
+      // 2. If speech recognition was held back by browser permissions (not-allowed / gesture required)
       if (this.isWaitingForUserGesture) {
         this.isWaitingForUserGesture = false;
-        console.log('[Chrome Web STT] Interaksi pengguna terdeteksi, memulihkan sesi mikrofon...');
+        console.log('[Chrome Web STT] User interaction detected, restoring microphone session...');
         this.ensureMicrophonePermission().then(() => {
           this.startRecognitionSafely();
         });
@@ -73,7 +73,7 @@ export class VoiceSessionManager {
         !this.isRecognitionRunning &&
         !this.isRecognitionStarting
       ) {
-        // Recovery otomatis jika sesi asisten aktif tapi recognition belum jalan
+        // Recovery automatically if session assistant active but recognition not yet jalan
         this.startRecognitionSafely();
       }
     };
@@ -114,9 +114,9 @@ export class VoiceSessionManager {
       }
     } catch (_) {}
 
-    // Jika asisten aktif (misal setelah F5 refresh saat sesi sedang berjalan), segera jalankan STT!
+    // If assistant is active (e.g. after F5 refresh during active session), start STT immediately!
     if (this.isAssistantRunning && !this.isMicMuted && !this.isTtsSpeaking && !this.isRecognitionRunning) {
-      console.log('[Voice Session] Auto-starting recognition saat inisialisasi sesi...');
+      console.log('[Voice Session] Auto-starting recognition on session init...');
       this.startRecognitionSafely();
       this.ensureMicrophonePermission();
     }
@@ -141,7 +141,7 @@ export class VoiceSessionManager {
       timestamp: Date.now(),
     });
 
-    // Pantulan akustik speaker ke mikrofon dipantau hingga 15 detik setelah suara diputar
+    // Speaker acoustic echo into microphone is monitored up to 15 seconds after voice plays
     const cutoff = Date.now() - 15000;
     while (
       this.assistantSpeechHistory.length > 8 ||
@@ -153,17 +153,17 @@ export class VoiceSessionManager {
 
   private isEchoOfAssistantSpeech(transcript: string): boolean {
     const now = Date.now();
-    // Periksa pantulan akustik hingga 15 detik terakhir
+    // Inspect acoustic echo up to the last 15 seconds
     const activeEntries = this.assistantSpeechHistory.filter((e) => now - e.timestamp < 15000);
     if (activeEntries.length === 0) return false;
 
     const transLower = transcript.toLowerCase().trim();
     if (!transLower) return false;
 
-    // 1. Cek kecocokan langsung atau substring lengkap
+    // 1. Check exact match or substring lengkap
     for (const entry of activeEntries) {
       if (entry.text.includes(transLower) || transLower.includes(entry.text)) {
-        console.warn('[Echo Guard] Terdeteksi substring pantulan suara asisten:', transLower);
+        console.warn('[Echo Guard] Detected assistant voice echo substring:', transLower);
         return true;
       }
     }
@@ -175,20 +175,20 @@ export class VoiceSessionManager {
 
     if (transTokens.length === 0) return false;
 
-    // 2. Cek Trigram (3 kata berurutan) yang identik dengan teks asisten
+    // 2. Check Trigram (3 consecutive words) identical to assistant text
     if (transTokens.length >= 3) {
       for (let i = 0; i <= transTokens.length - 3; i++) {
         const trigram = `${transTokens[i]} ${transTokens[i + 1]} ${transTokens[i + 2]}`;
         for (const entry of activeEntries) {
           if (entry.text.includes(trigram)) {
-            console.warn('[Echo Guard] Terdeteksi pantulan trigram speaker asisten:', trigram);
+            console.warn('[Echo Guard] Detected assistant speaker trigram echo:', trigram);
             return true;
           }
         }
       }
     }
 
-    // 3. Cek Token Overlap Ratio (> 50%)
+    // 3. Check Token Overlap Ratio (> 50%)
     const historyTokenSet = new Set<string>();
     for (const entry of activeEntries) {
       for (const t of entry.tokens) {
@@ -206,7 +206,7 @@ export class VoiceSessionManager {
     const matchRatio = matchCount / transTokens.length;
     if (transTokens.length >= 3 && matchRatio >= 0.50) {
       console.warn(
-        `[Echo Guard] Terdeteksi overlap tinggi (${Math.round(matchRatio * 100)}%) pantulan speaker:`,
+        `[Echo Guard] Detected high overlap (${Math.round(matchRatio * 100)}%) speaker echo:`,
         transcript
       );
       return true;
@@ -221,7 +221,7 @@ export class VoiceSessionManager {
   private initSpeechRecognition() {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      console.warn('[Chrome Web STT] Web Speech API tidak didukung di browser ini.');
+      console.warn('[Chrome Web STT] Web Speech API is not supported in this browser.');
       return;
     }
 
@@ -237,7 +237,7 @@ export class VoiceSessionManager {
         if (!this.isMicMuted) {
           this.isListeningActive = true;
           this.cancelListeningWatchdog();
-          // Watchdog pengaman: hanya aktif jika browser hang / tidak pernah emit onspeechend (15 detik)
+          // Safety watchdog: only triggers if browser hangs or never emits onspeechend (15s)
           this.listeningWatchdogTimer = setTimeout(() => {
             this.resetToIdle('watchdog timeout 15s');
           }, 15000);
@@ -251,8 +251,8 @@ export class VoiceSessionManager {
       };
 
       this.recognition.onspeechend = () => {
-        // Pengguna selesai berbicara, beri jeda 1.2 detik untuk STT menghasilkan transkrip
-        // Jika tidak ada kata yang ter-generate (cuma hembusan nafas/batuk), otomatis reset ke idle
+        // User finished speaking; provide 1.2s pause for STT to produce transcript
+        // If no words were generated (only breathing/coughing), automatically reset to idle
         this.cancelListeningWatchdog();
         this.listeningWatchdogTimer = setTimeout(() => {
           this.resetToIdle('speech ended without transcript');
@@ -265,7 +265,7 @@ export class VoiceSessionManager {
 
       this.recognition.onresult = (event: any) => {
         if (this.isMicMuted || this.isTestVoiceActive || this.isTtsSpeaking || !this.isAssistantRunning) {
-          console.log('[Chrome Web STT] Hasil diabaikan karena mic mute / TTS aktif / assistant standby');
+          console.log('[Chrome Web STT] Result ignored due to mic mute / TTS active / assistant standby');
           this.resetToIdle('result ignored');
           return;
         }
@@ -276,13 +276,13 @@ export class VoiceSessionManager {
             if (transcript) {
               this.cancelListeningWatchdog();
               if (this.isEchoOfAssistantSpeech(transcript)) {
-                console.warn('[Echo Guard] Self-echo pantulan speaker diabaikan:', transcript);
+                console.warn('[Echo Guard] Self-echo speaker reflection ignored:', transcript);
                 this.resetToIdle('echo guard matched');
                 continue;
               }
 
-              // Matikan status listening aktif lokal tanpa mengirimkan 'idle' ke backend!
-              // Menghindari race condition di mana request 'idle' menimpa status 'Thinking' di backend
+              // Turn off local active listening status without sending 'idle' to backend!
+              // Avoids race conditions where an 'idle' request overrides the 'Thinking' status in backend
               this.isListeningActive = false;
               console.log('[Chrome Web STT] Sending transcript:', transcript);
               fetch(`${API_BASE}/api/stt/transcript`, {
@@ -313,15 +313,15 @@ export class VoiceSessionManager {
           this.startingTimeoutId = null;
         }
 
-        // 'aborted' dan 'no-speech' adalah event normal lifecycle Web Speech API:
-        // - 'aborted': dipicu ketika aplikasi sengaja memanggil recognition.abort() (misal saat TTS mulai bicara atau mic mute).
-        // - 'no-speech': pengguna hening / tidak bersuara sebelum batas waktu hening.
+        // 'aborted' and 'no-speech' is event normal lifecycle Web Speech API:
+        // - 'aborted': triggered when app deliberately calls recognition.abort() (e.g. when TTS starts speaking or mic mute).
+        // - 'no-speech': user remained silent before timeout.
         if (e.error === 'aborted' || e.error === 'no-speech') {
           return;
         }
 
         if (e.error === 'network') {
-          console.warn('[Chrome Web STT] Gangguan jaringan Google STT terdeteksi, memulihkan koneksi STT...');
+          console.warn('[Chrome Web STT] Google STT network disturbance detected, restoring connection...');
           setTimeout(() => {
             if (!this.isDead() && !this.isMicMuted && !this.isTtsSpeaking && this.isAssistantRunning) {
               this.startRecognitionSafely();
@@ -337,7 +337,7 @@ export class VoiceSessionManager {
           this.isWaitingForUserGesture = true;
           this.isRecognitionRunning = false;
           console.warn(
-            '[Chrome Web STT] Akses mikrofon terblokir oleh browser. Menunggu interaksi pengguna (klik/tombol)...'
+            '[Chrome Web STT] Microphone access blocked by browser. Awaiting user interaction (click/tap)...'
           );
         }
       };
@@ -351,12 +351,12 @@ export class VoiceSessionManager {
         }
 
         if (this.isTtsSpeaking) {
-          // Asisten sedang aktif berbicara lewat TTS, jangan ganggu state ke idle dan jangan restart listening
+          // Assistant currently speaking via TTS; do not reset state to idle and do not restart listening
           return;
         }
         this.resetToIdle('recognition ended');
 
-        // Jangan restart jika sedang menunggu gesture user (not-allowed)
+        // Do not restart if currently awaiting user gesture (not-allowed)
         if (this.isWaitingForUserGesture) {
           return;
         }
@@ -383,7 +383,7 @@ export class VoiceSessionManager {
     this.isAssistantRunning = running;
 
     if (running) {
-      // Jika running tapi recognition belum aktif (atau state baru berubah), jalankan recognition!
+      // If running but recognition not active yet (or state changed), start recognition!
       if (!this.isMicMuted && (!this.isRecognitionRunning || !isStateSame)) {
         console.log('[Voice Session] Assistant running -> starting recognition...');
         this.startRecognitionSafely();
@@ -426,10 +426,10 @@ export class VoiceSessionManager {
     if (this.isListeningActive) {
       this.isListeningActive = false;
       if (this.isTtsSpeaking) {
-        console.log(`[Chrome Web STT] resetToIdle diabaikan karena TTS sedang aktif berbicara (${reason})`);
+        console.log(`[Chrome Web STT] resetToIdle ignored because TTS is actively speaking (${reason})`);
         return;
       }
-      console.log(`[Chrome Web STT] Reset listening ke idle (${reason})`);
+      console.log(`[Chrome Web STT] Reset listening to idle (${reason})`);
       fetch(`${API_BASE}/api/tts/state`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -545,9 +545,9 @@ export class VoiceSessionManager {
             consecutiveAbove = 0;
             if (this.isMicMuted) return;
             console.log(
-              `⚡ [VAD Barge-in] Suara user (${Math.round(rms * 100)}%) melampaui batas (${Math.round(
+              `[VAD Barge-in] User voice (${Math.round(rms * 100)}%) exceeded threshold (${Math.round(
                 threshold * 100
-              )}%), mematikan suara asisten!`
+              )}%), interrupting assistant voice!`
             );
             this.speakSessionId++;
             if ((window as any).__activeSupertonicAudio) {
@@ -581,7 +581,7 @@ export class VoiceSessionManager {
     if (typeof navigator !== 'undefined' && 'mediaDevices' in navigator) {
       try {
         await this.startVadBargeInMonitoring();
-        console.log('[Chrome Web STT] Izin audio & VAD analyser berhasil aktif');
+        console.log('[Chrome Web STT] Audio permission & VAD analyser successfully active');
         this.startRecognitionSafely();
       } catch (err: any) {
         console.warn('[Chrome Web STT] getUserMedia permission check:', err?.message || err);
@@ -595,7 +595,7 @@ export class VoiceSessionManager {
   public handleAssistantSpeak(payload: any) {
     if (this.isMobileClient()) return;
     if (this.isVoiceMuted) {
-      console.log('[TTS] Diabaikan di desktop karena audio desktop dimatikan (Full Mobile aktif)');
+      console.log('[TTS] Ignored on desktop because desktop audio is muted (Phone Only active)');
       return;
     }
 
@@ -631,7 +631,7 @@ export class VoiceSessionManager {
     const sessionId = ++this.speakSessionId;
 
     if (isNativePlayed) {
-      // Backend memutar audio langsung ke hardware speaker PC
+      // Backend plays audio directly to PC hardware speakers
       this.isTtsSpeaking = true;
       duckMusic(0.25);
       this.cancelListeningWatchdog();
@@ -640,7 +640,7 @@ export class VoiceSessionManager {
         this.recognition?.abort();
       } catch {}
 
-      // Kunci microphone selama suara berputar di speaker PC ditambah jeda 400ms agar gaung hilang
+      // Mute microphone while voice plays on PC speakers, adding 400ms pause to eliminate echo
       const waitMs =
         durationSecs > 0 ? durationSecs * 1000 + 400 : Math.max(3000, textToSpeak.length * 70);
       clearTimeout(this.nativeSpeakTimer);
@@ -655,7 +655,7 @@ export class VoiceSessionManager {
       return;
     }
 
-    // Hentikan pemutaran audio Supertonic sebelumnya jika ada
+    // Stop previous Supertonic audio playback if any
     try {
       if ((window as any).__activeSupertonicAudio) {
         (window as any).__activeSupertonicAudio.pause();
@@ -679,8 +679,8 @@ export class VoiceSessionManager {
       const notifySpeakingStart = () => {
         if (hasReportedSpeaking || sessionId !== this.speakSessionId) return;
         hasReportedSpeaking = true;
-        // Beritahu backend bahwa suara SUDAH benar-benar berbunyi dari speaker (bukan masih loading)
-        // Ini menjamin gerak bibir AIUEO sinkron 100% dengan gelombang suara
+        // Notify backend that voice is actually playing from speakers (not still loading)
+        // Ensures AIUEO lip movement is 100% synced with voice waveforms
         fetch(`${API_BASE}/api/tts/state`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -733,7 +733,7 @@ export class VoiceSessionManager {
       return;
     }
 
-    // Jika audio_url belum ada, minta backend mensintesis langsung via Supertonic
+    // If audio_url is not present yet, request backend to synthesize directly via Supertonic
     fetch(`${API_BASE}/api/tts/synthesize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -52,7 +52,7 @@ pub fn click_at_coordinates(x: i32, y: i32) -> bool {
 
     #[cfg(target_os = "linux")]
     {
-        // 1. Jika di Sway Wayland: gunakan native Sway IPC seat cursor (paling presisi & terintegrasi)
+        // 1. If in Sway Wayland: use native Sway IPC seat cursor (highest precision and integration)
         let is_sway = std::env::var("SWAYSOCK").is_ok()
             || std::env::var("XDG_CURRENT_DESKTOP")
                 .map(|d| d.eq_ignore_ascii_case("sway"))
@@ -74,7 +74,7 @@ pub fn click_at_coordinates(x: i32, y: i32) -> bool {
             }
         }
 
-        // 2. Jika di Hyprland: set cursor via hyprctl movecursor
+        // 2. If in Hyprland: set cursor via hyprctl movecursor
         let is_hyprland = std::env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok()
             || std::env::var("XDG_CURRENT_DESKTOP")
                 .map(|d| d.eq_ignore_ascii_case("hyprland"))
@@ -87,7 +87,7 @@ pub fn click_at_coordinates(x: i32, y: i32) -> bool {
             std::thread::sleep(std::time::Duration::from_millis(30));
         }
 
-        // 3. Fallback: ydotool (Wayland uinput daemon - bekerja di GNOME, KDE, Hyprland, Sway)
+        // 3. Fallback: ydotool (Wayland uinput daemon - bekerja in GNOME, KDE, Hyprland, Sway)
         let move_ok = std::process::Command::new("ydotool")
             .args(["mousemove", "-a", &x.to_string(), &y.to_string()])
             .status()
@@ -119,13 +119,13 @@ pub fn click_at_coordinates(x: i32, y: i32) -> bool {
             return true;
         }
 
-        crate::term_err!("❌ [Desktop Click] Failed to simulate mouse click on Linux.");
+        crate::term_err!("[Desktop Click] Failed to simulate mouse click on Linux.");
         false
     }
 
     #[cfg(target_os = "macos")]
     {
-        // 1. Coba utilitas populer cliclick jika tersedia
+        // 1. Try popular cliclick utility if available
         let target_arg = format!("c:{},{}", x, y);
         let status = std::process::Command::new("cliclick")
             .arg(&target_arg)
@@ -134,7 +134,7 @@ pub fn click_at_coordinates(x: i32, y: i32) -> bool {
             return true;
         }
 
-        // 2. Fallback: AppleScript System Events native (tanpa perlu install binary eksternal)
+        // 2. Fallback: AppleScript System Events native (without perlu install binary eksternal)
         let script = format!(
             "tell application \"System Events\" to click at {{{}, {}}}",
             x, y
@@ -162,20 +162,20 @@ pub fn find_target_button<'a>(
     }
     let needle_lower = needle.to_lowercase();
 
-    // Prioritas 1: ID Nomor Tombol Sama Persis
+    // Priority 1: Exact Button Number ID Match
     let by_id = buttons.iter().find(|b| b.id.to_string() == needle);
 
-    // Prioritas 2: Label Tombol Sama Persis (Exact Match case-insensitive)
+    // Priority 2: Exact Button Label Match (case-insensitive)
     let by_exact = buttons
         .iter()
         .find(|b| b.label.trim().eq_ignore_ascii_case(needle));
 
-    // Prioritas 3: Starts-with match (misal "Simpan" cocok dengan "Simpan Perubahan")
+    // Priority 3: Starts-with match (for example "Save" matches "Save Changes")
     let by_starts = buttons
         .iter()
         .find(|b| b.label.trim().to_lowercase().starts_with(&needle_lower));
 
-    // Prioritas 4: Substring match HANYA jika panjang pencarian lebih dari 1 karakter
+    // Priority 4: Substring match ONLY if search length is greater than 1 character
     let by_contains = if needle.len() > 1 {
         buttons
             .iter()
@@ -184,7 +184,7 @@ pub fn find_target_button<'a>(
         None
     };
 
-    // Prioritas 5: Fuzzy Similarity Match (Toleransi Typo / Beda Ejaan Fonetik)
+    // Priority 5: Fuzzy Similarity Match (Typo tolerance / phonetic variation)
     let by_fuzzy = if by_id.is_none()
         && by_exact.is_none()
         && by_starts.is_none()
@@ -200,7 +200,7 @@ pub fn find_target_button<'a>(
             .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(b, sim)| {
                 crate::term_log!(
-                    "🎯 [Fuzzy Match UI] Found similar element '{}' -> '{}' (score: {:.1}%)",
+                    "[Fuzzy Match UI] Found similar element '{}' -> '{}' (score: {:.1}%)",
                     needle,
                     b.label,
                     sim * 100.0
@@ -224,7 +224,7 @@ pub fn click_desktop_button(label_or_id: &str) -> bool {
         return false;
     }
 
-    // 1. Coba cari di snapshot window scanner yang sudah ada (OS Accessibility Tree)
+    // 1. Try searching existing window scanner snapshot (OS Accessibility Tree)
     if let Some(snap) = super::load_snapshot() {
         if let Some(btn) = find_target_button(needle, &snap.buttons) {
             if let Some(center) = btn.center {
@@ -233,7 +233,7 @@ pub fn click_desktop_button(label_or_id: &str) -> bool {
                     std::thread::sleep(std::time::Duration::from_millis(50));
                 }
                 crate::term_log!(
-                    "🖱️ [Desktop Click] Found via accessibility tree: '{}' at [{}, {}]",
+                    "[Desktop Click] Found via accessibility tree: '{}' at [{}, {}]",
                     btn.label,
                     center[0],
                     center[1]
@@ -243,17 +243,17 @@ pub fn click_desktop_button(label_or_id: &str) -> bool {
         }
     }
 
-    // 2. Multiplatform Fallback: Jalankan Visual OCR Perception Scan aktual
-    // Berguna jika accessibility tree tidak memiliki koordinat (misal AT-SPI Linux tanpa extents,
-    // canvas kustom, game, aplikasi electron tanpa bridge accessibility, dll.)
+    // 2. Multiplatform Fallback: Run Visual OCR Perception Scan aktual
+    // Useful if accessibility tree has no coordinates (e.g. Linux AT-SPI without extents),
+    // canvas kustom, game, aplikasi electron without bridge accessibility, dll.)
     crate::term_log!(
-        "🔍 [Desktop Click] Element '{}' not found with coordinates in accessibility tree. Running visual OCR scan...",
+        "[Desktop Click] Element '{}' not found with coordinates in accessibility tree. Running visual OCR scan...",
         needle
     );
 
     let perception_res = crate::engine::perception::request_vision_scan_sync();
 
-    // Map VisualElement ke DesktopElement untuk pencarian yang konsisten
+    // Map VisualElement to DesktopElement for consistent search
     let ocr_elements: Vec<crate::engine::window_scanner::DesktopElement> = perception_res
         .elements
         .iter()
@@ -269,7 +269,7 @@ pub fn click_desktop_button(label_or_id: &str) -> bool {
     if let Some(found) = find_target_button(needle, &ocr_elements) {
         if let Some(center) = found.center {
             crate::term_log!(
-                "🎯 [Desktop Click] Found via visual OCR: '{}' at [{}, {}]",
+                "[Desktop Click] Found via visual OCR: '{}' at [{}, {}]",
                 found.label,
                 center[0],
                 center[1]
@@ -279,7 +279,7 @@ pub fn click_desktop_button(label_or_id: &str) -> bool {
     }
 
     crate::term_err!(
-        "❌ [Desktop Click] Element or text '{}' not found on screen (checked accessibility + visual OCR).",
+        "[Desktop Click] Element or text '{}' not found on screen (checked accessibility + visual OCR).",
         needle
     );
     false

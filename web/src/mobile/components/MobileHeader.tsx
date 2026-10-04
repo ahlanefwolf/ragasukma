@@ -18,19 +18,19 @@ export const MobileHeader: Component<MobileHeaderProps> = (props) => {
       case 'speaking':
         return {
           icon: Volume2,
-          label: 'Bicara',
+          label: 'Speaking',
           badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.3)]',
         };
       case 'listening':
         return {
           icon: Mic,
-          label: 'Mendengar',
+          label: 'Listening',
           badgeClass: 'bg-sky-500/20 text-sky-300 border-sky-500/40 shadow-[0_0_10px_rgba(14,165,233,0.3)]',
         };
       case 'thinking':
         return {
           icon: Brain,
-          label: 'Mikir',
+          label: 'Thinking',
           badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.3)]',
         };
       default:
@@ -44,7 +44,7 @@ export const MobileHeader: Component<MobileHeaderProps> = (props) => {
 
   return (
     <header class="absolute top-0 left-0 right-0 z-30 h-13 px-3 py-2 bg-theme-bg/60 backdrop-blur-xl border-b border-theme-border/40 flex items-center justify-between shrink-0 select-none shadow-md">
-      {/* Sisi Kiri: Brand + Live Status Badge */}
+      {/* Left Side: Brand + Live Status Badge */}
       <div class="flex items-center gap-2 min-w-0">
         <div class="flex items-center gap-1.5 shrink-0">
           <span class="w-2.5 h-2.5 rounded-full bg-theme-cyan shadow-[0_0_8px_var(--cyan)] animate-pulse" />
@@ -53,7 +53,7 @@ export const MobileHeader: Component<MobileHeaderProps> = (props) => {
           </h1>
         </div>
 
-        {/* Live Status Badge Terpadu di Header (Selalu Terlihat & Tidak Pernah Ketutup Keyboard) */}
+        {/* Unified Live Status Badge in Header (Always visible & unobstructed) */}
         {(() => {
           const st = getStatusBadge();
           const Icon = st.icon;
@@ -66,7 +66,7 @@ export const MobileHeader: Component<MobileHeaderProps> = (props) => {
         })()}
       </div>
 
-      {/* Sisi Kanan: Audio Mode Switcher + Live Logs */}
+      {/* Right Side: Audio Mode Switcher + Live Logs */}
       <div class="flex items-center gap-1.5 shrink-0">
         {/* Mode Switcher PC / HP */}
         <div class="flex items-center bg-theme-card/80 p-0.5 rounded-xl border border-theme-border/60 text-[10px] font-mono shadow-inner">
@@ -78,7 +78,7 @@ export const MobileHeader: Component<MobileHeaderProps> = (props) => {
                 ? 'bg-theme-cyan text-theme-card font-bold shadow-sm'
                 : 'text-theme-text/60 hover:text-theme-text'
             }`}
-            title="Remote Desktop: Suara & Mic di PC"
+            title="Remote Desktop: Voice & Mic on PC"
           >
             <Monitor size={12} />
             <span>PC</span>
@@ -91,7 +91,7 @@ export const MobileHeader: Component<MobileHeaderProps> = (props) => {
                 ? 'bg-emerald-500 text-white font-bold shadow-sm'
                 : 'text-theme-text/60 hover:text-theme-text'
             }`}
-            title="Full Mobile: Suara & Mic di HP"
+            title="Full Mobile: Voice & Mic on Phone"
           >
             <Smartphone size={12} />
             <span>HP</span>
@@ -107,7 +107,7 @@ export const MobileHeader: Component<MobileHeaderProps> = (props) => {
               ? 'bg-theme-cyan/20 border-theme-cyan text-theme-cyan shadow-[0_0_10px_rgba(34,211,238,0.3)]'
               : 'bg-theme-card/80 border-theme-border/60 text-theme-text/70 hover:text-theme-text'
           }`}
-          title="Buka Console Logs"
+          title="Open Console Logs"
         >
           <Terminal size={14} />
           <Show when={props.logsCount > 0}>

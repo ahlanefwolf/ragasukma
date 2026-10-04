@@ -51,19 +51,19 @@ export const MusicTrackTable: Component<MusicTrackTableProps> = (props) => {
               <h3 class="text-sm font-bold text-theme-text">Library Playlist</h3>
               <Show when={props.library().length > 0}>
                 <span class="px-2 py-0.5 text-xs font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
-                  {props.library().length} Lagu
+                  {props.library().length} Tracks
                 </span>
               </Show>
             </div>
             <Show when={props.musicDir()}>
               <div
                 class="flex items-center gap-1.5 mt-0.5 text-xs text-theme-text/60 hover:text-theme-cyan cursor-pointer transition-colors max-w-[260px] sm:max-w-md truncate"
-                title="Klik untuk menyalin folder path musik"
+                title="Click to copy music folder path"
                 onClick={() => {
                   navigator.clipboard.writeText(props.musicDir());
                   setCopiedDir(true);
                   setTimeout(() => setCopiedDir(false), 2000);
-                  props.showToast('Path folder musik disalin ke clipboard!');
+                  props.showToast('Music folder path copied to clipboard!');
                 }}
               >
                 <Folder size={12} class="shrink-0 text-theme-cyan/80" />
@@ -87,7 +87,7 @@ export const MusicTrackTable: Component<MusicTrackTableProps> = (props) => {
             />
             <input
               type="text"
-              placeholder="Cari lagu di library..."
+              placeholder="Search tracks in library..."
               value={props.filterQuery()}
               onInput={(e) => {
                 props.onFilterChange(e.currentTarget.value);
@@ -116,7 +116,7 @@ export const MusicTrackTable: Component<MusicTrackTableProps> = (props) => {
         <Show when={props.loading()}>
           <div class="p-8 flex items-center justify-center gap-2 text-xs text-theme-text/60">
             <Loader size={16} class="animate-spin text-theme-cyan" />
-            <span>Memuat daftar lagu...</span>
+            <span>Loading track list...</span>
           </div>
         </Show>
 
@@ -126,10 +126,10 @@ export const MusicTrackTable: Component<MusicTrackTableProps> = (props) => {
               <Music size={26} class="text-theme-text/40" />
             </div>
             <p class="font-medium text-sm text-theme-text/70">
-              Library lagu masih kosong
+              Music library is empty
             </p>
             <p class="text-xs text-theme-text/50">
-              Gunakan kolom Search & Download di atas untuk menyimpan lagu dari
+              Use Search & Download above to save tracks from
               YouTube.
             </p>
           </div>
@@ -216,7 +216,7 @@ export const MusicTrackTable: Component<MusicTrackTableProps> = (props) => {
                         ? 'bg-theme-cyan text-theme-bg border-theme-cyan font-bold shadow-md shadow-theme-cyan/20'
                         : 'bg-theme-card hover:bg-theme-cyan/20 text-theme-text/80 hover:text-theme-cyan border-theme-border hover:border-theme-cyan/40'
                     }`}
-                    title="Putar Lagu Ini"
+                    title="Play This Track"
                   >
                     <Play
                       size={15}
@@ -227,7 +227,7 @@ export const MusicTrackTable: Component<MusicTrackTableProps> = (props) => {
                   <button
                     onClick={() => props.onDelete(track.filename, track.title)}
                     class="p-2.5 bg-theme-card hover:bg-theme-rose/20 text-theme-text/50 hover:text-theme-rose border border-theme-border hover:border-theme-rose/40 transition-all active:scale-95"
-                    title="Hapus dari Library"
+                    title="Delete from Library"
                   >
                     <Trash2 size={15} />
                   </button>
@@ -243,7 +243,7 @@ export const MusicTrackTable: Component<MusicTrackTableProps> = (props) => {
         <div class="px-4 py-3 bg-theme-card/30 border-t border-theme-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           {/* Info Range */}
           <div class="text-theme-text/60 text-xs">
-            Menampilkan{' '}
+            Showing{' '}
             <span class="font-semibold text-theme-text font-mono">
               {(props.currentPage() - 1) * props.pageSize() + 1}
             </span>
@@ -254,18 +254,18 @@ export const MusicTrackTable: Component<MusicTrackTableProps> = (props) => {
                 props.filteredTracks().length
               )}
             </span>
-            {' dari '}
+            {' of '}
             <span class="font-semibold text-theme-cyan font-mono">
               {props.filteredTracks().length}
             </span>{' '}
-            lagu
+            tracks
           </div>
 
           {/* Pagination Controls */}
           <div class="flex items-center gap-2">
             {/* Page Size Selector */}
             <div class="flex items-center gap-1.5 text-xs text-theme-text/60 mr-2">
-              <span>Per hal:</span>
+              <span>Per page:</span>
               <select
                 value={props.pageSize()}
                 onChange={(e) => {

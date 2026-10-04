@@ -54,10 +54,10 @@ pub struct PoseManager {
     pub config: PosesConfig,
     pub current_state: AssistantVisualState,
     pub last_state: AssistantVisualState,
-    pub state_transition_t: f32, // 0.0 -> 1.0 (interpolasi halus saat berganti state)
-    pub state_from_quats: HashMap<String, Quat>, // Snapshot rotasi sendi sesaat sebelum ganti state
+    pub state_transition_t: f32, // 0.0 -> 1.0 (smooth interpolation on state change)
+    pub state_from_quats: HashMap<String, Quat>, // Snapshot joint rotations immediately before state change
     pub elapsed_time: f32,
-    pub state_elapsed_time: f32, // Waktu aktif state saat ini (direset ke 0 saat ganti state, identik Three.js)
+    pub state_elapsed_time: f32, // Current state active elapsed time (reset to 0 on state change, identical to Three.js)
     pub target_quats: HashMap<String, Quat>,
     pub current_quats: HashMap<String, Quat>,
 }
@@ -92,7 +92,7 @@ impl PoseManager {
             if file.read_to_string(&mut contents).is_ok() {
                 if let Ok(parsed) = serde_json::from_str::<PosesConfig>(&contents) {
                     println!(
-                        "🎭 [PoseManager] Successfully loaded {} states from {:?}",
+                        "[PoseManager] Successfully loaded {} states from {:?}",
                         parsed.states.len(),
                         path
                     );
@@ -102,21 +102,21 @@ impl PoseManager {
         }
     }
 
-    /// Update pose 1:1 persis Three.js / VRM standard dengan multi-pose dynamic cycle & natural breathing
+    /// Update pose 1:1 persis Three.js / VRM standard with multi-pose dynamic cycle & natural breathing
     pub fn update_poses(&mut self, delta_time: f32) {
         self.elapsed_time += delta_time;
         self.state_elapsed_time += delta_time;
 
-        // Cek transisi perubahan state (misal: Idle -> Listening -> Thinking -> Speaking)
+        // Check state transition changes (e.g. Idle -> Listening -> Thinking -> Speaking)
         if self.current_state != self.last_state {
-            // Ambil snapshot rotasi sendi saat ini sebagai titik awal transisi halus
+            // Snapshot joint rotations as starting point for smooth slerp transition
             self.state_from_quats = self.current_quats.clone();
             self.state_transition_t = 0.0;
             self.state_elapsed_time = 0.0;
             self.last_state = self.current_state;
         }
 
-        // Jalankan timer interpolasi transisi antar state (~0.45 detik smooth slerp)
+        // Run timer interpolasi transisi antar state (~0.45 detik smooth slerp)
         let state_transition_duration = 0.45f32;
         if self.state_transition_t < 1.0 {
             self.state_transition_t =
@@ -135,7 +135,7 @@ impl PoseManager {
             let poses = state_data.resolved_poses();
             let count = poses.len();
 
-            // Engine Natural Breathing: Ritme nafas hidup di dada, punggung, pundak, dan mikro-gerak kepala
+            // Engine Natural Breathing: Ritme nafas hidup in chest, punggung, pundak, and mikro-gerak head
             let breath_rate = 1.35; // ~13 tarikan nafas per menit (ritme nafas santai)
             let breath_sine = (self.state_elapsed_time * breath_rate).sin();
             let breath_chest = breath_sine * 0.012;
@@ -143,9 +143,9 @@ impl PoseManager {
             let breath_shoulder = breath_sine * 0.006;
 
             if count == 0 {
-                // Tidak ada pose terdaftar
+                // No registered poses
             } else if count == 1 {
-                // Hanya 1 pose: diam di pose tersebut dengan efek nafas alami
+                // Only 1 pose: diam in pose tersebut with efek nafas alami
                 let single = &poses[0];
                 for (bone_name, rot) in single {
                     let breath_offset = if bone_name == "chest" {
@@ -166,8 +166,8 @@ impl PoseManager {
                     self.target_quats.insert(bone_name.clone(), q);
                 }
             } else {
-                // Multi-pose (2 pose atau lebih): Catmull-Rom Spline interpolation (C1 continuous)
-                // Menjamin kontinuitas kecepatan gerak di setiap keyframe tanpa jeda henti (ease-in/out stall).
+                // Multi-pose (2 pose or more): Catmull-Rom Spline interpolation (C1 continuous)
+                // Ensures continuous motion speed across keyframes without abrupt pauses (ease-in/out stall).
                 let cycle_step = 2.5 / active_speed;
                 let total_cycle_time = count as f32 * cycle_step;
                 let loop_time = self.state_elapsed_time % total_cycle_time;
@@ -206,7 +206,7 @@ impl PoseManager {
                     let mut r2 = p2.get(bone_name).copied().unwrap_or([0.0, 0.0, 0.0]);
                     let mut r3 = p3.get(bone_name).copied().unwrap_or([0.0, 0.0, 0.0]);
 
-                    // Tangani unwrap fase sudut yaw hips agar perputaran memutar tidak mundur saat wrap-around
+                    // Handle hip yaw angular phase unwrapping so rotation does not reverse on wrap-around
                     if bone_name == "hips" {
                         while r1[1] < r0[1] - std::f32::consts::PI {
                             r1[1] += std::f32::consts::TAU;
@@ -251,7 +251,7 @@ impl PoseManager {
             }
         }
 
-        // Terapkan pose ke sendi: Jika sedang transisi antar state, lakukan S-Curve Slerp dari pose lama ke pose baru
+        // Apply pose to joints: If transitioning between states, perform S-Curve Slerp from previous pose to new pose
         let blend_t = if self.state_transition_t < 1.0 {
             (1.0 - (self.state_transition_t * std::f32::consts::PI).cos()) / 2.0
         } else {

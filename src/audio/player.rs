@@ -29,7 +29,7 @@ struct ActiveVoiceSpeech {
 
 static ACTIVE_VOICE_SPEECH: Mutex<Option<ActiveVoiceSpeech>> = Mutex::new(None);
 
-/// Ekstrak sampel PCM dan sample_rate dari format WAV
+/// Extracts PCM samples and sample_rate from WAV format
 fn parse_wav_samples(bytes: &[u8]) -> Option<(Vec<f32>, u32)> {
     if bytes.len() < 44 || &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
         return None;
@@ -90,7 +90,7 @@ fn parse_wav_samples(bytes: &[u8]) -> Option<(Vec<f32>, u32)> {
     Some((mono_samples, sample_rate))
 }
 
-/// Menghitung bobot bibir AIUEO realtime berdasarkan frekuensi formant gelombang audio yang sedang diputar
+/// Calculates real-time AIUEO lip weights based on formant frequencies of the currently playing audio
 pub fn get_current_lip_sync_weights() -> LipSyncWeights {
     let Ok(lock) = ACTIVE_VOICE_SPEECH.lock() else {
         return LipSyncWeights::default();
@@ -107,7 +107,7 @@ pub fn get_current_lip_sync_weights() -> LipSyncWeights {
         return LipSyncWeights::default();
     }
 
-    // Ambil window 512 sampel (~12-25 ms)
+    // Take 512-sample window (~12-25 ms)
     let window_size = 512.min(speech.samples.len() - cursor);
     if window_size < 64 {
         return LipSyncWeights::default();
@@ -122,14 +122,14 @@ pub fn get_current_lip_sync_weights() -> LipSyncWeights {
     }
     let rms = (sum_sq / window_size as f32).sqrt();
 
-    // Noise floor: hening / jeda napas antar kalimat
+    // Noise floor: silence / breath pause between sentences
     if rms < 0.012 {
         return LipSyncWeights::default();
     }
 
     let mouth_open = ((rms - 0.012) * 6.5).clamp(0.0, 1.0).powf(0.85) * 0.65;
 
-    // 2. Goertzel Filter Power pada frekuensi formant vokal utama:
+    // 2. Goertzel Filter Power on frekuensi formant vokal utama:
     // Low: ~450 Hz (U & O)
     // Mid: ~950 Hz (A)
     // Mid-High: ~1900 Hz (E)
@@ -185,7 +185,7 @@ fn get_audio_handle() -> Option<rodio::OutputStreamHandle> {
             rodio::OutputStream::try_default()
                 .ok()
                 .map(|(stream, handle)| {
-                    // Biarkan stream tetap hidup sepanjang runtime aplikasi
+                    // Keep stream alive throughout application runtime
                     Box::leak(Box::new(stream));
                     handle
                 })
@@ -201,14 +201,14 @@ struct VoiceStreamControl {
 
 static VOICE_STREAM_CONTROL: Mutex<Option<VoiceStreamControl>> = Mutex::new(None);
 
-/// Putar chunk audio respon AI Supertonic secara streaming dan gapless ke speaker PC
+/// Plays Supertonic AI audio response chunks gaplessly via streaming to PC speakers
 pub fn play_native_voice_chunk(chunk_idx: usize, total_chunks: usize, wav_bytes: Vec<u8>) {
     if crate::app_state::is_voice_muted() {
         return;
     }
 
     if chunk_idx == 0 {
-        // Chunk pertama: inisialisasi sesi playback baru
+        // First chunk: initialize new playback session
         let my_gen = VOICE_PLAYBACK_GEN.fetch_add(1, Ordering::SeqCst) + 1;
 
         if let Ok(mut ctrl) = VOICE_STREAM_CONTROL.lock() {
@@ -218,7 +218,7 @@ pub fn play_native_voice_chunk(chunk_idx: usize, total_chunks: usize, wav_bytes:
             });
         }
 
-        // Ekstrak data sampel PCM dan sample_rate untuk sinkronisasi bibir AIUEO presisi
+        // Extract PCM sample data and sample_rate for precise AIUEO lip synchronization
         if let Some((samples, sr)) = parse_wav_samples(&wav_bytes) {
             if let Ok(mut lock) = ACTIVE_VOICE_SPEECH.lock() {
                 *lock = Some(ActiveVoiceSpeech {
@@ -233,7 +233,7 @@ pub fn play_native_voice_chunk(chunk_idx: usize, total_chunks: usize, wav_bytes:
             if let Some(handle) = get_audio_handle() {
                 if let Ok(decoder) = rodio::Decoder::new(Cursor::new(wav_bytes)) {
                     if let Ok(sink) = rodio::Sink::try_new(&handle) {
-                        // Duck musik native jika sedang berputar
+                        // Duck native music if currently playing
                         if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
                             if let Some(ref m_sink) = *music_lock {
                                 m_sink.set_volume(0.25);
@@ -247,13 +247,13 @@ pub fn play_native_voice_chunk(chunk_idx: usize, total_chunks: usize, wav_bytes:
                             *lock = Some(sink);
                         }
 
-                        // Pulihkan volume musik setelah semua chunk suara AI selesai dan kembalikan status avatar ke Idle
+                        // Restore music volume after all AI voice chunks finish and return avatar state to Idle
                         std::thread::spawn(move || {
                             let mut last_chunk_time = std::time::Instant::now();
                             loop {
                                 std::thread::sleep(std::time::Duration::from_millis(100));
                                 if VOICE_PLAYBACK_GEN.load(Ordering::SeqCst) != my_gen {
-                                    // Thread suara baru atau stop telah mengambil alih
+                                    // New voice thread or stop has already taken over
                                     break;
                                 }
 
@@ -275,8 +275,8 @@ pub fn play_native_voice_chunk(chunk_idx: usize, total_chunks: usize, wav_bytes:
                                     last_chunk_time = std::time::Instant::now();
                                 }
 
-                                // Pemutaran tuntas jika sink sudah kosong DAN semua chunk telah di-append,
-                                // atau jika stall melebihi 8 detik fail-safe
+                                // Playback complete if sink is already empty AND all chunks have been appended,
+                                // Or if stall exceeds the 8-second fail-safe
                                 if (is_empty && is_completed)
                                     || (is_empty && last_chunk_time.elapsed().as_secs() >= 8)
                                 {
@@ -309,7 +309,7 @@ pub fn play_native_voice_chunk(chunk_idx: usize, total_chunks: usize, wav_bytes:
             }
         }));
     } else {
-        // Chunk berikutnya (> 0): periksa apakah masih dalam sesi playback aktif
+        // Subsequent chunks (> 0): check if still in active playback session
         let current_gen = if let Ok(ctrl) = VOICE_STREAM_CONTROL.lock() {
             ctrl.as_ref().map(|c| c.generation)
         } else {
@@ -324,7 +324,7 @@ pub fn play_native_voice_chunk(chunk_idx: usize, total_chunks: usize, wav_bytes:
             return;
         }
 
-        // Sambungkan sampel PCM ke buffer active voice agar lip-sync tetap sinkron
+        // Append PCM samples to active voice buffer so lip-sync remains synchronized
         if let Some((new_samples, _)) = parse_wav_samples(&wav_bytes) {
             if let Ok(mut lock) = ACTIVE_VOICE_SPEECH.lock() {
                 if let Some(ref mut speech) = *lock {
@@ -333,7 +333,7 @@ pub fn play_native_voice_chunk(chunk_idx: usize, total_chunks: usize, wav_bytes:
             }
         }
 
-        // Antrekan audio langsung ke rodio Sink yang sedang memutar chunk sebelumnya
+        // Enqueue audio directly to rodio Sink currently playing previous chunk
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
             if let Ok(decoder) = rodio::Decoder::new(Cursor::new(wav_bytes)) {
                 if let Ok(lock) = NATIVE_VOICE_SINK.lock() {
@@ -354,7 +354,7 @@ pub fn play_native_voice_chunk(chunk_idx: usize, total_chunks: usize, wav_bytes:
     }
 }
 
-/// Hentikan pemutaran suara AI native (misal saat interupsi suara / VAD barge-in)
+/// Stops native AI voice playback (e.g. during voice interruption or VAD barge-in)
 pub fn stop_native_voice() {
     VOICE_PLAYBACK_GEN.fetch_add(1, Ordering::SeqCst);
     if let Ok(mut ctrl) = VOICE_STREAM_CONTROL.lock() {
@@ -375,7 +375,7 @@ pub fn stop_native_voice() {
     }
 }
 
-/// Mengecek apakah audio native voice sedang berputar di speaker PC
+/// Check whether native audio voice is currently playing on PC speakers
 pub fn is_native_voice_playing() -> bool {
     let sink_active = if let Ok(lock) = NATIVE_VOICE_SINK.lock() {
         lock.as_ref().map(|s| !s.empty()).unwrap_or(false)
@@ -393,7 +393,7 @@ pub fn is_native_voice_playing() -> bool {
     false
 }
 
-/// Kirim perintah putar file audio (sinkronisasi state & delegasi stream ke Web Dashboard & PiP)
+/// Sends audio play command (state synchronization and stream delegation to Web Dashboard & PiP)
 pub fn play_file(path: impl AsRef<Path>, title: impl Into<String>) {
     let t = title.into();
     let p = path.as_ref();
@@ -401,23 +401,23 @@ pub fn play_file(path: impl AsRef<Path>, title: impl Into<String>) {
         *lock = Some(t.clone());
     }
     crate::term_log!(
-        "🎵 [Music Controller] Playing track '{}' via Web Dashboard & PiP stream",
+        "[Music Controller] Playing track '{}' via Web Dashboard & PiP stream",
         t
     );
 
-    // Putar ke speaker hardware PC di thread terpisah dengan isolasi catch_unwind
-    // agar bug internal parser format rodio tidak pernah membunuh thread sesi percakapan utama
+    // Play to PC hardware speakers in a separate thread isolated with catch_unwind
+    // so internal rodio format parser bugs never crash the main conversation session thread
     let path_buf = p.to_path_buf();
     std::thread::spawn(move || {
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // Jika mode Full HP aktif (voice_muted = true), musik hanya diputar di HP, jangan putar di PC
+            // If Phone Only mode is active (voice_muted = true), music only plays on phone, not on PC
             if !crate::app_state::is_voice_muted() && path_buf.exists() {
                 if let Some(handle) = get_audio_handle() {
-                    // Gunakan Cursor in-memory buffer agar decoder symphonia tidak mengalami error seek saat inisialisasi
+                    // Use in-memory Cursor buffer so symphonia decoder avoids seek errors during initialization
                     if let Ok(bytes) = std::fs::read(&path_buf) {
                         if let Ok(decoder) = rodio::Decoder::new(Cursor::new(bytes)) {
                             if let Ok(sink) = rodio::Sink::try_new(&handle) {
-                                // Jika AI sedang berbicara saat musik dimulai, pasang volume ducked langsung
+                                // If AI is currently speaking when music starts, apply ducked volume directly
                                 let current_vol = if crate::app_state::is_ai_speaking() { 0.25 } else { 1.0 };
                                 sink.set_volume(current_vol);
                                 sink.append(decoder);
@@ -436,27 +436,27 @@ pub fn play_file(path: impl AsRef<Path>, title: impl Into<String>) {
     });
 }
 
-/// Jeda pemutaran musik
+/// Pause music playback
 pub fn pause() {
     if let Ok(lock) = NATIVE_MUSIC_SINK.lock() {
         if let Some(ref sink) = *lock {
             sink.pause();
         }
     }
-    crate::term_log!("⏸️ [Music Controller] Music paused.");
+    crate::term_log!("[Music Controller] Music paused.");
 }
 
-/// Lanjutkan pemutaran musik
+/// Resume music playback
 pub fn resume() {
     if let Ok(lock) = NATIVE_MUSIC_SINK.lock() {
         if let Some(ref sink) = *lock {
             sink.play();
         }
     }
-    crate::term_log!("▶️ [Music Controller] Music resumed.");
+    crate::term_log!("▶ [Music Controller] Music resumed.");
 }
 
-/// Hentikan pemutaran musik
+/// Stops music playback
 pub fn stop() {
     if let Ok(mut lock) = CURRENT_TITLE.lock() {
         *lock = None;
@@ -466,7 +466,7 @@ pub fn stop() {
             sink.stop();
         }
     }
-    crate::term_log!("⏹️ [Music Controller] Music stopped.");
+    crate::term_log!("[Music Controller] Music stopped.");
 }
 
 pub fn get_current_title() -> Option<String> {

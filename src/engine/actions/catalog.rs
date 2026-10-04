@@ -120,7 +120,7 @@ pub fn get_builtin_system_skills() -> Vec<SkillItem> {
     }
 }
 
-/// Helper untuk membuka URL secara aman di dedicated browser profile pengguna
+/// Helper to open URL safely in dedicated user browser profile
 pub fn open_url_by_os(url: &str) -> std::io::Result<()> {
     crate::assets::open_browser(url);
     Ok(())

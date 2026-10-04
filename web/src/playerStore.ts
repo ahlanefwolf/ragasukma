@@ -10,7 +10,7 @@ const [volume, setVolume] = createSignal(1);
 
 export { currentTrack, isPlaying, isPaused, currentTime, duration, volume };
 
-// Bridge status untuk komponen BottomPlayer, PiP & UI
+// Bridge status for komponen BottomPlayer, PiP & UI
 export const globalStatus = () => ({
   current_track: currentTrack() || undefined,
   is_playing: isPlaying(),
@@ -84,7 +84,7 @@ function bindAudioListeners(el: HTMLAudioElement) {
   });
 }
 
-// Inisialisasi otomatis audio element singleton di browser
+// Initialize automatically audio element singleton in browser
 if (typeof window !== 'undefined' && typeof Audio !== 'undefined') {
   audioEl = new Audio();
   audioEl.volume = volume();
@@ -106,7 +106,7 @@ let isDucked = false;
 let preDuckVolume = 1.0;
 let isDesktopVoiceMuted = false;
 
-// Dengarkan status mute dari server (jika Full HP aktif, matikan pemutaran musik di browser PC)
+// Listen for mute status from server (if Phone Only active, mute music playback on PC browser)
 api.subscribeState((st) => {
   if (st && typeof st.voice_muted === 'boolean') {
     isDesktopVoiceMuted = st.voice_muted;
@@ -134,10 +134,10 @@ export const unduckMusic = () => {
 };
 
 // ---------------------------------------------------------------------------
-// 1. DENGARKAN EVENT DARI BACKEND SINGLE-SOURCE-OF-TRUTH (SSE ACTION)
+// 1. LISTEN TO EVENTS FROM BACKEND SINGLE SOURCE OF TRUTH (SSE ACTION)
 // ---------------------------------------------------------------------------
 api.subscribeActions(async (act) => {
-  // Jika tab saat ini adalah remote client di smartphone, biarkan audioSync di mobile yang memutar audio
+  // If this tab is a mobile remote client, let mobile audioSync handle playback
   try {
     const hash = window.location.hash.toLowerCase();
     const origin = window.location.origin.toLowerCase();
@@ -169,7 +169,7 @@ api.subscribeActions(async (act) => {
       const qClean = clean(query);
       const qWords = qClean.split(' ').filter(Boolean);
 
-      // 1. Cek Exact
+      // 1. Check Exact
       matched = list.find(
         (t) =>
           t.filename === raw ||
@@ -179,7 +179,7 @@ api.subscribeActions(async (act) => {
           t.filename.toLowerCase() === query
       );
 
-      // 2. Cek Substring
+      // 2. Check Substring
       if (!matched) {
         matched = list.find((t) => {
           const tClean = clean(`${t.title} ${t.filename}`);
@@ -187,7 +187,7 @@ api.subscribeActions(async (act) => {
         });
       }
 
-      // 3. Cek Multi-word Token
+      // 3. Check Multi-word Token
       if (!matched && qWords.length > 0) {
         matched = list.find((t) => {
           const tClean = clean(`${t.title} ${t.filename}`);
@@ -221,7 +221,7 @@ api.subscribeActions(async (act) => {
 
 function playLocalAudio(track: YtTrackInfo) {
   if (!track || !track.filename) return;
-  // Jika server sedang mode Full HP (isDesktopVoiceMuted = true), browser PC tidak boleh bersuara (PC hening)
+  // If server is in Phone Only mode (isDesktopVoiceMuted = true), PC browser must remain silent
   if (isDesktopVoiceMuted) return;
   setCurrentTrack(track);
   setCurrentTime(0);
@@ -233,7 +233,7 @@ function playLocalAudio(track: YtTrackInfo) {
     audioEl.src = api.getMusicUrl(track.filename);
     audioEl.currentTime = 0;
     audioEl.play().catch((err) => {
-      console.warn('⚠️ [AudioPlayer] Autoplay tertahan:', err);
+      console.warn('[AudioPlayer] Autoplay prevented:', err);
     });
   }
 }

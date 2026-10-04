@@ -13,8 +13,8 @@ fn write_sse_header(stream: &mut TcpStream) -> bool {
     let _ = stream.set_read_timeout(None);
     let _ = stream.set_write_timeout(None);
 
-    // Kirim header SSE lengkap + initial comment byte ': connected\n\n'
-    // Ini krusial untuk Cloudflare Tunnel agar tidak mem-buffer / memblokir SSE handshake
+    // Send header SSE lengkap + initial comment byte ': connected\n\n'
+    // Crucial for Cloudflare Tunnel to avoid buffering or blocking the SSE handshake
     let header = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache, no-transform\r\nConnection: keep-alive\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: *\r\nX-Accel-Buffering: no\r\n\r\n: connected\n\n";
     if stream.write_all(header.as_bytes()).is_err() {
         return false;
@@ -24,7 +24,7 @@ fn write_sse_header(stream: &mut TcpStream) -> bool {
 
 // ---------------------------------------------------------------------------
 // 1. GLOBAL APP STATE & ACTION SSE STREAM (/api/events/state)
-// Murni status visual AI dan trigger skill perintah (Event-driven)
+// Murni status visual AI and trigger skill perintah (Event-driven)
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Serialize, Clone)]
@@ -41,7 +41,7 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
         return;
     }
 
-    // Sambungan SSE aktif otomatis menandakan remote client sedang terkoneksi
+    // Active SSE connection automatically indicates a remote client is currently connected
     crate::app_state::touch_remote_active();
 
     let mut last_state = String::new();
@@ -57,7 +57,7 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
     loop {
         let mut had_activity = false;
 
-        // 1. Cek perubahan Status Visual AI (event: state)
+        // 1. Check for AI Visual State changes (event: state)
         let (should_send_state, payload_json) = if let Ok(lock) = shared.lock() {
             let st_str = if lock.is_shutdown {
                 "shutdown"
@@ -113,7 +113,7 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
             had_activity = true;
         }
 
-        // 2. Cek apakah ada Aksi Perintah Baru dari AI (event: action) - Multi-Client Pub-Sub
+        // 2. Check for new action command from AI (event: action) - Multi-Client Pub-Sub
         let (pending_actions, new_last_id) =
             crate::app_state::get_client_actions_since(last_action_id);
         last_action_id = new_last_id;
@@ -127,7 +127,7 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
             }
         }
 
-        // 3. Alirkan log aktivitas real-time ke web console (event: log) - Zero Polling
+        // 3. Stream real-time activity logs to web console (event: log) - Zero Polling
         let (new_logs, new_log_id) = crate::config::get_logs_since(last_log_id);
         last_log_id = new_log_id;
         for entry in new_logs {
@@ -144,10 +144,10 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
             ping_ticks = 0;
         } else {
             ping_ticks += 1;
-            // Ping heartbeat setiap ~3 detik (30 * 100ms)
+            // Heartbeat ping every ~3 seconds (30 * 100ms)
             if ping_ticks >= 30 {
                 ping_ticks = 0;
-                // Jaga status remote client tetap aktif selama koneksi SSE terbuka
+                // Jaga status remote client remain active selama koneksi SSE terbuka
                 crate::app_state::touch_remote_active();
                 let ping = ": ping\n\n";
                 if stream.write_all(ping.as_bytes()).is_err() || stream.flush().is_err() {
@@ -162,7 +162,7 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
 
 // ---------------------------------------------------------------------------
 // 2. HTTP ACTIONS POLLING (/api/actions/since?last_id=...)
-// Fallback resilient untuk Mobile Tunnel / Cloudflare yang membuffer SSE
+// Fallback resilient for Mobile Tunnel / Cloudflare which membuffer SSE
 // ---------------------------------------------------------------------------
 pub fn handle_get_actions_since(full_url: &str, stream: &mut TcpStream) {
     let last_id = full_url
@@ -181,7 +181,7 @@ pub fn handle_get_actions_since(full_url: &str, stream: &mut TcpStream) {
         .unwrap_or(0);
 
     let (actions, new_last_id) = if last_id == 0 {
-        // First connection / refresh: hanya ambil ID terbaru tanpa mengirim ulang aksi riwayat lama!
+        // First connection / refresh: only take ID terbaru without sending repeat aksi history old!
         (Vec::new(), crate::app_state::get_latest_action_id())
     } else {
         crate::app_state::get_client_actions_since(last_id)

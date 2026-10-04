@@ -15,11 +15,11 @@ pub struct YtTrackInfo {
     pub uploader: String,
     pub duration: u64,
     pub thumbnail: Option<String>,
-    /// Nama file relatif di folder music (e.g. "Song Title [abc123].opus")
+    /// Name file relatif in folder music (e.g. "Song Title [abc123].opus")
     pub filename: String,
 }
 
-/// Install yt-dlp otomatis sesuai OS
+/// Install yt-dlp automatically sesuai OS
 pub fn install_ytdlp() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
@@ -89,9 +89,9 @@ pub fn install_ytdlp() -> Result<String, String> {
     }
 }
 
-/// Cari path executable yt-dlp di Windows (termasuk WinGet Links & Packages, Scoop, Python Script)
+/// Search path executable yt-dlp in Windows (termasuk WinGet Links & Packages, Scoop, Python Script)
 fn find_ytdlp_executable() -> Option<std::path::PathBuf> {
-    // 1. Cek langsung jika bisa dipanggil di PATH
+    // 1. Check direct if can dipanggil in PATH
     if let Ok(out) = Command::new("yt-dlp").arg("--version").output() {
         if out.status.success() {
             return Some(std::path::PathBuf::from("yt-dlp"));
@@ -100,7 +100,7 @@ fn find_ytdlp_executable() -> Option<std::path::PathBuf> {
 
     #[cfg(target_os = "windows")]
     {
-        // 2. Cek WinGet standard directory: %LOCALAPPDATA%\Microsoft\WinGet\Links\yt-dlp.exe
+        // 2. Check WinGet standard directory: %LOCALAPPDATA%\Microsoft\WinGet\Links\yt-dlp.exe
         if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
             let winget_link = std::path::Path::new(&local_app_data)
                 .join("Microsoft")
@@ -140,7 +140,7 @@ fn find_ytdlp_executable() -> Option<std::path::PathBuf> {
             }
         }
 
-        // 3. Cek %USERPROFILE%\scoop\shims\yt-dlp.exe atau %USERPROFILE%\.cargo\bin\yt-dlp.exe
+        // 3. Check %USERPROFILE%\scoop\shims\yt-dlp.exe or %USERPROFILE%\.cargo\bin\yt-dlp.exe
         if let Ok(user_profile) = std::env::var("USERPROFILE") {
             let scoop_cand = std::path::Path::new(&user_profile)
                 .join("scoop")
@@ -226,8 +226,8 @@ fn ytdlp_command() -> Command {
         }
     };
 
-    // Bersihkan environment variables yang dibajak oleh wrapper Linux AppImage
-    // agar yt-dlp / Python menggunakan dynamic library asli milik OS host
+    // Clean environment variables hijacked by Linux AppImage wrapper
+    // so that yt-dlp / Python using dynamic library asli milik OS host
     cmd.env_remove("PYTHONHOME");
     cmd.env_remove("PYTHONPATH");
     cmd.env_remove("LD_LIBRARY_PATH");
@@ -235,7 +235,7 @@ fn ytdlp_command() -> Command {
     cmd
 }
 
-/// Cek apakah yt-dlp terinstall dan return versinya
+/// Check whether yt-dlp is installed and return its version
 pub fn check_ytdlp() -> YtDlpInfo {
     let result = ytdlp_command().arg("--version").output();
     match result {
@@ -253,7 +253,7 @@ pub fn check_ytdlp() -> YtDlpInfo {
     }
 }
 
-/// Download audio pakai yt-dlp ke out_dir, return metadata track
+/// Download audio pakai yt-dlp to out_dir, return metadata track
 pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo> {
     std::fs::create_dir_all(out_dir)?;
 
@@ -263,7 +263,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
         out_dir.to_path_buf()
     };
 
-    // Jika query bukan URL, bungkus sebagai ytsearch
+    // If query is not a URL, wrap as ytsearch
     let target = if query.starts_with("http://") || query.starts_with("https://") {
         query.to_string()
     } else {
@@ -275,7 +275,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
         target, abs_out_dir
     );
 
-    // Catat file audio yang sudah ada sebelum download
+    // Record existing audio files before download
     let existing_files: std::collections::HashSet<String> = std::fs::read_dir(&abs_out_dir)
         .ok()
         .map(|entries| {
@@ -286,9 +286,9 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
         })
         .unwrap_or_default();
 
-    // Gunakan -f "ba[ext=m4a]/ba" (best audio M4A/AAC atau best audio)
-    // Gunakan --print "after_move:..." agar yt-dlp BENAR-BENAR mendownload file ke disk
-    // lalu mencetak metadata setelah file selesai ditulis
+    // Use -f "ba[ext=m4a]/ba" (best audio M4A/AAC or best audio)
+    // Use --print "after_move:..." so that yt-dlp CORRECT-CORRECT mendownload file to disk
+    // then print metadata after file is completely written
     let mut child = ytdlp_command()
         .current_dir(&abs_out_dir)
         .args([
@@ -306,7 +306,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
         .stderr(std::process::Stdio::piped())
         .spawn()?;
 
-    // Batas timeout: 25 detik
+    // Limit timeout: 25 detik
     let timeout = std::time::Duration::from_secs(25);
     let start_time = std::time::Instant::now();
     let poll_interval = std::time::Duration::from_millis(250);
@@ -314,7 +314,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
     let output = loop {
         match child.try_wait()? {
             Some(_status) => {
-                // Proses selesai sebelum timeout
+                // Process finished before timeout
                 break child.wait_with_output()?;
             }
             None => {
@@ -330,7 +330,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
         }
     };
 
-    // Bersihkan file json sisa jika ada
+    // Clean leftover JSON files if any
     clean_json_sidecars(&abs_out_dir);
 
     if !output.status.success() {
@@ -340,7 +340,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
 
     let stdout_str = String::from_utf8_lossy(&output.stdout);
 
-    // 1. Coba parse metadata persis dari stdout yt-dlp (after_move)
+    // 1. Coba parse metadata persis from stdout yt-dlp (after_move)
     for line in stdout_str.lines().rev() {
         let parts: Vec<&str> = line.split('\t').collect();
         if parts.len() >= 4 {
@@ -382,7 +382,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
         }
     }
 
-    // 2. Deteksi file baru yang bertambah di folder (perbandingan sebelum vs sesudah)
+    // 2. Detect newly added files in folder (before vs after comparison)
     if let Ok(entries) = std::fs::read_dir(&abs_out_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
@@ -414,7 +414,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
         }
     }
 
-    // 2. Fallback: Cari file audio yang paling baru dimodifikasi (latest mtime) di folder
+    // 2. Fallback: Search for the most recently modified audio file (latest mtime) in folder
     if let Ok(entries) = std::fs::read_dir(&abs_out_dir) {
         let mut audio_files = Vec::new();
         for entry in entries.flatten() {
@@ -433,7 +433,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
             }
         }
 
-        // Urutkan berdasarkan waktu modifikasi terbaru
+        // Sort by latest modification time
         audio_files.sort_by_key(|a| std::cmp::Reverse(a.1));
 
         if let Some((latest_path, _)) = audio_files.first() {
@@ -469,7 +469,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
     )
 }
 
-/// Bersihkan file *.json di folder music agar rapi hanya berisi audio murni
+/// Clean *.json files in music directory so it cleanly contains only pure audio files
 pub fn clean_json_sidecars(music_dir: &Path) {
     if let Ok(entries) = std::fs::read_dir(music_dir) {
         for entry in entries.flatten() {
@@ -483,7 +483,7 @@ pub fn clean_json_sidecars(music_dir: &Path) {
     }
 }
 
-/// Scan folder music, parse judul & ID langsung dari nama file, return list track
+/// Scan folder music, parse judul & ID direct from name file, return list track
 pub fn list_downloaded(music_dir: &Path) -> Vec<YtTrackInfo> {
     clean_json_sidecars(music_dir);
     let mut tracks = Vec::new();
@@ -536,15 +536,15 @@ pub fn list_downloaded(music_dir: &Path) -> Vec<YtTrackInfo> {
     tracks
 }
 
-/// Parse "(title) [(id)].ext" dari nama file jika tidak ada sidecar
+/// Parse "(title) [(id)].ext" from filename if no sidecar exists
 fn parse_filename_title_id(filename: &str) -> (String, String) {
-    // Hapus ekstensi apapun (.webm, .opus, .mp3, dsb)
+    // Strip any extension (.webm, .opus, .mp3, etc.)
     let stem = if let Some((name_without_ext, _)) = filename.rsplit_once('.') {
         name_without_ext
     } else {
         filename
     };
-    // Coba ekstrak [id] dari akhir
+    // Coba ekstrak [id] from end
     if let (Some(open), Some(close)) = (stem.rfind('['), stem.rfind(']')) {
         if open < close {
             let id = stem[open + 1..close].to_string();

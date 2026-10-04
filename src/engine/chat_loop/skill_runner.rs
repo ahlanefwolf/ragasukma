@@ -9,8 +9,8 @@ static RE_SKILL: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(||
     regex::Regex::new(r"\[(?:SKILL|CMD):([^\]]+)\]").expect("valid skill regex")
 });
 
-/// Menjalankan eksekusi skill tool parsing `[CMD:...]` atau `[SKILL:...]`,
-/// termasuk 2-step agentic loop untuk tindakan lanjutan desktop/browser.
+/// Running eksekusi skill tool parsing `[CMD:...]` or `[SKILL:...]`,
+/// including 2-step agentic loop for follow-up desktop/browser actions.
 pub fn handle_skill_execution(
     _llm: &mut LlmClient,
     _tts: &Arc<TextToSpeech>,
@@ -28,11 +28,11 @@ pub fn handle_skill_execution(
         if let Some(matched_id) = cap.get(1) {
             let id = matched_id.as_str().trim().to_string();
 
-            // Guardrail Otomatis: Jika respon ini dipicu oleh notifikasi internal STATUS SISTEM,
-            // cegah pemanggilan ulang media:play yang mereplay lagu yang baru selesai diunduh.
+            // Automatic guardrail: If this response was triggered by internal SYSTEM STATUS notification,
+            // prevent repeated media:play calls that re-trigger tracks that just finished downloading.
             if effective_input.starts_with("[SYSTEM STATUS:") && id.starts_with("media:play") {
                 crate::term_log!(
-                    "🛡️ [Duplicate Skill Guard]: Ignoring '{}' because the song was already played automatically by the system",
+                    "[Duplicate Skill Guard]: Ignoring '{}' because the song was already played automatically by the system",
                     id
                 );
                 continue;
@@ -60,7 +60,7 @@ pub fn handle_skill_execution(
                     }),
                 );
 
-                // Update snapshot jika berganti window atau browser
+                // Update snapshot when switching window or browser
                 let id_lower = id.to_lowercase();
                 if id_lower == "desktop:scan_visual" {
                     if let Ok(snap) = crate::engine::window_scanner::scan_active_window_sync() {

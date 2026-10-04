@@ -21,7 +21,7 @@ export const MusicDownloadCard: Component<MusicDownloadCardProps> = (props) => {
           <div class="flex gap-2">
             <input
               type="text"
-              placeholder="Cari lagu / paste URL YouTube..."
+              placeholder="Search song / paste YouTube URL..."
               value={props.searchQuery()}
               onInput={(e) => props.onSearchInput(e.currentTarget.value)}
               onKeyDown={(e) =>
@@ -39,7 +39,7 @@ export const MusicDownloadCard: Component<MusicDownloadCardProps> = (props) => {
                 <Loader size={16} class="animate-spin" />
               </Show>
               <span class="hidden sm:inline">
-                {props.downloading() ? 'Mendownload...' : 'Download'}
+                {props.downloading() ? 'Downloading...' : 'Download'}
               </span>
             </button>
           </div>
@@ -48,7 +48,7 @@ export const MusicDownloadCard: Component<MusicDownloadCardProps> = (props) => {
             <div class="flex items-center gap-2.5 px-3.5 py-2.5 bg-theme-cyan/10 border border-theme-cyan/30">
               <Loader size={15} class="animate-spin text-theme-cyan shrink-0" />
               <span class="text-xs text-theme-cyan font-medium">
-                Mendownload audio dari YouTube, harap tunggu...
+                Downloading audio from YouTube, please wait...
               </span>
             </div>
           </Show>
@@ -69,8 +69,8 @@ export const MusicDownloadCard: Component<MusicDownloadCardProps> = (props) => {
               </Show>
               <span>
                 {props.downloadResult()!.success
-                  ? 'Download berhasil! Lagu ditambahkan ke library.'
-                  : props.downloadResult()!.error || 'Gagal mendownload.'}
+                  ? 'Download successful! Track added to library.'
+                  : props.downloadResult()!.error || 'Failed to download.'}
               </span>
             </div>
           </Show>

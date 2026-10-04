@@ -9,13 +9,13 @@ pub struct SkillItem {
 }
 
 pub fn get_skills_path() -> PathBuf {
-    // Gunakan kandidat standar (Lokal project assets/ -> beside exe -> Resources macOS -> AppData/Roaming)
+    // Use kandidat standar (Lokal project assets/ -> beside exe -> Resources macOS -> AppData/Roaming)
     let candidate = crate::assets::find_file_in_candidates("skill-command.md");
     if candidate.exists() {
         return candidate;
     }
 
-    // Default target jika belum ada
+    // Default target if none exists yet
     crate::config::get_app_config_dir()
         .join("assets")
         .join("skill-command.md")
@@ -64,7 +64,7 @@ pub fn parse_skills_markdown() -> Vec<SkillItem> {
 
 pub fn save_skills_markdown(skills: &[SkillItem]) -> std::io::Result<()> {
     let mut out = String::from(
-        "# ⚡ Skill Command Registry\n\n\
+        "#  Skill Command Registry\n\n\
 List of quick commands and system automations that can be triggered directly via voice, menu, or AI automation.\n\
 This file can be edited directly or managed via the Skill Commands UI.\n\n\
 | Skill Name | Description | Command / Script |\n\
@@ -84,7 +84,7 @@ This file can be edited directly or managed via the Skill Commands UI.\n\n\
     std::fs::write(path, out)
 }
 
-/// Helper utilitas untuk mengonfigurasi subprocess agar terisolasi dari AppImage runtime
+/// Utility helper to configure subprocess to be isolated from AppImage runtime
 #[allow(unused_variables)]
 pub fn configure_subprocess(cmd: &mut std::process::Command) {
     #[cfg(target_os = "linux")]
@@ -100,8 +100,8 @@ pub fn execute_command_by_os(cmd: &str) -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
     {
         let trimmed = cmd.trim();
-        // Jika perintah adalah executable langsung atau file (misal calc.exe, notepad.exe, explorer.exe)
-        // dan tidak mengandung shell pipe/redirect, jalankan langsung tanpa cmd /C
+        // If perintah is executable direct or file (for example calc.exe, notepad.exe, explorer.exe)
+        // and not mengandung shell pipe/redirect, run direct without cmd /C
         if !trimmed.contains('|')
             && !trimmed.contains('&')
             && !trimmed.contains('>')
@@ -126,7 +126,7 @@ pub fn execute_command_by_os(cmd: &str) -> std::io::Result<()> {
         }
 
         let mut command = std::process::Command::new("cmd");
-        // Menggunakan /S /C "<cmd>" agar parser cmd.exe tidak memotong tanda kutip ganda internal
+        // Using /S /C "<cmd>" so that parser cmd.exe not memotong tanda kutip ganda internal
         command.args(["/S", "/C", &format!("\"{trimmed}\"")]);
         configure_subprocess(&mut command);
         command.spawn()?;

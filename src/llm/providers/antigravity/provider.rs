@@ -49,7 +49,7 @@ impl AntigravityProvider {
 
         let _ = provider.load_accounts();
         crate::term_log!(
-            "✨ [Antigravity] Initialized provider with {} account(s) loaded.",
+            "[Antigravity] Initialized provider with {} account(s) loaded.",
             provider.accounts.len()
         );
         provider
@@ -387,7 +387,7 @@ impl AntigravityProvider {
                 if let Err(e) = refresh_account_token(&self.client, &mut self.accounts[acc_idx]) {
                     self.accounts[acc_idx].consecutive_errors += 1;
                     crate::term_err!(
-                        "⚠️ [Antigravity] Failed to refresh token for account {}: {}",
+                        "[Antigravity] Failed to refresh token for account {}: {}",
                         self.accounts[acc_idx].id,
                         e
                     );
@@ -432,7 +432,7 @@ impl AntigravityProvider {
                         self.accounts[acc_idx].rate_limited_until =
                             current_timestamp_secs() + cooldown;
                         crate::term_err!(
-                            "⚠️ [Antigravity] Account {} hit 429 quota limit. Rotating to next account...",
+                            "[Antigravity] Account {} hit 429 quota limit. Rotating to next account...",
                             self.accounts[acc_idx].id
                         );
                         let _ = self.save_accounts();
@@ -441,7 +441,7 @@ impl AntigravityProvider {
                         self.accounts[acc_idx].access_token = None;
                         self.accounts[acc_idx].expires_at = 0;
                         crate::term_err!(
-                            "⚠️ [Antigravity] Account {} auth error: {}. Retrying next...",
+                            "[Antigravity] Account {} auth error: {}. Retrying next...",
                             self.accounts[acc_idx].id,
                             err_str
                         );
@@ -677,7 +677,7 @@ impl AntigravityProvider {
                 if let Err(e) = refresh_account_token(&self.client, &mut self.accounts[acc_idx]) {
                     self.accounts[acc_idx].consecutive_errors += 1;
                     crate::term_err!(
-                        "⚠️ [Antigravity] Failed to refresh token for account {}: {}",
+                        "[Antigravity] Failed to refresh token for account {}: {}",
                         self.accounts[acc_idx].id,
                         e
                     );
@@ -720,7 +720,7 @@ impl AntigravityProvider {
                         self.accounts[acc_idx].rate_limited_until =
                             current_timestamp_secs() + cooldown;
                         crate::term_err!(
-                            "⚠️ [Antigravity] Account {} hit 429 quota limit. Rotating to next account...",
+                            "[Antigravity] Account {} hit 429 quota limit. Rotating to next account...",
                             self.accounts[acc_idx].id
                         );
                         let _ = self.save_accounts();
@@ -729,7 +729,7 @@ impl AntigravityProvider {
                         self.accounts[acc_idx].access_token = None;
                         self.accounts[acc_idx].expires_at = 0;
                         crate::term_err!(
-                            "⚠️ [Antigravity] Account {} auth error: {}. Retrying next...",
+                            "[Antigravity] Account {} auth error: {}. Retrying next...",
                             self.accounts[acc_idx].id,
                             err_str
                         );

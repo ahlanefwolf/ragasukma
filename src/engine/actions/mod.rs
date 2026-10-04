@@ -16,7 +16,7 @@ pub use todo_actions::execute_todo_action;
 
 use crate::engine::skills::{execute_command_by_os, parse_skills_markdown};
 
-/// Eksekusi skill berdasarkan format canonical `namespace:action|payload` atau `namespace:action`
+/// Executes skill based on canonical format `namespace:action|payload` or `namespace:action`
 pub fn execute_skill_by_identifier(identifier: &str) -> Option<(String, String)> {
     let raw = identifier.trim();
     if raw.is_empty() {
@@ -47,7 +47,7 @@ pub fn execute_skill_by_identifier(identifier: &str) -> Option<(String, String)>
             browser::execute_browser_action("open_ext_folder", "")
         }
         _ => {
-            // Cek Custom Skills di skill-command.md
+            // Check Custom Skills in skill-command.md
             let skills = parse_skills_markdown();
             for skill in skills {
                 if skill.name.eq_ignore_ascii_case(raw) {

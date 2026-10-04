@@ -19,7 +19,7 @@ export interface MobileLipWeights {
 
 /**
  * MobileAudioSyncManager
- * Mengelola audio unlock dan pemutaran musik streaming langsung di browser smartphone.
+ * Manage audio unlock and direct streaming music playback on smartphone browser.
  */
 export class MobileAudioSyncManager {
   private isUnlocked = false;
@@ -45,7 +45,7 @@ export class MobileAudioSyncManager {
 
       this.voiceAudio = new Audio();
       this.voiceAudio.preload = 'auto';
-      // Gunakan playsinline agar iOS / Android merutekan langsung ke Media Speaker murni
+      // Use playsinline so iOS / Android routes directly to pure Media Speaker
       this.voiceAudio.setAttribute('playsinline', 'true');
       (this.voiceAudio as any).playsInline = true;
 
@@ -96,7 +96,7 @@ export class MobileAudioSyncManager {
   }
 
   /**
-   * Unlock audio engine di mobile browser via gesture user (klik / touch)
+   * Unlock audio engine in mobile browser via user gesture (click / touch)
    */
   public async unlockAudio(): Promise<boolean> {
     if (this.isUnlocked) return true;
@@ -106,7 +106,7 @@ export class MobileAudioSyncManager {
         await this.audioCtx.resume();
       }
 
-      // Bunyikan oscillator hening 10ms untuk membebaskan autoplay lock Chrome Android
+      // Play silent 10ms oscillator to release Chrome Android autoplay lock
       if (this.audioCtx) {
         const osc = this.audioCtx.createOscillator();
         const gain = this.audioCtx.createGain();
@@ -117,7 +117,7 @@ export class MobileAudioSyncManager {
         osc.stop(this.audioCtx.currentTime + 0.01);
       }
 
-      // Priming HTMLAudioElement untuk browser mobile
+      // Priming HTMLAudioElement for mobile browser
       if (this.musicAudio) {
         this.musicAudio.load();
       }
@@ -127,10 +127,10 @@ export class MobileAudioSyncManager {
       this.initVoiceAnalyserOnce();
 
       this.isUnlocked = true;
-      console.log('[MobileAudio] Audio gesture lock berhasil dibuka');
+      console.log('[MobileAudio] Audio gesture lock successfully unlocked');
       return true;
     } catch (err) {
-      console.warn('[MobileAudio] Gagal unlock audio context:', err);
+      console.warn('[MobileAudio] Failed to unlock audio context:', err);
       return false;
     }
   }
@@ -142,7 +142,7 @@ export class MobileAudioSyncManager {
       const res = await api.listMusic();
       const list: YtTrackInfo[] = Array.isArray(res) ? res : res?.tracks || [];
       if (list.length === 0) {
-        console.warn('[MobileAudio] Library musik kosong di server');
+        console.warn('[MobileAudio] Music library empty on server');
         return;
       }
 
@@ -155,7 +155,7 @@ export class MobileAudioSyncManager {
         const qClean = clean(raw);
         const qWords = qClean.split(' ').filter(Boolean);
 
-        // 1. Cek Exact Match
+        // 1. Check Exact Match
         matched = list.find(
           (t) =>
             t.filename === raw ||
@@ -165,7 +165,7 @@ export class MobileAudioSyncManager {
             t.filename.toLowerCase() === raw.toLowerCase()
         );
 
-        // 2. Cek Substring
+        // 2. Check Substring
         if (!matched) {
           matched = list.find((t) => {
             const tClean = clean(`${t.title} ${t.filename}`);
@@ -173,7 +173,7 @@ export class MobileAudioSyncManager {
           });
         }
 
-        // 3. Cek Multi-word Token
+        // 3. Check Multi-word Token
         if (!matched && qWords.length > 0) {
           matched = list.find((t) => {
             const tClean = clean(`${t.title} ${t.filename}`);
@@ -193,12 +193,12 @@ export class MobileAudioSyncManager {
       const playPromise = this.musicAudio.play();
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
-          console.warn('[MobileAudio] Autoplay tertahan browser mobile (perlu sentuhan/tap):', err);
+          console.warn('[MobileAudio] Autoplay prevented by mobile browser (touch/tap required):', err);
         });
       }
       this.emitTrackState();
     } catch (err) {
-      console.error('[MobileAudio] Gagal memutar musik:', err);
+      console.error('[MobileAudio] Failed to play music:', err);
     }
   }
 
@@ -212,7 +212,7 @@ export class MobileAudioSyncManager {
   public resumeMusic() {
     if (this.musicAudio && this.currentTrack) {
       this.musicAudio.play().catch((err) => {
-        console.warn('[MobileAudio] Resume tertahan:', err);
+        console.warn('[MobileAudio] Resume prevented:', err);
       });
       this.emitTrackState();
     }
@@ -232,7 +232,7 @@ export class MobileAudioSyncManager {
   private preDuckVolume = 1.0;
 
   /**
-   * Turunkan volume musik sementara saat AI asisten berbicara (audio ducking)
+   * Temporarily lowers music volume while AI assistant speaks (audio ducking)
    */
   public duckMusic(duckLevel: number = 0.2) {
     if (this.musicAudio && !this.musicAudio.paused && !this.isDucked) {
@@ -243,7 +243,7 @@ export class MobileAudioSyncManager {
   }
 
   /**
-   * Pulihkan volume musik normal setelah AI asisten selesai berbicara
+   * Restores normal music volume after AI assistant finishes speaking
    */
   public unduckMusic() {
     if (this.musicAudio && this.isDucked) {
@@ -301,7 +301,7 @@ export class MobileAudioSyncManager {
       }
       if (!this.voiceGainNode) {
         this.voiceGainNode = this.audioCtx.createGain();
-        // Backend WAV sudah ternormalisasi ke 0.92 peak, beri gain netral/optimal (1.05) agar jernih dan lantang tanpa distorsi
+        // Backend WAV normalized to 0.92 peak, optimal gain (1.05) applied for clarity without distortion
         this.voiceGainNode.gain.value = 1.05;
       }
       const source = this.audioCtx.createMediaElementSource(this.voiceAudio);
@@ -329,7 +329,7 @@ export class MobileAudioSyncManager {
       this.audioCtx.resume().catch(() => {});
     }
 
-    // Bersihkan listener sebelumnya
+    // Clean up previous listeners
     this.voiceAudio.onplaying = null;
     this.voiceAudio.onended = null;
     this.voiceAudio.onerror = null;
@@ -378,11 +378,11 @@ export class MobileAudioSyncManager {
   }
 
   public attachVoiceAudio(audio: HTMLAudioElement) {
-    // Reusable voiceAudio sudah otomatis terpasang
+    // Reusable voiceAudio already attached
   }
 
   public detachVoiceAudio() {
-    // Reusable voiceAudio tetap hidup, cukup hentikan pemutaran
+    // Reusable voiceAudio remains alive; simply stopping playback is sufficient
     this.stopVoice();
   }
 
@@ -397,7 +397,7 @@ export class MobileAudioSyncManager {
     }
 
     if (!this.voiceAnalyser || !this.voiceFreqData || !this.voiceTimeData) {
-      // Fallback sinusoidal ringan jika Analyser belum siap
+      // Lightweight sinusoidal fallback if Analyser not ready
       const cur = this.voiceAudio.currentTime;
       const open = Math.pow(Math.abs(Math.sin(cur * 16.0)), 1.3) * 0.55;
       return { aa: open, ih: 0, ou: 0, ee: 0, oh: 0, mouthOpen: open };
@@ -406,7 +406,7 @@ export class MobileAudioSyncManager {
     this.voiceAnalyser.getByteTimeDomainData(this.voiceTimeData as any);
     this.voiceAnalyser.getByteFrequencyData(this.voiceFreqData as any);
 
-    // 1. RMS Energy dari waveform time-domain (128 adalah titik nol baseline)
+    // 1. RMS Energy from time-domain waveform (128 is zero baseline)
     let sumSq = 0;
     const len = this.voiceTimeData.length;
     for (let i = 0; i < len; i++) {
@@ -415,15 +415,15 @@ export class MobileAudioSyncManager {
     }
     const rms = Math.sqrt(sumSq / len);
 
-    // Noise floor: jika di bawah 0.015, anggap senyap / jeda napas antar kata
+    // Noise floor: if below 0.015, treat as silent / breath pause between words
     if (rms < 0.015) {
       return zero;
     }
 
     const mouthOpen = Math.min(0.65, Math.pow(Math.max(0, (rms - 0.015) * 6.5), 0.85) * 0.65);
 
-    // 2. Formant Energy Bands dari FFT Frequency Data:
-    // (sampleRate ~44100-48000 Hz, fftSize 512 => 256 bins, lebar bin ~86-94 Hz)
+    // 2. Formant Energy Bands from FFT Frequency Data:
+    // (sampleRate ~44100-48000 Hz, fftSize 512 => 256 bins, width bin ~86-94 Hz)
     // Low band (~200 - 650 Hz): bins 2..7 (vokal U & O)
     // Mid band (~700 - 1500 Hz): bins 8..17 (vokal A)
     // Mid-High band (~1500 - 2400 Hz): bins 18..27 (vokal E)
@@ -443,7 +443,7 @@ export class MobileAudioSyncManager {
     const rMidHigh = eMidHigh / eTotal;
     const rHigh = eHigh / eTotal;
 
-    // Bobot viseme vokal AIUEO (proporsional anime, anti-mangap berlebihan)
+    // AIUEO vocal viseme weights (anime-proportioned, anti-overextended mouth)
     const aa = Math.min(1.0, rMid * 1.3) * mouthOpen;
     const ih = Math.min(1.0, rHigh * 1.6) * mouthOpen * 0.75;
     const ou = Math.min(1.0, Math.max(0, rLow - rMid * 0.3) * 1.5) * mouthOpen * 0.70;

@@ -48,13 +48,13 @@ export const assetsService = {
         body: buffer,
       });
       if (res.ok) {
-        cachedAssetInfo = null; // Invalidate cache agar data ter-refresh
+        cachedAssetInfo = null; // Invalidate cache so data refreshes
         const data = await res.json().catch(() => ({}));
         return { ok: true, message: data.message };
       }
-      return { ok: false, message: 'Gagal mengunggah file VRM' };
+      return { ok: false, message: 'Failed to upload VRM file' };
     } catch (e: any) {
-      return { ok: false, message: e?.message || 'Koneksi error' };
+      return { ok: false, message: e?.message || 'Connection error' };
     }
   },
 

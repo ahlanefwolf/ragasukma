@@ -15,7 +15,7 @@ export const AntigravityStats: Component<AntigravityStatsProps> = (props) => {
           <Layers size={20} />
         </div>
         <div>
-          <div class="text-xs text-theme-text/60 font-semibold">Total Akun Terhubung</div>
+          <div class="text-xs text-theme-text/60 font-semibold">Connected Accounts</div>
           <div class="text-lg font-bold font-mono text-theme-text">{props.totalAccounts}</div>
         </div>
       </div>
@@ -25,7 +25,7 @@ export const AntigravityStats: Component<AntigravityStatsProps> = (props) => {
           <CheckCircle2 size={20} />
         </div>
         <div>
-          <div class="text-xs text-theme-text/60 font-semibold">Akun Siap Pakai</div>
+          <div class="text-xs text-theme-text/60 font-semibold">Active Ready Accounts</div>
           <div class="text-lg font-bold font-mono text-theme-cyan">{props.activeCount}</div>
         </div>
       </div>

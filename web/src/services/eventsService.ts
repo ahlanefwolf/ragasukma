@@ -2,7 +2,7 @@ import { API_BASE } from './base';
 
 // ---------------------------------------------------------------------------
 // 1. APP STATE SSE STREAM (/api/events/state)
-// Menggunakan event 'state' untuk visual AI dan event 'action' untuk trigger skill
+// Using event 'state' for visual AI and event 'action' for trigger skill
 // ---------------------------------------------------------------------------
 export interface CoreStatePayload {
   state: string;
@@ -43,7 +43,7 @@ function startStateSSE() {
       connectionListeners.forEach((cb) => cb(true));
     };
 
-    // Event: 'state' -> Murni status visual AI dan token
+    // Event: 'state' -> Murni status visual AI and token
     stateEventSource.addEventListener('state', (event: MessageEvent) => {
       try {
         const data: CoreStatePayload = JSON.parse(event.data);
@@ -55,7 +55,7 @@ function startStateSSE() {
       }
     });
 
-    // Event: 'action' -> Murni aksi perintah yang dipicu AI (contoh: music:play)
+    // Event: 'action' -> Murni aksi perintah which dipicu AI (example: music:play)
     stateEventSource.addEventListener('action', (event: MessageEvent) => {
       try {
         const act: ClientAction = JSON.parse(event.data);
@@ -65,7 +65,7 @@ function startStateSSE() {
       }
     });
 
-    // Event: 'log' -> Aliran log aktivitas konsol real-time (Zero Polling)
+    // Event: 'log' -> Real-time console activity log stream (Zero Polling)
     stateEventSource.addEventListener('log', (event: MessageEvent) => {
       try {
         const logEntry = JSON.parse(event.data);
@@ -132,7 +132,7 @@ function forceCloseSSE() {
 
 
 export const eventsService = {
-  // Single Client Session Claim (1x saat tab dibuka)
+  // Single Client Session Claim (1x when tab opened)
   async claimSession(token: string, activeTab?: string): Promise<boolean> {
     try {
       const res = await fetch(`${API_BASE}/api/session/claim`, {
@@ -180,7 +180,7 @@ export const eventsService = {
     };
   },
 
-  // 2. Subscribe Action Events (Perintah aksi AI murni, seperti musik, notifikasi)
+  // 2. Subscribe Action Events (Perintah aksi AI murni, like music, notifikasi)
   subscribeActions(onAction: (act: ClientAction) => void): () => void {
     actionListeners.add(onAction);
     startStateSSE();

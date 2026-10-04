@@ -60,7 +60,7 @@ pub fn handle_menu_cmd(
             }
         } else if payload.cmd == "mode_remote_desktop" {
             if let Ok(mut lock) = shared.lock() {
-                // Mode Remote PC: TTS di PC (voice_muted = false), Mic di HP (mic PC dimute: mic_muted = true), Musik di PC
+                // Mode Remote PC: TTS in PC (voice_muted = false), Mic in HP (mic PC dimute: mic_muted = true), Music in PC
                 let changed = lock.voice_muted || !lock.mic_muted;
                 lock.voice_muted = false;
                 lock.mic_muted = true;
@@ -70,7 +70,7 @@ pub fn handle_menu_cmd(
             }
         } else if payload.cmd == "mode_full_mobile" {
             if let Ok(mut lock) = shared.lock() {
-                // Mode Full HP: TTS di HP, Mic di HP, Musik di HP (seluruh audio PC dimute)
+                // Mode Full HP: TTS in HP, Mic in HP, Music in HP (all audio PC dimute)
                 let changed = !lock.voice_muted || !lock.mic_muted;
                 lock.voice_muted = true;
                 lock.mic_muted = true;
@@ -80,7 +80,7 @@ pub fn handle_menu_cmd(
             }
         } else if payload.cmd == "mode_reset_desktop" || payload.cmd == "reset_desktop_mode" || payload.cmd == "mode_desktop" {
             if let Ok(mut lock) = shared.lock() {
-                // Mode Full PC: TTS di PC, Mic di PC, Musik di PC (semua aktif normal di PC)
+                // Mode Full PC: TTS in PC, Mic in PC, Music in PC (all active normal in PC)
                 let changed = lock.voice_muted || lock.mic_muted;
                 lock.voice_muted = false;
                 lock.mic_muted = false;

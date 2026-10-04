@@ -26,7 +26,7 @@ pub fn inject_remote_text(text: String) -> bool {
         }
     }
 
-    // Jika chat loop belum berjalan, simpan di antrean pending dan picu start_chat secara otomatis
+    // If chat loop is not running yet, save to pending queue and trigger start_chat automatically
     if let Ok(mut pending) = PENDING_TEXT_QUEUE.lock() {
         if pending.len() < 10 {
             pending.push_back(text);

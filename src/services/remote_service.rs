@@ -123,14 +123,14 @@ pub fn handle_remote_text(full_url: &str, body_str: &str, stream: &mut TcpStream
 
         let injected = crate::engine::remote_text::inject_remote_text(clean.to_string());
         if injected {
-            crate::term_log!("📱 [Mobile Remote] Received text from phone: \"{}\"", clean);
+            crate::term_log!("[Mobile Remote] Received text from phone: \"{}\"", clean);
             send_json_response(
                 stream,
                 200,
                 "{\"success\":true,\"message\":\"Text sent to LLM\"}",
             );
         } else {
-            crate::term_log!("⚠️ [Mobile Web STT] Chat loop is not active!");
+            crate::term_log!("[Mobile Web STT] Chat loop is not active!");
             send_json_response(
                 stream,
                 503,
@@ -160,10 +160,10 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
             return;
         }
 
-        // 1. Anti-Echolalia Protection: Tolak transkrip jika merupakan pantulan suara speaker asisten sendiri
+        // 1. Anti-Echolalia Protection: Reject transcript if it matches the assistant speaker echo
         if crate::app_state::is_echo_of_last_spoken(clean) {
             crate::term_log!(
-                "🤫 [Anti-Echolalia] Echo transcript from assistant speaker ignored: \"{}\"",
+                "[Anti-Echolalia] Echo transcript from assistant speaker ignored: \"{}\"",
                 clean
             );
             send_json_response(
@@ -178,11 +178,11 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
         let ai_speaking = crate::app_state::is_ai_speaking()
             || crate::audio::player::is_native_voice_playing();
 
-        // Jika AI sedang berbicara dan interupsi suara dinonaktifkan oleh pengguna,
-        // tolak mentah-mentah transkrip agar tidak terjadi tumpang-tindih ucapan.
+        // If AI is currently speaking and voice interruption is disabled by user,
+        // reject transcript outright to prevent overlapping speech.
         if ai_speaking && !cfg.voice_interruption {
             crate::term_log!(
-                "🤫 [Chrome Web STT] Transcript ignored because assistant is speaking (interruption disabled): \"{}\"",
+                "[Chrome Web STT] Transcript ignored because assistant is speaking (interruption disabled): \"{}\"",
                 clean
             );
             send_json_response(
@@ -197,12 +197,12 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
         if injected {
             if ai_speaking && cfg.voice_interruption {
                 crate::term_log!(
-                    "⚡ [Chrome Web STT] Voice interruption cuts assistant speech: \"{}\"",
+                    "[Chrome Web STT] Voice interruption cuts assistant speech: \"{}\"",
                     clean
                 );
                 crate::app_state::trigger_interruption();
             } else {
-                crate::term_log!("🎙️ [Chrome Web STT] Transcript received: \"{}\"", clean);
+                crate::term_log!("[Chrome Web STT] Transcript received: \"{}\"", clean);
             }
             let asst_name = cfg.assistant_name;
             crate::tray::TrayState::update(
@@ -215,7 +215,7 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
                 "{\"success\":true,\"message\":\"Transcript injected to LLM\"}",
             );
         } else {
-            crate::term_log!("⚠️ [Chrome Web STT] Chat loop is not active!");
+            crate::term_log!("[Chrome Web STT] Chat loop is not active!");
             send_json_response(
                 stream,
                 503,
@@ -274,7 +274,7 @@ pub fn handle_tts_state(
                 lock.state_version = lock.state_version.wrapping_add(1);
             }
         } else if target_state == "listening" {
-            // Guard: Jangan izinkan masuk mode listening jika voice assistant belum dinyalakan (standby)
+            // Guard: Do not allow entering listening mode if voice assistant is not yet enabled (standby)
             if !crate::app_state::is_session_running() {
                 send_json_response(stream, 200, "{\"success\":true,\"ignored\":true}");
                 return;

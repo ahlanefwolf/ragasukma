@@ -27,12 +27,12 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
   const copyZip = () => {
     navigator.clipboard.writeText(zipPath());
     setCopiedType('zip');
-    props.showToast('📁 Path file ragasukma-companion.zip disalin!');
+    props.showToast('ragasukma-companion.zip path copied!');
     setTimeout(() => setCopiedType(null), 2500);
   };
 
   const openFileManager = async () => {
-    props.showToast('Membuka folder assets di File Manager...');
+    props.showToast('Opening assets folder in File Manager...');
     try {
       const ok = await api.runSkill('internal:open_extension_installer');
       if (!ok) {
@@ -59,20 +59,20 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
               </div>
               <div>
                 <h3 class="text-base sm:text-lg font-bold text-theme-text flex items-center gap-2 m-0 leading-tight">
-                  Pasang Ekstensi Browser (.ZIP)
+                  Install Browser Extension (.ZIP)
                   <span class="text-[10px] font-mono font-bold px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan">
                     Cross-Platform
                   </span>
                 </h3>
                 <p class="text-xs text-theme-text/70 mt-0.5">
-                  Ekstensi paket Chromium untuk kontrol penuh tab, YouTube & musik (Windows & Linux)
+                  Chromium extension package for tab control, YouTube, and media playback
                 </p>
               </div>
             </div>
             <button
               onClick={props.onClose}
               class="p-2 text-theme-text/60 hover:text-theme-text hover:bg-theme-card border border-transparent hover:border-theme-border transition-colors cursor-pointer"
-              title="Tutup Modal"
+              title="Close Modal"
             >
               <X size={18} />
             </button>
@@ -85,7 +85,7 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
               <div class="space-y-1">
                 <div class="font-bold text-theme-text flex items-center gap-2">
                   <Puzzle size={16} class="text-theme-cyan" />
-                  <span class="text-xs uppercase tracking-wider font-mono">File Paket Ekstensi (.ZIP):</span>
+                  <span class="text-xs uppercase tracking-wider font-mono">Extension Package (.ZIP):</span>
                 </div>
                 <code class="text-[11px] font-mono text-theme-cyan block select-all bg-theme-bg px-2.5 py-1.5 border border-theme-border font-medium">
                   {zipPath()}
@@ -97,22 +97,22 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
                   type="button"
                   onClick={copyZip}
                   class="px-3.5 py-2 bg-theme-bg hover:bg-theme-surface border border-theme-border text-theme-text font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
-                  title="Salin path file .zip"
+                  title="Copy .zip file path"
                 >
                   <Show when={copiedType() === 'zip'} fallback={<Check size={14} class="opacity-40" />}>
                     <Check size={14} class="text-theme-cyan" />
                   </Show>
-                  <span>{copiedType() === 'zip' ? 'Disalin!' : 'Salin Path ZIP'}</span>
+                  <span>{copiedType() === 'zip' ? 'Copied!' : 'Copy ZIP Path'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={openFileManager}
                   class="px-3.5 py-2 bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card border border-theme-cyan font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer active:scale-95"
-                  title="Buka folder di File Manager OS"
+                  title="Open folder in OS File Manager"
                 >
                   <ExternalLink size={14} />
-                  <span>Buka Folder</span>
+                  <span>Open Folder</span>
                 </button>
               </div>
             </div>
@@ -122,9 +122,9 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
               <div class="space-y-3.5">
                 <div class="pb-2 border-b border-theme-border/70 flex items-center justify-between">
                   <span class="px-2.5 py-1 text-xs font-bold uppercase bg-theme-cyan/20 text-[#29483A] border border-theme-cyan/40 tracking-wide font-mono">
-                    Cara Pasang di Chrome / Brave / Edge
+                    Installation for Chrome / Brave / Edge
                   </span>
-                  <span class="text-[11px] font-mono text-theme-cyan font-semibold">1-Step Drag & Drop</span>
+                  <span class="text-[11px] font-mono text-theme-cyan font-semibold">1-Step Unpack</span>
                 </div>
 
                 <div class="space-y-2.5 text-theme-text/85 leading-relaxed text-xs sm:text-sm">
@@ -132,14 +132,14 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
                     <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-[#29483A] font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
                       1
                     </span>
-                    <span>Ekstrak file <code class="px-1.5 py-0.5 bg-theme-card border border-theme-border font-mono text-xs font-bold text-theme-cyan">ragasukma-companion.zip</code> ke folder pilihan kamu (misal folder <code>extension</code>).</span>
+                    <span>Extract <code class="px-1.5 py-0.5 bg-theme-card border border-theme-border font-mono text-xs font-bold text-theme-cyan">ragasukma-companion.zip</code> to a folder of your choice (e.g. the <code>extension</code> folder).</span>
                   </div>
 
                   <div class="flex items-start gap-2.5">
                     <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-[#29483A] font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
                       2
                     </span>
-                    <span>Buka tab baru dan ketik alamat <code class="px-1.5 py-0.5 bg-theme-card border border-theme-border font-mono text-xs font-bold text-theme-cyan">chrome://extensions</code> di browser Chromium, lalu aktifkan toggle <strong>Developer mode</strong> di pojok kanan atas.</span>
+                    <span>Open a new tab and navigate to <code class="px-1.5 py-0.5 bg-theme-card border border-theme-border font-mono text-xs font-bold text-theme-cyan">chrome://extensions</code> in Chromium, then toggle on <strong>Developer mode</strong> in the top-right corner.</span>
                   </div>
 
                   <div class="flex items-start gap-2.5">
@@ -147,7 +147,7 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
                       3
                     </span>
                     <div>
-                      <span>Klik tombol <strong>Load unpacked</strong> (Muat belum dibongkar) lalu pilih folder hasil ekstrak tadi. Ekstensi langsung aktif dan siap digunakan!</span>
+                      <span>Click <strong>Load unpacked</strong> and select the extracted folder. The extension will activate immediately!</span>
                     </div>
                   </div>
                 </div>
@@ -159,12 +159,12 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
                   onClick={() => {
                     navigator.clipboard.writeText("chrome://extensions");
                     window.open("chrome://extensions", "_blank");
-                    props.showToast("🌐 URL chrome://extensions disalin! Jika tidak terbuka otomatis, tempel di tab baru.");
+                    props.showToast("chrome://extensions URL copied! If it did not open automatically, paste it in a new tab.");
                   }}
                   class="w-full py-2.5 px-3 bg-theme-cyan/15 hover:bg-theme-cyan text-[#29483A] hover:text-theme-card border border-theme-cyan/30 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
                 >
                   <Globe size={14} />
-                  <span>Buka Halaman chrome://extensions</span>
+                  <span>Open chrome://extensions Page</span>
                 </button>
               </div>
             </div>
@@ -172,13 +172,13 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
 
           {/* Modal Footer */}
           <div class="p-3.5 sm:p-4 bg-theme-bg border-t border-theme-border flex items-center justify-between text-xs text-theme-text/70 shrink-0">
-            <span>Ekstensi aman & hanya membaca tab aktif saat diberi perintah.</span>
+            <span>The extension runs locally and interacts with tabs only upon direct voice commands.</span>
             <button
               type="button"
               onClick={props.onClose}
               class="px-4 py-1.5 bg-theme-card hover:bg-theme-surface border border-theme-border text-theme-text font-semibold transition-all cursor-pointer"
             >
-              Tutup
+              Close
             </button>
           </div>
         </div>

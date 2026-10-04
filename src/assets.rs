@@ -131,13 +131,13 @@ pub fn save_poses(poses: &PosesConfig) -> Result<(), String> {
     Ok(())
 }
 
-/// Memastikan seluruh file aset default (char.vrm, poses.json, avatar PNG, skill-command.md, config-ai.json, todo.md, dll)
-/// otomatis diekstrak ke direktori config pengguna (~/.config/ragasukma/assets) saat pertama kali diinstal/dijalankan.
+/// Ensures all default asset files (char.vrm, poses.json, avatar PNG, skill-command.md, config-ai.json, todo.md, etc.)
+/// automatically extracted to the user config directory (~/.config/ragasukma/assets) when first installed/run.
 pub fn ensure_default_user_assets() {
     let cfg_assets_dir = crate::config::get_app_config_dir().join("assets");
     let _ = fs::create_dir_all(&cfg_assets_dir);
 
-    // Ekstrak semua file aset yang ter-embed dalam binary secara dinamis
+    // Dynamically extract all asset files embedded in the binary
     for file_path in EmbeddedAssets::iter() {
         let file_name = file_path.as_ref();
         let target_path = cfg_assets_dir.join(file_name);
@@ -149,12 +149,12 @@ pub fn ensure_default_user_assets() {
             if let Some(embedded_file) = EmbeddedAssets::get(file_name) {
                 if let Err(e) = fs::write(&target_path, embedded_file.data) {
                     eprintln!(
-                        "⚠️ Failed to extract default asset '{}': {:?}",
+                        " Failed to extract default asset '{}': {:?}",
                         file_name, e
                     );
                 } else {
                     println!(
-                        "📦 [Assets] Successfully extracted default asset: {:?}",
+                        "[Assets] Successfully extracted default asset: {:?}",
                         target_path
                     );
                 }
@@ -202,7 +202,7 @@ StartupWMClass=ragasukma\n",
                 let _ = fs::set_permissions(&desktop_file, perms);
             }
             println!(
-                "🚀 [Desktop Integration] Application shortcut created at ~/.local/share/applications/ragasukma.desktop"
+                "[Desktop Integration] Application shortcut created at ~/.local/share/applications/ragasukma.desktop"
             );
         }
     }
@@ -251,7 +251,7 @@ pub fn open_browser(url: &str) {
 
             let mut opened = false;
 
-            // Jika URL adalah internal chrome://, buka langsung di binary Chrome/Brave sebagai tab baru
+            // If the URL is internal chrome://, open it directly in the Chrome/Brave binary as a new tab
             for bin in chromium_candidates {
                 let mut cmd = std::process::Command::new(bin);
                 cmd.arg(&url);
@@ -259,7 +259,7 @@ pub fn open_browser(url: &str) {
                 cmd.env_remove("LD_PRELOAD");
 
                 if cmd.spawn().is_ok() {
-                    println!("🌐 [Browser Tab] Opening new tab via {}", bin);
+                    println!("[Browser Tab] Opening new tab via {}", bin);
                     opened = true;
                     break;
                 }

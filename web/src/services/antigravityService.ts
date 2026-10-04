@@ -133,7 +133,7 @@ export const antigravityService = {
         account_id: id,
         models: [],
         weekly: [],
-        error: err?.message || 'Gagal memuat kuota',
+        error: err?.message || 'Failed to load quota',
       };
     }
   },

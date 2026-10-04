@@ -57,7 +57,7 @@ impl App {
             (1920.0, 1080.0)
         };
 
-        // Load icon window dari icons/icon.png
+        // Load icon window from icons/icon.png
         let window_icon = {
             let icon_bytes = include_bytes!("../../icons/icon.png");
             if let Ok(img) = image::load_from_memory(icon_bytes) {
@@ -69,7 +69,7 @@ impl App {
             }
         };
 
-        // Window ukuran kompak portrait (270x480) di pojok kanan bawah desktop
+        // Compact portrait window size (270x480) in bottom-right corner of desktop
         let win_w = 270.0;
         let win_h = 480.0;
         let pos_x = (screen_w - win_w - 40.0).max(0.0);
@@ -97,7 +97,7 @@ impl App {
         renderer.anchor_center_x = (win_w * 0.5) as f32;
         renderer.anchor_center_y = (win_h * 0.5) as f32;
 
-        // Lazy load asinkron via background thread: jika avatar_type adalah VRM
+        // Asynchronously lazy load via background thread if avatar_type is VRM
         let is_vrm = initial_cfg.avatar_type.eq_ignore_ascii_case("vrm");
         let vrm_loader_rx = if is_vrm {
             renderer.is_loading = true;
@@ -112,7 +112,7 @@ impl App {
                 for p in &candidates {
                     if p.exists() {
                         println!(
-                            "📂 [Async Asset Loader] Loading avatar model in background: {:?}",
+                            "[Async Asset Loader] Loading avatar model in background: {:?}",
                             p
                         );
                         if let Ok(model) = VrmModelData::load_from_file(p) {
@@ -195,10 +195,10 @@ impl App {
                 self.is_right_mouse_down = false;
             }
             WindowEvent::CloseRequested => {
-                println!("🛑 Closing Ragasukma (Window Close)...");
+                println!(" Closing Ragasukma (Window Close)...");
                 crate::app_state::trigger_app_shutdown();
                 crate::tray::TrayState::push_command("quit".to_string());
-                // Jeda 200ms agar browser menerima SSE event shutdown dan membersihkan seluruh resource/player
+                // Pause 200ms to allow browser to receive shutdown SSE event and clean up resources/player
                 std::thread::sleep(std::time::Duration::from_millis(200));
                 elwt.exit();
                 std::process::exit(0);
@@ -233,7 +233,7 @@ impl App {
                     let border_margin = 10.0;
 
                     if let Some((cur_x, cur_y)) = self.last_cursor_pos {
-                        // 1. Cek Resize Border di seluruh 4 Sisi & 4 Sudut Window
+                        // 1. Check Resize Border on all 4 sides & 4 window corners
                         let on_left = cur_x <= border_margin;
                         let on_right = cur_x >= (w - border_margin);
                         let on_top = cur_y <= border_margin;
@@ -261,42 +261,42 @@ impl App {
 
                         if let Some(dir) = resize_dir {
                             self.active_resize_dir = Some(dir);
-                            // Tarik border / sudut window: Resize jendela secara native OS
+                            // Drag window borders/corners: Resize window natively via OS
                             let _ = self.window.drag_resize_window(dir);
                             return;
                         }
 
-                        // 2. Cek Klik pada Header Bar di bagian atas (y <= 28.0)
+                        // 2. Check click on top Header Bar (y <= 28.0)
                         if cur_y <= 28.0 {
-                            // Tombol Close (✕)
+                            // Close button ()
                             if cur_x >= (w - 28.0) && cur_x <= (w - 4.0) {
-                                println!("🛑 Closing Ragasukma (Header Close)...");
+                                println!(" Closing Ragasukma (Header Close)...");
                                 crate::app_state::trigger_app_shutdown();
                                 crate::tray::TrayState::push_command("quit".to_string());
-                                // Jeda 200ms agar browser menerima SSE event shutdown dan membersihkan seluruh resource/player
+                                // Pause 200ms to allow browser to receive shutdown SSE event and clean up resources/player
                                 std::thread::sleep(std::time::Duration::from_millis(200));
                                 elwt.exit();
                                 std::process::exit(0);
                             }
-                            // Tombol Maximize / Fullscreen (⛶)
+                            // Maximize / Fullscreen button ()
                             if cur_x >= (w - 56.0) && cur_x <= (w - 32.0) {
                                 let is_max = self.window.is_maximized();
                                 self.window.set_maximized(!is_max);
                                 return;
                             }
-                            // Tombol Minimize (—)
+                            // Minimize button (—)
                             if cur_x >= (w - 84.0) && cur_x <= (w - 60.0) {
                                 self.window.set_minimized(true);
                                 return;
                             }
 
-                            // Klik di header bar lainnya -> Drag window
+                            // Click on other header bar areas -> Drag window
                             let _ = self.window.drag_window();
                             return;
                         }
                     }
 
-                    // Klik Kiri Drag pada body avatar: Pindahkan posisi jendela avatar secara native OS
+                    // Left-click and drag on avatar body: Move avatar window position natively via OS
                     let _ = self.window.drag_window();
                 } else if button == MouseButton::Left && state == ElementState::Released {
                     self.is_left_mouse_down = false;
@@ -311,7 +311,7 @@ impl App {
                         self.is_right_mouse_down = false;
                     }
                 } else if button == MouseButton::Middle && state == ElementState::Pressed {
-                    // Klik Tengah: Reset rotasi & zoom kamera avatar
+                    // Middle-Click: Reset avatar camera rotation & zoom
                     self.renderer.reset_camera();
                 }
             }
@@ -323,7 +323,7 @@ impl App {
                 let h = win_size.height as f64;
                 let border_margin = 10.0;
 
-                // Update Icon Kursor sesuai posisi tepi border
+                // Update Icon Kursor sesuai position tepi border
                 let on_left = position.x <= border_margin;
                 let on_right = position.x >= (w - border_margin);
                 let on_top = position.y <= border_margin;
@@ -358,10 +358,10 @@ impl App {
                         let delta_y = (position.y - prev_y) as f32;
 
                         if self.is_ctrl_down {
-                            // Ctrl + Klik Kanan Drag: Pan / Geser Posisi Karakter 3D
+                            // Ctrl + Right-Click Drag: Pan / Shift 3D Character Position
                             self.renderer.pan_camera(delta_x, delta_y);
                         } else {
-                            // Klik Kanan Drag: Orbit rotasi kamera 3D
+                            // Right-Click Drag: Orbit rotation 3D camera
                             let sensitivity = 0.008;
                             let delta_yaw = -delta_x * sensitivity;
                             let delta_pitch = delta_y * sensitivity;
@@ -377,7 +377,7 @@ impl App {
                     MouseScrollDelta::PixelDelta(pos) => (pos.y as f32) / 40.0,
                 };
 
-                // Scroll Mouse: POV Kamera Zoom In / Out halus
+                // Scroll Mouse: POV Camera Zoom In / Out smooth
                 self.renderer.zoom_camera(scroll_y);
             }
             WindowEvent::RedrawRequested => {
@@ -389,25 +389,25 @@ impl App {
                 let mut is_previewing = false;
                 let mut live_tuner_emotion = String::new();
 
-                // Cek background loader channel untuk loading awal asinkron
+                // Check background loader channel for asynchronous loading status
                 if let Some(rx) = &self.vrm_loader_rx {
                     if let Ok(model) = rx.try_recv() {
                         self.renderer.load_vrm_model(model);
                         self.renderer.is_loading = false;
                         self.vrm_loader_rx = None;
-                        // Buka dashboard mandiri hanya sekali setelah avatar/model 3D pertama kali selesai dimuat ke GPU!
+                        // Open standalone dashboard only once after the 3D avatar/model is first loaded to GPU!
                         if !self.has_opened_browser {
                             self.has_opened_browser = true;
                             assets::open_browser("http://127.0.0.1:42128");
                         }
                     }
                 } else if !self.has_opened_browser {
-                    // Jika mode 2D (tanpa perlu tunggu VRM loader), langsung buka dashboard sekali saat awal start
+                    // If mode 2D (without perlu tunggu VRM loader), direct open dashboard sekali when start start
                     self.has_opened_browser = true;
                     assets::open_browser("http://127.0.0.1:42128");
                 }
 
-                // Sync state & live poses reload dari Web HTTP Dashboard
+                // Sync state & live poses reload from Web HTTP Dashboard
                 if let Ok(mut lock) = self.shared_server_state.lock() {
                     let state_changed = self.pose_manager.current_state != lock.current_state;
                     self.pose_manager.current_state = lock.current_state;
@@ -416,20 +416,20 @@ impl App {
                     live_tuner_emotion = lock.current_emotion.clone();
 
                     if is_tuning {
-                        // Di mode edit Tuner: snap seketika tanpa jeda/slowmotion slerp
+                        // In mode edit Tuner: snap seketika without pause/slowmotion slerp
                         if state_changed {
                             self.pose_manager.last_state = self.pose_manager.current_state;
                             self.pose_manager.state_transition_t = 1.0;
                             self.pose_manager.state_elapsed_time = 0.0;
                         }
-                        // Freeze animasi siklus, aplikasikan langsung live bone rotation dari tuner
+                        // Freeze cyclic animation and directly apply live bone rotation from tuner
                         self.pose_manager.apply_tuning_pose(&lock.live_tuning_bones);
                     } else {
                         if let Some(preview) = &lock.preview_poses {
-                            // Gunakan preview poses in-memory tanpa overwrite poses.json di disk
+                            // Use preview poses in-memory without overwrite poses.json in disk
                             self.pose_manager.config = preview.clone();
                         } else if lock.poses_updated {
-                            // Reload 100% dari file poses.json resmi di disk (Source of Truth)
+                            // Reload 100% from file poses.json resmi in disk (Source of Truth)
                             let path = assets::find_file_in_candidates("poses.json");
                             self.pose_manager.load_from_file(&path);
                             lock.poses_updated = false;
@@ -449,7 +449,7 @@ impl App {
                                 for p in &vrm_candidates {
                                     if p.exists() {
                                         println!(
-                                            "📂 [Async Asset Loader] Reloading avatar model in background: {:?}",
+                                            "[Async Asset Loader] Reloading avatar model in background: {:?}",
                                             p
                                         );
                                         if let Ok(model) = VrmModelData::load_from_file(p) {
@@ -507,7 +507,7 @@ impl App {
                                             for p in &vrm_candidates {
                                                 if p.exists() {
                                                     println!(
-                                                        "📂 [Async Asset Loader] Loading avatar model in background: {:?}",
+                                                        "[Async Asset Loader] Loading avatar model in background: {:?}",
                                                         p
                                                     );
                                                     if let Ok(model) =
@@ -539,7 +539,7 @@ impl App {
                     == crate::ui::pose_system::AssistantVisualState::Listening
                 {
                     self.listening_duration += delta;
-                    // Watchdog: jika berada di state listening > 4.5s atau sesi asisten tidak aktif, paksa kembali ke Idle
+                    // Watchdog: if berada in state listening > 4.5s or session assistant not active, paksa return to Idle
                     if self.listening_duration > 4.5 || !crate::app_state::is_session_running() {
                         self.listening_duration = 0.0;
                         self.pose_manager.current_state =
@@ -562,10 +562,10 @@ impl App {
                 self.renderer.current_visual_state = self.pose_manager.current_state;
                 self.renderer.elapsed_time += delta;
 
-                // Hirarki Emosi (diupdate SEBELUM update_camera_and_bones agar diaplikasikan pada frame ini):
-                // 1. Jika sedang di Pose Tuner (Tuning edit mode atau Preview loop), gunakan emosi realtime yang dipilih user di UI
-                // 2. Jika sedang Thinking, tampilkan ekspresi thinking
-                // 3. Saat Speaking, Idle, atau Listening, pertahankan emosi terakhir (misal tetap tersipu/senang/cemberut saat idle)!
+                // Emotion Hierarchy (updated BEFORE update_camera_and_bones so it is applied on current frame):
+                // 1. If currently in Pose Tuner (Tuning edit mode or Preview loop), use emotion realtime which selected user in UI
+                // 2. While Thinking, display thinking expression
+                // 3. While Speaking, Idle, or Listening, retain last emotion (e.g. remain blushing/happy/pouting while idle)!
                 if is_tuning || is_previewing {
                     self.renderer.current_emotion = live_tuner_emotion;
                 } else if self.pose_manager.current_state

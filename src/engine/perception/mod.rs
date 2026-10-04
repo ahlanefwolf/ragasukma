@@ -33,8 +33,8 @@ pub struct PerceptionResult {
 }
 
 /// Lightweight PerceptionEngine
-/// Mengutamakan OCR bawaan sistem operasi (Windows Media OCR / Apple Vision) tanpa membebani RAM
-/// dengan model yang berat. Memiliki fallback cepat ke Tesseract OCR (streaming via stdin/stdout pipe).
+/// Prioritizes OS-native OCR (Windows Media OCR / Apple Vision) without loading extra RAM
+/// with heavy models. Features fast fallback to Tesseract OCR (streaming via stdin/stdout pipe).
 pub struct PerceptionEngine {}
 
 static PERCEPTION_ENGINE: Mutex<Option<PerceptionEngine>> = Mutex::new(None);
@@ -44,7 +44,7 @@ impl PerceptionEngine {
         Ok(Self {})
     }
 
-    /// Menjalankan pemindaian OCR visual pada gambar
+    /// Runs visual OCR scan on image
     pub fn analyze_image(&mut self, image: &DynamicImage) -> PerceptionResult {
         let mut visual_elements: Vec<VisualElement> = Vec::new();
         let mut texts: Vec<String> = Vec::new();
@@ -56,7 +56,7 @@ impl PerceptionEngine {
         let mut element_id = 1;
         let scale_div = get_coordinate_scale_divisor(orig_w, orig_h);
 
-        // 1. Eksekusi OCR dengan prioritas Native OS -> Fallback Tesseract OCR
+        // 1. Eksekusi OCR with prioritas Native OS -> Fallback Tesseract OCR
         let ocr_boxes: Result<Vec<(String, [i32; 4], f32)>, String> = {
             #[cfg(target_os = "windows")]
             {
@@ -65,7 +65,7 @@ impl PerceptionEngine {
                     Ok(detected) => Ok(detected),
                     Err(err) => {
                         eprintln!(
-                            "⚠️ [Perception] Windows Native OCR failed ({err}), attempting Tesseract OCR fallback..."
+                            "[Perception] Windows Native OCR failed ({err}), attempting Tesseract OCR fallback..."
                         );
                         ocr_tesseract::run_tesseract_fallback(image)
                     }
@@ -79,7 +79,7 @@ impl PerceptionEngine {
                     Ok(detected) => Ok(detected),
                     Err(err) => {
                         eprintln!(
-                            "⚠️ [Perception] Apple Vision OCR failed ({err}), attempting Tesseract OCR fallback..."
+                            "[Perception] Apple Vision OCR failed ({err}), attempting Tesseract OCR fallback..."
                         );
                         ocr_tesseract::run_tesseract_fallback(image)
                     }
@@ -88,7 +88,7 @@ impl PerceptionEngine {
 
             #[cfg(not(any(target_os = "windows", target_os = "macos")))]
             {
-                // Linux: Gunakan Tesseract OCR memory-streaming
+                // Linux: Use Tesseract OCR memory-streaming
                 ocr_tesseract::run_tesseract_fallback(image)
             }
         };
@@ -132,7 +132,7 @@ impl PerceptionEngine {
                 }
             }
             Err(err) => {
-                eprintln!("❌ [Perception] Failed to process visual OCR: {err}");
+                eprintln!("[Perception] Failed to process visual OCR: {err}");
             }
         }
 
@@ -148,7 +148,7 @@ impl PerceptionEngine {
 
         let text_summary = if texts.len() > 30 {
             format!(
-                "{} ... ({} teks terdeteksi)",
+                "{} ... ({} texts detected)",
                 texts[..30].join(" | "),
                 texts.len()
             )
@@ -180,12 +180,12 @@ pub enum VisionRequest {
 
 static VISION_SENDER: Mutex<Option<std::sync::mpsc::Sender<VisionRequest>>> = Mutex::new(None);
 
-/// Inisialisasi Vision Worker di thread background terpisah.
-/// Thread ini 100% idle (0% CPU, 0 MB beban model) saat tidak ada permintaan scan.
+/// Initialize Vision Worker in thread background terpisah.
+/// This thread is 100% idle (0% CPU, 0 MB model load) when there are no scan requests.
 pub fn start_vision_worker() {
     let mut sender_lock = VISION_SENDER.lock().unwrap();
     if sender_lock.is_some() {
-        return; // Sudah berjalan
+        return; // Already running
     }
 
     let (tx, rx) = std::sync::mpsc::channel::<VisionRequest>();
@@ -202,7 +202,7 @@ pub fn start_vision_worker() {
                         let res = match capture_screen_image() {
                             Ok(img) => engine.analyze_image(&img),
                             Err(e) => {
-                                eprintln!("❌ [Vision Worker] Failed to capture screen: {e}");
+                                eprintln!("[Vision Worker] Failed to capture screen: {e}");
                                 PerceptionResult::default()
                             }
                         };
@@ -210,17 +210,17 @@ pub fn start_vision_worker() {
                         if save_snapshot {
                             apply_perception_to_snapshot(&res);
 
-                            // Dapatkan info jendela yang sedang aktif untuk laporan suara asisten
+                            // Get active window info for assistant voice status report
                             let active_app = if let Ok(snap) = crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file() {
                                 if !snap.window_title.is_empty() {
                                     snap.window_title
                                 } else if !snap.app_name.is_empty() {
                                     snap.app_name
                                 } else {
-                                    "layar desktop".to_string()
+                                    "desktop screen".to_string()
                                 }
                             } else {
-                                "layar desktop".to_string()
+                                "desktop screen".to_string()
                             };
 
                             let summary_info = if !res.texts.is_empty() || !res.buttons.is_empty() {
@@ -246,7 +246,7 @@ pub fn start_vision_worker() {
                         let res = match capture_window_image_by_title(&title) {
                             Ok(img) => engine.analyze_image(&img),
                             Err(e) => {
-                                eprintln!("❌ [Vision Worker] Failed to capture window '{title}': {e}");
+                                eprintln!("[Vision Worker] Failed to capture window '{title}': {e}");
                                 PerceptionResult::default()
                             }
                         };
@@ -265,7 +265,7 @@ pub fn start_vision_worker() {
         .expect("Failed to spawn vision worker thread");
 }
 
-/// Helper sinkron untuk meminta scan dari vision worker
+/// Helper sync for meminta scan from vision worker
 pub fn request_vision_scan_sync() -> PerceptionResult {
     start_vision_worker();
 
@@ -287,7 +287,7 @@ pub fn request_vision_scan_sync() -> PerceptionResult {
     scan_screen_visual_elements()
 }
 
-/// Helper asinkron fire-and-forget untuk trigger vision scan di background
+/// Asynchronous fire-and-forget helper to trigger vision scan in background
 pub fn trigger_vision_scan_async() {
     start_vision_worker();
 
@@ -303,7 +303,7 @@ pub fn trigger_vision_scan_async() {
     }
 }
 
-/// Sinkronisasi hasil perception ke `active_window_app.json`
+/// Synchronizes perception results to `active_window_app.json`
 pub fn apply_perception_to_snapshot(res: &PerceptionResult) {
     if let Ok(mut snap) = crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file() {
         snap.source = "vision_perception".to_string();
@@ -400,7 +400,7 @@ mod tests {
         if let Ok(monitors) = xcap::Monitor::all() {
             assert!(
                 !monitors.is_empty(),
-                "Harus ada minimal satu monitor terdeteksi"
+                "At least one monitor must be detected"
             );
         }
     }

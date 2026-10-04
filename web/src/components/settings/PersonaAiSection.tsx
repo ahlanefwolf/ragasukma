@@ -48,16 +48,16 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
 
   return (
     <div class="space-y-5 animate-in fade-in duration-200">
-      {/* 1. Persona & Identitas */}
+      {/* 1. Persona & Identity */}
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
         <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2">
           <UserCheck size={18} />
-          1. Persona & Identitas Asisten
+          1. Persona & Assistant Identity
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Nama Asisten</label>
+            <label class="text-xs font-semibold text-theme-text/80">Assistant Name</label>
             <input
               type="text"
               value={props.assistantName}
@@ -68,7 +68,7 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Panggilan Pengguna</label>
+            <label class="text-xs font-semibold text-theme-text/80">User Callsign</label>
             <input
               type="text"
               value={props.userCallsign}
@@ -79,7 +79,7 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Gender Asisten</label>
+            <label class="text-xs font-semibold text-theme-text/80">Assistant Gender</label>
             <select
               ref={genderSelectRef}
               value={props.assistantGender || 'female'}
@@ -94,30 +94,30 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
               }}
               class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
-              <option value="female">Cewek (Female)</option>
-              <option value="male">Cowok (Male)</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
             </select>
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-theme-text/80">Peran Kepribadian</label>
+            <label class="text-xs font-semibold text-theme-text/80">Personality Role</label>
             <select
               ref={roleSelectRef}
               value={props.personalityRole || 'partner'}
               onChange={(e) => props.setPersonalityRole(e.currentTarget.value)}
               class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
             >
-              <option value="partner">{props.assistantGender === 'male' ? 'Partner (Husbando Hangat)' : 'Partner (Waifu Manis)'}</option>
-              <option value="assistant">{props.assistantGender === 'male' ? 'Assistant (Butler Profesional)' : 'Assistant (Sekretaris Cerdas)'}</option>
-              <option value="friend">{props.assistantGender === 'male' ? 'Friend (Sahabat Bro Asyik)' : 'Friend (Sahabat Bestie Seru)'}</option>
-              <option value="tsundere">Tsundere (Khas Anime)</option>
-              <option value="maid">{props.assistantGender === 'male' ? 'Butler (Pelayan Santun)' : 'Maid (Pelayan Santun)'}</option>
+              <option value="partner">{props.assistantGender === 'male' ? 'Partner (Warm Husbando)' : 'Partner (Sweet Waifu)'}</option>
+              <option value="assistant">{props.assistantGender === 'male' ? 'Assistant (Professional Butler)' : 'Assistant (Smart Secretary)'}</option>
+              <option value="friend">{props.assistantGender === 'male' ? 'Friend (Chill Buddy)' : 'Friend (Bestie)'}</option>
+              <option value="tsundere">Tsundere (Anime Style)</option>
+              <option value="maid">{props.assistantGender === 'male' ? 'Butler (Polite)' : 'Maid (Polite)'}</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* 2. Pengaturan AI Brain (LLM Provider) */}
+      {/* 2. AI Brain (LLM Provider) */}
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
         <div class="flex items-center justify-between flex-wrap gap-2">
           <h3 class="text-base sm:text-lg font-bold text-theme-rose flex items-center gap-2">
@@ -125,11 +125,11 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
             2. AI Brain (LLM Provider)
           </h3>
           <span class="text-xs text-theme-text/50 font-mono">
-            {props.llmProvider === 'local' ? '⚡ Ragasukma Local Engine' : '🌐 Custom AI Assistant'}
+            {props.llmProvider === 'local' ? 'Ragasukma Local Engine' : 'Custom AI Assistant'}
           </span>
         </div>
 
-        {/* Pilihan Provider (2 Card Bersih: Lokal vs Custom) */}
+        {/* Provider Selection (2 Clean Cards: Local vs Custom) */}
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             type="button"
@@ -143,10 +143,11 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
             }`}
           >
             <div class="font-bold text-xs flex items-center gap-1.5 text-theme-cyan">
-              <span>⚡ Lokal (Ragasukma Engine)</span>
+              <Cpu size={14} />
+              <span>Local (Ragasukma Engine)</span>
             </div>
             <div class="text-xs text-theme-text/60 mt-1 leading-relaxed">
-              API & routing otomatis dikelola sistem (saat ini ditenagai Antigravity pool, siap berkembang). Tetap bebas memilih model AI Assistant.
+              System automatically routes requests (powered by Antigravity pool). You can still select your preferred AI model.
             </div>
           </button>
 
@@ -162,25 +163,26 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
             }`}
           >
             <div class="font-bold text-xs flex items-center gap-1.5 text-theme-rose">
-              <span>🌐 Custom / User AI Assistant</span>
+              <Brain size={14} />
+              <span>Custom / External LLM</span>
             </div>
             <div class="text-xs text-theme-text/60 mt-1 leading-relaxed">
-              Koneksikan ke server runtime sendiri (Ollama lokal, LM Studio, LocalAI) atau API eksternal (Groq, OpenRouter, OpenAI).
+              Connect to your own local runtime (Ollama, LM Studio, LocalAI) or external APIs (Groq, OpenRouter, OpenAI).
             </div>
           </button>
         </div>
 
-        {/* Tampilan Konfigurasi Sesuai Provider */}
+        {/* Display Konfigurasi Sesuai Provider */}
         {props.llmProvider === 'local' ? (
           <div class="p-4 bg-theme-bg/60 border border-theme-border/80 space-y-3">
             <div class="space-y-1.5">
               <label class="text-xs font-semibold text-theme-text/80 flex items-center justify-between">
                 <span class="flex items-center gap-1.5 font-bold">
                   <Cpu size={14} class="text-theme-cyan" />
-                  Pilih Model AI Assistant (Engine Lokal)
+                  Select AI Assistant Model (Local Engine)
                 </span>
                 <span class="text-xs text-theme-cyan font-mono bg-theme-cyan/10 px-2 py-0.5 border border-theme-cyan/20 font-bold">
-                  Otomatis Routing Internal
+                  Automatic Internal Routing
                 </span>
               </label>
               <select
@@ -201,12 +203,12 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
           <div class="space-y-3">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1.5">
-                <label class="text-xs font-semibold text-theme-text/80">LLM Base URL (Server Assistant)</label>
+                <label class="text-xs font-semibold text-theme-text/80">LLM Base URL (Assistant Server)</label>
                 <input
                   type="text"
                   value={props.llmBaseUrl}
                   onInput={(e) => props.setLlmBaseUrl(e.currentTarget.value)}
-                  placeholder="http://localhost:11434/v1 atau https://api.openai.com/v1"
+                  placeholder="http://localhost:11434/v1 or https://api.openai.com/v1"
                   class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan transition-colors"
                 />
               </div>
@@ -224,12 +226,12 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
             </div>
 
             <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-theme-text/80">LLM API Key (Opsional untuk Server Lokal)</label>
+              <label class="text-xs font-semibold text-theme-text/80">LLM API Key (Optional for Local Server)</label>
               <input
                 type="password"
                 value={props.llmApiKey}
                 onInput={(e) => props.setLlmApiKey(e.currentTarget.value)}
-                placeholder="Kosongkan jika Ollama/LM Studio lokal tanpa auth"
+                placeholder="Leave blank if local Ollama/LM Studio has no auth"
                 class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan transition-colors"
               />
             </div>

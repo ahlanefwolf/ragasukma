@@ -29,12 +29,12 @@ export const Sidebar: Component<SidebarProps> = (props) => {
 
   const menuItems = () => [
     { id: 'menu', label: 'Main Menu', icon: MenuIcon },
-    { id: 'skills', label: 'Skill Custom', icon: Zap },
+    { id: 'skills', label: 'Custom Skills', icon: Zap },
     { id: 'music', label: 'Music Player', icon: Music },
     { id: 'tuner', label: 'Pose Tuner', icon: Sliders },
     { id: 'remote', label: 'Mobile Remote', icon: Radio },
     { id: 'logs', label: 'Console Logs', icon: Terminal },
-    { id: 'settings', label: 'Pengaturan', icon: SettingsIcon },
+    { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
 
   const handleSelectTab = (id: string) => {
@@ -67,7 +67,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
             <button
               onClick={props.onCloseMobile}
               class="p-2 text-theme-text/60 hover:text-theme-text hover:bg-theme-card md:hidden transition-colors border border-theme-border"
-              aria-label="Tutup Menu"
+              aria-label="Close Menu"
             >
               <X size={20} />
             </button>
@@ -85,7 +85,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
               }`} 
             />
             <span class="text-xs font-semibold text-theme-text tracking-wide">
-              {props.overlayConnected ? 'Avatar Aktif' : 'Offline'}
+              {props.overlayConnected ? 'Avatar Active' : 'Offline'}
             </span>
           </div>
         </div>

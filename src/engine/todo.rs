@@ -28,7 +28,7 @@ pub fn add_task_to_content(content: &str, task: &str) -> String {
         lines.insert(idx, target_item);
     } else {
         lines.push(String::new());
-        lines.push("## ⏳ In Progress / To-Do".to_string());
+        lines.push("##  In Progress / To-Do".to_string());
         lines.push(target_item);
     }
 
@@ -95,7 +95,7 @@ pub fn complete_task_in_content(content: &str, query: &str) -> Option<(String, S
         lines.insert(idx, completed_item);
     } else {
         lines.push(String::new());
-        lines.push("## ✅ Done".to_string());
+        lines.push("##  Done".to_string());
         lines.push(completed_item);
     }
 
@@ -118,7 +118,7 @@ pub fn add_task(task_text: &str) -> std::io::Result<String> {
         let _ = std::fs::create_dir_all(parent);
     }
 
-    let default_content = "# 📋 Tasks & Notes\n\n## ⏳ In Progress / To-Do\n\n## ✅ Done\n";
+    let default_content = "#  Tasks & Notes\n\n##  In Progress / To-Do\n\n##  Done\n";
     let content = std::fs::read_to_string(&path).unwrap_or_else(|_| default_content.to_string());
 
     let new_content = add_task_to_content(&content, task);
@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn test_add_and_complete_todo() {
-        let initial = "# 📋 Tasks\n\n## ⏳ In Progress / To-Do\n- [ ] Buy milk\n\n## ✅ Done\n";
+        let initial = "#  Tasks\n\n##  In Progress / To-Do\n- [ ] Buy milk\n\n##  Done\n";
         let updated = add_task_to_content(initial, "Undangan nikahan Yusuf");
         assert!(updated.contains("- [ ] Undangan nikahan Yusuf"));
         assert!(updated.contains("- [ ] Buy milk"));
@@ -175,7 +175,7 @@ mod tests {
     #[test]
     fn test_complete_todo_fuzzy() {
         let initial =
-            "# 📋 Tasks\n\n## ⏳ In Progress / To-Do\n- [ ] Pay electricity bill\n\n## ✅ Done\n";
+            "#  Tasks\n\n##  In Progress / To-Do\n- [ ] Pay electricity bill\n\n##  Done\n";
         let (done, matched) = complete_task_in_content(initial, "electricity bill")
             .expect("should find task with fuzzy");
         assert_eq!(matched, "Pay electricity bill");

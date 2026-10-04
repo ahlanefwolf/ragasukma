@@ -16,7 +16,7 @@ import { Menu as MenuIcon } from 'lucide-solid';
 import { api, killCurrentSession } from './api';
 import { VoiceSessionManager } from './services/voiceSession';
 
-// Token unik per instance tab, dibuat saat module pertama kali dimuat
+// Token unik per instance tab, created when module pertama kali loaded
 const MY_TOKEN = 'sess_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
 const LS_KEY = 'ragasukma_active_tab';
 const BC_NAME = 'ragasukma_session';
@@ -60,14 +60,14 @@ const App: Component = () => {
   const [toastVisible, setToastVisible] = createSignal(false);
   const [mobileMenuOpen, setMobileMenuOpen] = createSignal(false);
 
-  // Deteksi apakah tab saat ini adalah Remote Client HP (dibuka lewat scan QR / key auth)
+  // Detect whether current tab is mobile remote client (opened via QR scan or key auth)
   const isMobileClient = () => {
     try {
       const search = window.location.search;
       const hash = window.location.hash.toLowerCase();
       const origin = window.location.origin.toLowerCase();
       const hasKey = search.includes('key=') || hash.includes('key=');
-      // Hanya anggap mobile client jika memiliki key auth DAN berasal dari tunnel cloudflare / hash mobile
+      // Only treat as mobile client if possessing auth key AND originating from cloudflare tunnel or mobile hash
       if (hasKey && (origin.includes('trycloudflare.com') || hash.includes('mobile'))) {
         return true;
       }
@@ -82,12 +82,12 @@ const App: Component = () => {
 
   const getMobileAuthKey = () => {
     try {
-      // 1. Cek query parameter standar (?key=...)
+      // 1. Check query parameter standar (?key=...)
       const params = new URLSearchParams(window.location.search);
       const qKey = params.get('key');
       if (qKey) return qKey;
 
-      // 2. Cek query parameter di dalam hash jika URL berupa #remote?key=...
+      // 2. Check query parameter inside hash if URL is #remote?key=...
       const hash = window.location.hash;
       if (hash.includes('?')) {
         const hashQuery = hash.split('?')[1];
@@ -110,7 +110,7 @@ const App: Component = () => {
   let unsubStateFn: (() => void) | null = null;
   let unsubActionsFn: (() => void) | null = null;
 
-  // Sinkronisasi title tab browser desktop saat memutar musik
+  // Synchronize desktop browser tab title when playing music
   createEffect(() => {
     if (isMobileClient()) return;
 
@@ -121,10 +121,10 @@ const App: Component = () => {
       } else if (isPaused()) {
         document.title = `⏸ ${track.title} - Ragasukma`;
       } else {
-        document.title = 'Ragasukma - Konfigurasi & Dashboard AI';
+        document.title = 'Ragasukma - AI Companion & Dashboard';
       }
     } else {
-      document.title = 'Ragasukma - Konfigurasi & Dashboard AI';
+      document.title = 'Ragasukma - AI Companion & Dashboard';
     }
   });
 
@@ -133,17 +133,17 @@ const App: Component = () => {
     setDeadReason(reason);
     setIsDead(true);
 
-    // 1. Matikan Chrome STT, TTS, & VAD Barge-in monitor
+    // 1. Stop Chrome STT, TTS, & VAD Barge-in monitor
     voiceSession.destroy();
 
-    // 2. Putus stream SSE & batalkan listener agar tab mati tidak lagi menerima / memproses respon LLM
+    // 2. Disconnect SSE stream and cancel listeners
     try {
       unsubStateFn?.();
       unsubActionsFn?.();
       api.forceCloseSSE();
     } catch {}
 
-    // 3. Tutup session, global audio, dan BroadcastChannel
+    // 3. Close session, global audio, and BroadcastChannel
     killCurrentSession();
     killGlobalAudio();
     try { activeBc?.close(); } catch {}
@@ -154,7 +154,7 @@ const App: Component = () => {
   };
 
   onMount(() => {
-    // Mode Remote Client dari smartphone: bypass single-tab kill agar tidak mematikan tab utama di desktop
+    // Smartphone Remote Client mode: bypass single-tab kill
     if (isMobileClient()) {
       console.log('[Session] Remote client detected, skipping single-tab exclusive claim');
       return;
@@ -162,7 +162,6 @@ const App: Component = () => {
 
     console.log('[Session] Tab mount, MY_TOKEN =', MY_TOKEN);
 
-    // ── 1. BroadcastChannel: siap dengar SEBELUM kita claim ──
     let bc: BroadcastChannel | null = null;
     try {
       bc = new BroadcastChannel(BC_NAME);
@@ -187,7 +186,7 @@ const App: Component = () => {
     };
     window.addEventListener('storage', handleStorage);
 
-    // ── 3. CLAIM 1X: kirim ke backend + tulis ke localStorage (tab lama langsung mati, kecuali mobile remote) ──
+    // CLAIM 1X
     if (!isMobileClient()) {
       console.log('[Session] Claiming ownership 1x...');
       try { localStorage.setItem(LS_KEY, MY_TOKEN); } catch {}
@@ -198,7 +197,7 @@ const App: Component = () => {
     // Start voice session manager (STT, VAD, Echo Guard)
     voiceSession.init();
 
-    // ── 4. SSE: untuk update state UI & deteksi shutdown / token klaim ──
+    // SSE: UI state update & shutdown / claim detection
     const unsubState = api.subscribeState(
       (st) => {
         if (isDead()) return;
@@ -209,7 +208,6 @@ const App: Component = () => {
         }
         if (st?.state) setCurrentState(st.state);
 
-        // Sinkronkan state Mute langsung ke voice session
         voiceSession.updateMuteState(Boolean(st?.voice_muted), Boolean(st?.mic_muted));
         if (typeof st?.is_running === 'boolean') {
           voiceSession.updateAssistantRunning(st.is_running);
@@ -218,17 +216,15 @@ const App: Component = () => {
     );
     unsubStateFn = unsubState;
 
-    // Listener custom event saat user menguji suara di tab Settings (AudioTtsSection)
     const handleTestVoiceEvent = (e: CustomEvent) => {
       voiceSession.handleTestVoice(!!e.detail?.active);
     };
     window.addEventListener('ragasukma:test_voice' as any, handleTestVoiceEvent);
 
-    // Listener custom event untuk reaktivitas instan HANYA saat user klik "Simpan" di SettingsTab (1 Pintu)
     const handleConfigUpdated = (e: CustomEvent) => {
       const cfg = e.detail;
       voiceSession.handleConfigUpdated(cfg);
-      console.log('[Runtime Config] Diperbarui 1 pintu setelah Simpan:', cfg);
+      console.log('[Runtime Config] Updated after save:', cfg);
     };
     window.addEventListener('ragasukma:config_updated' as any, handleConfigUpdated);
 
@@ -245,7 +241,6 @@ const App: Component = () => {
         }
       }
 
-      // Deduplikasi action SSE via ID unik incremental dari backend
       if (act.id !== undefined) {
         if (act.id <= lastHandledActionId) {
           return;
@@ -253,14 +248,12 @@ const App: Component = () => {
         lastHandledActionId = act.id;
       }
 
-      // 🔊 Google Chrome Speech Synthesis (TTS) - Mainkan respon suara LLM langsung dari browser
       if (act.action === 'assistant:speak' && act.payload) {
         voiceSession.handleAssistantSpeak(act.payload);
       }
     });
     unsubActionsFn = unsubActions;
 
-    // ── 5. Hash change listener (Back/Forward / Manual URL edit) ──
     const handleHashChange = () => {
       const tab = getInitialTabFromHash();
       if (tab !== activeTab()) {
@@ -290,7 +283,6 @@ const App: Component = () => {
   const handleTabChange = (tab: string) => {
     if (tab === activeTab()) return;
     setActiveTab(tab);
-    // Sinkronisasi URL Hash tanpa reload
     try {
       const targetHash = tab === 'menu' ? '' : `#${tab}`;
       if (window.location.hash !== targetHash) {
@@ -308,7 +300,7 @@ const App: Component = () => {
           <Show
             when={!isDead()}
             fallback={
-              /* Modal Tab Mati / Aplikasi Ditutup — DOM ringan, 0 background resource */
+              /* Tab Deactivated / Shutdown Modal */
               <div class="fixed inset-0 z-[200] bg-theme-bg/95 backdrop-blur-md flex items-center justify-center p-4 select-none">
                 <div class="max-w-md w-full p-8 bg-theme-surface border border-theme-rose/50 shadow-2xl text-center space-y-5 animate-in fade-in duration-200">
                   <div class="w-14 h-14 mx-auto bg-theme-rose/20 text-theme-rose border border-theme-rose/40 flex items-center justify-center text-2xl font-bold shadow-lg shadow-theme-rose/10">
@@ -316,12 +308,12 @@ const App: Component = () => {
                   </div>
                   <div class="space-y-2">
                     <h3 class="text-lg font-bold text-theme-text">
-                      {deadReason() === 'shutdown' ? 'Aplikasi Ragasukma Ditutup' : 'Tab Dinonaktifkan'}
+                      {deadReason() === 'shutdown' ? 'Ragasukma Application Closed' : 'Tab Deactivated'}
                     </h3>
                     <p class="text-sm text-theme-text/70 leading-relaxed">
                       {deadReason() === 'shutdown'
-                        ? 'Jendela overlay dan server utama telah ditutup. Seluruh pemutar audio, background stream, dan memori browser telah dibersihkan secara tuntas.'
-                        : 'Dashboard telah dibuka di tab browser lain. Semua koneksi audio, event stream, dan resource di tab ini sudah dinonaktifkan.'}
+                        ? 'The overlay window and backend server have closed. All audio players, background streams, and browser resources have been completely released.'
+                        : 'The dashboard was opened in another browser tab. Audio connections, event streams, and resources in this tab have been disabled.'}
                     </p>
                   </div>
                   <Show when={deadReason() === 'duplicate'}>
@@ -329,12 +321,12 @@ const App: Component = () => {
                       onClick={() => window.location.reload()}
                       class="w-full px-5 py-3 bg-theme-card hover:bg-theme-border text-theme-cyan text-sm font-bold border border-theme-border hover:border-theme-cyan/50 transition-all shadow-sm active:scale-[0.98]"
                     >
-                      Gunakan Tab Ini Kembali
+                      Use This Tab Instead
                     </button>
                   </Show>
                   <Show when={deadReason() === 'shutdown'}>
                     <div class="text-xs font-mono text-theme-text/50 pt-1">
-                      Kamu dapat menutup tab browser ini.
+                      You can safely close this browser tab.
                     </div>
                   </Show>
                 </div>
@@ -357,7 +349,7 @@ const App: Component = () => {
                   <button
                     onClick={() => setMobileMenuOpen(true)}
                     class="p-2 bg-theme-card text-theme-text border border-theme-border hover:border-theme-cyan/50 md:hidden transition-colors"
-                    aria-label="Buka Menu"
+                    aria-label="Open Menu"
                   >
                     <MenuIcon size={18} />
                   </button>
@@ -420,7 +412,7 @@ const App: Component = () => {
           </Show>
         }
       >
-        {/* TAMPILAN KHUSUS SMARTPHONE (HANYA MIC PTT + CONSOLE LOGS REAL-TIME) */}
+        {/* DISPLAY KHUSUS SMARTPHONE (ONLY MIC PTT + CONSOLE LOGS REAL-TIME) */}
         <MobileClientView
           authKey={getMobileAuthKey()}
           showToast={showToast}

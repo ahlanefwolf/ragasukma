@@ -124,7 +124,7 @@ pub fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
             }
         }
 
-        // 2. Enum semua jendela yang terlihat di Windows
+        // 2. Enum all jendela which terlihat in Windows
         struct EnumContext {
             fg: HWND,
             windows: Vec<WindowItem>,
@@ -202,7 +202,7 @@ pub fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
         );
         snapshot.windows = enum_ctx.windows;
 
-        // 3. UI Automation untuk mengekstrak Buttons & Inputs dari Foreground Window
+        // 3. UI Automation for mengekstrak Buttons & Inputs from Foreground Window
         if !fg_hwnd.0.is_null() {
             let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
 
@@ -302,7 +302,7 @@ pub fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
     }
 
     if snapshot.texts.is_empty() {
-        // Cek jika snapshot sebelumnya berasal dari perception/OCR dan untuk jendela yang sama
+        // Check if previous snapshot originated from perception/OCR and is for the same window
         if let Ok(prev) = ActiveWindowSnapshot::load_from_file() {
             if prev.source == "vision_perception"
                 && prev.app_name == snapshot.app_name
@@ -320,7 +320,7 @@ pub fn scan_active_window_windows() -> Result<ActiveWindowSnapshot, String> {
     if !snapshot.texts.is_empty() && snapshot.text_summary.is_empty() {
         snapshot.text_summary = if snapshot.texts.len() > 30 {
             format!(
-                "{} ... ({} teks terdeteksi)",
+                "{} ... ({} texts detected)",
                 snapshot.texts[..30].join(" | "),
                 snapshot.texts.len()
             )

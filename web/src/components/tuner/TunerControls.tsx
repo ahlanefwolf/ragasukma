@@ -53,7 +53,7 @@ export const TunerControls: Component<TunerControlsProps> = (props) => {
               </span>
             </div>
             <p class="text-xs text-theme-text/60 mt-0.5">
-              Multi-pose keyframe editor dengan natural breathing & dynamic preview
+              Multi-pose keyframe editor with natural breathing & dynamic preview
             </p>
           </div>
         </div>
@@ -65,35 +65,35 @@ export const TunerControls: Component<TunerControlsProps> = (props) => {
         </div>
       </div>
 
-      {/* 2. Navigasi Viewport & Gestur Kamera 3D */}
+      {/* 2. 3D Viewport Navigation & Camera Gestures */}
       <CameraGuide />
 
-      {/* 3. Action Toolbar (Keyframe Management, Mirror, Preview & Simpan) */}
+      {/* 3. Action Toolbar (Keyframe Management, Mirror, Preview & Save) */}
       <div class="p-2.5 bg-theme-bg border border-theme-border flex flex-col md:flex-row md:items-center justify-between gap-2.5">
-        {/* Sisi Kiri: Keyframe Tools (Tambah, Duplikat, Mirror, Reset, Hapus) */}
+        {/* Left Side: Keyframe Tools (Add, Duplicate, Mirror, Reset, Delete) */}
         <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <button
             onClick={props.onAddPose}
             class="px-3 py-1.5 text-xs font-semibold bg-theme-card hover:bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30 flex items-center gap-1.5 transition-all shadow-sm"
-            title="Tambah pose keyframe baru di akhir list"
+            title="Add new keyframe pose at the end"
           >
             <Plus size={13} />
-            <span>Tambah Pose</span>
+            <span>Add Pose</span>
           </button>
 
           <button
             onClick={props.onDuplicatePose}
             class="px-3 py-1.5 text-xs font-semibold bg-theme-card hover:bg-theme-surface text-theme-text border border-theme-border flex items-center gap-1.5 transition-all shadow-sm"
-            title="Duplikat pose aktif ini menjadi keyframe baru"
+            title="Duplicate this active pose as a new keyframe"
           >
             <Copy size={13} />
-            <span>Duplikat</span>
+            <span>Duplicate</span>
           </button>
 
           <button
             onClick={props.onMirrorActivePose}
             class="px-3 py-1.5 text-xs font-semibold bg-theme-card hover:bg-theme-surface text-theme-text border border-theme-border flex items-center gap-1.5 transition-all shadow-sm"
-            title="Mirror simetri kiri-kanan pada pose aktif"
+            title="Mirror left-right symmetry on active pose"
           >
             <FlipHorizontal size={13} />
             <span>Mirror</span>
@@ -102,7 +102,7 @@ export const TunerControls: Component<TunerControlsProps> = (props) => {
           <button
             onClick={props.onResetActivePose}
             class="px-3 py-1.5 text-xs font-semibold bg-theme-card hover:bg-theme-rose/20 text-theme-rose border border-theme-rose/30 flex items-center gap-1.5 transition-all shadow-sm"
-            title="Reset seluruh bone pada pose aktif ke [0, 0, 0]"
+            title="Reset all bones on active pose to [0, 0, 0]"
           >
             <RotateCcw size={12} />
             <span>Reset Pose</span>
@@ -112,15 +112,15 @@ export const TunerControls: Component<TunerControlsProps> = (props) => {
             <button
               onClick={() => props.onDeletePose(props.activePoseIndex)}
               class="px-2.5 py-1.5 text-xs font-semibold bg-theme-card hover:bg-theme-rose text-theme-rose hover:text-white border border-theme-rose/40 flex items-center gap-1 transition-all"
-              title="Hapus pose ini dari list"
+              title="Delete this pose from list"
             >
               <Trash2 size={12} />
-              <span>Hapus</span>
+              <span>Delete</span>
             </button>
           )}
         </div>
 
-        {/* Sisi Kanan: Preview Loop & Simpan */}
+        {/* Right Side: Preview Loop & Save */}
         <div class="flex items-center gap-2 justify-end">
           <button
             onClick={props.onTogglePreview}
@@ -140,7 +140,7 @@ export const TunerControls: Component<TunerControlsProps> = (props) => {
             class="px-4 py-1.5 text-xs font-bold bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card shadow-md anime-shadow-green flex items-center gap-1.5 transition-all"
           >
             <Save size={13} />
-            <span>{props.isSaving ? 'Menyimpan...' : 'Simpan Live'}</span>
+            <span>{props.isSaving ? 'Saving...' : 'Save Live'}</span>
           </button>
         </div>
       </div>
@@ -156,35 +156,35 @@ export const TunerControls: Component<TunerControlsProps> = (props) => {
             class="w-full h-[38px] bg-theme-card border border-theme-border px-3 text-xs text-theme-text outline-none focus:border-theme-cyan transition-colors"
           >
             <option value="idle">Idle (Standby)</option>
-            <option value="listening">Listening (Mendengarkan)</option>
-            <option value="thinking">Thinking (Berpikir)</option>
-            <option value="speaking">Speaking (Bicara)</option>
+            <option value="listening">Listening</option>
+            <option value="thinking">Thinking</option>
+            <option value="speaking">Speaking</option>
           </select>
         </div>
 
-        {/* Ekspresi Emosi */}
+        {/* Emotion Expression */}
         <div class="space-y-1.5">
-          <label class="text-xs font-semibold text-theme-text/70 block h-4">Ekspresi Emosi</label>
+          <label class="text-xs font-semibold text-theme-text/70 block h-4">Emotion Expression</label>
           <select
             value={props.selectedEmotion}
             onChange={(e) => props.onSelectEmotion(e.currentTarget.value)}
             class="w-full h-[38px] bg-theme-card border border-theme-border px-3 text-xs text-theme-text outline-none focus:border-theme-cyan transition-colors"
           >
-            <option value="neutral">Neutral (Biasa)</option>
-            <option value="happy">Happy (Senang)</option>
-            <option value="shy">Shy (Malu / Blushing)</option>
-            <option value="surprised">Surprised (Kaget)</option>
-            <option value="thinking">Thinking (Mikir)</option>
-            <option value="sad">Sad (Sedih)</option>
-            <option value="excited">Excited (Semangat)</option>
-            <option value="angry">Angry (Marah / Cemberut)</option>
+            <option value="neutral">Neutral</option>
+            <option value="happy">Happy</option>
+            <option value="shy">Shy</option>
+            <option value="surprised">Surprised</option>
+            <option value="thinking">Thinking</option>
+            <option value="sad">Sad</option>
+            <option value="excited">Excited</option>
+            <option value="angry">Angry</option>
           </select>
         </div>
 
-        {/* Speed Siklus */}
+        {/* Cycle Speed */}
         <div class="space-y-1.5">
           <div class="flex items-center justify-between h-4">
-            <label class="text-xs font-semibold text-theme-text/70">Speed Siklus Animasi</label>
+            <label class="text-xs font-semibold text-theme-text/70">Animation Cycle Speed</label>
             <span class="text-xs font-mono font-bold text-theme-cyan">{props.speed.toFixed(1)}s</span>
           </div>
           <div class="w-full h-[38px] bg-theme-card border border-theme-border px-3 flex items-center">
@@ -205,10 +205,10 @@ export const TunerControls: Component<TunerControlsProps> = (props) => {
       <div class="space-y-2 pt-1 border-t border-theme-border/60">
         <div class="flex items-center justify-between">
           <label class="text-xs font-semibold text-theme-text/70">
-            Daftar Keyframe ({props.posesList.length} Pose Terdaftar)
+            Keyframe List ({props.posesList.length} Registered Poses)
           </label>
           <span class="text-[11px] text-theme-text/50">
-            Pilih pose di bawah untuk mengedit slider tulang secara realtime
+            Select a pose below to edit bone sliders in real-time
           </span>
         </div>
 
@@ -242,7 +242,7 @@ export const TunerControls: Component<TunerControlsProps> = (props) => {
             title="Tambah pose baru"
           >
             <Plus size={13} />
-            <span>+ Pose Baru</span>
+            <span>+ New Pose</span>
           </button>
         </div>
       </div>

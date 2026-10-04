@@ -8,16 +8,16 @@ impl TextToSpeech {
         Self
     }
 
-    /// Sintesis suara diproses secara native menggunakan model neural Supertonic-3 (ONNX Runtime Rust).
-    /// Audio WAV berkualitas tinggi (44.1kHz Hi-Fi) dialirkan ke semua client (Desktop & Mobile).
+    /// Voice synthesis is processed natively using Supertonic-3 neural model (ONNX Runtime Rust).
+    /// High-fidelity WAV audio (44.1kHz Hi-Fi) is streamed to all clients (Desktop & Mobile).
     pub fn speak_with_emotion(&self, text: &str, emotion: &str, asst_name: &str) -> Result<()> {
         let clean_text = clean_text_for_speech(text);
         if clean_text.trim().is_empty() {
             return Ok(());
         }
 
-        // Catatan: is_voice_muted menandakan speaker desktop dimatikan (dialihkan ke mobile),
-        // namun event suara 'assistant:speak' harus tetap dipancarkan agar PWA HP dapat memainkannya!
+        // Notes: is_voice_muted indicates desktop speakers are muted (redirected to mobile),
+        // however 'assistant:speak' voice events must still be broadcast so the mobile client can play them!
 
         let cfg = crate::assets::load_config();
         let voice = if !cfg.tts_voice_name.is_empty() {
@@ -39,18 +39,18 @@ impl TextToSpeech {
         let audio_id = format!("{:x}", simple_hash_u64(&clean_text));
         let audio_url = format!("/api/tts/audio?id={audio_id}");
 
-        // Inisialisasi engine jika belum, dan sintesis audio Supertonic-3 secara streaming chunk
+        // Initialize engine if not yet ready, and synthesize Supertonic-3 audio in streaming chunks
         let mut audio_bytes_opt: Option<Vec<u8>> = None;
         let asst_name_str = asst_name.to_string();
         let emotion_str = emotion.to_string();
 
         let mut on_chunk = |chunk_idx: usize, total_chunks: usize, chunk_wav: Vec<u8>| {
             if !crate::app_state::is_voice_muted() {
-                // Begitu chunk pertama siap, langsung ubah status avatar & tray menjadi Speaking
+                // Once first chunk is ready, directly set avatar & tray status to Speaking
                 if chunk_idx == 0 {
                     crate::tray::TrayState::update_with_emotion(
                         crate::services::tray_service::AssistantState::Speaking,
-                        &format!("{asst_name_str} Berbicara"),
+                        &format!("{asst_name_str} Speaking"),
                         &emotion_str,
                     );
                     crate::app_state::set_ai_speaking(true);
@@ -70,7 +70,7 @@ impl TextToSpeech {
                     true
                 }
                 Err(e) => {
-                    crate::term_err!("⚠️ [Supertonic TTS] Failed to synthesize audio: {e}");
+                    crate::term_err!("[Supertonic TTS] Failed to synthesize audio: {e}");
                     false
                 }
             }
@@ -86,7 +86,7 @@ impl TextToSpeech {
 
         crate::app_state::record_last_spoken_text(&clean_text);
 
-        // 1. Alirkan kalimat respon, emosi, durasi, dan audio_url ke semua client (Desktop & Mobile) via SSE action
+        // 1. Stream response sentence, emotion, duration, and audio_url to all clients (Desktop & Mobile) via SSE action
         let payload = serde_json::json!({
             "text": clean_text,
             "emotion": emotion,
@@ -99,11 +99,11 @@ impl TextToSpeech {
         .to_string();
         crate::app_state::push_client_action("assistant:speak", Some(&payload));
 
-        // 2. Sinkronisasi status avatar & bibir AIUEO:
+        // 2. Synchronize avatar state & AIUEO lip sync:
         if native_played {
             TrayState::update_with_emotion(
                 AssistantState::Speaking,
-                &format!("{asst_name} Berbicara"),
+                &format!("{asst_name} Speaking"),
                 emotion,
             );
             crate::app_state::set_ai_speaking(true);
@@ -117,22 +117,22 @@ impl TextToSpeech {
             if !has_web_client {
                 TrayState::update_with_emotion(
                     AssistantState::Speaking,
-                    &format!("{asst_name} Berbicara"),
+                    &format!("{asst_name} Speaking"),
                     emotion,
                 );
                 crate::app_state::set_ai_speaking(true);
             }
         }
 
-        // 3. Passive fail-safe watchdog presisi berbasis durasi aktual WAV:
-        // Dihitung langsung dari panjang detik audio WAV hasil sintesis Supertonic-3 neural engine.
+        // 3. Precision passive fail-safe watchdog based on actual WAV duration:
+        // Calculated directly from duration in seconds of synthesized Supertonic-3 WAV audio.
         let epoch = crate::app_state::next_speaking_epoch();
         crate::app_state::touch_speech_activity();
 
         let exact_audio_secs = actual_audio_duration.unwrap_or_else(|| {
             (clean_text.chars().count() as f32 / 10.0).max(5.0)
         });
-        // Grace period toleransi latensi jaringan & buffering audio player (~6 detik)
+        // Network latency and audio player buffering tolerance grace period (~6 seconds)
         let timeout_limit_secs = (exact_audio_secs + 6.0).ceil() as u64;
 
         std::thread::spawn(move || {
@@ -140,28 +140,28 @@ impl TextToSpeech {
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(400));
 
-                // Jika sudah selesai bicara secara normal atau ada epoch bicara baru, keluar
+                // Exit if speech finished normally or a new speech epoch began
                 if !crate::app_state::is_ai_speaking()
                     || crate::app_state::current_speaking_epoch() != epoch
                 {
                     break;
                 }
 
-                // Jika audio native PC masih aktif berputar, jangan pernah force idle!
+                // If native PC audio is still actively playing, never force idle!
                 if crate::audio::player::is_native_voice_playing() {
                     crate::app_state::touch_speech_activity();
                     continue;
                 }
 
-                // Jika client masih mengirim aktivitas suara dalam 3 detik terakhir, perpanjang waktu
+                // If client still sent voice activity within the last 3 seconds, extend timeout
                 if crate::app_state::last_speech_activity_elapsed().as_secs() < 3 {
                     continue;
                 }
 
-                // Jika durasi melebihi durasi audio aktual + buffer toleransi
+                // If duration exceeds actual audio duration plus tolerance buffer
                 if start.elapsed().as_secs() >= timeout_limit_secs {
                     crate::term_log!(
-                        "⏱️ [TTS Watchdog] Audio playback finished ({exact_audio_secs:.1}s), returning avatar to Standby."
+                        "[TTS Watchdog] Audio playback finished ({exact_audio_secs:.1}s), returning avatar to Standby."
                     );
                     crate::app_state::set_ai_speaking(false);
                     crate::tray::TrayState::update_with_emotion(
@@ -222,7 +222,7 @@ fn sanitize_urls(text: &str) -> String {
             if !output.is_empty() {
                 output.push(' ');
             }
-            output.push_str("tautan web");
+            output.push_str("web link");
             output.push_str(&trailing_punct);
         } else {
             if !output.is_empty() {
@@ -259,11 +259,11 @@ fn is_roleplay_or_ignorable_paren(content: &str) -> bool {
     if lower.is_empty() {
         return true;
     }
-    // Angka referensi footnote misal (1), (2)
+    // Footnote reference numbers e.g. (1), (2)
     if lower.chars().all(|c| c.is_ascii_digit()) {
         return true;
     }
-    // Emoticon smiley
+    // Smiley emoticons
     matches!(lower.as_str(), ":)" | ":d" | ":3" | "^^" | "^_^" | ":o" | ":(" | ";)")
 }
 
@@ -272,29 +272,29 @@ pub fn clean_text_for_speech(text: &str) -> String {
         return String::new();
     }
 
-    // 1. Normalisasi karakter Unicode khusus (kutip lengkung, elipsis, dash, bullet)
+    // 1. Normalize special Unicode characters (curly quotes, ellipsis, dash, bullet)
     let pre_normalized = text
         .replace(['\u{201C}', '\u{201D}', '\u{00AB}', '\u{00BB}'], "\"") // “ ” « » -> "
         .replace(['\u{2018}', '\u{2019}'], "'") // ‘ ’ -> '
         .replace('\u{2026}', ", ") // … -> ,
         .replace(['\u{2014}', '\u{2013}'], " - ") // — – -> -
-        .replace(['\u{2022}', '\u{25AA}', '\u{25CF}'], " "); // • ▪ ● -> spasi
+        .replace(['\u{2022}', '\u{25AA}', '\u{25CF}'], " "); // • ▪ ● -> space
 
-    // 2. Bersihkan blok kode markdown ```...``` agar TTS tidak mengeja sintaks kode
+    // 2. Strip markdown code blocks ```...``` so TTS does not read code syntax aloud
     let without_code_blocks = remove_code_blocks(&pre_normalized);
 
-    // 3. Sanitasi URL mentah (https://... / http://... / www...) menjadi "tautan web"
+    // 3. Sanitize raw URLs (https://... / http://... / www...) into "web link"
     let without_urls = sanitize_urls(&without_code_blocks);
 
-    // 4. Manfaatkan clean_ai_text untuk membuang tool calls [CMD:...], [SKILL:...], bold **teks**, tag bintang *...*, dan backticks
+    // 4. Use clean_ai_text to remove tool calls [CMD:...], [SKILL:...], bold **text**, star tags *...*, and backticks
     let cleaned_base = crate::llm::cleaner::clean_ai_text(&without_urls);
 
-    // 5. Bersihkan tag bracket [happy], link markdown [label](url), kurung ignorable (1), dan saring tanda baca
+    // 5. Clean bracket tags [happy], markdown links [label](url), ignorable parentheses (1), and filter punctuation
     let mut cleaned = String::with_capacity(cleaned_base.len());
     let mut chars = cleaned_base.chars().peekable();
 
     while let Some(c) = chars.next() {
-        // A. Bersihkan tag kurung siku [happy], link [label](url), dsb.
+        // A. Clean square bracket tags [happy], links [label](url), etc.
         if c == '[' {
             let mut tag_content = String::new();
             let mut closed = false;
@@ -307,9 +307,9 @@ pub fn clean_text_for_speech(text: &str) -> String {
                 tag_content.push(sc);
             }
             if closed {
-                // Jika tag kurung siku diikuti markdown link `(url)`, pertahankan teks label dan abaikan url
+                // If square brackets are followed by a markdown link `(url)`, preserve label text and omit the url
                 if chars.peek() == Some(&'(') {
-                    chars.next(); // konsumsi '('
+                    chars.next(); // consume '('
                     while let Some(&uc) = chars.peek() {
                         chars.next();
                         if uc == ')' {
@@ -330,7 +330,7 @@ pub fn clean_text_for_speech(text: &str) -> String {
             }
         }
 
-        // B. Bersihkan kurung biasa () jika berisi nomor referensi footnote (1) atau emoticon
+        // B. Clean parentheses () if they contain footnote reference numbers (1) or emoticons
         if c == '(' {
             let mut candidate = String::new();
             let mut found_close = false;
@@ -355,7 +355,7 @@ pub fn clean_text_for_speech(text: &str) -> String {
                 cleaned.push(' ');
                 continue;
             } else {
-                // Jika bukan kurung ignorable, lewati kurung bukanya saja agar teks di dalamnya tetap terbaca
+                // If not ignorable parentheses, skip opening parenthesis so inner text remains readable
                 cleaned.push(' ');
                 continue;
             }
@@ -365,18 +365,18 @@ pub fn clean_text_for_speech(text: &str) -> String {
             continue;
         }
 
-        // C. Normalisasi karakter markdown non-bicara & tanda baca
+        // C. Normalize non-spoken markdown characters and punctuation
         match c {
             '#' | '`' | '_' | '~' | '^' | '|' | '<' | '>' | '*' => cleaned.push(' '),
             '?' => cleaned.push('.'),
             c if c.is_ascii_punctuation() || c.is_alphanumeric() || c.is_whitespace() => {
                 cleaned.push(c);
             }
-            _ => {} // buang emoji / karakter tak dikenal
+            _ => {} // remove emoji / unknown characters
         }
     }
 
-    // 5. Normalisasi titik berturutan atau elipsis menjadi koma agar intonasi TTS lancar
+    // 5. Normalize consecutive dots or ellipsis into comma for smooth TTS intonation
     let formatted = cleaned
         .replace(". . .", ", ")
         .replace(". .", ", ")
@@ -387,7 +387,7 @@ pub fn clean_text_for_speech(text: &str) -> String {
 
     let mut result = formatted.trim().to_string();
 
-    // 6. Tangkal bug kata emosi mentah di paling awal kalimat (misal: "happy Halo...", "senang, Halo...", "mikir: Halo...")
+    // 6. Tangkal bug word emotion mentah in most start sentence (for example: "happy Halo...", "senang, Halo...", "mikir: Halo...")
     let emotion_prefixes = [
         "happy",
         "shy",
@@ -405,7 +405,7 @@ pub fn clean_text_for_speech(text: &str) -> String {
         for prefix in &emotion_prefixes {
             if lower.starts_with(prefix) {
                 let rest = &result[prefix.len()..];
-                // Cek apakah diikuti spasi, titik dua, koma, atau tanda strip
+                // Check whether followed by space, colon, comma, or dash
                 if let Some(first_char) = rest.chars().next() {
                     if first_char.is_whitespace()
                         || first_char == ':'
@@ -424,7 +424,7 @@ pub fn clean_text_for_speech(text: &str) -> String {
         }
     }
 
-    // 7. Collapse whitespace berulang & rapikan tanda baca
+    // 7. Collapse repeated whitespace and clean up punctuation
     let mut final_result = String::with_capacity(result.len());
     let mut last_was_space = false;
     for c in result.chars() {
@@ -434,7 +434,7 @@ pub fn clean_text_for_speech(text: &str) -> String {
                 last_was_space = true;
             }
         } else {
-            // Hindari spasi sebelum titik/koma (misal: "Halo , teman" -> "Halo, teman")
+            // Avoid whitespace before period/comma (e.g. "Hello , friend" -> "Hello, friend")
             if (c == ',' || c == '.' || c == '!') && last_was_space && !final_result.is_empty() {
                 final_result.pop();
             }
@@ -446,7 +446,7 @@ pub fn clean_text_for_speech(text: &str) -> String {
     final_result.trim().to_string()
 }
 
-/// Menghitung durasi detik secara presisi dari file audio WAV Supertonic-3
+/// Accurately calculates duration in seconds from a Supertonic-3 WAV audio file
 pub fn wav_duration_secs(wav_bytes: &[u8]) -> Option<f32> {
     if wav_bytes.len() > 44 && &wav_bytes[0..4] == b"RIFF" && &wav_bytes[8..12] == b"WAVE" {
         let sample_rate = u32::from_le_bytes(wav_bytes[24..28].try_into().ok()?) as f32;
@@ -470,7 +470,7 @@ fn simple_hash_u64(s: &str) -> u64 {
     h
 }
 
-/// Helper global untuk berbicara suara asisten secara reaktif dan non-blocking
+/// Global helper for reactive and non-blocking assistant speech
 pub fn speak_assistant(text: &str, emotion: &str) {
     let cfg = crate::assets::load_config();
     let asst_name = if !cfg.assistant_name.is_empty() {
@@ -527,7 +527,7 @@ mod tests {
     fn test_clean_text_for_speech_sanitizes_urls_and_code() {
         assert_eq!(
             clean_text_for_speech("Kunjungi https://github.com/hlnsptr untuk info."),
-            "Kunjungi tautan web untuk info."
+            "Kunjungi web link untuk info."
         );
         assert_eq!(
             clean_text_for_speech("Markdown [Dokumentasi](https://example.com) bagus."),

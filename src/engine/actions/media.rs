@@ -12,7 +12,7 @@ pub fn execute_media_action(action: &str, payload: &str) -> Option<(String, Stri
                 ));
             }
 
-            // Cek lagu di direktori lokal
+            // Check track in local directory
             let music_dir = crate::config::get_music_dir();
             let existing = crate::engine::ytdlp::list_downloaded(&music_dir);
             let q_lower = query.to_lowercase();
@@ -29,7 +29,7 @@ pub fn execute_media_action(action: &str, payload: &str) -> Option<(String, Stri
                             .all(|w| t_title.contains(w) || t_filename.contains(w)))
             });
 
-            // Fallback: Fuzzy Similarity Matching untuk judul lagu lokal
+            // Fallback: Fuzzy Similarity Matching for judul track lokal
             let found = found.or_else(|| {
                 existing
                     .iter()
@@ -45,7 +45,7 @@ pub fn execute_media_action(action: &str, payload: &str) -> Option<(String, Stri
                     .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
                     .map(|(t, sim)| {
                         crate::term_log!(
-                            "🎵 [Fuzzy Match Music] Found similar song '{}' -> '{}' (score: {:.1}%)",
+                            "[Fuzzy Match Music] Found similar song '{}' -> '{}' (score: {:.1}%)",
                             query,
                             t.title,
                             sim * 100.0
@@ -56,11 +56,11 @@ pub fn execute_media_action(action: &str, payload: &str) -> Option<(String, Stri
 
             if let Some(track) = found {
                 let file_path = music_dir.join(&track.filename);
-                // 1. Putar langsung lewat speaker desktop (Native Audio Player)
+                // 1. Play direct lewat speaker desktop (Native Audio Player)
                 crate::audio::player::play_file(&file_path, &track.title);
 
-                // 2. Sinkronkan event ke Web Dashboard & Smartphone Client
-                // Selalu pancarkan event music:play agar audio HP/web dipaksa jalan kembali jika sebelumnya sempat terhenti
+                // 2. Synchronize event to Web Dashboard & Smartphone Client
+                // Always emit music:play event so mobile/web audio resumes playback if previously interrupted
                 crate::app_state::push_client_action("music:play", Some(&track.title));
                 return Some((
                     "Play Music".to_string(),
@@ -68,7 +68,7 @@ pub fn execute_media_action(action: &str, payload: &str) -> Option<(String, Stri
                 ));
             }
 
-            // Belum ada di lokal -> antrekan download & putar via background worker
+            // Not available locally yet -> queue download & play via background worker
             crate::engine::tasks::queue_download_and_play(query);
             Some((
                 "Play Music".to_string(),
@@ -95,7 +95,7 @@ pub fn execute_media_action(action: &str, payload: &str) -> Option<(String, Stri
         }
 
         "next" => {
-            // Putar lagu berikutnya dari daftar lokal
+            // Play next track from local list
             let music_dir = crate::config::get_music_dir();
             let tracks = crate::engine::ytdlp::list_downloaded(&music_dir);
             if !tracks.is_empty() {

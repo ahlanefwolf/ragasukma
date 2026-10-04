@@ -65,96 +65,96 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
     {
       id: 'vision',
       icon: ScanEye,
-      title: 'Pindai Layar & OCR Visual (Native OS / Tesseract)',
+      title: 'Screen Scan & Visual OCR (Native OS / Tesseract)',
       category: 'desktop',
-      description: 'Menganalisis tampilan visual layar monitor dan aplikasi untuk mendeteksi teks, label, serta tombol yang tampil persis di layar.',
+      description: 'Analyze monitor display and applications to detect visible text, labels, and buttons directly on screen.',
       examples: [
-        '"Pindai layar" / "Scan visual"',
-        '"Lihat ada apa di layar"',
-        '"Ada tombol apa aja di layar?"',
-        '"Klik tulisan di layarnya"'
+        '"Scan screen" / "Visual scan"',
+        '"Look at what is on screen"',
+        '"What buttons are on the screen?"',
+        '"Click the text on the screen"'
       ],
       badgeColor: 'text-theme-cyan bg-theme-cyan/15 border-theme-cyan/30'
     },
     {
       id: 'desktop_window',
       icon: AppWindow,
-      title: 'Kontrol Jendela & Interaksi Desktop (Linux / Windows / macOS)',
+      title: 'Window Control & Desktop Actions (Linux / Windows / macOS)',
       category: 'desktop',
-      description: 'Beralih fokus jendela aplikasi, klik tombol/tulisan di desktop OS, minimize, maksimalkan, atau tutup jendela via Ground of Truth (active_window_app.json).',
+      description: 'Switch application windows, click desktop buttons or text, minimize, maximize, or close windows via Ground of Truth (active_window_app.json).',
       linuxDeps: 'wlrctl (Sway/Wayland) • ydotool (GNOME/KDE) • wmctrl/xdotool (X11)',
       examples: [
-        '"Pindah ke window Zed" / "Fokus Google Chrome"',
-        '"Klik tulisan Skill Custom di layar"',
-        '"Klik tombol Simpan di desktop"',
-        '"Tutup jendela" / "Maksimalkan jendela"'
+        '"Switch to Zed" / "Focus Google Chrome"',
+        '"Click Custom Skills on screen"',
+        '"Click Save button on desktop"',
+        '"Close window" / "Maximize window"'
       ],
       badgeColor: 'text-[#29483A] bg-[#29483A]/15 border-[#29483A]/30'
     },
     {
       id: 'browser',
       icon: Globe,
-      title: 'Navigasi Browser & Multi-Tab (Chromium)',
+      title: 'Browser Navigation & Tabs (Chromium)',
       category: 'web',
-      description: 'Membuka website, berpindah antar tab aktif, dan mencari kata kunci langsung di halaman web via Ground of Truth (active_tab_browser.json).',
+      description: 'Open websites, switch active tabs, and search keywords directly in webpages via Ground of Truth (active_tab_browser.json).',
       examples: [
-        '"Buka tab YouTube" / "Buka Tokopedia"',
-        '"Pindah ke tab YouTube" / "Tutup tab Google"',
-        '"Cari video tutorial Rust di YouTube"'
+        '"Open YouTube tab" / "Open GitHub"',
+        '"Switch to YouTube tab" / "Close Google tab"',
+        '"Search Rust tutorial video on YouTube"'
       ],
       badgeColor: 'text-theme-cyan bg-theme-cyan/15 border-theme-cyan/30'
     },
     {
       id: 'dom',
       icon: MousePointerClick,
-      title: 'Interaksi Web (Live Click & Type)',
+      title: 'Web Page Interaction (Live Click & Type)',
       category: 'web',
-      description: 'Mengklik tautan/artikel di dalam web, menekan tombol formulir web, mengetik input form, dan scroll halaman web via ekstensi Chromium.',
+      description: 'Click links or articles inside web pages, submit forms, type input, and scroll pages via Chromium extension.',
       examples: [
-        '"Klik link Sign In di web" / "Klik judul video"',
-        '"Klik tombol Submit di halaman web"',
-        '"Ketik berita teknologi lalu tekan enter"',
-        '"Scroll ke bawah"'
+        '"Click Sign In link on web" / "Click video title"',
+        '"Click Submit button on web page"',
+        '"Type tech news then press enter"',
+        '"Scroll down"'
       ],
       badgeColor: 'text-[#29483A] bg-[#29483A]/12 border-[#29483A]/30'
     },
     {
       id: 'media',
       icon: Music,
-      title: 'Pemutar Musik & Audio Background',
+      title: 'Music Player & Background Audio',
       category: 'media',
-      description: 'Memutar musik lokal atau mengunduh otomatis dari YouTube di background worker tanpa freeze.',
+      description: 'Play local music tracks or stream/download from YouTube in background workers without freezing.',
       examples: [
-        '"Putar lagu Denny Caknan Sugeng Dalu"',
-        '"Jeda musik" / "Lanjutkan musik"',
-        '"Lagu berikutnya" / "Matikan musik"'
+        '"Play lofi chill beats"',
+        '"Pause music" / "Resume music"',
+        '"Next track" / "Stop music"'
       ],
       badgeColor: 'text-[#B08A4A] bg-[#B08A4A]/15 border-[#B08A4A]/30'
     },
     {
       id: 'system',
       icon: Terminal,
-      title: 'Kontrol Sistem & Aplikasi Desktop',
+      title: 'System Control & Desktop Applications',
       category: 'system',
-      description: 'Membuka aplikasi OS secara langsung, kontrol volume audio komputer, screenshot, dan kunci layar.',
+      description: 'Open OS desktop applications directly, adjust master volume, take screenshots, and lock screen.',
       examples: [
-        '"Buka Steam" / "Buka Spotify"',
-        '"Buka terminal" / "Buka VS Code"',
-        '"Buka kalkulator" / "Buka File Manager"',
-        '"Naikkan volume suara" / "Mute audio"'
+        '"Open Steam" / "Open Spotify"',
+        '"Open terminal" / "Open VS Code"',
+        '"Open calculator" / "Open File Manager"',
+        '"Increase volume" / "Mute audio"'
       ],
       badgeColor: 'text-[#876447] bg-[#876447]/15 border-[#876447]/30'
     },
     {
       id: 'todo',
       icon: CheckSquare,
-      title: 'Catatan & To-Do List Cerdas',
+      title: 'Smart Notes & To-Do List',
       category: 'tools',
-      description: 'Mencatat agenda baru ke daftar to-do dan menandai tugas yang sudah selesai secara otomatis.',
+      description: 'Record tasks to your agenda and mark items as finished automatically.',
       examples: [
-        '"Catat tugas besok meeting jam 9"',
-        '"Catat beli perlengkapan kantor"',
-        '"Tugas meeting jam 9 sudah selesai"'
+        '"Note down: meeting tomorrow at 9 AM"',
+        '"Add buy groceries to my to-do list"',
+        '"Meeting at 9 AM is done"'
       ],
       badgeColor: 'text-[#634936] bg-[#634936]/15 border-[#634936]/30'
     }
@@ -176,13 +176,13 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
           </div>
           <div>
             <h3 class="text-sm sm:text-base font-bold text-theme-text flex items-center gap-2">
-              Kemampuan & Panduan Perintah AI
+              AI Capabilities & Voice Command Guide
               <span class="text-xs font-mono px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan font-bold">
-                {capabilities.length} Fitur
+                {capabilities.length} Features
               </span>
             </h3>
             <p class="text-xs text-theme-text/70 mt-0.5">
-              Contoh kalimat perintah suara yang didukung
+              Examples of supported voice commands
             </p>
           </div>
         </div>
@@ -192,26 +192,26 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
             type="button"
             onClick={() => props.onOpenAppsModal?.()}
             class="px-3 py-1.5 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-            title="Buka Daftar Aplikasi OS yang Terdeteksi"
+            title="Open Detected OS Applications"
           >
             <Layers size={14} class="text-theme-cyan" />
-            <span>Aplikasi OS</span>
+            <span>OS Apps</span>
           </button>
 
           <button
             type="button"
             onClick={() => props.onOpenExtensionModal?.()}
             class="px-3 py-1.5 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-            title="Buka Petunjuk Pasang Ekstensi Browser (.ZIP)"
+            title="Install Browser Extension (.ZIP)"
           >
             <Puzzle size={14} class="text-[#B08A4A]" />
-            <span>Pasang Ekstensi (.ZIP)</span>
+            <span>Install Extension (.ZIP)</span>
           </button>
 
           <button
             onClick={() => setIsExpanded(!isExpanded())}
             class="p-1.5 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan transition-all"
-            title={isExpanded() ? 'Sembunyikan Panduan' : 'Tampilkan Panduan'}
+            title={isExpanded() ? 'Hide Guide' : 'Show Guide'}
           >
             {isExpanded() ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </button>
@@ -230,7 +230,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                   : 'bg-theme-card border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/40'
               }`}
             >
-              Semua ({capabilities.length})
+              All ({capabilities.length})
             </button>
             <button
               onClick={() => setSelectedCategory('desktop')}
@@ -240,7 +240,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                   : 'bg-theme-card border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/40'
               }`}
             >
-              Desktop & Layar
+              Desktop & Screen
             </button>
             <button
               onClick={() => setSelectedCategory('web')}
@@ -260,7 +260,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                   : 'bg-theme-card border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/40'
               }`}
             >
-              Musik & Media
+              Music & Media
             </button>
             <button
               onClick={() => setSelectedCategory('system')}
@@ -270,7 +270,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                   : 'bg-theme-card border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/40'
               }`}
             >
-              Kontrol OS
+              OS Control
             </button>
             <button
               onClick={() => setSelectedCategory('tools')}
@@ -280,7 +280,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                   : 'bg-theme-card border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/40'
               }`}
             >
-              To-Do & Catatan
+              To-Do & Notes
             </button>
           </div>
 
@@ -307,19 +307,19 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                               {getClientOs() === 'windows' && (
                                 <>
                                   <Check size={11} class="text-[#29483A]" />
-                                  Windows 10/11: Native OCR Bawaan Aktif
+                                  Windows 10/11: Built-in Native OCR Active
                                 </>
                               )}
                               {getClientOs() === 'macos' && (
                                 <>
                                   <Check size={11} class="text-[#29483A]" />
-                                  macOS: Apple Vision OCR Bawaan Aktif
+                                  macOS: Built-in Apple Vision OCR Active
                                 </>
                               )}
                               {getClientOs() === 'linux' && (
                                 <>
                                   <AlertTriangle size={11} class="text-amber-500" />
-                                  Linux: Memerlukan Tesseract OCR
+                                  Linux: Requires Tesseract OCR
                                 </>
                               )}
                             </span>
@@ -333,7 +333,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                           {cap.category === 'web' && (
                             <span class="text-[10px] font-mono text-[#876447] font-semibold mt-0.5 flex items-center gap-1">
                               <Puzzle size={11} class="text-[#B08A4A]" />
-                              Perlu Ekstensi (.zip)
+                              Requires Extension (.zip)
                             </span>
                           )}
                         </div>
@@ -347,29 +347,29 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                       <div class="mt-2.5 p-3 bg-amber-500/10 border border-amber-500/30 text-xs space-y-2">
                         <div class="flex items-center gap-1.5 font-bold text-amber-500">
                           <AlertTriangle size={14} class="shrink-0" />
-                          <span>Peringatan: Linux Memerlukan Paket Tesseract OCR</span>
+                          <span>Notice: Linux Requires Tesseract OCR Package</span>
                         </div>
                         <p class="text-[11px] text-theme-text/80 leading-relaxed">
-                          Distribusi Linux menggunakan engine Tesseract OCR (streaming pipe memory). Install paket berikut via package manager distro kamu:
+                          Linux distributions use the Tesseract OCR engine (streaming pipe in-memory). Install using your distribution's package manager:
                         </p>
                         <div class="p-2 bg-theme-card border border-theme-border font-mono text-[10.5px] space-y-1 relative group">
                           <div class="flex items-center justify-between pb-1 border-b border-theme-border/50 text-[10px] text-theme-text/60">
-                            <span>Perintah Instalasi Paket:</span>
+                            <span>Package Installation Command:</span>
                             <button
                               type="button"
                               onClick={handleCopyTesseractCmd}
                               class="px-2 py-0.5 bg-theme-bg hover:bg-theme-surface border border-theme-border text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shrink-0"
-                              title="Salin perintah instalasi"
+                              title="Copy command"
                             >
                               {copiedTesseractCmd() ? (
                                 <>
                                   <Check size={11} class="text-[#29483A]" />
-                                  <span class="text-[#29483A]">Tersalin</span>
+                                  <span class="text-[#29483A]">Copied</span>
                                 </>
                               ) : (
                                 <>
                                   <Copy size={11} class="text-theme-text/70" />
-                                  <span>Salin Perintah</span>
+                                  <span>Copy Command</span>
                                 </>
                               )}
                             </button>
@@ -386,8 +386,8 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                         <Check size={13} class="text-[#29483A] shrink-0" />
                         <span>
                           {getClientOs() === 'macos'
-                            ? 'Native OCR Apple Vision (Neural Engine) otomatis aktif tanpa beban model RAM.'
-                            : 'Native OCR Windows Media otomatis aktif (0 MB RAM saat idle, tanpa perlu install model).'}
+                            ? 'Native Apple Vision OCR (Neural Engine) is active with zero background RAM footprint.'
+                            : 'Windows Media Native OCR is active (0 MB RAM idle, no extra models needed).'}
                         </span>
                       </div>
                     )}
@@ -397,7 +397,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                   <div class="space-y-1.5 pt-2 border-t border-theme-border/60">
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-mono uppercase tracking-wider text-theme-text/60 font-bold">
-                        Contoh Ucapan:
+                        Example Voice Queries:
                       </span>
                     </div>
                     <div class="flex flex-wrap gap-1.5">
@@ -415,7 +415,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                         class="w-full mt-2.5 py-2 px-3 bg-theme-card hover:bg-[#876447] hover:text-[#FAF7F2] text-[#876447] hover:border-[#876447] border border-[#B08A4A]/40 flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-sm cursor-pointer"
                       >
                         <Puzzle size={14} class="text-[#B08A4A]" />
-                        <span>Cara Pasang File Ekstensi (.ZIP)</span>
+                        <span>How to Install Extension (.ZIP)</span>
                       </button>
                     )}
 
@@ -426,7 +426,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                         class="w-full mt-2.5 py-2 px-3 bg-theme-card hover:bg-[#29483A] hover:text-[#FAF7F2] text-theme-cyan border border-theme-cyan/40 flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-sm cursor-pointer"
                       >
                         <Layers size={14} />
-                        <span>Buka Daftar Aplikasi OS (Terdeteksi)</span>
+                        <span>Open Detected OS Applications</span>
                       </button>
                     )}
                   </div>

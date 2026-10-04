@@ -34,7 +34,7 @@ export const CloudflaredStatusCard: Component<CloudflaredStatusCardProps> = (pro
       <div class="px-4 py-3 border-b border-theme-border flex items-center justify-between">
         <div class="flex items-center gap-2">
           <Cloud size={16} class="text-theme-cyan" />
-          <h3 class="text-sm font-bold text-theme-text/80">Status Binary cloudflared</h3>
+          <h3 class="text-sm font-bold text-theme-text/80">cloudflared Binary Status</h3>
         </div>
         <Show when={!props.checking()}>
           <button
@@ -42,7 +42,7 @@ export const CloudflaredStatusCard: Component<CloudflaredStatusCardProps> = (pro
             class="text-xs px-3 py-1 bg-theme-card hover:bg-theme-border text-theme-text/80 hover:text-theme-cyan border border-theme-border transition-all flex items-center gap-1.5"
           >
             <RefreshCw size={13} />
-            <span>Cek Ulang</span>
+            <span>Rescan</span>
           </button>
         </Show>
       </div>
@@ -51,7 +51,7 @@ export const CloudflaredStatusCard: Component<CloudflaredStatusCardProps> = (pro
         <Show when={props.checking()}>
           <div class="flex items-center gap-2 text-xs text-theme-text/70">
             <Loader size={14} class="animate-spin" />
-            <span>Memeriksa cloudflared di sistem...</span>
+            <span>Checking cloudflared on system...</span>
           </div>
         </Show>
 
@@ -61,11 +61,11 @@ export const CloudflaredStatusCard: Component<CloudflaredStatusCardProps> = (pro
               <span class="px-3 py-1 text-xs font-bold bg-theme-cyan/20 text-[#29483A] border border-theme-cyan/40">
                 ✓ cloudflared {props.info()!.version.startsWith('v') ? props.info()!.version : `v${props.info()!.version}`}
               </span>
-              <span class="text-xs text-theme-text/70">Terpasang & siap digunakan</span>
+              <span class="text-xs text-theme-text/70">Installed & ready to use</span>
             </div>
             <Show when={props.info()?.path}>
               <p class="text-[11px] font-mono text-theme-text/50 truncate">
-                Lokasi: {props.info()!.path}
+                Location: {props.info()!.path}
               </p>
             </Show>
           </div>
@@ -75,10 +75,10 @@ export const CloudflaredStatusCard: Component<CloudflaredStatusCardProps> = (pro
           <div class="space-y-3">
             <div class="flex items-center gap-2 text-xs text-[#A84B4B]">
               <AlertCircle size={14} />
-              <span class="font-semibold">cloudflared tidak ditemukan di sistem.</span>
+              <span class="font-semibold">cloudflared was not found on your system.</span>
             </div>
 
-            {/* Tombol Auto-Install */}
+            {/* Auto-Install Button */}
             <button
               onClick={props.onInstall}
               disabled={props.installing()}
@@ -87,13 +87,13 @@ export const CloudflaredStatusCard: Component<CloudflaredStatusCardProps> = (pro
               <Show when={props.installing()} fallback={<Download size={16} />}>
                 <Loader size={16} class="animate-spin" />
               </Show>
-              <span>{props.installing() ? 'Mengunduh / Menginstall cloudflared...' : 'Install Otomatis'}</span>
+              <span>{props.installing() ? 'Downloading / Installing cloudflared...' : 'Auto Install'}</span>
             </button>
 
             <Show when={props.installMsg()}>
               <p
                 class={`text-xs px-3 py-2 border font-medium ${
-                  props.installMsg()!.startsWith('Gagal')
+                  props.installMsg()!.toLowerCase().includes('failed')
                     ? 'bg-[#A84B4B]/10 border-[#A84B4B]/30 text-[#A84B4B]'
                     : 'bg-theme-cyan/15 border-theme-cyan/35 text-[#29483A]'
                 }`}
@@ -102,10 +102,10 @@ export const CloudflaredStatusCard: Component<CloudflaredStatusCardProps> = (pro
               </p>
             </Show>
 
-            {/* Fallback manual */}
+            {/* Manual fallback guide */}
             <details class="group">
               <summary class="text-xs text-theme-text/60 hover:text-theme-text cursor-pointer select-none">
-                Panduan instalasi manual (klik untuk lihat)
+                Manual installation guide (click to expand)
               </summary>
               <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <For each={installCommands}>
@@ -121,7 +121,7 @@ export const CloudflaredStatusCard: Component<CloudflaredStatusCardProps> = (pro
                         <button
                           onClick={() => props.onCopyCmd(item.cmd)}
                           class="p-1 text-theme-text/60 hover:text-theme-text hover:bg-theme-border transition-colors shrink-0"
-                          title="Salin Perintah"
+                          title="Copy Command"
                         >
                           <Show when={props.copiedCmd() === item.cmd} fallback={<Copy size={13} />}>
                             <Check size={13} class="text-theme-cyan" />

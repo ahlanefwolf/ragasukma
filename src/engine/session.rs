@@ -21,13 +21,13 @@ impl AppSession {
     pub fn new(config: AppConfig) -> Result<Self> {
         let llm = LlmClient::new();
         crate::term_log!(
-            "🎀 Character {} (Cute & Shy) ready to accompany {}.",
+            " Character {} (Cute & Shy) ready to accompany {}.",
             config.assistant_name,
             config.user_callsign
         );
 
         let tts = Arc::new(TextToSpeech::new());
-        crate::term_log!("🔊 TTS Engine: Supertonic-3 Neural ONNX ready.");
+        crate::term_log!(" TTS Engine: Supertonic-3 Neural ONNX ready.");
 
         let last_config_mtime = crate::config::get_config_modified_time();
 
@@ -48,7 +48,7 @@ impl AppSession {
 
         let latest_config = AppConfig::load();
 
-        // Cek apakah konfigurasi audio / bahasa / TTS berubah
+        // Check whether audio / language / TTS configuration changed
         let lang_changed = latest_config.lang != self.config.lang;
 
         let gender_changed = latest_config.assistant_gender != self.config.assistant_gender;
@@ -70,12 +70,12 @@ impl AppSession {
             || gender_changed;
 
         if interrup_changed {
-            crate::term_log!("🔄 [Reactive Update] Voice interruption updated in realtime!");
+            crate::term_log!("[Reactive Update] Voice interruption updated in realtime!");
         }
 
         if lang_changed {
             crate::term_log!(
-                "🔄 [Reactive Update] Conversation language switched to: {}",
+                "[Reactive Update] Conversation language switched to: {}",
                 latest_config.lang
             );
         }
@@ -83,7 +83,7 @@ impl AppSession {
         if tts_changed {
             self.tts = Arc::new(TextToSpeech::new());
             crate::term_log!(
-                "🔄 [Reactive Update] Voice / Gender ({}) updated.",
+                "[Reactive Update] Voice / Gender ({}) updated.",
                 latest_config.assistant_gender
             );
         }
@@ -91,7 +91,7 @@ impl AppSession {
         if llm_changed {
             self.llm = LlmClient::new();
             crate::term_log!(
-                "🔄 [Reactive Update] LLM Provider / Model / Persona switched to: {} / {} ({})",
+                "[Reactive Update] LLM Provider / Model / Persona switched to: {} / {} ({})",
                 latest_config.llm_provider,
                 latest_config.llm_model,
                 latest_config.assistant_name
@@ -107,13 +107,13 @@ impl AppSession {
         let mut last_config_check = std::time::Instant::now();
 
         loop {
-            // Cek perubahan konfigurasi secara live saat standby
+            // Check configuration changes live while in standby
             if last_config_check.elapsed() >= std::time::Duration::from_millis(500) {
                 self.reload_config_if_changed();
                 last_config_check = std::time::Instant::now();
             }
 
-            // Standby mode: menunggu komando dari Web Dashboard atau tombol Mulai
+            // Standby mode: waiting for commands from Web Dashboard or Start button
             if let Some(cmd) = check_and_consume_cmd() {
                 match cmd.as_str() {
                     "start_chat" => {
@@ -123,13 +123,13 @@ impl AppSession {
                     "reset_session" => {
                         self.llm.reset_history();
                         crate::term_log!(
-                            "🔄 [Reset Session] AI chat memory history successfully reset!"
+                            "[Reset Session] AI chat memory history successfully reset!"
                         );
                     }
                     "quit" => {
                         let _ = crate::engine::cloudflared::stop_cloudflared_tunnel();
                         TrayState::clear();
-                        crate::term_log!("\n👋 Program finished. Goodbye!");
+                        crate::term_log!("\n Program finished. Goodbye!");
                         return Ok(());
                     }
                     _ => {}

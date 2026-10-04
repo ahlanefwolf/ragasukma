@@ -2,7 +2,7 @@ use super::catalog::get_builtin_system_skills;
 use crate::engine::app_scanner::get_installed_applications;
 use crate::engine::skills::execute_command_by_os;
 
-/// Handler gabungan untuk kontrol sistem OS dan peluncuran aplikasi
+/// Combined handler for OS system control and application launching
 pub fn execute_os_or_app_action(
     namespace: &str,
     action: &str,
@@ -11,7 +11,7 @@ pub fn execute_os_or_app_action(
     let act = action.trim().to_lowercase();
     let query = payload.trim();
 
-    // 1. Aksi utilitas murni sistem OS
+    // 1. Pure OS utility action
     match act.as_str() {
         "volume_up" => return execute_by_catalog_name("Volume Up"),
         "volume_down" => return execute_by_catalog_name("Volume Down"),
@@ -21,7 +21,7 @@ pub fn execute_os_or_app_action(
         _ => {}
     }
 
-    // 2. Semua permintaan aplikasi (baik payload maupun action) dialirkan ke scanner aplikasi dinamis
+    // 2. All application requests (both payload and action) are routed to dynamic app scanner
     let target = if !query.is_empty() {
         query
     } else if namespace == "app" || namespace == "os" {
@@ -37,7 +37,7 @@ pub fn execute_os_or_app_action(
     None
 }
 
-/// Eksekusi aksi sistem OS bawaan berdasarkan nama aksi
+/// Executes native OS system action by action name
 pub fn execute_os_action(action: &str) -> Option<(String, String)> {
     execute_os_or_app_action("os", action, "")
 }
@@ -54,8 +54,8 @@ fn execute_by_catalog_name(catalog_name: &str) -> Option<(String, String)> {
     None
 }
 
-/// Eksekusi launcher aplikasi OS yang terinstal
-/// Format: `app:open|<nama>`
+/// Eksekusi launcher aplikasi OS which terinstal
+/// Format: `app:open|<name>`
 pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
     let app_query = payload.trim();
     if app_query.is_empty() {
@@ -64,7 +64,7 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
 
     let installed_apps = get_installed_applications();
 
-    // 1. Cari aplikasi berdasarkan hierarki matching (Exact -> Contains -> Aliases -> Fuzzy)
+    // 1. Search application based on matching hierarchy (Exact -> Contains -> Aliases -> Fuzzy)
     if let Some(target_app) = find_target_app(app_query, &installed_apps) {
         if launch_app(target_app).is_ok() {
             return Some((
@@ -74,7 +74,7 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
         }
     }
 
-    // 2. Fallback: Eksekusi langsung nama binary di PATH sistem jika ada
+    // 2. Fallback: Directly execute binary name in system PATH if available
     let q_clean = app_query.split('(').next().unwrap_or(app_query).trim();
 
     #[cfg(target_os = "windows")]
@@ -130,7 +130,7 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
     None
 }
 
-/// Mencari aplikasi terpasang dengan hierarki 4 lapis:
+/// Search installed applications using a 4-tier hierarchy:
 /// 1. Exact match (name / desktop_id / generic_name)
 /// 2. Substring & StartsWith match
 /// 3. Generic category alias (terminal -> foot, browser -> chrome, editor -> zed)
@@ -144,7 +144,7 @@ pub fn find_target_app<'a>(
         return None;
     }
 
-    // Bersihkan format label seperti "Foot (Terminal)" -> ["Foot", "Terminal"]
+    // Clean label formats like "Foot (Terminal)" -> ["Foot", "Terminal"]
     let candidates: Vec<&str> = if let Some((base, role)) = raw.split_once('(') {
         let clean_role = role.trim_end_matches(')').trim();
         vec![base.trim(), clean_role, raw]
@@ -152,7 +152,7 @@ pub fn find_target_app<'a>(
         vec![raw]
     };
 
-    // Prioritas 1: Exact match (case-insensitive)
+    // Priority 1: Exact match (case-insensitive)
     for q in &candidates {
         for app in apps {
             if app.name.eq_ignore_ascii_case(q)
@@ -170,7 +170,7 @@ pub fn find_target_app<'a>(
         }
     }
 
-    // Prioritas 2: Substring & StartsWith match
+    // Priority 2: Substring & StartsWith match
     for q in &candidates {
         let q_lower = q.to_lowercase();
         for app in apps {
@@ -189,7 +189,7 @@ pub fn find_target_app<'a>(
         }
     }
 
-    // Prioritas 3: Generic category alias matching (terminal -> foot, browser -> chrome, dll)
+    // Priority 3: Generic category alias matching (terminal -> foot, browser -> chrome, etc.)
     for q in &candidates {
         let q_lower = q.to_lowercase();
         for app in apps {
@@ -199,7 +199,7 @@ pub fn find_target_app<'a>(
         }
     }
 
-    // Prioritas 4: Fuzzy Levenshtein Similarity (ambang batas >= 0.70)
+    // Priority 4: Fuzzy Levenshtein Similarity (threshold >= 0.70)
     let mut best_app = None;
     let mut best_sim = 0.0f32;
 
@@ -224,7 +224,7 @@ pub fn find_target_app<'a>(
 
     if let Some(app) = best_app {
         crate::term_log!(
-            "🎯 [Fuzzy Match App] Found similar application '{}' -> '{}' (score: {:.1}%)",
+            "[Fuzzy Match App] Found similar application '{}' -> '{}' (score: {:.1}%)",
             raw,
             app.name,
             best_sim * 100.0
@@ -235,7 +235,7 @@ pub fn find_target_app<'a>(
     None
 }
 
-/// Peluncur aplikasi multiplatform, multidistro, multi-DE, dan multi-WM
+/// Peluncur aplikasi multiplatform, multidistro, multi-DE, and multi-WM
 pub fn launch_app(app: &crate::engine::app_scanner::InstalledApp) -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
     {
@@ -293,7 +293,7 @@ fn launch_windows_exec(exec: &str) -> std::io::Result<()> {
 
 #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
 pub fn launch_linux_app(app: &crate::engine::app_scanner::InstalledApp) -> std::io::Result<()> {
-    // 1. Cek Compositor Wayland: Sway (Sway IPC seat spawn)
+    // 1. Check Compositor Wayland: Sway (Sway IPC seat spawn)
     if std::env::var("SWAYSOCK").is_ok() {
         if let Ok(status) = std::process::Command::new("swaymsg")
             .args(["exec", "--", &app.exec])
@@ -301,7 +301,7 @@ pub fn launch_linux_app(app: &crate::engine::app_scanner::InstalledApp) -> std::
         {
             if status.success() {
                 crate::term_log!(
-                    "🚀 [Linux Launcher] Opening '{}' via Sway IPC (swaymsg exec)",
+                    "[Linux Launcher] Opening '{}' via Sway IPC (swaymsg exec)",
                     app.name
                 );
                 return Ok(());
@@ -309,7 +309,7 @@ pub fn launch_linux_app(app: &crate::engine::app_scanner::InstalledApp) -> std::
         }
     }
 
-    // 2. Cek Compositor Wayland: Hyprland (Hyprland IPC dispatcher)
+    // 2. Check Compositor Wayland: Hyprland (Hyprland IPC dispatcher)
     if std::env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok() {
         if let Ok(status) = std::process::Command::new("hyprctl")
             .args(["dispatch", "exec", "--", &app.exec])
@@ -317,7 +317,7 @@ pub fn launch_linux_app(app: &crate::engine::app_scanner::InstalledApp) -> std::
         {
             if status.success() {
                 crate::term_log!(
-                    "🚀 [Linux Launcher] Opening '{}' via Hyprland IPC (hyprctl dispatch exec)",
+                    "[Linux Launcher] Opening '{}' via Hyprland IPC (hyprctl dispatch exec)",
                     app.name
                 );
                 return Ok(());
@@ -325,7 +325,7 @@ pub fn launch_linux_app(app: &crate::engine::app_scanner::InstalledApp) -> std::
         }
     }
 
-    // 3. Cek Window Manager X11: i3
+    // 3. Check Window Manager X11: i3
     if std::env::var("I3SOCK").is_ok() {
         if let Ok(status) = std::process::Command::new("i3-msg")
             .args(["exec", &app.exec])
@@ -333,7 +333,7 @@ pub fn launch_linux_app(app: &crate::engine::app_scanner::InstalledApp) -> std::
         {
             if status.success() {
                 crate::term_log!(
-                    "🚀 [Linux Launcher] Opening '{}' via i3 IPC (i3-msg exec)",
+                    "[Linux Launcher] Opening '{}' via i3 IPC (i3-msg exec)",
                     app.name
                 );
                 return Ok(());
@@ -341,7 +341,7 @@ pub fn launch_linux_app(app: &crate::engine::app_scanner::InstalledApp) -> std::
         }
     }
 
-    // 4. Cek XDG Desktop Environment standard launcher (GNOME / KDE / XFCE / MATE)
+    // 4. Check XDG Desktop Environment standard launcher (GNOME / KDE / XFCE / MATE)
     if let Some(ref desktop_id) = app.desktop_id {
         if let Ok(status) = std::process::Command::new("gtk-launch")
             .arg(desktop_id)
@@ -349,7 +349,7 @@ pub fn launch_linux_app(app: &crate::engine::app_scanner::InstalledApp) -> std::
         {
             if status.success() {
                 crate::term_log!(
-                    "🚀 [Linux Launcher] Opening '{}' via gtk-launch ({})",
+                    "[Linux Launcher] Opening '{}' via gtk-launch ({})",
                     app.name,
                     desktop_id
                 );
@@ -364,16 +364,16 @@ pub fn launch_linux_app(app: &crate::engine::app_scanner::InstalledApp) -> std::
             .status()
         {
             if status.success() {
-                crate::term_log!("🚀 [Linux Launcher] Opening '{}' via gio launch", app.name);
+                crate::term_log!("[Linux Launcher] Opening '{}' via gio launch", app.name);
                 return Ok(());
             }
         }
     }
 
-    // 5. Universal Detached Fallback (bekerja di seluruh distro & lingkungan desktop)
+    // 5. Universal Detached Fallback (bekerja in all distro & lingkungan desktop)
     launch_linux_command(&app.exec)?;
     crate::term_log!(
-        "🚀 [Linux Launcher] Opening '{}' via background detached process",
+        "[Linux Launcher] Opening '{}' via background detached process",
         app.name
     );
     Ok(())
@@ -381,7 +381,7 @@ pub fn launch_linux_app(app: &crate::engine::app_scanner::InstalledApp) -> std::
 
 #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
 pub fn launch_linux_command(cmd_str: &str) -> std::io::Result<()> {
-    // Cek Sway
+    // Check Sway
     if std::env::var("SWAYSOCK").is_ok() {
         if let Ok(status) = std::process::Command::new("swaymsg")
             .args(["exec", "--", cmd_str])
@@ -393,7 +393,7 @@ pub fn launch_linux_command(cmd_str: &str) -> std::io::Result<()> {
         }
     }
 
-    // Cek Hyprland
+    // Check Hyprland
     if std::env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok() {
         if let Ok(status) = std::process::Command::new("hyprctl")
             .args(["dispatch", "exec", "--", cmd_str])
@@ -405,7 +405,7 @@ pub fn launch_linux_command(cmd_str: &str) -> std::io::Result<()> {
         }
     }
 
-    // Cek i3
+    // Check i3
     if std::env::var("I3SOCK").is_ok() {
         if let Ok(status) = std::process::Command::new("i3-msg")
             .args(["exec", cmd_str])

@@ -69,7 +69,7 @@ pub fn handle_upload_vrm(
     match fs::write(&target_path, body_bytes) {
         Ok(_) => {
             crate::term_log!(
-                "✨ [Asset Manager] VRM model successfully uploaded ({:.2} MB) to {:?}",
+                "[Asset Manager] VRM model successfully uploaded ({:.2} MB) to {:?}",
                 (body_bytes.len() as f32) / (1024.0 * 1024.0),
                 target_path
             );
@@ -83,7 +83,7 @@ pub fn handle_upload_vrm(
             );
         }
         Err(e) => {
-            crate::term_err!("⚠️ [Asset Manager] Failed to save VRM file: {}", e);
+            crate::term_err!("[Asset Manager] Failed to save VRM file: {}", e);
             send_json_response(stream, 500, &format!("{{\"error\":\"{}\"}}", e));
         }
     }
@@ -130,7 +130,7 @@ pub fn handle_upload_avatar(
     match fs::write(&target_path, body_bytes) {
         Ok(_) => {
             crate::term_log!(
-                "✨ [Asset Manager] Avatar image for slot '{}' saved to {:?}",
+                "[Asset Manager] Avatar image for slot '{}' saved to {:?}",
                 slot,
                 target_path
             );
@@ -140,7 +140,7 @@ pub fn handle_upload_avatar(
             send_json_response(stream, 200, "{\"success\":true}");
         }
         Err(e) => {
-            crate::term_err!("⚠️ [Asset Manager] Failed to save avatar: {}", e);
+            crate::term_err!("[Asset Manager] Failed to save avatar: {}", e);
             send_json_response(stream, 500, &format!("{{\"error\":\"{}\"}}", e));
         }
     }

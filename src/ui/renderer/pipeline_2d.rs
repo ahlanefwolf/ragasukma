@@ -153,7 +153,7 @@ pub fn load_loading_icon_texture(
     layout: &wgpu::BindGroupLayout,
     sampler: &wgpu::Sampler,
 ) -> Option<(wgpu::TextureView, wgpu::BindGroup, [f32; 2])> {
-    // 1. Coba baca dari file candidates di disk
+    // 1. Coba baca from file candidates in disk
     let candidates = [
         crate::assets::find_file_in_candidates("icon.png"),
         std::path::PathBuf::from("icons/icon.png"),
@@ -172,7 +172,7 @@ pub fn load_loading_icon_texture(
         }
     }
 
-    // 2. Fallback: Embed icon langsung dari rust-embed atau byte build
+    // 2. Fallback: Embed icon direct from rust-embed or byte build
     if image_data.is_none() {
         if let Some(file) = crate::assets::EmbeddedAssets::get("icon.png") {
             if let Ok(img) = image::load_from_memory(file.data.as_ref()) {

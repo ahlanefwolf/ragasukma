@@ -17,15 +17,15 @@ export const AntigravityModelCatalog: Component<AntigravityModelCatalogProps> = 
           </div>
           <div>
             <h3 class="text-sm font-bold text-theme-text">
-              Katalog Model Antigravity
+              Antigravity Model Catalog
             </h3>
             <p class="text-xs text-theme-text/60">
-              Klik kartu atau tombol salin pada model untuk menyalin ID model siap pakai ke editor / SDK Anda.
+              Click a card or copy icon to copy the ready-to-use Model ID to your editor or SDK.
             </p>
           </div>
         </div>
         <span class="text-xs font-mono px-2.5 py-1 bg-theme-cyan/10 text-theme-cyan border border-theme-cyan/30 font-bold">
-          {ANTIGRAVITY_PRESET_MODELS.length} Model Tersedia
+          {ANTIGRAVITY_PRESET_MODELS.length} Models Available
         </span>
       </div>
 

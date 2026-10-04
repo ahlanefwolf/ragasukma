@@ -38,7 +38,7 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
               type="button"
               onClick={props.onDismissLastSent}
               class="text-theme-muted hover:text-theme-text ml-1"
-              title="Tutup status"
+              title="Dismiss status"
             >
               <X size={12} />
             </button>
@@ -46,7 +46,7 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
         </div>
       </Show>
 
-      {/* 2. Floating Text Input Form (Muncul Rapi di Atas Tombol Saat Toggle Pesan Aktif) */}
+      {/* 2. Floating Text Input Form (Appears neatly above buttons when message toggle is active) */}
       <Show when={props.showInput}>
         <div class="w-full max-w-sm bg-theme-surface border border-theme-border p-3 shadow-xl space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
           <div class="relative flex items-center">
@@ -55,7 +55,7 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
               value={props.inputText}
               onInput={(e) => props.onInputText(e.currentTarget.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ketik pesan atau perintah untuk Sukma..."
+              placeholder="Type a message or command for assistant..."
               rows={2}
               disabled={props.isSending}
               class="w-full pl-3 pr-16 py-2 bg-theme-card border border-theme-border text-xs text-theme-text placeholder:text-theme-muted/60 focus:border-theme-cyan transition-colors resize-none leading-relaxed"
@@ -66,7 +66,7 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
                   type="button"
                   onClick={() => props.onInputText('')}
                   class="p-1 text-theme-muted hover:text-theme-text transition-colors"
-                  title="Hapus teks"
+                  title="Clear text"
                 >
                   <Trash2 size={13} />
                 </button>
@@ -75,7 +75,7 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
                 type="button"
                 onClick={props.onToggleShowInput}
                 class="p-1 text-theme-muted hover:text-theme-text transition-colors"
-                title="Tutup input"
+                title="Close input"
               >
                 <X size={14} />
               </button>
@@ -84,7 +84,7 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
 
           <div class="flex items-center justify-between gap-2">
             <span class="text-[10px] font-mono text-theme-muted">
-              Tekan Enter untuk kirim
+              Press Enter to send
             </span>
             <button
               type="button"
@@ -93,15 +93,15 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
               class="px-4 py-1.5 bg-theme-cyan text-theme-bg font-bold text-xs flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all shadow-sm"
             >
               <Send size={12} class={props.isSending ? 'animate-pulse' : ''} />
-              <span>{props.isSending ? 'Mengirim...' : 'Kirim'}</span>
+              <span>{props.isSending ? 'Sending...' : 'Send'}</span>
             </button>
           </div>
         </div>
       </Show>
 
-      {/* 3. Bar Tombol Utama: Ukuran Sama Persis, Simetris, dan Nyaman Disentuh */}
+      {/* 3. Primary Button Bar: Equal sizing, symmetrical, touch-friendly */}
       <div class="flex items-center justify-center gap-5">
-        {/* Tombol Pesan / Keyboard (Ukuran 56x56 px, Simetris Sempurna dengan Tombol Mic) */}
+        {/* Message / Keyboard Button (56x56 px, symmetric with Mic button) */}
         <button
           type="button"
           onClick={props.onToggleShowInput}
@@ -111,14 +111,14 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
               ? 'bg-theme-cyan text-theme-bg border-theme-cyan shadow-lg'
               : 'bg-theme-surface/90 border-theme-border text-theme-cyan hover:border-theme-cyan'
           }`}
-          title={props.showInput ? 'Tutup Input Teks' : 'Ketik Pesan'}
+          title={props.showInput ? 'Close Text Input' : 'Type Message'}
         >
           <Show when={props.showInput} fallback={<MessageSquare size={22} />}>
             <X size={22} />
           </Show>
         </button>
 
-        {/* Tombol Mic PTT (Ukuran 56x56 px, Simetris Sempurna dengan Tombol Pesan) */}
+        {/* PTT Mic Button (56x56 px, symmetric with Message button) */}
         <button
           type="button"
           onClick={props.onToggleMic}
@@ -128,7 +128,7 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
               ? 'bg-rose-500 text-white border-rose-300 animate-pulse shadow-lg scale-105'
               : 'bg-theme-cyan text-theme-bg border-theme-cyan hover:opacity-90 shadow-lg'
           }`}
-          title={props.isListening ? 'Hentikan Mendengar' : 'Mulai Bicara (PTT)'}
+          title={props.isListening ? 'Stop Listening' : 'Push to Talk (PTT)'}
         >
           <Show when={props.isListening} fallback={<Mic size={24} />}>
             <MicOff size={24} />

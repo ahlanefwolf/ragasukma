@@ -43,7 +43,7 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
                 <Rocket size={18} />
               </div>
               <div>
-                <h3 class="text-base font-bold text-theme-text m-0 leading-tight">Input Token Antigravity Manual</h3>
+                <h3 class="text-base font-bold text-theme-text m-0 leading-tight">Manual Antigravity Token Input</h3>
                 <p class="text-xs text-theme-text/50">Google OAuth Refresh Token</p>
               </div>
             </div>
@@ -59,12 +59,12 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
             <div class="space-y-1.5">
               <label class="font-bold text-theme-text flex items-center gap-1.5">
                 <KeyRound size={13} class="text-theme-cyan" />
-                Refresh Token Google OAuth <span class="text-theme-rose">*</span>
+                Google OAuth Refresh Token <span class="text-theme-rose">*</span>
               </label>
               <textarea
                 value={refreshToken()}
                 onInput={(e) => setRefreshToken(e.currentTarget.value)}
-                placeholder="Contoh: 1//04..."
+                placeholder="e.g. 1//04..."
                 rows={3}
                 required
                 class="w-full px-3.5 py-2.5 bg-theme-bg border border-theme-border focus:border-theme-cyan outline-none text-theme-text font-mono text-xs transition-colors select-text"
@@ -74,7 +74,7 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
             <div class="space-y-1.5">
               <label class="font-bold text-theme-text flex items-center gap-1.5">
                 <Mail size={13} class="text-theme-cyan" />
-                Email Akun (Opsional)
+                Account Email (Optional)
               </label>
               <input
                 type="email"
@@ -88,13 +88,13 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
             <div class="space-y-1.5">
               <label class="font-bold text-theme-text flex items-center gap-1.5">
                 <FolderGit2 size={13} class="text-theme-cyan" />
-                Project ID Google Cloud (Opsional)
+                Google Cloud Project ID (Optional)
               </label>
               <input
                 type="text"
                 value={projectId()}
                 onInput={(e) => setProjectId(e.currentTarget.value)}
-                placeholder="Biarkan kosong untuk auto-discovery"
+                placeholder="Leave empty for auto-discovery"
                 class="w-full px-3.5 py-2.5 bg-theme-bg border border-theme-border focus:border-theme-cyan outline-none text-theme-text font-mono text-xs transition-colors select-text"
               />
             </div>
@@ -105,7 +105,7 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
                 onClick={props.onClose}
                 class="px-4 py-2.5 bg-theme-card hover:bg-theme-border text-theme-text/80 font-bold transition-all"
               >
-                Batal
+                Cancel
               </button>
               <button
                 type="submit"
@@ -115,7 +115,7 @@ export const AntigravityAddModal: Component<AntigravityAddModalProps> = (props) 
                 <Show when={isSubmitting()} fallback={<Plus size={16} />}>
                   <RefreshCw size={16} class="animate-spin" />
                 </Show>
-                <span>{isSubmitting() ? 'Menyimpan...' : 'Simpan Token'}</span>
+                <span>{isSubmitting() ? 'Saving...' : 'Save Token'}</span>
               </button>
             </div>
           </form>

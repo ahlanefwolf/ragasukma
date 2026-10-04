@@ -64,7 +64,7 @@ pub fn send_disk_file_stream_with_range(
         return Ok(());
     }
 
-    // Cek header Range: bytes=start-end (Wajib untuk HTML5 <audio> m4a/mp4 container seeking)
+    // Check Range header: bytes=start-end (Required for HTML5 <audio> m4a/mp4 container seeking)
     let range_header = header_str.lines().find_map(|line| {
         let lower = line.to_lowercase();
         if lower.starts_with("range:") {
@@ -115,10 +115,10 @@ pub fn send_disk_file_stream_with_range(
 
     stream.write_all(resp_header.as_bytes())?;
 
-    // Seek ke posisi start
+    // Seek to start position
     file.seek(SeekFrom::Start(start))?;
 
-    // Stream dalam chunk 64KB
+    // Streams are in 64KB chunks
     let mut remaining = chunk_len;
     let mut buffer = [0u8; 65536];
 
@@ -247,7 +247,7 @@ pub fn handle_api_route(
         }
 
         // Session & Single-Tab Control
-        // Session Claim Service (1x saat tab dibuka)
+        // Session Claim Service (1x when tab is opened)
         ("POST", "/api/session/claim") => handle_session_claim(body_str, &mut stream, &shared),
         ("POST", "/api/session/tab") => handle_session_tab(body_str, &mut stream),
 
@@ -480,7 +480,7 @@ pub fn read_http_request(stream: &mut TcpStream) -> std::io::Result<(String, Vec
 }
 
 fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
-    // Hindari socket menggantung tak berujung saat browser me-refresh cepat
+    // Prevent endless hanging sockets when browser refreshes rapidly
     let _ = stream.set_nodelay(true);
     let _ = stream.set_read_timeout(Some(Duration::from_secs(3)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(3)));
@@ -504,7 +504,7 @@ fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
     let full_url = parts[1];
     let url = full_url.split('?').next().unwrap_or(full_url);
 
-    // Jika ini SSE endpoint atau OpenAI API /v1, hilangkan read/write timeout agar stream long-lived tidak terputus timeout
+    // If this is an SSE endpoint or OpenAI API /v1, remove read/write timeouts so that long-lived streams don't get interrupted timeouts
     if url.starts_with("/api/events") || url.starts_with("/v1") || url.starts_with("/api/v1") {
         let _ = stream.set_read_timeout(None);
         let _ = stream.set_write_timeout(None);
@@ -556,16 +556,16 @@ pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
     thread::spawn(move || {
         let addr = "127.0.0.1:42128";
         let listener = if let Some(prebound) = take_prebound_listener() {
-            println!("🌐 [Web Dashboard & API Server] Running at http://{}", addr);
+            println!(" [Web Dashboard & API Server] Running at http://{}", addr);
             prebound
         } else {
             match TcpListener::bind(addr) {
                 Ok(l) => {
-                    println!("🌐 [Web Dashboard & API Server] Running at http://{}", addr);
+                    println!(" [Web Dashboard & API Server] Running at http://{}", addr);
                     l
                 }
                 Err(e) => {
-                    eprintln!("⚠️ [Web Server] Failed to bind to {}: {}", addr, e);
+                    eprintln!("[Web Server] Failed to bind to {}: {}", addr, e);
                     return;
                 }
             }

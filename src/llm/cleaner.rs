@@ -181,13 +181,13 @@ pub fn clean_ai_text(text: &str) -> String {
     // 2. Strip [CMD:...] / [SKILL:...] tags
     let text = RE_SKILL.replace_all(&text, "");
 
-    // 3. Normalisasi bold markdown: `**teks**` -> `teks`
+    // 3. Normalize markdown bold: `**text**` -> `text`
     let text = RE_BOLD.replace_all(&text, "$1");
 
-    // 4. Buang tag bintang tunggal emosi (*malu-malu*, *happy*, dsb.)
+    // 4. Buang tag bintang tunggal emotion (*malu-malu*, *happy*, dsb.)
     let text = RE_SINGLE_STAR_EMOTE.replace_all(&text, " ");
 
-    // 5. Buang backtick (`` ` ``) dan header markdown (`#`)
+    // 5. Buang backtick (`` ` ``) and header markdown (`#`)
     let mut cleaned = String::with_capacity(text.len());
     for c in text.chars() {
         match c {

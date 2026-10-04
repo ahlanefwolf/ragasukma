@@ -8,7 +8,7 @@ use crate::services::browser_session_service::get_latest_snapshot;
 use super::runner::{execute_single_step, wait_for_dom_change, wait_for_target_page};
 use super::types::{AutomationRecipe, InitialAction, RecipeStep, TrainStepDecision, get_recipes_dir};
 
-/// Menghitung hash representatif dari state DOM untuk mendeteksi apakah halaman benar-benar berubah
+/// Calculates representative hash from DOM state to detect if page actually changed
 pub fn compute_dom_hash(snap: &crate::services::browser_session_service::BrowserDomSnapshot) -> u64 {
     use std::collections::hash_map::DefaultHasher;
     let mut hasher = DefaultHasher::new();
@@ -50,12 +50,12 @@ pub fn extract_json_from_llm(raw: &str) -> &str {
     trimmed
 }
 
-/// Memperbaiki kesalahan umum output JSON dari LLM:
-/// - Escaped quotes liar di array: e.g. `\"button[...]\"`
-/// - Trailing commas pada array/object: e.g. `[1, 2,]`
+/// Fixes common JSON output errors from LLM:
+/// - Escaped quotes liar in array: e.g. `\"button[...]\"`
+/// - Trailing commas on array/object: e.g. `[1, 2,]`
 /// - Unquoted string values: e.g. "recipe_name": Video Title,
 pub fn repair_json_string_values(json_str: &str) -> String {
-    // 1. Bersihkan escaped quotes liar yang ditaruh di luar string
+    // 1. Clean stray escaped quotes placed outside strings
     let mut cleaned = json_str.to_string();
     cleaned = cleaned.replace(", \\\"", ", \"");
     cleaned = cleaned.replace("[\\\"", "[\"");
@@ -65,7 +65,7 @@ pub fn repair_json_string_values(json_str: &str) -> String {
     cleaned = cleaned.replace(": \\\"", ": \"");
     cleaned = cleaned.replace("\\\", ", "\", ");
 
-    // 2. Bersihkan trailing commas: `, ]` -> `]` dan `, }` -> `}`
+    // 2. Clean trailing commas: `, ]` -> `]` and `, }` -> `}`
     while cleaned.contains(",\n]") || cleaned.contains(",\n }") || cleaned.contains(",]") || cleaned.contains(",}") {
         cleaned = cleaned.replace(",\n]", "\n]");
         cleaned = cleaned.replace(",\n }", "\n }");
@@ -108,11 +108,11 @@ pub fn repair_json_string_values(json_str: &str) -> String {
 }
 
 /// Fallback parser toleran (Lenient Regex / Lexer):
-/// Jika serde_json gagal mem-parse format LLM yang hancur, ekstrak field utama secara manual
+/// If serde_json fails to parse broken LLM output, extract primary fields manually
 pub fn parse_lenient_train_decision(raw: &str) -> Option<TrainStepDecision> {
     let clean = extract_json_from_llm(raw);
 
-    // Helper untuk mengekstrak string value berdasarkan key
+    // Helper to extract string value by key
     let extract_str = |key: &str| -> Option<String> {
         let pattern = format!(r#""{key}""#);
         let start_idx = clean.find(&pattern)?;
@@ -156,7 +156,7 @@ pub fn parse_lenient_train_decision(raw: &str) -> Option<TrainStepDecision> {
     let recipe_id = extract_str("recipe_id");
     let recipe_name = extract_str("recipe_name");
 
-    // Jika status DONE, tidak perlu next_step
+    // If status DONE, not perlu next_step
     if status.eq_ignore_ascii_case("DONE") {
         return Some(TrainStepDecision {
             reasoning,
@@ -175,7 +175,7 @@ pub fn parse_lenient_train_decision(raw: &str) -> Option<TrainStepDecision> {
         let target_text = extract_str("target_text");
         let value = extract_str("value");
 
-        // Ekstrak fallback_selectors dari array jika ada
+        // Extract fallback_selectors from array if present
         let mut fallback_selectors = Vec::new();
         if let Some(fb_start) = clean.find(r#""fallback_selectors""#) {
             let after_fb = &clean[fb_start..];
@@ -289,7 +289,7 @@ OUTPUT INSTRUCTIONS:
         },
     ];
 
-    crate::term_log!("🔍 [Recipe Diagnostic Pass] Auditing and optimizing {} recorded steps...", steps.len());
+    crate::term_log!("[Recipe Diagnostic Pass] Auditing and optimizing {} recorded steps...", steps.len());
 
     match llm.complete_messages_silent(&messages) {
         Ok(reply) => {
@@ -297,40 +297,40 @@ OUTPUT INSTRUCTIONS:
             let repaired = repair_json_string_values(clean_json);
             if let Ok(diag) = serde_json::from_str::<RecipeDiagnosisResponse>(&repaired) {
                 if !diag.optimized_steps.is_empty() {
-                    crate::term_log!("✨ [Recipe Diagnosis Summary]: {}", diag.diagnosis);
+                    crate::term_log!("[Recipe Diagnosis Summary]: {}", diag.diagnosis);
                     let mut reindexed = diag.optimized_steps;
                     for (i, st) in reindexed.iter_mut().enumerate() {
                         st.step = i + 1;
                     }
                     crate::term_log!(
-                        "⚡ [Recipe Optimized]: Refined steps from {} -> {}",
+                        "[Recipe Optimized]: Refined steps from {} -> {}",
                         steps.len(),
                         reindexed.len()
                     );
                     reindexed
                 } else {
-                    crate::term_log!("⚠️ [Recipe Diagnosis]: Diagnostic returned empty steps array, falling back to recorded steps.");
+                    crate::term_log!("[Recipe Diagnosis]: Diagnostic returned empty steps array, falling back to recorded steps.");
                     steps
                 }
             } else {
-                crate::term_log!("⚠️ [Recipe Diagnosis]: Failed to parse diagnosis JSON, falling back to recorded steps.");
+                crate::term_log!("[Recipe Diagnosis]: Failed to parse diagnosis JSON, falling back to recorded steps.");
                 steps
             }
         }
         Err(e) => {
-            crate::term_err!("⚠️ [Recipe Diagnosis]: Failed to complete diagnosis prompt: {e}, falling back to recorded steps.");
+            crate::term_err!("[Recipe Diagnosis]: Failed to complete diagnosis prompt: {e}, falling back to recorded steps.");
             steps
         }
     }
 }
 
 /// Worker Train / Interactive Recorder (Agentic Training Loop):
-/// Mengeksplorasi halaman web secara interaktif langkah-demi-langkah (Reasoning Loop):
-/// 1. Ambil snapshot DOM aktual setiap langkah.
-/// 2. LLM Planner bernalar (reasoning) menentukan 1 aksi berikutnya.
-/// 3. Aksi dieksekusi langsung di browser nyata.
-/// 4. Halaman berubah -> loop lanjut membaca DOM baru hingga goal tercapai (status: "DONE").
-/// 5. Seluruh jejak langkah dikompilasi jadi 1 blueprint AutomationRecipe JSON untuk eksekusi 0-token di masa depan!
+/// Interactively explores web pages step-by-step (Reasoning Loop):
+/// 1. Take actual DOM snapshot at each step.
+/// 2. LLM Planner reasons to determine the next single action.
+/// 3. Action is executed directly in real browser.
+/// 4. Page changed -> loop continues reading new DOM until goal is reached (status: "DONE").
+/// 5. All step traces are compiled into 1 AutomationRecipe JSON blueprint for future 0-token execution!
 pub fn record_recipe_action(payload: &str) -> Option<(String, String)> {
     let clean = payload.trim();
     if clean.is_empty() {
@@ -348,12 +348,12 @@ pub fn record_recipe_action(payload: &str) -> Option<(String, String)> {
     };
 
     if target_url.is_empty() {
-        crate::term_err!("⚠️ [Recipe Train] Missing target URL in payload: {payload}");
+        crate::term_err!("[Recipe Train] Missing target URL in payload: {payload}");
         return None;
     }
 
     crate::term_log!(
-        "🧠 [Recipe Train Loop] Starting interactive training loop for URL: '{}' | Goal: '{}'",
+        "[Recipe Train Loop] Starting interactive training loop for URL: '{}' | Goal: '{}'",
         target_url,
         user_goal
     );
@@ -364,8 +364,8 @@ pub fn record_recipe_action(payload: &str) -> Option<(String, String)> {
     thread::spawn(move || {
         let initial_ts = get_latest_snapshot().map(|s| s.timestamp).unwrap_or(0);
 
-        // Step 0: Buka Tab Baru Bersih (Isolated Clean State)
-        crate::term_log!("🌐 [Recipe Train Loop] Step 0: Opening clean tab to: {}", url_for_thread);
+        // Step 0: Open Tab New Clean (Isolated Clean State)
+        crate::term_log!("[Recipe Train Loop] Step 0: Opening clean tab to: {}", url_for_thread);
         crate::services::browser_session_service::smart_open_or_switch_tab(
             &url_for_thread,
             None,
@@ -381,13 +381,13 @@ pub fn record_recipe_action(payload: &str) -> Option<(String, String)> {
             .unwrap_or("")
             .to_string();
 
-        // Tunggu halaman awal termuat sesuai target domain
+        // Tunggu halaman start termuat sesuai target domain
         wait_for_target_page(&clean_domain, initial_ts, 10);
 
         let cfg = crate::assets::load_config();
         let is_id = cfg.lang.to_lowercase().starts_with("id");
         let start_speech = if is_id {
-            format!("Mulai mempelajari alur untuk {clean_domain}.")
+            format!("Starting recipe training for {clean_domain}.")
         } else {
             format!("Starting to learn workflow for {clean_domain}.")
         };
@@ -406,21 +406,21 @@ pub fn record_recipe_action(payload: &str) -> Option<(String, String)> {
 
         for iteration in 0..max_iterations {
             crate::term_log!(
-                "🔄 [Recipe Train Loop] Iteration {}/{} — Inspecting current DOM state...",
+                "[Recipe Train Loop] Iteration {}/{} — Inspecting current DOM state...",
                 iteration + 1,
                 max_iterations
             );
 
-            // Ambil snapshot DOM terkini dari halaman aktif
+            // Take latest DOM snapshot from active page
             let snap = match get_latest_snapshot() {
                 Some(s) => s,
                 None => {
-                    crate::term_err!("❌ [Recipe Train Loop] Failed to acquire page snapshot from browser");
+                    crate::term_err!("[Recipe Train Loop] Failed to acquire page snapshot from browser");
                     break;
                 }
             };
 
-            // Rangkum elemen interaktif saat ini
+            // Summarize current interactive elements
             let mut buttons_summary = Vec::new();
             for b in snap.buttons.iter().take(30) {
                 let label = b.text.as_deref().or(b.aria_label.as_deref()).unwrap_or("").trim();
@@ -488,7 +488,7 @@ RULES:
 6. NO surrounding conversation or explanations outside JSON. Keep output minimal and compact."#;
 
             let warning_block = if let Some(ref w) = last_warning_feedback {
-                format!("\nCRITICAL OBSERVATION FROM LAST STEP:\n⚠️ {}\n", w)
+                format!("\nCRITICAL OBSERVATION FROM LAST STEP:\n {}\n", w)
             } else {
                 String::new()
             };
@@ -518,7 +518,7 @@ RULES:
                     let decision_opt = serde_json::from_str::<TrainStepDecision>(&repaired_json)
                         .ok()
                         .or_else(|| {
-                            crate::term_log!("⚠️ [Recipe Train Loop] Standard JSON parser failed, attempting lenient regex parser...");
+                            crate::term_log!("[Recipe Train Loop] Standard JSON parser failed, attempting lenient regex parser...");
                             parse_lenient_train_decision(&repaired_json)
                         })
                         .or_else(|| parse_lenient_train_decision(clean_json));
@@ -526,7 +526,7 @@ RULES:
                     match decision_opt {
                         Some(decision) => {
                             crate::term_log!(
-                                "  💡 [Train Iteration {} Reasoning]: {}",
+                                "   [Train Iteration {} Reasoning]: {}",
                                 iteration + 1,
                                 decision.reasoning
                             );
@@ -542,15 +542,15 @@ RULES:
                                 suggested_required_params = decision.required_params;
                             }
 
-                            // Cek apakah LLM menyatakan alur sudah selesai
+                            // Check whether LLM states flow is already complete
                             if decision.status.eq_ignore_ascii_case("DONE") {
-                                crate::term_log!("🎉 [Recipe Train Loop] Goal accomplished according to LLM reasoning!");
+                                crate::term_log!("[Recipe Train Loop] Goal accomplished according to LLM reasoning!");
                                 break;
                             }
 
-                            // Eksekusi aksi berikutnya jika status CONTINUE
+                            // Execute next action if status is CONTINUE
                             if let Some(mut step) = decision.next_step {
-                                // 1. Deteksi duplikasi "type" berturut-turut pada elemen yang sama tanpa aksi submit
+                                // 1. Detect consecutive duplicate "type" actions on the same element without submit action
                                 let is_duplicate_type = if step.action == "type" {
                                     recorded_steps.last().map(|last| {
                                         last.action == "type"
@@ -561,12 +561,12 @@ RULES:
                                 };
 
                                 if is_duplicate_type {
-                                    crate::term_log!("⚠️ [Train Validator] Skipped duplicate 'type' step on same element without intermediate submit/click.");
+                                    crate::term_log!("[Train Validator] Skipped duplicate 'type' step on same element without intermediate submit/click.");
                                     last_warning_feedback = Some("The query text is ALREADY typed into the search box in the previous step! Do NOT type again. Your next step MUST be submitting the search (e.g. click the search button with aria-label='Search' or action: 'enter').".to_string());
                                     continue;
                                 }
 
-                                // Auto-adopt target_text dan fallback_selectors langsung dari snapshot DOM
+                                // Auto-adopt target_text and fallback_selectors direct from snapshot DOM
                                 if step.action == "click" {
                                     if let Some(b) = snap.buttons.iter().find(|b| {
                                         b.selector.as_deref() == Some(&step.selector)
@@ -599,7 +599,7 @@ RULES:
 
                                 step.step = recorded_steps.len() + 1;
                                 crate::term_log!(
-                                    "  ▶️ [Executing Live Action] Step {}: {} ({})",
+                                    "  ▶ [Executing Live Action] Step {}: {} ({})",
                                     step.step,
                                     step.action,
                                     step.selector
@@ -608,27 +608,27 @@ RULES:
                                 let before_step_ts = snap.timestamp;
                                 let prev_hash = compute_dom_hash(&snap);
 
-                                // Eksekusi aksi nyata di browser
+                                // Eksekusi aksi nyata in browser
                                 let mut dummy_params = HashMap::new();
                                 dummy_params.insert("query".to_string(), goal_for_thread.clone());
                                 dummy_params.insert("keyword".to_string(), goal_for_thread.clone());
                                 execute_single_step(&step, &dummy_params, Some(&snap));
 
-                                // Tunggu secara reaktif hingga timestamp DOM diperbarui oleh background extension (maks 2500ms)
+                                // Reactively wait until DOM timestamp is updated by background extension (max 2500ms)
                                 let new_snap_opt = wait_for_dom_change(before_step_ts, 2500);
                                 let new_hash = new_snap_opt.as_ref().map(compute_dom_hash).unwrap_or(prev_hash);
                                 let dom_changed = new_hash != prev_hash;
 
                                 if let Some(ref new_snap) = new_snap_opt {
                                     if new_snap.timestamp > before_step_ts {
-                                        crate::term_log!("  ⚡ [DOM Reactive] New DOM snapshot detected (ts: {}), advancing immediately!", new_snap.timestamp);
+                                        crate::term_log!("[DOM Reactive] New DOM snapshot detected (ts: {}), advancing immediately!", new_snap.timestamp);
                                     }
                                 }
 
-                                // 2. Validasi perubahan DOM untuk aksi 'click': jika tidak ada perubahan, jangan masukkan ke steps!
+                                // 2. Validate DOM mutation for 'click' action: if no mutation occurred, do not add to steps!
                                 if step.action == "click" && !dom_changed {
                                     crate::term_log!(
-                                        "⚠️ [Train Validator] Click on '{}' did NOT produce any DOM/URL change (hash unchanged: {}). Skipping step from recording.",
+                                        "[Train Validator] Click on '{}' did NOT produce any DOM/URL change (hash unchanged: {}). Skipping step from recording.",
                                         step.selector,
                                         prev_hash
                                     );
@@ -639,7 +639,7 @@ RULES:
                                     continue;
                                 }
 
-                                // Aksi valid dan membuahkan hasil: catat ke recipe!
+                                // Valid action that produced results: record to recipe!
                                 last_warning_feedback = None;
                                 history_trace.push(format!(
                                     "Step {}: {} ({})",
@@ -647,35 +647,31 @@ RULES:
                                 ));
 
                                 let step_desc = step.target_text.clone().unwrap_or_else(|| step.selector.clone());
-                                let step_voice = if is_id {
-                                    format!("Langkah {} selesai, {}", step.step, step_desc)
-                                } else {
-                                    format!("Step {} completed, {}", step.step, step_desc)
-                                };
+                                let step_voice = format!("Step {} completed, {}", step.step, step_desc);
                                 crate::audio::tts::speak_assistant(&step_voice, "happy");
 
                                 recorded_steps.push(step);
                             } else {
-                                crate::term_log!("⚠️ [Recipe Train Loop] No next_step provided, ending loop.");
+                                crate::term_log!("[Recipe Train Loop] No next_step provided, ending loop.");
                                 break;
                             }
                         }
                         None => {
-                            crate::term_err!("❌ [Recipe Train Loop] Failed to parse decision JSON from LLM.\nRaw: {clean_json}");
+                            crate::term_err!("[Recipe Train Loop] Failed to parse decision JSON from LLM.\nRaw: {clean_json}");
                             break;
                         }
                     }
                 }
                 Err(e) => {
-                    crate::term_err!("❌ [Recipe Train Loop] LLM call failed: {e}");
+                    crate::term_err!("[Recipe Train Loop] LLM call failed: {e}");
                     break;
                 }
             }
         }
 
-        // Kompilasi seluruh langkah yang berhasil direkam menjadi Recipe utuh
+        // Compile all successfully recorded steps into a complete Recipe
         if !recorded_steps.is_empty() {
-            // Fase Diagnosa & Optimasi Langkah (Pruning redundant clicks/inputs)
+            // Step Diagnosis & Optimization Phase (Pruning redundant clicks/inputs)
             let recorded_steps = diagnose_and_optimize_steps(
                 &mut llm,
                 &goal_for_thread,
@@ -695,7 +691,7 @@ RULES:
             });
             let final_recipe_name = suggested_recipe_name.unwrap_or_else(|| goal_for_thread.clone());
 
-            // Tentukan required_params secara ketat: periksa template {{...}} di semua langkah
+            // Determine required_params strictly: inspect {{...}} templates across all steps
             let mut final_params = suggested_required_params.unwrap_or_default();
             let auto_extracted = super::types::extract_template_params(&recorded_steps);
             for p in auto_extracted {
@@ -722,20 +718,16 @@ RULES:
             if let Ok(formatted) = serde_json::to_string_pretty(&compiled_recipe) {
                 if fs::write(&recipe_file_path, formatted).is_ok() {
                     crate::term_log!(
-                        "🏆 [Recipe Train Complete] Compiled {} interactive steps into '{:?}'! Future runs will cost 0 tokens.",
+                        "[Recipe Train Complete] Compiled {} interactive steps into '{:?}'! Future runs will cost 0 tokens.",
                         compiled_recipe.steps.len(),
                         recipe_file_path
                     );
-                    let done_speech = if is_id {
-                        format!("Semua langkah berhasil dipelajari dan disimpan ke resep {}!", compiled_recipe.name)
-                    } else {
-                        format!("All steps successfully learned and saved to recipe {}!", compiled_recipe.name)
-                    };
+                    let done_speech = format!("All steps successfully learned and saved to recipe {}!", compiled_recipe.name);
                     crate::audio::tts::speak_assistant(&done_speech, "excited");
                 }
             }
         } else {
-            crate::term_err!("⚠️ [Recipe Train Complete] No steps were recorded.");
+            crate::term_err!("[Recipe Train Complete] No steps were recorded.");
         }
     });
 

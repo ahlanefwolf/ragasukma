@@ -1,14 +1,14 @@
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 use xcap::Monitor;
 
-/// Mendapatkan pembagi skala koordinat agar hasil scan visual
-/// sinkron dengan tool klik mouse di masing-masing sistem operasi.
+/// Gets coordinate scale divisor so visual scan results
+/// sync with tool klik mouse in masing-masing sistem operasi.
 pub fn get_coordinate_scale_divisor(orig_w: u32, orig_h: u32) -> f32 {
     #[cfg(target_os = "macos")]
     {
         let _ = (orig_w, orig_h);
-        // Di macOS Retina, capture gambar berada dalam Physical Pixels (misal 2880x1800),
-        // sedangkan tool klik (cliclick & AppleScript) menerima input dalam Points (1440x900).
+        // On macOS Retina, captured images are in Physical Pixels (e.g. 2880x1800),
+        // while click utilities (cliclick & AppleScript) take inputs in Points (1440x900).
         if let Ok(monitors) = Monitor::all() {
             let primary_or_first = monitors
                 .iter()
@@ -26,7 +26,7 @@ pub fn get_coordinate_scale_divisor(orig_w: u32, orig_h: u32) -> f32 {
 
     #[cfg(target_os = "windows")]
     {
-        // Windows dalam mode Per-Monitor V2 DPI Aware bekerja murni dalam Physical Pixels 1:1
+        // Windows in Per-Monitor V2 DPI Aware mode operates purely in 1:1 Physical Pixels
         let _ = (orig_w, orig_h);
         1.0
     }
@@ -40,7 +40,7 @@ pub fn get_coordinate_scale_divisor(orig_w: u32, orig_h: u32) -> f32 {
                 .unwrap_or(false);
 
         if is_wayland && orig_w > 0 {
-            // 1. Cek Sway jika sesi menggunakan Sway compositor: ambil nilai scale langsung
+            // 1. Check Sway if session using Sway compositor: take value scale direct
             if let Ok(output) = std::process::Command::new("swaymsg")
                 .args(["-t", "get_outputs", "--raw"])
                 .output()
@@ -64,7 +64,7 @@ pub fn get_coordinate_scale_divisor(orig_w: u32, orig_h: u32) -> f32 {
                 }
             }
 
-            // 2. Cek Hyprland jika sesi menggunakan Hyprland compositor: ambil nilai scale langsung
+            // 2. Check Hyprland if session using Hyprland compositor: take value scale direct
             if let Ok(output) = std::process::Command::new("hyprctl")
                 .args(["monitors", "-j"])
                 .output()
@@ -88,7 +88,7 @@ pub fn get_coordinate_scale_divisor(orig_w: u32, orig_h: u32) -> f32 {
                 }
             }
 
-            // 3. Cek GNOME Wayland via gsettings
+            // 3. Check GNOME Wayland via gsettings
             if let Ok(output) = std::process::Command::new("gsettings")
                 .args(["get", "org.gnome.desktop.interface", "scaling-factor"])
                 .output()
@@ -118,7 +118,7 @@ pub fn get_coordinate_scale_divisor(orig_w: u32, orig_h: u32) -> f32 {
                 }
             }
 
-            // 4. Cek KDE Plasma Wayland via kreadconfig6 / kreadconfig5
+            // 4. Check KDE Plasma Wayland via kreadconfig6 / kreadconfig5
             for cmd in ["kreadconfig6", "kreadconfig5"] {
                 if let Ok(output) = std::process::Command::new(cmd)
                     .args(["--group", "KScreen", "--key", "ScaleFactor"])
@@ -135,7 +135,7 @@ pub fn get_coordinate_scale_divisor(orig_w: u32, orig_h: u32) -> f32 {
                 }
             }
 
-            // 5. Cek monitor xcap: di XWayland, xcap melaporkan logical desktop rect
+            // 5. Check monitor xcap: in XWayland, xcap reports logical desktop rect
             if let Ok(monitors) = Monitor::all() {
                 let mon_opt = monitors
                     .iter()
@@ -156,7 +156,7 @@ pub fn get_coordinate_scale_divisor(orig_w: u32, orig_h: u32) -> f32 {
                 }
             }
 
-            // 6. Cek environment variables (GDK_SCALE, QT_SCALE_FACTOR)
+            // 6. Check environment variables (GDK_SCALE, QT_SCALE_FACTOR)
             if let Ok(gdk) = std::env::var("GDK_SCALE") {
                 if let Ok(s) = gdk.trim().parse::<f32>() {
                     if s > 0.5 {
@@ -172,7 +172,7 @@ pub fn get_coordinate_scale_divisor(orig_w: u32, orig_h: u32) -> f32 {
                 }
             }
         } else {
-            // Mode X11 (i3, bspwm, XFCE, Openbox, dll): cek xrdb untuk DPI scaling
+            // Mode X11 (i3, bspwm, XFCE, Openbox, dll): check xrdb for DPI scaling
             if let Ok(output) = std::process::Command::new("xrdb").args(["-query"]).output() {
                 if output.status.success() {
                     let out_str = String::from_utf8_lossy(&output.stdout);
@@ -194,7 +194,7 @@ pub fn get_coordinate_scale_divisor(orig_w: u32, orig_h: u32) -> f32 {
             }
         }
 
-        // Linux X11 atau 100% scale
+        // Linux X11 or 100% scale
         1.0
     }
 
@@ -259,9 +259,9 @@ pub fn is_button_like_text(text: &str) -> bool {
     false
 }
 
-/// Menghitung skor kemiripan antara dua teks (0.0 sampai 1.0)
-/// menggunakan kombinasi token normalization, substring containment, Levenshtein distance,
-/// dan token-level similarity untuk mendukung frasa dengan typo / variasi kata.
+/// Calculates similarity score between two texts (0.0 to 1.0)
+/// using kombinasi token normalization, substring containment, Levenshtein distance,
+/// and token-level similarity for mendukung frasa with typo / variasi word.
 pub fn string_similarity(a: &str, b: &str) -> f32 {
     let a_clean: String = a
         .chars()
@@ -302,7 +302,7 @@ pub fn string_similarity(a: &str, b: &str) -> f32 {
         0.0
     };
 
-    // 3. Token-level similarity untuk frasa sub-query (misal: "tagian listrik" vs "Bayar tagihan listrik PLN")
+    // 3. Token-level similarity for frasa sub-query (for example: "tagian listrik" vs "Bayar tagihan listrik PLN")
     let token_sim = token_similarity(a, b);
 
     whole_sim.max(sub_sim).max(token_sim)
@@ -340,8 +340,8 @@ fn score_token_coverage(source: &[String], target: &[String]) -> f32 {
         return 0.0;
     }
 
-    // Jika source hanya 1 kata pendek (<= 2 huruf, misal "di", "ke"),
-    // jangan cocokkan ke target panjang yang punya banyak kata.
+    // If source only 1 word short (<= 2 huruf, for example "in", "to"),
+    // do not match against long targets containing many words.
     if source.len() == 1 && source[0].chars().count() <= 2 && target.len() >= 3 {
         return 0.0;
     }
@@ -360,7 +360,7 @@ fn score_token_coverage(source: &[String], target: &[String]) -> f32 {
             if max_len == 0 {
                 continue;
             }
-            // Untuk token sangat pendek (<= 2 char), hanya izinkan kecocokan persis
+            // For very short tokens (<= 2 chars), only allow exact match
             if s_len <= 2 || t_len <= 2 {
                 continue;
             }
@@ -455,7 +455,7 @@ mod tests {
             "Similarity 'tumhiana' vs 'Tum Hi Aana' should be >= 70%, got: {sim_music}"
         );
 
-        // Not similar: "Simpan" vs "Batal"
+        // Not similar: "Save" vs "Cancel"
         let sim_diff = string_similarity("Simpan", "Batal");
         assert!(sim_diff < 0.30);
     }

@@ -13,7 +13,7 @@ interface AvatarViewerProps {
   isAudioStreaming?: boolean;
 }
 
-// Kamus pemetaan nama sendi badan dari poses.json ke VRM Humanoid Bone Standard Three.js
+// Mapping dictionary of body joints from poses.json to Three.js VRM Humanoid Bone Standard
 const BONE_NAME_FALLBACKS: Record<string, string[]> = {
   head: ['head'],
   neck: ['neck'],
@@ -34,7 +34,7 @@ const BONE_NAME_FALLBACKS: Record<string, string[]> = {
   rightUpperLeg: ['rightUpperLeg'],
   rightLowerLeg: ['rightLowerLeg'],
   rightFoot: ['rightFoot'],
-  // Jari Tangan (VRM Humanoid Normalized Bones 1:1 Engine WGPU Desktop)
+  // Finger Hand (VRM Humanoid Normalized Bones 1:1 Engine WGPU Desktop)
   leftThumb: ['leftThumbProximal', 'leftThumbMetacarpal'],
   leftIndex: ['leftIndexProximal'],
   leftMiddle: ['leftMiddleProximal'],
@@ -66,17 +66,17 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
   let clock: THREE.Clock | null = null;
   let animFrameId: number | null = null;
 
-  // Tracking Quaternions untuk Slerp Transisi Halus antar-State (1:1 persis pose_system.rs WGPU Desktop)
+  // Quaternion tracking for smooth slerp transition between states (1:1 identical to desktop pose_system.rs)
   const currentBoneQuats = new Map<string, THREE.Quaternion>();
   const stateFromQuats = new Map<string, THREE.Quaternion>();
   let stateTransitionT = 1.0;
   let lastAnimState = props.state || 'idle';
   let stateElapsedTime = 0;
 
-  // Smoothing transisi ekspresi wajah & bibir
+  // Smoothing transisi expression face & bibir
   const currentExpressionWeights: Record<string, number> = {};
 
-  // Posisi kamera default: Paling minimize / zoom-out menampung full-body karakter dari kepala sampai kaki secara proporsional
+  // Default camera position: Minimized / zoomed-out framing full-body character proportionally from head to toe
   const defaultCamPos = new THREE.Vector3(0.0, 0.85, 3.4);
   const defaultTarget = new THREE.Vector3(0.0, 0.85, 0.0);
 
@@ -92,21 +92,21 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       case 'speaking':
         return {
           icon: Volume2,
-          label: 'Bicara',
+          label: 'Speaking',
           color: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
           glow: 'drop-shadow-[0_0_20px_rgba(236,72,153,0.45)]',
         };
       case 'listening':
         return {
           icon: Mic,
-          label: 'Mendengar',
+          label: 'Listening',
           color: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
           glow: 'drop-shadow-[0_0_20px_rgba(14,165,233,0.45)]',
         };
       case 'thinking':
         return {
           icon: Brain,
-          label: 'Mikir',
+          label: 'Thinking',
           color: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
           glow: 'drop-shadow-[0_0_20px_rgba(245,158,11,0.45)]',
         };
@@ -154,7 +154,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
     }
   };
 
-  // Helper resolusi node bone di Three-VRM
+  // Helper resolusi node bone in Three-VRM
   const getNormalizedBone = (vrm: VRM, boneKey: string) => {
     if (!vrm.humanoid) return null;
     const candidates = BONE_NAME_FALLBACKS[boneKey] || [boneKey];
@@ -173,7 +173,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
 
     const currentState = props.state || 'idle';
     if (currentState !== lastAnimState) {
-      // Snapshot rotasi seluruh tulang & jari saat ini sebagai titik awal transisi slerp halus
+      // Snapshot current rotation of all bones & fingers as start point for smooth slerp transition
       stateFromQuats.clear();
       for (const [k, q] of currentBoneQuats.entries()) {
         stateFromQuats.set(k, q.clone());
@@ -184,7 +184,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
     }
     stateElapsedTime += delta;
 
-    // Timer transisi Slerp (durasi 0.45 detik identik dengan WGPU desktop)
+    // Timer transisi Slerp (durasi 0.45 detik identik with WGPU desktop)
     const transitionDuration = 0.45;
     if (stateTransitionT < 1.0) {
       stateTransitionT = Math.min(1.0, stateTransitionT + delta / transitionDuration);
@@ -238,7 +238,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
         applyBoneRotation(boneName, rot[0] as number, rot[1] as number, rot[2] as number);
       }
     } else {
-      // Multi-keyframes cycle Catmull-Rom kontinuitas C1
+      // Multi-keyframes cycle Catmull-Rom C1 continuity
       const cycleStep = 2.5 / speed;
       const totalCycleTime = count * cycleStep;
       const loopTime = stateElapsedTime % totalCycleTime;
@@ -328,7 +328,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
     scene = new THREE.Scene();
 
     camera = new THREE.PerspectiveCamera(26, width / height, 0.1, 20.0);
-    // Posisi kamera default menatap wajah karakter dari arah depan
+    // Default camera position facing character from the front
     camera.position.copy(defaultCamPos);
     camera.lookAt(defaultTarget);
 
@@ -354,17 +354,17 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       resizeObserver.observe(canvasContainerRef);
     }
 
-    // Pasang OrbitControls untuk gesture Pinch-to-Zoom dan Pan/Rotate di HP
+    // Attach OrbitControls for pinch-to-zoom and pan/rotate gestures on mobile
     controls = new OrbitControls(camera, renderer.domElement);
     controls.target.copy(defaultTarget);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
-    controls.minDistance = 0.35; // zoom in leluasa dekat wajah
-    controls.maxDistance = 6.5;  // zoom out jauh leluasa melihat karakter dari kejauhan
+    controls.minDistance = 0.35; // zoom in freely near face
+    controls.maxDistance = 6.5;  // zoom out freely to view character from a distance
     controls.enableRotate = true;
     controls.enableZoom = true;
     controls.enablePan = true;
-    controls.screenSpacePanning = true; // Bisa digeser naik-turun leluasa di layar HP
+    controls.screenSpacePanning = true; // Can pan up and down freely on mobile screen
     controls.touches = {
       ONE: THREE.TOUCH.ROTATE,
       TWO: THREE.TOUCH.DOLLY_PAN,
@@ -398,7 +398,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
           VRMUtils.removeUnnecessaryJoints(gltf.scene);
         } catch (_) {}
         
-        // Model VRM Three.js default menghadap ke depan (+Z arah kamera)
+        // Three.js VRM model faces forward by default (+Z camera direction)
         vrm.scene.rotation.y = 0.0;
 
         scene?.add(vrm.scene);
@@ -413,7 +413,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
         }
       },
       (err) => {
-        console.warn('Gagal memuat model VRM di HP:', err);
+        console.warn('Failed to load VRM model on mobile:', err);
         setVrmLoadError(true);
         setIsLoading(false);
       }
@@ -428,14 +428,14 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       }
 
       if (currentVrm) {
-        // 1. Hitung & aplikasikan rotasi seluruh tulang humanoid TERLEBIH DAHULU
+        // 1. Calculate & apply rotation of all humanoid bones FIRST
         updateVrmBonePoses(currentVrm, delta);
 
-        // 2. Ekspresi wajah & lip-sync vokal 100% konsisten dengan standar VRM 1.0 Three.js & engine desktop
+        // 2. Facial expressions & vocal lip-sync 100% consistent with Three.js VRM 1.0 standard & desktop engine
         const expressions = currentVrm.expressionManager;
         if (expressions) {
           const currentState = props.state || 'idle';
-          // Sinkronisasi dengan app.rs desktop: saat state Thinking, ekspresi otomatis override ke thinking
+          // Synchronized with desktop app.rs: when Thinking state, expression automatically overrides to thinking
           const currentEmotion = currentState === 'thinking' ? 'thinking' : (props.emotion || 'neutral').toLowerCase();
 
           const allKnownKeys = [
@@ -450,7 +450,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
 
           let hasStrongEmotion = false;
 
-          // 2a. Layer Emosi Utama (Identik 100% dengan resolve_emotion_layers di expressions.rs)
+          // 2a. Main Emotion Layer (100% identical to resolve_emotion_layers in expressions.rs)
           switch (currentEmotion) {
             case 'happy':
             case 'senang':
@@ -509,7 +509,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
               break;
           }
 
-          // 2b. Natural Eye Blinking santai (Identik dengan expressions.rs)
+          // 2b. Relaxed natural eye blinking (Identical to expressions.rs)
           let naturalBlinkWeight = 0.0;
           const blinkPeriod = currentState === 'speaking' ? 6.2 : 5.2;
           const blinkPhase = stateElapsedTime % blinkPeriod;
@@ -523,10 +523,10 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
             targetWeights['blink'] = Math.min(1.0, (targetWeights['blink'] || 0) + naturalBlinkWeight);
           }
 
-          // 2c. Audio-Driven Lip Sync Vokal Vowel (A, I, U, E, O) saat Speaking
+          // 2c. Audio-Driven Lip Sync Vokal Vowel (A, I, U, E, O) when Speaking
           if (currentState === 'speaking') {
-            // Saat berbicara, redam emosi yang membuka rahang/mulut (surprised & happy)
-            // agar tidak dobel/combo mangap ekstrem dengan Lip Sync vokal
+            // When speaking, damp emotions that open jaw/mouth (surprised & happy)
+            // to avoid exaggerated double-mouth opening with vocal Lip Sync
             if (targetWeights['surprised']) {
               targetWeights['surprised'] = Math.min(0.20, targetWeights['surprised'] * 0.30);
             }
@@ -536,14 +536,14 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
 
             const lip = globalAudioSync.getVoiceLipWeights();
             if (lip.mouthOpen > 0.015) {
-              // Suara aktif dari speaker HP: terapkan bobot formant AIUEO presisi
+              // Active audio from phone speaker: apply precise AIUEO formant weights
               targetWeights['aa'] = lip.aa;
               targetWeights['ih'] = lip.ih;
               targetWeights['ou'] = lip.ou;
               targetWeights['ee'] = lip.ee;
               targetWeights['oh'] = lip.oh;
             } else if (!globalAudioSync.isVoiceAudioActive()) {
-              // Fallback animasi artikulasi vokal natural saat audio dimainkan di remote desktop PC:
+              // Natural vocal articulation fallback animation when audio is played on remote desktop PC:
               const vowels = ['aa', 'ih', 'ou', 'ee', 'oh'];
               const vowelIdx = Math.floor(stateElapsedTime * 3.2) % vowels.length;
               const targetVowel = vowels[vowelIdx];
@@ -555,8 +555,8 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
             }
           }
 
-          // Damping interpolasi halus (~100ms) untuk ekspresi & mulut agar tidak patah-patah
-          // Catatan: 'blink' diterapkan langsung mengikuti kurva sinus mulus tanpa lag dampening, agar mata menutup 100% sempurna persis seperti desktop
+          // Smooth interpolation damping (~100ms) for expressions & mouth to prevent jitter
+          // Notes: 'blink' is applied directly following a smooth sine curve without lag dampening, ensuring 100% perfect eye closure matching desktop
           const keysToUpdate = new Set([...allKnownKeys, ...Object.keys(currentExpressionWeights)]);
           for (const k of keysToUpdate) {
             const clampedTarget = Math.min(0.85, targetWeights[k] || 0.0);
@@ -574,7 +574,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
           expressions.update();
         }
 
-        // 3. BARU sinkronkan normalized bones ke raw mesh model & spring bones
+        // 3. THEN sync normalized bones to raw mesh model & spring bones
         currentVrm.update(delta);
       }
 
@@ -587,12 +587,12 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
   };
 
   onMount(() => {
-    // 1. Langsung inisialisasi 3D canvas tanpa menunggu network fetch
+    // 1. Directly initialize 3D canvas without waiting for network fetch
     setTimeout(() => {
       initThreeVrm();
     }, 50);
 
-    // 2. Muat poses.json secara paralel di latar belakang
+    // 2. Load poses.json in parallel in background
     fetch(`${API_BASE}/api/poses`)
       .then((res) => (res.ok ? res.json() : null))
       .then((p) => {
@@ -600,7 +600,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       })
       .catch(() => {});
 
-    // 3. Cek tipe avatar dari config secara paralel
+    // 3. Check avatar type from config in parallel
     fetch(`${API_BASE}/api/config`)
       .then((res) => (res.ok ? res.json() : null))
       .then((cfg) => {
@@ -611,7 +611,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       })
       .catch(() => {});
 
-    // Sinkronkan status fullscreen dengan event browser
+    // Sync fullscreen status with browser events
     const onFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
@@ -627,7 +627,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
 
   return (
     <div class="relative w-full h-full flex items-center justify-center overflow-hidden select-none touch-none">
-      {/* Toolbar Kontrol Kamera Vertikal Sejajar dengan Pengaturan (Tanpa Box, Warna Coklat Tema) */}
+      {/* Vertical Camera Control Toolbar aligned with Settings */}
       <Show when={avatarType() === 'vrm' && isVrmLoaded()}>
         <div class="absolute top-14 right-4 z-20 flex flex-col items-center gap-0.5 pointer-events-auto select-none">
           <button
@@ -646,12 +646,12 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
           >
             <ZoomOut size={22} class="stroke-[2.2]" />
           </button>
-          {/* Tombol Fullscreen Tepat di Atas Reset Kamera */}
+          {/* Fullscreen button right above camera reset */}
           <button
             type="button"
             onClick={toggleFullscreen}
             class="p-2 text-theme-muted hover:text-theme-text active:scale-85 transition-transform drop-shadow-sm cursor-pointer"
-            title={isFullscreen() ? 'Keluar Fullscreen' : 'Layar Penuh'}
+            title={isFullscreen() ? 'Exit Fullscreen' : 'Fullscreen'}
           >
             <Show when={isFullscreen()} fallback={<Maximize size={20} class="stroke-[2.2]" />}>
               <Minimize size={20} class="stroke-[2.2]" />
@@ -661,31 +661,31 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
             type="button"
             onClick={resetCameraView}
             class="p-2 text-theme-muted hover:text-theme-text active:scale-85 transition-transform drop-shadow-sm cursor-pointer"
-            title="Reset Sudut Kamera"
+            title="Reset Camera Angle"
           >
             <RotateCcw size={20} class="stroke-[2.2]" />
           </button>
         </div>
       </Show>
 
-      {/* Loading Overlay Saat Model VRM Sedang Diunduh */}
+      {/* Loading Overlay When VRM Model is Downloading */}
       <Show when={isLoading() && avatarType() === 'vrm'}>
         <div class="absolute inset-0 z-30 bg-theme-bg/85 backdrop-blur-md flex flex-col items-center justify-center gap-3 text-theme-cyan">
           <Loader2 size={28} class="animate-spin text-theme-cyan" />
           <span class="text-xs font-mono font-semibold tracking-wide">
-            {loadingProgress() > 0 ? `Memuat Karakter 3D (${loadingProgress()}%)` : 'Menyiapkan 3D Engine...'}
+            {loadingProgress() > 0 ? `Loading 3D Character (${loadingProgress()}%)` : 'Initializing 3D Engine...'}
           </span>
         </div>
       </Show>
 
-      {/* Kontainer 3D Canvas WebGL (Mengisi Penuh Layar) */}
+      {/* 3D WebGL Canvas Container (Full Screen) */}
       <div
         ref={canvasContainerRef}
         class="w-full h-full relative z-10 flex items-center justify-center touch-none"
         style={{ display: avatarType() === 'vrm' && !vrmLoadError() ? 'flex' : 'none' }}
       />
 
-      {/* Fallback 2D Sprite jika mode 2D atau jika ada error fatal loading VRM */}
+      {/* 2D Sprite fallback if 2D mode or on fatal VRM load error */}
       <Show when={avatarType() === '2d' || vrmLoadError()}>
         <div class="relative w-full h-full flex flex-col items-center justify-center p-6">
           <img
@@ -704,7 +704,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
               class="mt-3 px-4 py-2 bg-theme-cyan/20 border border-theme-cyan/40 text-theme-cyan text-xs font-mono rounded-xl flex items-center gap-1.5 shadow-md active:scale-95"
             >
               <RotateCcw size={12} />
-              <span>Coba Muat Ulang 3D</span>
+              <span>Retry 3D Load</span>
             </button>
           </Show>
         </div>

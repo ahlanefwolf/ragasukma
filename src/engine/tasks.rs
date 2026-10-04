@@ -21,27 +21,27 @@ pub struct BackgroundTaskState {
 static TASK_SENDER: Mutex<Option<Sender<BackgroundTask>>> = Mutex::new(None);
 static CURRENT_TASK_INFO: Mutex<Option<BackgroundTaskState>> = Mutex::new(None);
 
-/// Inisialisasi dedicated background worker thread untuk yt-dlp & tugas asinkron berat lainnya
+/// Initialize dedicated background worker thread for yt-dlp & other heavy asynchronous tasks
 pub fn init_background_task_worker() {
     let mut sender_lock = match TASK_SENDER.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     };
     if sender_lock.is_some() {
-        return; // Sudah diinisialisasi
+        return; // Already initialized
     }
 
     let (tx, rx) = channel::<BackgroundTask>();
     *sender_lock = Some(tx);
 
-    // Dedicated worker thread dengan alokasi stack 16 MB
+    // Dedicated worker thread with 16 MB stack allocation
     let builder = thread::Builder::new()
         .name("ragasukma-task-worker".to_string())
         .stack_size(16 * 1024 * 1024);
 
     builder
         .spawn(move || {
-            crate::term_log!("🚀 [Task Worker] Dedicated Background Task Engine ready.");
+            crate::term_log!("[Task Worker] Dedicated Background Task Engine ready.");
 
             while let Ok(task) = rx.recv() {
                 match task {
@@ -52,7 +52,7 @@ pub fn init_background_task_worker() {
                             description: format!("Downloading song: {query}"),
                         }));
 
-                        crate::term_log!("📥 [Task Worker: yt-dlp] Downloading in background: '{}'...", query);
+                        crate::term_log!(" [Task Worker: yt-dlp] Downloading in background: '{}'...", query);
                         TrayState::emit_event(
                             "task:started",
                             serde_json::json!({
@@ -66,15 +66,15 @@ pub fn init_background_task_worker() {
                         match download_audio(&query, &music_dir) {
                             Ok(track) => {
                                 crate::term_log!(
-                                    "✅ [Task Worker: yt-dlp] Done: '{}' -> Playing directly to speaker!",
+                                    " [Task Worker: yt-dlp] Done: '{}' -> Playing directly to speaker!",
                                     track.title
                                 );
 
-                                // 1. Putar langsung lewat speaker desktop (Native Audio Player)
+                                // 1. Play directly via desktop speakers (Native Audio Player)
                                 let file_path = music_dir.join(&track.filename);
                                 crate::audio::player::play_file(&file_path, &track.title);
 
-                                // 2. Sinkronkan ke Web Dashboard
+                                // 2. Sync to Web Dashboard
                                 push_client_action("music:play", Some(&track.title));
 
                                 TrayState::emit_event(
@@ -86,7 +86,7 @@ pub fn init_background_task_worker() {
                                     }),
                                 );
 
-                                // 3. Kirim sinyal ke asisten agar berbicara mengabari pengguna bahwa lagu telah selesai diunduh & diputar
+                                // 3. Send a signal to the assistant so that it speaks to inform the user that the song has finished downloading & playing
                                 let notify_msg = format!(
                                     "[SYSTEM STATUS: Song '{}' has been downloaded and is now playing automatically. Inform the user briefly and warmly. DO NOT include any [CMD:media:play] or other commands — music is already playing.]",
                                     track.title
@@ -94,7 +94,7 @@ pub fn init_background_task_worker() {
                                 crate::engine::remote_text::inject_remote_text(notify_msg);
                             }
                             Err(e) => {
-                                crate::term_err!("❌ [Task Worker: yt-dlp] Failed to download '{}': {e}", query);
+                                crate::term_err!(" [Task Worker: yt-dlp] Failed to download '{}': {e}", query);
                                 TrayState::emit_event(
                                     "task:failed",
                                     serde_json::json!({
@@ -105,7 +105,7 @@ pub fn init_background_task_worker() {
                                     }),
                                 );
 
-                                // Kirim sinyal ke asisten agar memberi tahu pengguna bahwa unduhan gagal
+                                // Send a signal to assistant so that notifies the user that the download failed
                                 let err_msg = format!(
                                     "[SYSTEM STATUS: Failed to download song '{}'. Detail: {}. Inform the user briefly and warmly. DO NOT include any commands.]",
                                     query, e
@@ -128,7 +128,7 @@ fn set_current_task(state: Option<BackgroundTaskState>) {
     }
 }
 
-/// Kirim tugas download & putar musik ke Background Worker
+/// Send download & play music tasks to Background Worker
 pub fn queue_download_and_play(query: &str) -> bool {
     init_background_task_worker();
     if let Ok(lock) = TASK_SENDER.lock() {
@@ -143,7 +143,7 @@ pub fn queue_download_and_play(query: &str) -> bool {
     false
 }
 
-/// Mengetahui apakah background worker sedang sibuk memproses unduhan media
+/// Find out whether a background worker is currently busy processing media downloads
 pub fn is_ytdlp_busy() -> bool {
     if let Ok(lock) = CURRENT_TASK_INFO.lock() {
         lock.as_ref()
@@ -154,7 +154,7 @@ pub fn is_ytdlp_busy() -> bool {
     }
 }
 
-/// Mendapatkan info task aktif saat ini (untuk AI context atau telemetry)
+/// Gets current active task info (for AI context or telemetry)
 pub fn get_active_task_info() -> Option<BackgroundTaskState> {
     if let Ok(lock) = CURRENT_TASK_INFO.lock() {
         lock.clone()

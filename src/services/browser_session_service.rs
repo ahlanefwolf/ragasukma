@@ -95,7 +95,7 @@ pub static GLOBAL_BROWSER_TABS: Mutex<Vec<BrowserTabInfo>> = Mutex::new(Vec::new
 pub static PENDING_BROWSER_COMMANDS: Mutex<VecDeque<BrowserCommand>> = Mutex::new(VecDeque::new());
 static SESSION_WORKER_TX: Mutex<Option<SyncSender<BrowserSessionEvent>>> = Mutex::new(None);
 
-/// Inisialisasi dedicated background worker thread untuk sinkronisasi `active_tab_browser.json`
+/// Initializes dedicated background worker thread to synchronize `active_tab_browser.json`
 pub fn init_browser_session_worker() {
     let (tx, rx): (
         SyncSender<BrowserSessionEvent>,
@@ -109,7 +109,7 @@ pub fn init_browser_session_worker() {
     let _ = std::thread::Builder::new()
         .name("ragasukma-browser-worker".to_string())
         .spawn(move || {
-            println!("🚀 [Browser Worker] Dedicated BrowserSessionWorker active for active_tab_browser.json");
+            println!("[Browser Worker] Dedicated BrowserSessionWorker active for active_tab_browser.json");
             browser_worker_loop(rx);
         });
 }
@@ -137,12 +137,12 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
     let mut current_tabs: Vec<BrowserTabInfo> = Vec::new();
 
     loop {
-        // Tunggu event dengan timeout 500ms agar tetap responsif dan konsisten di disk
+        // Tunggu event with timeout 500ms so that remain responsif and konsisten in disk
         let event = rx.recv_timeout(Duration::from_millis(500));
 
         match event {
             Ok(BrowserSessionEvent::NewSnapshot(mut snap)) => {
-                // Abaikan jika berasal dari dashboard internal
+                // Abaikan if berasal from dashboard internal
                 if snap.url.contains("127.0.0.1:42128") || snap.url.contains("localhost:42128") {
                     continue;
                 }
@@ -154,14 +154,14 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                         .unwrap_or(0);
                 }
 
-                // Gunakan daftar tabs terkini jika snapshot dari content script tidak membawa tabs
+                // Use latest tabs list if content script snapshot does not carry tabs
                 if snap.tabs.is_empty() {
                     snap.tabs = current_tabs.clone();
                 } else {
                     current_tabs = snap.tabs.clone();
                 }
 
-                // Normalisasi Single Active Tab: tab yang URL / Title cocok diberi active: true, sisanya false
+                // Single Active Tab normalization: tab with matching URL / Title is marked active: true, others false
                 let snap_url = snap.url.to_lowercase();
                 let mut found_active = false;
                 for t in snap.tabs.iter_mut() {
@@ -187,7 +187,7 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                     }
                 }
 
-                // Simpan ke in-memory cache global
+                // Save to in-memory cache global
                 if let Ok(mut lock) = LAST_ACTIVE_SNAPSHOT.lock() {
                     *lock = Some(snap.clone());
                 }
@@ -195,7 +195,7 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                     *lock = snap.tabs.clone();
                 }
 
-                // Tulis ke file disk
+                // Tulis to file disk
                 write_snapshot_to_disk(&snap);
                 current_snapshot = Some(snap);
             }
@@ -232,7 +232,7 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
 
                 let mut updated_tabs = tabs;
 
-                // Prioritaskan tab yang dilaporkan aktif oleh browser
+                // Prioritize tab reported active by browser
                 let mut active_idx = updated_tabs.iter().position(|t| t.active);
                 if active_idx.is_none() {
                     let snap_url = snap.url.to_lowercase();
@@ -249,7 +249,7 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                     let is_act = active_idx == Some(idx);
                     t.active = is_act;
                     if is_act && !t.url.is_empty() {
-                        // Jika tab aktif berubah, update URL & Title dasar dan bersihkan elemen DOM tab lama
+                        // If active tab changed, update URL & base Title and clean old tab DOM elements
                         if snap.url != t.url {
                             snap.url = t.url.clone();
                             snap.title = t.title.clone();
@@ -262,7 +262,7 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                                 .next()
                                 .unwrap_or("")
                                 .to_string();
-                            // Kosongkan elemen DOM lama agar tidak tercampur dengan halaman baru sebelum snapshot baru masuk
+                            // Clear old DOM elements to prevent mixing with new page before new snapshot arrives
                             snap.buttons.clear();
                             snap.inputs.clear();
                             snap.texts.clear();
@@ -286,7 +286,7 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
             }
 
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                // Pastikan file disk tetap ada dan terisi
+                // Ensure disk file remains present and populated
                 let target_path = get_active_tab_browser_path();
                 if !target_path.exists() {
                     if let Ok(lock) = LAST_ACTIVE_SNAPSHOT.lock() {
@@ -298,7 +298,7 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
             }
 
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                println!("🛑 [Browser Worker] Channel disconnected, worker exiting.");
+                println!("[Browser Worker] Channel disconnected, worker exiting.");
                 break;
             }
         }
@@ -313,14 +313,14 @@ pub fn update_browser_tabs(tabs: Vec<BrowserTabInfo>) {
         }
     }
 
-    // Fallback synchronous jika worker belum diinisialisasi
+    // Fallback synchronous if worker not yet initialized
     if let Ok(mut lock) = GLOBAL_BROWSER_TABS.lock() {
         *lock = tabs;
     }
 }
 
 pub fn save_browser_snapshot(snapshot: BrowserDomSnapshot) -> Result<String, String> {
-    // Abaikan snapshot jika berasal dari internal dashboard Ragasukma sendiri
+    // Abaikan snapshot if berasal from internal dashboard Ragasukma sendiri
     if snapshot.url.contains("127.0.0.1:42128") || snapshot.url.contains("localhost:42128") {
         return Ok("Ignored internal dashboard snapshot".to_string());
     }
@@ -334,7 +334,7 @@ pub fn save_browser_snapshot(snapshot: BrowserDomSnapshot) -> Result<String, Str
         }
     }
 
-    // Fallback synchronous jika worker belum aktif
+    // Fallback synchronous if worker not yet active
     write_snapshot_to_disk(&snapshot);
     if let Ok(mut lock) = LAST_ACTIVE_SNAPSHOT.lock() {
         *lock = Some(snapshot);
@@ -352,7 +352,7 @@ pub fn get_browser_tabs() -> Vec<BrowserTabInfo> {
 
 pub fn send_browser_command(cmd: BrowserCommand) {
     if let Ok(mut lock) = PENDING_BROWSER_COMMANDS.lock() {
-        // Batasi antrean agar tidak menumpuk
+        // Limit queue to prevent build-up
         if lock.len() > 20 {
             lock.pop_front();
         }
@@ -369,7 +369,7 @@ pub fn get_next_browser_command() -> Option<BrowserCommand> {
 }
 
 /// Smart Browser Tab Navigator:
-/// Cek apakah tab sudah ada di browser. Jika sudah ada, switch & navigate tab tersebut tanpa membuka tab/jendela baru.
+/// Check if tab already exists in browser. If it exists, switch & navigate to it without opening a new window/tab.
 pub fn smart_open_or_switch_tab(url: &str, query: Option<&str>, domain_hint: Option<&str>) {
     let tabs = get_browser_tabs();
     let auto_domain = url
@@ -400,7 +400,7 @@ pub fn smart_open_or_switch_tab(url: &str, query: Option<&str>, domain_hint: Opt
 
     if let Some(tab) = existing_tab {
         println!(
-            "🔄 [Smart Tab Reuse] Found existing open tab (ID: {}, Title: '{}'), activating & navigating without opening a new tab.",
+            "[Smart Tab Reuse] Found existing open tab (ID: {}, Title: '{}'), activating & navigating without opening a new tab.",
             tab.id, tab.title
         );
         send_browser_command(BrowserCommand {
@@ -419,7 +419,7 @@ pub fn smart_open_or_switch_tab(url: &str, query: Option<&str>, domain_hint: Opt
             ..Default::default()
         });
     } else {
-        // Belum ada tab yang cocok atau ekstensi belum sinkron, buka tab baru via OS
+        // No matching tab found or extension not yet synced; open new tab via OS
         crate::assets::open_browser(url);
     }
 }
@@ -431,7 +431,7 @@ pub fn format_open_tabs_for_llm() -> String {
     }
 
     let mut lines = Vec::new();
-    lines.push("\n### 📑 OPEN BROWSER TABS:".to_string());
+    lines.push("\n###  OPEN BROWSER TABS:".to_string());
     for (i, t) in tabs.iter().take(8).enumerate() {
         let active_mark = if t.active { " `[ACTIVE_TAB]`" } else { "" };
         lines.push(format!(
@@ -476,12 +476,12 @@ pub fn cleanup_browser_sessions_on_startup() {
             let _ = fs::write(&local, &json_pretty);
         }
     }
-    // Hapus juga direktori legacy browser_sessions jika ada
+    // Also delete legacy browser_sessions directory if it exists
     let old_dir = PathBuf::from("assets/browser_sessions");
     if old_dir.exists() {
         let _ = fs::remove_dir_all(&old_dir);
     }
-    println!("🧹 [Active Tab] Initializing 'assets/active_tab_browser.json' for new session.");
+    println!("[Active Tab] Initializing 'assets/active_tab_browser.json' for new session.");
 }
 
 pub fn get_active_tab_browser_path() -> PathBuf {
@@ -498,7 +498,7 @@ pub fn get_latest_snapshot() -> Option<BrowserDomSnapshot> {
             return Some(snap.clone());
         }
     }
-    // Fallback: baca langsung file assets/active_tab_browser.json dari disk
+    // Fallback: baca direct file assets/active_tab_browser.json from disk
     let path = get_active_tab_browser_path();
     if path.exists() {
         if let Ok(content) = fs::read_to_string(&path) {

@@ -51,7 +51,7 @@ pub struct Renderer {
     pub anchor_center_x: f32,
     pub anchor_center_y: f32,
 
-    // Kontrol POV & Posisi Kamera di Layar Fullscreen
+    // Kontrol POV & Position Camera in Screen Fullscreen
     pub camera_yaw: f32,
     pub camera_pitch: f32,
     pub camera_zoom: f32,
@@ -108,7 +108,7 @@ impl Renderer {
             .ok_or_else(|| anyhow::anyhow!("Failed to find a suitable GPU adapter"))?;
 
         println!(
-            "🎮 [WGPU Adapter] Using GPU: {}",
+            "[WGPU Adapter] Using GPU: {}",
             adapter.get_info().name
         );
 
@@ -146,10 +146,10 @@ impl Renderer {
             .unwrap_or(surface_caps.alpha_modes[0]);
 
         println!(
-            "🔍 [WGPU Surface] Formats: {:?}, Alpha Modes: {:?}",
+            "[WGPU Surface] Formats: {:?}, Alpha Modes: {:?}",
             surface_caps.formats, surface_caps.alpha_modes
         );
-        println!("✨ [WGPU Surface] Alpha Mode Aktif: {:?}", alpha_mode);
+        println!("[WGPU Surface] Active Alpha Mode: {:?}", alpha_mode);
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -323,7 +323,7 @@ impl Renderer {
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
 
-            // Bebaskan alokasi VRAM / GTT lama seketika sebelum membuat texture baru
+            // Free old VRAM / GTT allocations immediately before creating new texture
             self.msaa_texture.destroy();
             self.depth_texture.destroy();
 
@@ -342,7 +342,7 @@ impl Renderer {
     }
 
     pub fn load_vrm_model(&mut self, model: Box<VrmModelData>) {
-        // Bebaskan GPU buffers (vertex & index) dari model VRM sebelumnya jika ada
+        // Free GPU buffers (vertex & index) from previous VRM model if any
         for prim in &self.gpu_primitives {
             prim.vertex_buffer.destroy();
             prim.index_buffer.destroy();
@@ -492,8 +492,8 @@ impl Renderer {
             } else if self.avatar_type.eq_ignore_ascii_case("2d") {
                 let state = self.current_visual_state;
 
-                // Untuk 2D Avatar saat Speaking: buat animasi mouth flapping (buka-tutup mulut)
-                // tersinkronisasi dengan gelombang vokal AIUEO yang sama dengan 3D VRM (~5.5 Hz)
+                // For 2D Avatar when Speaking: create animasi mouth flapping (open-close mouth)
+                // Synchronized with AIUEO vocal waves matching the 3D VRM (~5.5 Hz)
                 let active_2d_state = if state == AssistantVisualState::Speaking {
                     let mouth_open = ((self.elapsed_time * 5.5).sin().abs()).powf(1.4);
                     if mouth_open > 0.28 {

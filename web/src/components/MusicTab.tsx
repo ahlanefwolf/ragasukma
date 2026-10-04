@@ -11,7 +11,7 @@ interface MusicTabProps {
   showToast: (msg: string) => void;
 }
 
-// Module-level persistent cache agar tidak re-fetch / re-load saat user berpindah tab
+// Module-level persistent cache so that not re-fetch / re-load when user berpindah tab
 const [cachedYtDlpInfo, setCachedYtDlpInfo] = createSignal<YtDlpInfo | null>(null);
 const [cachedLibrary, setCachedLibrary] = createSignal<YtTrackInfo[]>([]);
 const [cachedMusicDir, setCachedMusicDir] = createSignal<string>('');
@@ -89,7 +89,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
       checkYtDlp(false);
       loadLibrary(false);
     } else {
-      // Jika sudah pernah dimuat, lakukan silent background sync tanpa spinner yang mengganggu
+      // If previously loaded, perform silent background sync without disruptive spinner
       checkYtDlp(true);
       loadLibrary(true);
     }
@@ -110,23 +110,23 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
         await playTrack(result.track);
       }
     } else {
-      props.showToast(result.error || 'Gagal mendownload');
+      props.showToast(result.error || 'Download failed');
     }
   };
 
   const handlePlay = (track: YtTrackInfo) => {
     playTrack(track);
-    props.showToast('Memutar lagu...');
+    props.showToast('Playing track...');
   };
 
   const handleDelete = async (filename: string, title: string) => {
-    if (!confirm(`Hapus lagu "${title}" dari library?`)) return;
+    if (!confirm(`Delete track "${title}" from library?`)) return;
     const ok = await api.deleteMusic(filename);
     if (ok) {
-      props.showToast('Lagu berhasil dihapus');
+      props.showToast('Track successfully deleted');
       await loadLibrary();
     } else {
-      props.showToast('Gagal menghapus lagu');
+      props.showToast('Failed to delete track');
     }
   };
 
@@ -145,11 +145,11 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
     if (res.success) {
       setInstallMsg(res.message);
       if (res.info) setCachedYtDlpInfo(res.info);
-      props.showToast('yt-dlp berhasil diinstall!');
+      props.showToast('yt-dlp installed successfully!');
       await loadLibrary();
     } else {
-      setInstallMsg('Gagal: ' + res.message);
-      props.showToast('Gagal install yt-dlp');
+      setInstallMsg('Failed: ' + res.message);
+      props.showToast('Failed to install yt-dlp');
     }
   };
 
@@ -170,7 +170,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
             Music Player
           </h2>
           <p class="text-xs sm:text-sm text-theme-text/70 mt-1 max-w-xl">
-            Download dan putar musik dari YouTube langsung di Ragasukma menggunakan yt-dlp.
+            Download and play YouTube audio directly in Ragasukma using yt-dlp.
           </p>
         </div>
         <div class="shrink-0 w-14 h-14 bg-theme-cyan/10 border border-theme-cyan/30 flex items-center justify-center">

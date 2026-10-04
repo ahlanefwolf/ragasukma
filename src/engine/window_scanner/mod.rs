@@ -70,8 +70,8 @@ impl ActiveWindowSnapshot {
     pub fn save_to_file(&self) -> Result<(), String> {
         let mut to_save = self.clone();
 
-        // 🛡️ Vision Protection: Jika snapshot sebelumnya adalah hasil vision_perception pada jendela/aplikasi yang sama,
-        // pertahankan data vision (tombol dengan koordinat center/bbox, inputs, dan OCR texts) agar tidak tertimpa
+        //  Vision Protection: If previous snapshot is from vision_perception on jendela/aplikasi which sama,
+        // preserve vision data (buttons with center/bbox coords, inputs, and OCR text) so it is not overwritten
         // oleh scan dangkal OS / accessibility tree!
         if to_save.source != "vision_perception" {
             if let Ok(prev) = Self::load_from_file() {
@@ -237,8 +237,8 @@ pub fn start_window_watcher() {
                     _ => false,
                 };
 
-                // Hanya scan jika jendela/aplikasi aktif benar-benar berpindah.
-                // Tidak ada lagi force_periodic 30s yang menimpa hasil visual vision_perception.
+                // Only scan if jendela/aplikasi active correct-correct berpindah.
+                // No more force_periodic 30s overwriting visual vision_perception results.
                 if window_changed {
                     #[cfg(target_os = "linux")]
                     {

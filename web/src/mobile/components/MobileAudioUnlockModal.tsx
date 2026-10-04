@@ -17,10 +17,10 @@ export const MobileAudioUnlockModal: Component<MobileAudioUnlockModalProps> = (p
 
           <div class="space-y-1">
             <h2 class="text-base font-heading font-bold text-theme-text">
-              Hubungkan Audio HP
+              Connect Phone Audio
             </h2>
             <p class="text-xs text-theme-text/60 leading-relaxed">
-              Browser smartphone memerlukan 1x izin sentuhan agar suara asisten & musik otomatis dialihkan ke speaker smartphone ini.
+              Smartphone browsers require 1x touch gesture to route assistant voice & music to phone speakers.
             </p>
           </div>
 
@@ -29,7 +29,7 @@ export const MobileAudioUnlockModal: Component<MobileAudioUnlockModalProps> = (p
             onClick={props.onUnlock}
             class="w-full py-3 px-4 bg-theme-cyan text-theme-card font-bold text-xs uppercase tracking-wider rounded-xl shadow-[0_0_15px_var(--cyan)] active:scale-95 transition-transform"
           >
-            Aktifkan Audio HP
+            Enable Phone Audio
           </button>
         </div>
       </div>

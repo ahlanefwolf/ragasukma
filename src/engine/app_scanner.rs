@@ -29,7 +29,7 @@ impl InstalledApp {
     }
 }
 
-/// Mengambil daftar aplikasi terpasang dengan cache memori 60 detik agar tidak membebani I/O disk
+/// Fetches installed application list with 60s memory cache to avoid disk I/O overhead
 pub fn get_installed_applications_cached() -> Vec<InstalledApp> {
     if let Ok(mut guard) = APPS_CACHE.lock() {
         if let Some((instant, ref apps)) = *guard {
@@ -212,7 +212,7 @@ fn app_is_filemanager(app: &InstalledApp, gen_lower: &str, id_lower: &str) -> bo
             .any(|kw| kw.eq_ignore_ascii_case("filemanager"))
 }
 
-/// Mengecek apakah aplikasi cocok dengan kata kunci pencarian termasuk alias kategori generik
+/// Checks whether application matches search keyword including generic category aliases
 pub fn is_app_matching_keywords(app: &InstalledApp, keywords: &[&str]) -> bool {
     let name_lower = app.name.to_lowercase();
     let gen_lower = app.generic_name.as_deref().unwrap_or("").to_lowercase();
@@ -246,19 +246,19 @@ pub fn is_app_matching_keywords(app: &InstalledApp, keywords: &[&str]) -> bool {
     false
 }
 
-/// Mengecek apakah suatu aplikasi disebut di dalam kalimat input pengguna secara agnostik bahasa
+/// Checks whether an application is mentioned in user input sentence in a language-agnostic manner
 pub fn is_app_mentioned_in_query(app: &InstalledApp, query: &str) -> bool {
     let name_lower = app.name.trim().to_lowercase();
     if name_lower.is_empty() {
         return false;
     }
 
-    // 1. Nama lengkap aplikasi muncul di query (misal: "google chrome", "visual studio code", "zed", "spotify")
+    // 1. Name lengkap aplikasi muncul in query (for example: "google chrome", "visual studio code", "zed", "spotify")
     if name_lower.len() >= 2 && query.contains(&name_lower) {
         return true;
     }
 
-    // 2. Token utama nama aplikasi (panjang >= 3, bukan kata umum/noise)
+    // 2. Token utama name aplikasi (length >= 3, not word umum/noise)
     for part in name_lower.split_whitespace() {
         let clean_part = part.trim_matches(|c: char| !c.is_alphanumeric());
         // Noise: common short words across supported languages that appear in app names
@@ -276,7 +276,7 @@ pub fn is_app_mentioned_in_query(app: &InstalledApp, query: &str) -> bool {
         }
     }
 
-    // 3. Desktop ID (misal: "dev.zed.Zed" -> "zed", "google-chrome" -> "chrome")
+    // 3. Desktop ID (for example: "dev.zed.Zed" -> "zed", "google-chrome" -> "chrome")
     if let Some(ref id) = app.desktop_id {
         let id_clean = id.trim_end_matches(".desktop").to_lowercase();
         let base_id = id_clean.rsplit('.').next().unwrap_or(&id_clean);
@@ -310,7 +310,7 @@ pub fn is_app_mentioned_in_query(app: &InstalledApp, query: &str) -> bool {
     false
 }
 
-/// Format daftar aplikasi terpasang dengan filtering terindeks sesuai konteks input pengguna
+/// Formats installed applications list with index filtering based on user input context
 pub fn format_installed_apps_indexed(query: Option<&str>) -> String {
     let apps = get_installed_applications_cached();
     if apps.is_empty() {
@@ -336,7 +336,7 @@ pub fn format_installed_apps_indexed(query: Option<&str>) -> String {
     };
 
     format!(
-        "\n### 📦 INSTALLED SYSTEM APPLICATIONS (GROUND OF TRUTH):\n\
+        "\n###  INSTALLED SYSTEM APPLICATIONS (GROUND OF TRUTH):\n\
         * Can be opened directly with `[CMD:app:open|AppName]`:\n  {}\n",
         matched_apps.join(", ")
     )
@@ -392,7 +392,7 @@ pub fn get_installed_applications() -> Vec<InstalledApp> {
         use std::collections::HashSet;
         let mut seen_names = HashSet::new();
 
-        // Aplikasi bawaan Windows esensial (sebagai jaminan selalu ada & bisa dibuka langsung)
+        // Essential Windows built-in applications (guaranteed to exist & directly accessible)
         let default_windows_apps = [
             ("Calculator", "calc.exe"),
             ("Notepad", "notepad.exe"),
@@ -422,10 +422,10 @@ pub fn get_installed_applications() -> Vec<InstalledApp> {
             }
         }
 
-        // Scan shortcuts (.lnk dan .url) dari folder Start Menu
+        // Scan shortcuts (.lnk and .url) from folder Start Menu
         let mut start_menu_dirs: Vec<PathBuf> = Vec::new();
 
-        // Start Menu semua user
+        // Start Menu all user
         if let Ok(program_data) =
             std::env::var("ProgramData").or_else(|_| std::env::var("ALLUSERSPROFILE"))
         {
@@ -433,7 +433,7 @@ pub fn get_installed_applications() -> Vec<InstalledApp> {
                 PathBuf::from(&program_data).join("Microsoft\\Windows\\Start Menu\\Programs"),
             );
         }
-        // Start Menu user saat ini
+        // Current user Start Menu
         if let Ok(appdata) = std::env::var("APPDATA") {
             start_menu_dirs
                 .push(PathBuf::from(&appdata).join("Microsoft\\Windows\\Start Menu\\Programs"));
@@ -501,7 +501,7 @@ fn scan_app_bundle_dir(
                     continue;
                 }
                 seen_names.insert(key);
-                // `open` adalah cara standar buka .app bundle di macOS
+                // `open` is cara standar open .app bundle in macOS
                 let exec = format!("open -a \"{}\"", name);
                 apps.push(InstalledApp {
                     name: name.clone(),

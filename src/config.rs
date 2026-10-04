@@ -164,7 +164,7 @@ impl Default for UserConfig {
 }
 
 pub fn get_music_dir() -> PathBuf {
-    // 1. Jika ada folder lokal assets/music (mode development / portable), gunakan itu
+    // 1. If there is a local folder assets/music (development mode / portable), use it
     let local = PathBuf::from("assets").join("music");
     if local.exists() {
         return local;
@@ -175,7 +175,7 @@ pub fn get_music_dir() -> PathBuf {
         return parent_local;
     }
 
-    // 2. Jika tidak ada, gunakan folder user AppData / .config agar permanen dan tidak hilang saat update
+    // 2. If it doesn't exist, use the AppData / .config user folder so that it is permanent and not lost during the update
     let user_music = get_app_config_dir().join("assets").join("music");
     let _ = fs::create_dir_all(&user_music);
     user_music
@@ -203,13 +203,13 @@ pub fn get_app_config_dir() -> PathBuf {
 }
 
 pub fn get_config_file_path() -> PathBuf {
-    // 1. Cek via kandidat standar (Lokal project assets/ -> beside exe -> Resources macOS -> AppData/Roaming)
+    // 1. Check via standard candidate (Local project assets/ -> beside exe -> Resources macOS -> AppData/Roaming)
     let candidate = crate::assets::find_file_in_candidates("config-ai.json");
     if candidate.exists() {
         return candidate;
     }
 
-    // 2. Default target jika belum ada: selalu di dalam folder assets pengguna
+    // 2. Default target if it doesn't already exist: always in the user's assets folder
     get_app_config_dir().join("assets").join("config-ai.json")
 }
 
@@ -224,7 +224,7 @@ pub fn load_user_config() -> UserConfig {
     let _guard = CONFIG_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
     let path = get_config_file_path();
     if path.exists() {
-        // Coba baca sampai 3 kali dengan jeda singkat untuk mengatasi file lock sementara di Windows
+        // Try reading up to 3 times with short pauses to overcome temporary file lock in Windows
         for _ in 0..3 {
             if let Ok(content) = fs::read_to_string(&path) {
                 if let Ok(mut cfg) = serde_json::from_str::<UserConfig>(&content) {
@@ -241,12 +241,12 @@ pub fn load_user_config() -> UserConfig {
             std::thread::sleep(std::time::Duration::from_millis(15));
         }
         crate::term_err!(
-            "⚠️ [Config Load] Failed to read config-ai.json (locked/unreadable), using in-memory fallback."
+            "[Config Load] Failed to read config-ai.json (locked/unreadable), using in-memory fallback."
         );
         return UserConfig::default();
     }
 
-    // Default configuration HANYA jika file config-ai.json memang belum pernah ada di disk
+    // Default configuration ONLY if the config-ai.json file has never existed on disk
     let default_cfg = UserConfig::default();
     let _ = save_user_config_locked(&default_cfg);
     default_cfg
@@ -264,7 +264,7 @@ fn save_user_config_locked(cfg: &UserConfig) -> Result<(), String> {
     }
     let json = serde_json::to_string_pretty(cfg).map_err(|e| e.to_string())?;
 
-    // Atomic write menggunakan file temporary + retry rename agar aman di Windows filesystem
+    // Atomic write uses temporary files + retry rename to be safe in the Windows filesystem
     let tmp_path = path.with_extension("tmp");
     fs::write(&tmp_path, &json).map_err(|e| e.to_string())?;
 
@@ -278,7 +278,7 @@ fn save_user_config_locked(cfg: &UserConfig) -> Result<(), String> {
     }
 
     if !rename_success {
-        // Fallback: direct write jika rename terhalang file lock di Windows
+        // Fallback: direct write if rename is blocked by file lock in Windows
         fs::write(&path, json).map_err(|e| e.to_string())?;
         let _ = fs::remove_file(&tmp_path);
     }

@@ -26,7 +26,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
   const [copied, setCopied] = createSignal(false);
   const [qrDataUrl, setQrDataUrl] = createSignal<string>('');
 
-  // Status binary cloudflared (mirip yt-dlp di MusicTab)
+  // Status binary cloudflared (mirip yt-dlp in MusicTab)
   const [cfInfo, setCfInfo] = createSignal<CloudflaredInfo | null>(null);
   const [checkingCf, setCheckingCf] = createSignal(true);
   const [installingCf, setInstallingCf] = createSignal(false);
@@ -68,11 +68,11 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
 
   const handleStartTunnel = async () => {
     if (cfInfo() && !cfInfo()!.available) {
-      props.showToast('⚠️ cloudflared belum terinstall di komputer ini. Silakan install terlebih dahulu.');
+      props.showToast('cloudflared is not installed on this system. Please install it first.');
       return;
     }
     setLoading(true);
-    props.showToast('Memulai cloudflared tunnel...');
+    props.showToast('Starting cloudflared tunnel...');
     const res = await api.startTunnel();
     setTunnelStatus(res.status);
     if (res.auth_key) setAuthKey(res.auth_key);
@@ -83,7 +83,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
       return;
     }
 
-    // Polling status setiap 1 detik sampai URL muncul
+    // Poll status every 1s until URL appears
     let attempts = 0;
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(async () => {
@@ -93,13 +93,13 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
         clearInterval(pollTimer);
         pollTimer = null;
         setLoading(false);
-        props.showToast('Cloudflared tunnel berhasil aktif!');
+        props.showToast('Cloudflared tunnel active successfully!');
       } else if (attempts > 40 || st.status === 'stopped') {
         clearInterval(pollTimer);
         pollTimer = null;
         setLoading(false);
         if (!st.url) {
-          props.showToast(st.status === 'stopped' ? 'Cloudflared berhenti atau gagal terkoneksi.' : 'Tunnel berjalan di background, cek log console.');
+          props.showToast(st.status === 'stopped' ? 'Cloudflared stopped or connection failed.' : 'Tunnel running in background, check console logs.');
         }
       }
     }, 1000);
@@ -111,7 +111,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
     setTunnelStatus('stopped');
     setTunnelUrl(null);
     setLoading(false);
-    props.showToast('Cloudflared tunnel dihentikan.');
+    props.showToast('Cloudflared tunnel stopped.');
   };
 
   const getFullRemoteUrl = () => {
@@ -146,7 +146,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
     if (!full) return;
     navigator.clipboard.writeText(full).then(() => {
       setCopied(true);
-      props.showToast('Link remote berhasil disalin!');
+      props.showToast('Remote link copied to clipboard!');
       setTimeout(() => setCopied(false), 2000);
     });
   };
@@ -159,10 +159,10 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
     if (res.success) {
       setInstallCfMsg(res.message);
       if (res.info) setCfInfo(res.info);
-      props.showToast('cloudflared berhasil diinstall!');
+      props.showToast('cloudflared installed successfully!');
     } else {
-      setInstallCfMsg('Gagal: ' + res.message);
-      props.showToast('Gagal install cloudflared');
+      setInstallCfMsg('Failed: ' + res.message);
+      props.showToast('Failed to install cloudflared');
     }
   };
 
@@ -185,8 +185,8 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
             </h2>
           </div>
           <p class="text-xs text-theme-text/70 leading-relaxed max-w-2xl">
-            Kendalikan Ragasukma dari smartphone Anda tanpa perlu satu jaringan WiFi (port forwarding bypass via Cloudflare Tunnel).
-            Tampilan HP dioptimasi khusus untuk smartphone: tombol Push-to-Talk (Web Speech API) & Live Console Logs.
+            Control Ragasukma directly from your smartphone without needing to be on the same local Wi-Fi (port forwarding bypass via Cloudflare Tunnel).
+            Mobile layout optimized specifically for smartphones: Push-to-Talk (Web Speech API) & Live Console Logs.
           </p>
         </div>
 
@@ -211,7 +211,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
                 class="px-5 py-2.5 bg-theme-cyan text-theme-card font-bold text-sm border border-theme-cyan hover:opacity-90 transition-all flex items-center gap-2 shadow-md anime-shadow-green disabled:opacity-50"
               >
                 <Radio size={16} />
-                <span>{loading() ? 'Memulai...' : 'Nyalakan Tunnel'}</span>
+                <span>{loading() ? 'Starting...' : 'Start Tunnel'}</span>
               </button>
             }
           >
@@ -221,13 +221,13 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
               class="px-5 py-2.5 bg-theme-rose text-white font-bold text-sm border border-theme-rose hover:opacity-90 transition-all flex items-center gap-2 shadow-md disabled:opacity-50"
             >
               <Square size={16} />
-              <span>{loading() ? 'Menghentikan...' : 'Matikan Tunnel'}</span>
+              <span>{loading() ? 'Stopping...' : 'Stop Tunnel'}</span>
             </button>
           </Show>
         </div>
       </div>
 
-      {/* Cloudflared Binary Status Card (Mirip yt-dlp di MusicTab) */}
+      {/* Cloudflared Binary Status Card */}
       <CloudflaredStatusCard
         checking={checkingCf}
         info={cfInfo}
@@ -253,13 +253,13 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
               }`}
             />
             <span class="text-sm font-bold text-theme-text uppercase tracking-wider">
-              Status Tunnel: {tunnelStatus()}
+              Tunnel Status: {tunnelStatus()}
             </span>
           </div>
 
           <div class="flex items-center gap-2 text-xs font-mono text-theme-text/60">
             <ShieldCheck size={14} class="text-theme-cyan" />
-            <span>Key Auth: {authKey() ? `${authKey().slice(0, 8)}...` : 'Belum aktif'}</span>
+            <span>Auth Key: {authKey() ? `${authKey().slice(0, 8)}...` : 'Inactive'}</span>
           </div>
         </div>
 
@@ -267,7 +267,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
           <div class="space-y-4 pt-1">
             <div class="text-xs text-theme-text/80 font-semibold flex items-center gap-1.5">
               <Smartphone size={16} class="text-theme-cyan" />
-              <span>Scan QR code ini dengan kamera smartphone Anda:</span>
+              <span>Scan this QR code with your smartphone camera:</span>
             </div>
 
             {/* QR Code Container */}
@@ -280,15 +280,15 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
                     class="w-48 h-48 block select-none"
                   />
                   <span class="text-[10px] text-gray-700 font-mono font-bold mt-1 uppercase tracking-wider">
-                    Scan via Kamera HP
+                    Scan via Phone Camera
                   </span>
                 </div>
               </Show>
 
               <div class="space-y-4 flex-1 w-full">
                 <div class="text-xs text-theme-text/70 leading-relaxed">
-                  Arahkan kamera smartphone ke kode QR di samping untuk langsung membuka kontrol mobile Ragasukma. 
-                  Tidak perlu memasukkan URL atau kode otentikasi secara manual.
+                  Point your mobile camera at the QR code to open the Ragasukma mobile remote view.
+                  No need to manually input URLs or authentication keys.
                 </div>
 
                 <div class="flex items-center gap-2">
@@ -305,14 +305,14 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
                     <Show when={copied()} fallback={<Copy size={16} />}>
                       <Check size={16} class="text-theme-cyan" />
                     </Show>
-                    <span>{copied() ? 'Tersalin' : 'Salin Link'}</span>
+                    <span>{copied() ? 'Copied' : 'Copy Link'}</span>
                   </button>
                   <a
                     href={getFullRemoteUrl()}
                     target="_blank"
                     rel="noreferrer"
                     class="p-2.5 bg-theme-card border border-theme-border hover:border-theme-cyan text-theme-text transition-colors shrink-0"
-                    title="Buka Tab Mobile di Browser"
+                    title="Open Mobile Tab in Browser"
                   >
                     <ExternalLink size={16} />
                   </a>
@@ -321,12 +321,12 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
                 <div class="p-3 bg-theme-card/60 border border-theme-border/50 text-xs text-theme-text/80 space-y-1.5">
                   <div class="font-bold flex items-center gap-1.5 text-theme-cyan">
                     <Sparkles size={14} />
-                    <span>Fitur Mobile Client:</span>
+                    <span>Mobile Client Features:</span>
                   </div>
                   <ul class="list-disc list-inside space-y-1 text-theme-text/70">
-                    <li>Push-to-Talk via Web Speech API bawaan smartphone (hemat kuota & latensi 0s).</li>
-                    <li>Live Console Logs untuk memantau aktivitas & feedback Ragasukma langsung dari HP.</li>
-                    <li>Otomatis bypass single-tab lock sehingga tab desktop tetap berjalan normal.</li>
+                    <li>Push-to-Talk via smartphone native Web Speech API (low latency).</li>
+                    <li>Live Console Logs to monitor Ragasukma activity directly from mobile.</li>
+                    <li>Automatic single-tab bypass allowing desktop and mobile to run simultaneously.</li>
                   </ul>
                 </div>
               </div>
@@ -338,9 +338,9 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
           <div class="p-6 bg-theme-surface/50 border border-dashed border-theme-border text-center space-y-3">
             <Radio size={36} class="mx-auto text-theme-text/30" />
             <div class="space-y-1">
-              <p class="text-sm font-bold text-theme-text">Cloudflared Tunnel Belum Aktif</p>
+              <p class="text-sm font-bold text-theme-text">Cloudflared Tunnel Inactive</p>
               <p class="text-xs text-theme-text/60 max-w-md mx-auto">
-                Klik tombol <strong>"Nyalakan Tunnel"</strong> di atas untuk membuat tautan HTTPS publik yang aman dan QR Code untuk smartphone Anda.
+                Click the <strong>"Start Tunnel"</strong> button above to generate a secure public HTTPS link and QR code for your smartphone.
               </p>
             </div>
           </div>

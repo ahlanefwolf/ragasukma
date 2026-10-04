@@ -9,8 +9,8 @@ struct MacVisionResponse {
     error: Option<String>,
 }
 
-/// Native OCR bawaan macOS menggunakan Apple Vision Framework (`VNRecognizeTextRequest`).
-/// Memanfaatkan Apple Neural Engine / CoreML bawaan sistem macOS (0 MB model file, 0 MB alokasi RAM).
+/// Native OCR bawaan macOS using Apple Vision Framework (`VNRecognizeTextRequest`).
+/// Leverages native macOS Apple Neural Engine / CoreML (0 MB model files, 0 MB extra RAM).
 #[cfg(target_os = "macos")]
 pub fn run_macos_native_ocr(image: &DynamicImage) -> Result<Vec<(String, [i32; 4], f32)>, String> {
     let temp_dir = std::env::temp_dir();
@@ -66,8 +66,8 @@ let request = VNRecognizeTextRequest { request, error in
         let text = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty { continue }
 
-        // Apple Vision menggunakan sistem koordinat Normalized Bottom-Left (0.0 - 1.0)
-        // Kita konversikan ke sistem koordinat Top-Left Pixel standar
+        // Apple Vision using sistem koordinat Normalized Bottom-Left (0.0 - 1.0)
+        // Convert to standard Top-Left Pixel coordinate system
         let box = obs.boundingBox
         let bx = Int(round(box.origin.x * imgW))
         let bw = Int(round(box.size.width * imgW))

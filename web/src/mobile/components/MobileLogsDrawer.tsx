@@ -17,13 +17,13 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
 
   return (
     <Show when={props.isOpen}>
-      {/* Backdrop Lembut & Tidak Gelap Gulita */}
+      {/* Backdrop Lembut & Not Gelap Gulita */}
       <div 
         onClick={props.onClose} 
         class="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px] animate-in fade-in duration-150" 
       />
 
-      {/* Slide-Up Bottom Sheet Rapat ke Bawah (Tanpa Gap / Margin) */}
+      {/* Slide-Up Bottom Sheet flush to bottom (no gap/margin) */}
       <div class="fixed inset-x-0 bottom-0 z-50 h-[70dvh] max-h-[70dvh] bg-theme-surface border-t border-theme-border shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-250 select-none pb-0 mb-0">
         {/* Drawer Header */}
         <div class="px-4 py-2.5 bg-theme-card border-b border-theme-border flex items-center justify-between shrink-0 select-none">
@@ -42,7 +42,7 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
               type="button"
               onClick={props.onCopy}
               class="p-1.5 text-theme-muted hover:text-theme-cyan active:scale-90 transition-colors"
-              title="Salin Semua Log"
+              title="Copy All Logs"
             >
               <Copy size={14} />
             </button>
@@ -50,7 +50,7 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
               type="button"
               onClick={props.onRefresh}
               class="p-1.5 text-theme-muted hover:text-theme-cyan active:scale-90 transition-colors"
-              title="Refresh Log"
+              title="Refresh Logs"
             >
               <RefreshCw size={14} class={props.isRefreshing ? 'animate-spin text-theme-cyan' : ''} />
             </button>
@@ -59,14 +59,14 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
               type="button"
               onClick={props.onClose}
               class="p-1.5 text-theme-muted hover:text-rose-500 active:scale-90 transition-colors"
-              title="Tutup"
+              title="Close"
             >
               <X size={16} />
             </button>
           </div>
         </div>
 
-        {/* Scrollable Logs Area Rapat Tanpa Padding Bawah Berlebih */}
+        {/* Scrollable Logs Area Without Excessive Bottom Padding */}
         <div
           ref={containerRef}
           class="flex-1 overflow-y-auto overscroll-contain px-3 py-2 font-mono text-[10.5px] leading-relaxed bg-theme-bg/80 select-text"
@@ -77,7 +77,7 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
             fallback={
               <div class="h-full flex flex-col items-center justify-center text-xs text-theme-muted py-8 gap-2">
                 <Terminal size={24} class="opacity-40" />
-                <span>Belum ada log aktivitas...</span>
+                <span>No activity logs yet...</span>
               </div>
             }
           >
@@ -88,7 +88,7 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
                     [{log.timestamp ? log.timestamp.split(' ')[1] || log.timestamp : ''}]
                   </span>
                   <span class={props.formatStyle(log.message, log.level)}>
-                    {log.message}
+                    {log.message.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{FE00}-\u{FE0F}\u{200D}]/gu, '')}
                   </span>
                 </div>
               )}

@@ -16,7 +16,7 @@ interface SkillsTabProps {
   showToast: (msg: string) => void;
 }
 
-// Module-level persistent cache agar perpindahan antar tab instan 0ms tanpa re-loading
+// Module-level persistent cache for instant 0ms tab switching without re-loading
 const [cachedSkills, setCachedSkills] = createSignal<SkillItem[]>([]);
 let isFirstSkillsMount = true;
 
@@ -24,7 +24,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
   const [skills, setSkills] = createSignal<SkillItem[]>(cachedSkills());
   const [loading, setLoading] = createSignal(cachedSkills().length === 0 && isFirstSkillsMount);
 
-  // Form Tambah Skill Kustom Manual
+  // Form Add Skill Kustom Manual
   const [newName, setNewName] = createSignal('');
   const [newDesc, setNewDesc] = createSignal('');
   const [newCmd, setNewCmd] = createSignal('');
@@ -67,23 +67,23 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
   });
 
   const handleRunSkill = async (skill: SkillItem) => {
-    props.showToast(`Menjalankan "${skill.name}"...`);
+    props.showToast(`Running "${skill.name}"...`);
     const ok = await api.runSkill(skill.command);
     if (ok) {
-      props.showToast(`Berhasil menjalankan "${skill.name}"`);
+      props.showToast(`Successfully executed "${skill.name}"`);
     } else {
-      props.showToast(`Gagal mengeksekusi "${skill.name}"`);
+      props.showToast(`Failed to execute "${skill.name}"`);
     }
   };
 
   const handleDeleteSkill = async (name: string) => {
-    if (confirm(`Hapus skill "${name}" dari registry?`)) {
+    if (confirm(`Delete skill "${name}" from registry?`)) {
       const ok = await api.deleteSkill(name);
       if (ok) {
         setSkills(skills().filter(s => s.name !== name));
-        props.showToast(`Skill "${name}" berhasil dihapus`);
+        props.showToast(`Skill "${name}" successfully deleted`);
       } else {
-        props.showToast(`Gagal menghapus skill "${name}"`);
+        props.showToast(`Failed to delete skill "${name}"`);
       }
     }
   };
@@ -104,7 +104,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
 
   const handleSaveEdit = async () => {
     if (!editName().trim() || !editCmd().trim()) {
-      props.showToast('Nama Skill dan Command tidak boleh kosong!');
+      props.showToast('Skill Name and Command cannot be empty!');
       return;
     }
 
@@ -115,24 +115,24 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
       command: editCmd().trim()
     };
 
-    // Update skill via saveSkill (jika rename, hapus skill lama dan simpan yang baru)
+    // Update skill via saveSkill (if rename, remove old and save new)
     if (origName && origName !== updatedSkill.name) {
       await api.deleteSkill(origName);
     }
     const ok = await api.saveSkill(updatedSkill);
     if (ok) {
       setEditingOriginalName(null);
-      props.showToast(`Skill "${updatedSkill.name}" berhasil diperbarui!`);
+      props.showToast(`Skill "${updatedSkill.name}" updated successfully!`);
       await loadSkills();
     } else {
-      props.showToast(`Gagal memperbarui skill "${updatedSkill.name}"`);
+      props.showToast(`Failed to update skill "${updatedSkill.name}"`);
     }
   };
 
   const handleAddSkill = async (e: Event) => {
     e.preventDefault();
     if (!newName().trim() || !newCmd().trim()) {
-      props.showToast('Mohon isi Nama Skill dan Script Command!');
+      props.showToast('Please fill in Skill Name and Command Script!');
       return;
     }
 
@@ -147,10 +147,10 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
       setNewName('');
       setNewDesc('');
       setNewCmd('');
-      props.showToast(`Skill "${newSkill.name}" berhasil disimpan!`);
+      props.showToast(`Skill "${newSkill.name}" saved successfully!`);
       await loadSkills();
     } else {
-      props.showToast(`Gagal menyimpan skill "${newSkill.name}"`);
+      props.showToast(`Failed to save skill "${newSkill.name}"`);
     }
   };
 
@@ -168,10 +168,10 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
             </span>
           </div>
           <h2 class="text-2xl sm:text-3xl font-heading tracking-tight text-theme-text mt-2">
-            Skill Custom & Otomasi
+            Custom Skills & Automation
           </h2>
           <p class="text-xs sm:text-sm text-theme-text/70 mt-1 max-w-xl">
-            Kelola perintah script otomasi kustom, integrasi API, dan alur kerja mandiri buatanmu sendiri di sini.
+            Manage custom automated shell scripts, external API triggers, and standalone workflows here.
           </p>
         </div>
       </div>
@@ -180,17 +180,17 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
       <div class="space-y-3">
         <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2 tracking-wide">
           <Terminal size={18} />
-          Skill / Otomasi Kustom ({skills().length})
+          Custom Automation / Skills ({skills().length})
         </h3>
 
         {loading() ? (
           <div class="p-8 flex items-center justify-center gap-2 text-xs text-theme-text/50">
             <Loader size={16} class="animate-spin text-theme-cyan" />
-            <span>Memuat skill-command.md...</span>
+            <span>Loading skill-command.md...</span>
           </div>
         ) : skills().length === 0 ? (
           <div class="p-8 text-center text-xs text-theme-text/60 bg-theme-surface border border-theme-border">
-            Belum ada script kustom tambahan. Perintah sistem bawaan dan website tetap bisa langsung kamu gunakan via suara.
+            No custom scripts added yet. Built-in system commands and web navigation are already supported via voice.
           </div>
         ) : (
           <div class="space-y-3">
@@ -222,7 +222,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
                             <button
                               onClick={() => handleRunSkill(skill)}
                               class="px-3.5 py-1.5 text-xs font-bold bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card flex items-center gap-1.5 transition-all shadow-sm border border-theme-cyan"
-                              title="Test Eksekusi Script"
+                              title="Test Execute Script"
                             >
                               <Play size={13} class="fill-current" />
                               <span>Test</span>
@@ -237,7 +237,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
                             <button
                               onClick={() => handleDeleteSkill(skill.name)}
                               class="p-2 text-xs font-semibold bg-theme-card hover:bg-theme-rose/20 text-theme-rose border border-theme-rose/30 transition-all"
-                              title="Hapus Skill"
+                              title="Delete Skill"
                             >
                               <Trash2 size={15} />
                             </button>
@@ -253,7 +253,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           <div>
-                            <label class="text-xs text-theme-text/70 font-semibold">Nama Skill</label>
+                            <label class="text-xs text-theme-text/70 font-semibold">Skill Name</label>
                             <input
                               type="text"
                               value={editName()}
@@ -262,7 +262,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
                             />
                           </div>
                           <div>
-                            <label class="text-xs text-theme-text/70 font-semibold">Deskripsi untuk AI</label>
+                            <label class="text-xs text-theme-text/70 font-semibold">Description for AI</label>
                             <input
                               type="text"
                               value={editDesc()}
@@ -272,7 +272,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
                           </div>
                         </div>
                         <div>
-                          <label class="text-xs text-theme-text/70 font-semibold">Command Script</label>
+                          <label class="text-xs text-theme-text/70 font-semibold">Script Command</label>
                           <input
                             type="text"
                             value={editCmd()}
@@ -286,14 +286,14 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
                             class="px-3.5 py-1.5 text-xs bg-theme-card text-theme-text/70 hover:text-theme-text flex items-center gap-1 border border-theme-border"
                           >
                             <X size={13} />
-                            <span>Batal</span>
+                            <span>Cancel</span>
                           </button>
                           <button
                             onClick={handleSaveEdit}
                             class="px-4 py-1.5 text-xs font-bold bg-theme-cyan text-theme-card hover:bg-theme-cyan/90 flex items-center gap-1 border border-theme-cyan"
                           >
                             <Check size={13} />
-                            <span>Simpan Perubahan</span>
+                            <span>Save Changes</span>
                           </button>
                         </div>
                       </div>
@@ -310,40 +310,40 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
       <form onSubmit={handleAddSkill} class="p-5 bg-theme-surface border border-theme-border space-y-4">
         <h3 class="text-base sm:text-lg font-bold text-theme-rose flex items-center gap-2 tracking-wide">
           <Plus size={18} />
-          Tambah Script Otomasi Kustom
+          Add Custom Automation Script
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div class="space-y-1">
-            <label class="text-xs font-semibold text-theme-text/80">Nama Perintah / Skill</label>
+            <label class="text-xs font-semibold text-theme-text/80">Skill Name / Command</label>
             <input
               type="text"
               value={newName()}
               onInput={(e) => setNewName(e.currentTarget.value)}
-              placeholder="Contoh: Backup File Proyek"
+              placeholder="e.g. Project Backup"
               class="w-full bg-theme-card border border-theme-border px-3.5 py-2 text-sm text-theme-text outline-none focus:border-theme-cyan transition-all"
             />
           </div>
 
           <div class="space-y-1">
-            <label class="text-xs font-semibold text-theme-text/80">Deskripsi untuk AI</label>
+            <label class="text-xs font-semibold text-theme-text/80">Description for AI</label>
             <input
               type="text"
               value={newDesc()}
               onInput={(e) => setNewDesc(e.currentTarget.value)}
-              placeholder="Contoh: Menjalankan script sinkronisasi file penting"
+              placeholder="e.g. Run file sync script for critical documents"
               class="w-full bg-theme-card border border-theme-border px-3.5 py-2 text-sm text-theme-text outline-none focus:border-theme-cyan transition-all"
             />
           </div>
         </div>
 
         <div class="space-y-1">
-          <label class="text-xs font-semibold text-theme-text/80">Script Shell / Command Terminal</label>
+          <label class="text-xs font-semibold text-theme-text/80">Terminal / Shell Command</label>
           <input
             type="text"
             value={newCmd()}
             onInput={(e) => setNewCmd(e.currentTarget.value)}
-            placeholder="Contoh: rsync -av ~/Documents /mnt/backup/ atau ./script.sh"
+            placeholder="e.g. rsync -av ~/Documents /mnt/backup/ or ./script.sh"
             class="w-full bg-theme-card border border-theme-border px-3.5 py-2 text-sm font-mono text-theme-text outline-none focus:border-theme-cyan transition-all"
           />
         </div>
@@ -354,7 +354,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
             class="w-full sm:w-auto px-5 py-2.5 text-sm bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card shadow-md anime-shadow-green flex items-center justify-center gap-2 transition-all font-semibold border border-theme-cyan"
           >
             <Plus size={16} />
-            <span>Simpan Script Baru</span>
+            <span>Save New Skill</span>
           </button>
         </div>
       </form>

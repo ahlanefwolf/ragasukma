@@ -67,7 +67,7 @@ pub fn get_engine() -> Option<&'static SupertonicEngine> {
 pub fn init_engine_background() {
     std::thread::spawn(|| {
         if let Err(e) = init_engine() {
-            crate::term_err!("❌ [Supertonic TTS] Failed to initialize model: {e}");
+            crate::term_err!("[Supertonic TTS] Failed to initialize model: {e}");
         }
     });
 }
@@ -80,7 +80,7 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
     let model_dir =
         find_model_dir().ok_or_else(|| anyhow!("Supertonic-3 model directory not found"))?;
     crate::term_log!(
-        "🚀 [Supertonic TTS] Loading ONNX neural model from {:?}...",
+        "[Supertonic TTS] Loading ONNX neural model from {:?}...",
         model_dir
     );
     let start = std::time::Instant::now();
@@ -181,7 +181,7 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
     }
 
     crate::term_log!(
-        "⚡ [Supertonic TTS] Initialized in {:.2?}! ({} voice styles ready)",
+        "[Supertonic TTS] Initialized in {:.2?}! ({} voice styles ready)",
         start.elapsed(),
         styles.len() / 2
     );
@@ -281,7 +281,7 @@ impl SupertonicEngine {
             .collect();
         let text_len = text_ids_vec.len();
         if text_len == 0 {
-            return Err(anyhow!("Teks kosong setelah preprocessing"));
+            return Err(anyhow!("Empty text after preprocessing"));
         }
 
         let text_mask_vec = vec![1.0f32; text_len];
@@ -316,8 +316,8 @@ impl SupertonicEngine {
         };
 
         // 3. Noisy Latent & Flow Matching
-        // PENGAMAN KRUSIAL: Model vector_estimator ONNX memiliki batas dimensi tensor attention = 1000.
-        // Clamping ke .min(960) menjamin secara matematis tidak akan pernah melebihi 1000 ('1000 by 1065' error).
+        // CRUCIAL GUARD: ONNX vector_estimator model has attention tensor dimension limit = 1000.
+        // Clamping to .min(960) mathematically guarantees never exceeding 1000 ('1000 by 1065' error).
         let chunk_size = self.cfg.ae.base_chunk_size * self.cfg.ttl.chunk_compress_factor;
         let wav_len_max = (duration * self.cfg.ae.sample_rate as f32).round() as i64;
         let latent_len =
@@ -372,8 +372,8 @@ impl SupertonicEngine {
         self.synthesize_stream(text, voice, lang, speed, |_, _, _| {})
     }
 
-    /// Sintesis teks bertahap per chunk dan langsung kirimkan hasil WAV bytes ke channel sender (streaming TTS queue).
-    /// Mengembalikan total audio WAV bytes gabungan untuk keperluan caching dan mobile client.
+    /// Incrementally synthesizes text per chunk and directly sends WAV bytes to channel sender (streaming TTS queue).
+    /// Return total combined WAV audio bytes for caching and mobile client.
     pub fn synthesize_stream<F>(
         &self,
         text: &str,
@@ -399,7 +399,7 @@ impl SupertonicEngine {
         let lang_code = clean_lang_code(lang);
         let chunks = split_into_tts_chunks(text);
         if chunks.is_empty() {
-            return Err(anyhow!("Teks kosong setelah pemecahan chunk"));
+            return Err(anyhow!("Empty text after chunk splitting"));
         }
 
         let total_chunks = chunks.len();
@@ -428,7 +428,7 @@ impl SupertonicEngine {
                 }
                 Err(e) => {
                     crate::term_err!(
-                        "⚠️ [Supertonic TTS] Failed to synthesize sub-chunk \"{}\": {e}",
+                        "[Supertonic TTS] Failed to synthesize sub-chunk \"{}\": {e}",
                         chunk
                     );
                 }
@@ -443,7 +443,7 @@ impl SupertonicEngine {
     }
 }
 
-/// Memecah teks panjang menjadi chunk kalimat/klausa alami agar tidak melampaui batas tensor ONNX (~140 karakter)
+/// Splits long text into natural sentence/clause chunks so it does not exceed ONNX tensor limits (~140 characters)
 pub fn split_into_tts_chunks(text: &str) -> Vec<String> {
     let text = text.trim();
     if text.is_empty() {
@@ -663,9 +663,9 @@ pub fn samples_to_wav_bytes(samples: &[f32], sample_rate: u32) -> Vec<u8> {
     out.extend_from_slice(&data_len.to_le_bytes());
 
     // Peak Normalization (Digital Headroom Scaling):
-    // Model neural Supertonic-3 secara mentah menghasilkan peak amplitudo konservatif (~0.25 - 0.35).
-    // Kita cari peak maksimum gelombang dan kalikan secara linier ke target 0.92 (-0.7 dBFS)
-    // agar suara lantang, jernih, dan tidak clipping/pecah di speaker PC maupun HP.
+    // Raw Supertonic-3 neural model produces conservative peak amplitudes (~0.25 - 0.35).
+    // Find maximum waveform peak and scale linearly to target 0.92 (-0.7 dBFS)
+    // ensures voice is clear, crisp, and free from clipping/distortion on PC and mobile speakers.
     let mut max_abs: f32 = 0.0;
     for &sample in samples {
         let abs = sample.abs();
@@ -675,7 +675,7 @@ pub fn samples_to_wav_bytes(samples: &[f32], sample_rate: u32) -> Vec<u8> {
     }
 
     let scale = if max_abs > 0.01 {
-        // Target 0.92 memberikan headroom aman dari inter-sample peak pada DAC audio
+        // Target 0.92 provides safe headroom against inter-sample peaks on audio DAC
         (0.92 / max_abs).clamp(1.0, 4.0)
     } else {
         1.0

@@ -11,16 +11,16 @@ use winit::event_loop::EventLoopBuilder;
 use winit::platform::x11::EventLoopBuilderExtX11;
 
 pub fn run_native_overlay() {
-    println!("✨ Starting Ragasukma 3D Native Overlay (Ultra Lightweight WGPU)...");
+    println!(" Starting Ragasukma 3D Native Overlay (Ultra Lightweight WGPU)...");
 
     let event_loop = {
         #[cfg(target_os = "linux")]
         {
-            // Coba bangun event loop standar (Wayland jika tersedia), jika Wayland NoCompositor, fallback otomatis ke X11
+            // Coba bangun event loop standar (Wayland if tersedia), if Wayland NoCompositor, fallback automatically to X11
             EventLoopBuilder::new()
                 .build()
                 .or_else(|_| {
-                    println!("⚠️ [Wayland] Not detected or connection refused, falling back to X11 backend...");
+                    println!("[Wayland] Not detected or connection refused, falling back to X11 backend...");
                     let mut b = EventLoopBuilder::new();
                     b.with_x11().build()
                 })
@@ -37,7 +37,7 @@ pub fn run_native_overlay() {
     let mut app = match pollster::block_on(app::App::new(&event_loop)) {
         Ok(a) => Box::new(a),
         Err(e) => {
-            eprintln!("❌ Failed to initialize Native App: {:?}", e);
+            eprintln!(" Failed to initialize Native App: {:?}", e);
             return;
         }
     };

@@ -23,7 +23,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
   let isSyncing = false;
   let pendingPose: Record<string, [number, number, number]> | null = null;
 
-  // Helper untuk memastikan state selalu memiliki array poses terstruktur
+  // Helper to ensure state always contains a structured poses array
   const ensurePosesArray = (st?: PoseKeyframes): SinglePose[] => {
     if (!st || !st.poses || st.poses.length === 0) {
       return [{ bones: {} }];
@@ -52,7 +52,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
   const loadPoses = async () => {
     const data = await api.getPoses();
     if (data && Object.keys(data).length > 0) {
-      // Normalisasi semua state ke array poses
+      // Normalize all states to poses array
       const normalized: PosesConfig = {};
       for (const [k, v] of Object.entries(data)) {
         normalized[k] = {
@@ -185,14 +185,14 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     setPosesData(all);
 
     api.setTunerLive(true, curBones, selectedEmotion(), selectedState());
-    props.showToast(`Bone "${bone}" di-reset ke [0, 0, 0]`);
+    props.showToast(`Bone "${bone}" reset to [0, 0, 0]`);
   };
 
   const resetSingleAxis = (bone: string, axis: 0 | 1 | 2) => {
     updateBoneAxis(bone, axis, 0);
   };
 
-  // Tambah Pose Baru
+  // Add Pose New
   const handleAddPose = () => {
     const all = { ...posesData() };
     const stKey = selectedState();
@@ -209,10 +209,10 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     setPosesData(all);
     setActivePoseIndex(poses.length - 1);
     syncLiveTuner(true);
-    props.showToast(`Pose baru "Pose ${newIndex}" ditambahkan!`);
+    props.showToast(`New pose "Pose ${newIndex}" added!`);
   };
 
-  // Duplikat Pose Aktif
+  // Duplicate Pose Active
   const handleDuplicatePose = () => {
     const all = { ...posesData() };
     const stKey = selectedState();
@@ -232,10 +232,10 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     setPosesData(all);
     setActivePoseIndex(poses.length - 1);
     syncLiveTuner(true);
-    props.showToast(`Pose ${curIdx + 1} berhasil diduplikasi menjadi Pose ${newIndex}!`);
+    props.showToast(`Pose ${curIdx + 1} duplicated as Pose ${newIndex}!`);
   };
 
-  // Hapus Pose Tertentu
+  // Delete Pose Tertentu
   const handleDeletePose = (idx: number) => {
     const all = { ...posesData() };
     const stKey = selectedState();
@@ -244,7 +244,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
 
     let poses = [...(st.poses || ensurePosesArray(st))];
     if (poses.length <= 1) {
-      props.showToast('Minimal harus ada 1 pose keyframe!');
+      props.showToast('Must have at least 1 keyframe pose!');
       return;
     }
 
@@ -254,10 +254,10 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     setPosesData(all);
     setActivePoseIndex(Math.max(0, idx - 1));
     syncLiveTuner(true);
-    props.showToast(`Pose berhasil dihapus`);
+    props.showToast(`Pose deleted successfully`);
   };
 
-  // Mirror Simetri Kiri-Kanan pada Pose Aktif
+  // Mirror Left-Right Symmetry on Active Pose
   const handleMirrorActivePose = () => {
     const all = { ...posesData() };
     const stKey = selectedState();
@@ -283,10 +283,10 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     all[stKey] = st;
     setPosesData(all);
     syncLiveTuner(true);
-    props.showToast(`Mirroring simetri kiri-kanan pada Pose ${idx + 1} berhasil`);
+    props.showToast(`Mirror left-right symmetry on Pose ${idx + 1} succeeded`);
   };
 
-  // Reset Pose Aktif ke Netral
+  // Reset Pose Active to Netral
   const handleResetActivePose = () => {
     const all = { ...posesData() };
     const stKey = selectedState();
@@ -301,7 +301,7 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     all[stKey] = st;
     setPosesData(all);
     syncLiveTuner(true);
-    props.showToast(`Semua bone pada Pose ${idx + 1} di-reset ke [0, 0, 0]`);
+    props.showToast(`All bones on Pose ${idx + 1} reset to [0, 0, 0]`);
   };
 
   // Toggle Preview Loop
@@ -317,15 +317,15 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
       }
       await api.setTunerPreview(all, selectedEmotion(), selectedState());
       setIsPreviewing(true);
-      props.showToast(`Preview loop animasi ${selectedState().toUpperCase()} aktif (60 FPS Native SLERP)`);
+      props.showToast(`Preview loop for ${selectedState().toUpperCase()} animation active`);
     } else {
       setIsPreviewing(false);
       syncLiveTuner(true);
-      props.showToast('Kembali ke mode edit keyframe');
+      props.showToast('Returned to keyframe edit mode');
     }
   };
 
-  // Simpan ke poses.json
+  // Save to poses.json
   const handleSave = async () => {
     setIsSaving(true);
     const all = { ...posesData() };
@@ -336,9 +336,9 @@ export const TunerTab: Component<TunerTabProps> = (props) => {
     const ok = await api.savePoses(all);
     setIsSaving(false);
     if (ok) {
-      props.showToast('Berhasil menyimpan konfigurasi pose ke poses.json!');
+      props.showToast('Successfully saved pose configuration to poses.json!');
     } else {
-      props.showToast('Gagal menyimpan poses.json');
+      props.showToast('Failed to save poses.json');
     }
   };
 

@@ -85,8 +85,8 @@ export const NowPlayingHeroCard: Component = () => {
                   />
                   <span class="text-theme-text/80">
                     {globalStatus().is_paused
-                      ? 'Playback Dijeda'
-                      : 'Sedang Diputar'}
+                      ? 'Paused'
+                      : 'Now Playing'}
                   </span>
                 </div>
                 <h3 class="text-base sm:text-lg font-bold text-theme-text truncate hover:text-theme-cyan transition-colors">
@@ -154,7 +154,7 @@ export const NowPlayingHeroCard: Component = () => {
               <button
                 onClick={prevTrack}
                 class="p-2 bg-theme-card hover:bg-theme-border text-theme-text hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/40 transition-all active:scale-95 shadow-sm"
-                title="Lagu Sebelumnya"
+                title="Previous Track"
                 aria-label="Previous Track"
               >
                 <SkipBack size={16} />
@@ -165,11 +165,11 @@ export const NowPlayingHeroCard: Component = () => {
                 <button
                   onClick={pauseMusic}
                   class="h-9 px-4 bg-theme-rose/20 hover:bg-theme-rose/30 text-theme-rose border border-theme-rose/50 font-bold text-xs transition-all flex items-center gap-2 active:scale-95 shadow-sm"
-                  title="Jeda"
+                  title="Pause"
                   aria-label="Pause"
                 >
                   <Pause size={16} />
-                  <span>Jeda</span>
+                  <span>Pause</span>
                 </button>
               </Show>
 
@@ -177,11 +177,11 @@ export const NowPlayingHeroCard: Component = () => {
                 <button
                   onClick={resumeMusic}
                   class="h-9 px-4 bg-theme-cyan hover:brightness-110 text-theme-bg font-bold text-xs transition-all flex items-center gap-2 active:scale-95 shadow-md shadow-theme-cyan/20 border border-theme-cyan"
-                  title="Lanjutkan"
+                  title="Resume"
                   aria-label="Play"
                 >
                   <Play size={16} class="fill-current" />
-                  <span>Lanjutkan</span>
+                  <span>Resume</span>
                 </button>
               </Show>
 
@@ -189,7 +189,7 @@ export const NowPlayingHeroCard: Component = () => {
               <button
                 onClick={nextTrack}
                 class="p-2 bg-theme-card hover:bg-theme-border text-theme-text hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/40 transition-all active:scale-95 shadow-sm"
-                title="Lagu Berikutnya"
+                title="Next Track"
                 aria-label="Next Track"
               >
                 <SkipForward size={16} />
@@ -199,7 +199,7 @@ export const NowPlayingHeroCard: Component = () => {
               <button
                 onClick={stopMusic}
                 class="p-2 bg-theme-card hover:bg-theme-rose/20 text-theme-text/70 hover:text-theme-rose border border-theme-border hover:border-theme-rose/40 transition-all active:scale-95 shadow-sm"
-                title="Hentikan Musik"
+                title="Stop Music"
                 aria-label="Stop"
               >
                 <Square size={15} />
@@ -209,11 +209,11 @@ export const NowPlayingHeroCard: Component = () => {
               <button
                 onClick={() => pipManager.togglePip()}
                 class="px-3.5 py-1.5 bg-theme-card hover:bg-theme-border text-theme-text hover:text-theme-cyan border border-theme-border hover:border-theme-cyan/50 transition-all flex items-center gap-2 shadow-sm active:scale-95 text-xs font-semibold ml-auto"
-                title="Picture-in-Picture (Layar Melayang)"
+                title="Picture-in-Picture (Floating Window)"
                 aria-label="Picture-in-Picture"
               >
                 <PictureInPicture2 size={16} class="text-theme-cyan shrink-0" />
-                <span>Mode PiP</span>
+                <span>PiP Mode</span>
               </button>
             </div>
           </div>

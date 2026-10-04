@@ -61,7 +61,7 @@ export const posesService = {
     emotion?: string,
     state?: string
   ): Promise<boolean> {
-    // Batalkan request slider in-flight sebelumnya jika masih berjalan
+    // Cancel previous in-flight slider request if still running
     if (liveTunerAbortController) {
       liveTunerAbortController.abort();
     }
@@ -77,7 +77,7 @@ export const posesService = {
       return res.ok;
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        // Normal saat dibatalkan oleh slider input baru
+        // Normal when cancelled oleh slider input new
         return true;
       }
       return false;

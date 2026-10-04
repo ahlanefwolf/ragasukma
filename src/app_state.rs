@@ -41,7 +41,7 @@ pub struct ServerSharedState {
     pub vrm_updated: bool,
     pub tuning_mode: bool,
     pub live_tuning_bones: HashMap<String, [f32; 3]>,
-    /// Live preview pose in-memory tanpa overwrite poses.json di disk
+    /// Live in-memory pose preview without overwriting poses.json on disk
     pub preview_poses: Option<PosesConfig>,
     pub state_version: u64,
 }
@@ -194,7 +194,7 @@ pub fn is_echo_of_last_spoken(transcript: &str) -> bool {
         return false;
     };
 
-    // Perlindungan pantulan suara speaker hingga 12 detik setelah diucapkan
+    // Speaker voice reflection protection for up to 12 seconds after it is spoken
     if instant.elapsed().as_secs() > 12 {
         return false;
     }
@@ -208,12 +208,12 @@ pub fn is_echo_of_last_spoken(transcript: &str) -> bool {
         return false;
     }
 
-    // 1. Cek kecocokan langsung atau substring
+    // 1. Check exact match or substring
     if text.contains(&trans_clean) || trans_clean.contains(text) {
         return true;
     }
 
-    // 2. Cek trigram (3 kata berurutan)
+    // 2. Check the trigram (3 consecutive words)
     if trans_words.len() >= 3 {
         for window in trans_words.windows(3) {
             let trigram = format!("{} {} {}", window[0], window[1], window[2]);
@@ -223,7 +223,7 @@ pub fn is_echo_of_last_spoken(transcript: &str) -> bool {
         }
     }
 
-    // 3. Cek overlap kata signifikan (> 50% kata ada di kalimat asisten)
+    // 3. Check significant word overlap (> 50% words exist in assistant sentence)
     let mut match_count = 0;
     for &word in &trans_words {
         if text.contains(word) {

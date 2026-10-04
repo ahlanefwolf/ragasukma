@@ -59,7 +59,7 @@ impl LlmClient {
     }
 
     pub fn prune_history(&mut self) {
-        // Hemat token di RAM/API: simpan system prompt + maksimal 6 percakapan terakhir
+        // Hemat token in RAM/API: save system prompt + maksimal 6 conversation terakhir
         if self.history.len() > 7 {
             let keep_start = self.history.len() - 6;
             let mut pruned = vec![self.history[0].clone()];
@@ -76,7 +76,7 @@ impl LlmClient {
             return Ok(String::new());
         }
 
-        // Dynamic Prompt Indexing: suntikkan hanya Ground of Truth yang relevan dengan ucapan user!
+        // Dynamic Prompt Indexing: suntikkan only Ground of Truth which relevan with ucapan user!
         let current_sys_prompt = build_system_prompt_indexed(Some(user_input));
         if let Some(first_msg) = self.history.first_mut() {
             if first_msg.role == "system" {
@@ -89,7 +89,7 @@ impl LlmClient {
             content: user_input.to_string(),
         });
 
-        // 1. Mode Lokal: Menggunakan internal engine Ragasukma (saat ini Antigravity pool, siap berkembang)
+        // 1. Local Mode: Using internal Ragasukma engine (currently Antigravity pool, extensible)
         let is_local_engine = self.provider.eq_ignore_ascii_case("local")
             || self.provider.eq_ignore_ascii_case("antigravity");
 
@@ -123,19 +123,19 @@ impl LlmClient {
                     }
                     Err(e) => {
                         crate::term_err!(
-                            "⚠️ [LLM Client] Local Engine error: {e}. Attempting fallback..."
+                            "[LLM Client] Local Engine error: {e}. Attempting fallback..."
                         );
                     }
                 }
             } else {
                 crate::term_log!(
-                    "⚠️ [LLM Client] Provider set to 'local', but no local engine account is connected to the pool."
+                    "[LLM Client] Provider set to 'local', but no local engine account is connected to the pool."
                 );
             }
         }
 
         // 2. Mode Custom: AI Assistant kustom (OpenAI-compatible, Ollama, LM Studio, vLLM, Groq, dll)
-        // Endpoint kustom murni mematuhi konfigurasi base_url dan model pilihan user
+        // Custom endpoint strictly obeys base_url configuration and user-selected model
         let custom_endpoint = if self.base_url.ends_with("/chat/completions") {
             self.base_url.clone()
         } else {
@@ -262,7 +262,7 @@ impl LlmClient {
                 } else {
                     let err_text = response.text().unwrap_or_default();
                     crate::term_err!(
-                        "⚠️ [LLM Client] Custom endpoint status {}: {}",
+                        "[LLM Client] Custom endpoint status {}: {}",
                         custom_endpoint,
                         err_text
                     );
@@ -270,13 +270,13 @@ impl LlmClient {
             }
             Err(e) => {
                 crate::term_err!(
-                    "⚠️ [LLM Client] Failed streaming request to {}: {e}",
+                    "[LLM Client] Failed streaming request to {}: {e}",
                     custom_endpoint
                 );
             }
         }
 
-        // 3. Fallback jika custom endpoint Ollama native /api/chat digunakan
+        // 3. Fallback if custom endpoint Ollama native /api/chat used
         self.chat_fallback_ollama(user_input, on_sentence)
     }
 

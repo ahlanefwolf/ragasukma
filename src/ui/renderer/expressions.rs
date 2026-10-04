@@ -3,7 +3,7 @@ use crate::ui::renderer::types::GpuPrimitive;
 use crate::ui::vrm_loader::{VrmExpressionData, VrmModelData};
 use std::collections::HashMap;
 
-/// Pencari ekspresi di VRM berdasarkan nama/alias tanpa tumpang tindih
+/// VRM expression finder based on name/alias without conflicts
 pub fn find_expression<'a>(
     expressions: &'a HashMap<String, VrmExpressionData>,
     target: &str,
@@ -20,7 +20,7 @@ pub fn find_expression<'a>(
         }
     }
 
-    // 2. Substring match jika nama memiliki prefix seperti "fcl_all_happy", "vrm_joy", "preset_smile"
+    // 2. Substring match if name contains prefixes like "fcl_all_happy", "vrm_joy", "preset_smile"
     for (k, v) in expressions {
         let k_low = k.to_lowercase();
         if k_low.contains(&target_low) {
@@ -31,7 +31,7 @@ pub fn find_expression<'a>(
     None
 }
 
-/// Cari ekspresi pertama yang cocok dari daftar prioritas alias
+/// Search expression pertama which cocok from list prioritas alias
 fn find_first_matching<'a>(
     expressions: &'a HashMap<String, VrmExpressionData>,
     aliases: &[&str],
@@ -44,13 +44,13 @@ fn find_first_matching<'a>(
     None
 }
 
-/// Struktur komposisi bobot ekspresi yang aktif pada frame ini
+/// Structure representing active expression weights on the current frame
 pub struct ActiveExpressionLayer<'a> {
     pub expr: &'a VrmExpressionData,
     pub weight: f32,
 }
 
-/// Menghitung bobot blend shapes untuk 8 emosi kanonikal (VRM 1.0 standard Three.js).
+/// Calculates blend shape weights for 8 canonical emotions (VRM 1.0 Three.js standard).
 pub fn resolve_emotion_layers<'a>(
     expressions: &'a HashMap<String, VrmExpressionData>,
     emotion: &str,
@@ -94,7 +94,7 @@ pub fn resolve_emotion_layers<'a>(
         }
         "surprised" => {
             if let Some(expr) = find_expression(expressions, "surprised") {
-                // Bobot proporsional agar ekspresi kaget tetap jelas tanpa merusak bentuk rahang
+                // Proportional weighting so surprised expressions remain clear without distorting the jaw shape
                 layers.push(ActiveExpressionLayer { expr, weight: 0.50 });
             }
         }
@@ -123,10 +123,10 @@ pub fn resolve_emotion_layers<'a>(
             }
         }
         "neutral" | "" => {
-            // Netral: 100% base mesh tanpa morph
+            // Netral: 100% base mesh without morph
         }
         _ => {
-            // Fallback jika nama emosi langsung cocok dengan nama morph
+            // Fallback if name emotion direct cocok with name morph
             if let Some(expr) = find_expression(expressions, &emo) {
                 layers.push(ActiveExpressionLayer { expr, weight: 0.75 });
             }
@@ -155,7 +155,7 @@ const CANONICAL_EMOTIONS: &[(&str, &str)] = &[
     ("[neutral]", "neutral"),
 ];
 
-/// Ekstrak emosi dari tag eksplisit standar AI (*happy*, *shy*, *excited*, *surprised*, *thinking*, *sad*, *angry*, *neutral*, dll.)
+/// Ekstrak emotion from tag eksplisit standar AI (*happy*, *shy*, *excited*, *surprised*, *thinking*, *sad*, *angry*, *neutral*, dll.)
 pub fn detect_emotion(text: &str) -> Option<&'static str> {
     let lower = text.to_lowercase();
     for &(tag, emo) in CANONICAL_EMOTIONS {
@@ -166,7 +166,7 @@ pub fn detect_emotion(text: &str) -> Option<&'static str> {
     None
 }
 
-/// Ekstrak emosi dengan fallback default ke "neutral" jika tidak terdeteksi
+/// Extracts emotion with a default fallback to "neutral" if undetected
 pub fn detect_emotion_with_fallback(text: &str) -> &'static str {
     detect_emotion(text).unwrap_or("neutral")
 }
@@ -185,13 +185,13 @@ pub fn update_facial_expressions_and_lip_sync(
         return;
     }
 
-    // 1. Hitung layer emosi utama
+    // 1. Calculate layer emotion utama
     let emotion_layers = resolve_emotion_layers(&model.expressions, current_emotion);
     let mut active_weights: Vec<(&VrmExpressionData, f32)> = emotion_layers
         .iter()
         .map(|l| {
-            // Saat berbicara (Speaking), redam emosi yang membuka rahang/mulut (surprised)
-            // agar tidak terjadi efek dobel (combo mangap ekstrem) bersamaan dengan Lip Sync vokal
+            // When berbicara (Speaking), redam emotion which opening jaw/mouth (surprised)
+            // Prevents double mouth-opening effects alongside vocal Lip Sync
             let w = if current_state == AssistantVisualState::Speaking {
                 let name = l.expr.name.to_lowercase();
                 if name.contains("surprised") {
@@ -210,7 +210,7 @@ pub fn update_facial_expressions_and_lip_sync(
 
     let has_strong_emotion = !active_weights.is_empty();
 
-    // 2. Natural Eye Blinking (Kedipan mata santai alami)
+    // 2. Natural Eye Blinking (Natural relaxed eye blinks)
     if !is_tuning {
         let blink_period = if current_state == AssistantVisualState::Speaking {
             6.2
@@ -234,12 +234,12 @@ pub fn update_facial_expressions_and_lip_sync(
         }
     }
 
-    // 3. Audio-Driven Lip Sync Vokal Vowel (A, I, U, E, O) saat Speaking
+    // 3. Audio-Driven Lip Sync Vokal Vowel (A, I, U, E, O) when Speaking
     if current_state == AssistantVisualState::Speaking && !is_tuning {
         let lip_weights = crate::audio::player::get_current_lip_sync_weights();
 
         if lip_weights.mouth_open > 0.015 {
-            // Suara aktif dari speaker hardware: gunakan analisis frekuensi formant audio nyata
+            // Voice active from speaker hardware: use analisis frekuensi formant audio nyata
             let vowel_map: &[(&[&str], f32)] = &[
                 (&["aa", "a", "viseme_a", "preset_a", "fcl_mth_a"], lip_weights.aa),
                 (&["ih", "i", "viseme_i", "preset_i", "fcl_mth_i"], lip_weights.ih),
@@ -256,7 +256,7 @@ pub fn update_facial_expressions_and_lip_sync(
                 }
             }
         } else if !crate::audio::player::is_native_voice_playing() {
-            // Fallback animasi artikulasi vokal natural saat audio dialihkan ke remote web client:
+            // Natural vocal articulation fallback animation when audio is redirected to remote web client:
             let vowels = ["aa", "ih", "ou", "ee", "oh"];
             let vowel_idx = ((elapsed_time * 3.2) as usize) % vowels.len();
             let target_vowel = vowels[vowel_idx];
@@ -279,7 +279,7 @@ pub fn update_facial_expressions_and_lip_sync(
         }
     }
 
-    // 4. Update Posisi Vertex Morph Targets pada Mesh Wajah di GPU Buffer
+    // 4. Update Position Vertex Morph Targets on Mesh Face in GPU Buffer
     let known_mesh_indices = &model.known_mesh_indices;
 
     for (prim_idx, prim) in model.primitives.iter_mut().enumerate() {
@@ -288,12 +288,12 @@ pub fn update_facial_expressions_and_lip_sync(
         }
 
         let vert_count = prim.vertices.len().min(prim.base_vertices.len());
-        // Selalu reset ke posisi dasar (base_vertices)
+        // Always reset to position dasar (base_vertices)
         for i in 0..vert_count {
             prim.vertices[i].position = prim.base_vertices[i].position;
         }
 
-        // Kumpulkan total bobot per target_index agar morph tidak menumpuk melebihi batas aman (anti-distorsi rahang)
+        // Accumulate total weights per target_index so morphs do not stack beyond safe limits (anti-jaw distortion)
         let mut target_weights = vec![0.0f32; prim.morph_targets.len()];
         for &(expr_data, expr_weight) in &active_weights {
             if expr_weight <= 0.001 {
@@ -313,7 +313,7 @@ pub fn update_facial_expressions_and_lip_sync(
             }
         }
 
-        // Terapkan morph target dengan batas clamping estetis (maks 0.85) agar tidak over-stretch
+        // Apply morph target with aesthetic limit clamping (max 0.85) to avoid over-stretching
         for (target_idx, &raw_w) in target_weights.iter().enumerate() {
             if raw_w <= 0.001 {
                 continue;

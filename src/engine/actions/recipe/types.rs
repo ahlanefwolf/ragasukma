@@ -41,12 +41,12 @@ fn default_version() -> u32 {
     1
 }
 
-/// Struktur keputusan per-langkah pada Agentic Training Loop
+/// Step-by-step decision structure in Agentic Training Loop
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainStepDecision {
     #[serde(default)]
     pub reasoning: String,
-    pub status: String, // "CONTINUE" atau "DONE"
+    pub status: String, // "CONTINUE" or "DONE"
     #[serde(default)]
     pub recipe_id: Option<String>,
     #[serde(default)]
@@ -57,7 +57,7 @@ pub struct TrainStepDecision {
     pub next_step: Option<RecipeStep>,
 }
 
-/// Ekstrak semua nama parameter yang ditemukan di dalam template `{{param_name}}` pada langkah-langkah
+/// Extracts all parameter names found within `{{param_name}}` templates in steps
 pub fn extract_template_params(steps: &[RecipeStep]) -> Vec<String> {
     let mut params = Vec::new();
     for step in steps {
@@ -85,12 +85,12 @@ pub enum ClickTarget {
     Text(String),   // Fallback text string found in snapshot.texts
 }
 
-/// Mendapatkan direktori folder penyimpanan recipes: assets/recipes/
+/// Gets storage directory for recipes: assets/recipes/
 pub fn get_recipes_dir() -> PathBuf {
     Path::new("assets").join("recipes")
 }
 
-/// Memuat seluruh recipes yang tersimpan di assets/recipes/*.json
+/// Load all recipes stored in assets/recipes/*.json
 pub fn load_all_recipes() -> Vec<AutomationRecipe> {
     let dir = get_recipes_dir();
     if !dir.exists() {
@@ -115,7 +115,7 @@ pub fn load_all_recipes() -> Vec<AutomationRecipe> {
     recipes
 }
 
-/// Cari recipe berdasarkan recipe_id
+/// Search recipe by recipe_id
 pub fn find_recipe(recipe_id: &str) -> Option<AutomationRecipe> {
     let clean_id = recipe_id.trim();
     let recipes = load_all_recipes();

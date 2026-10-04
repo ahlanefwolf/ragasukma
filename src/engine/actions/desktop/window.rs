@@ -27,8 +27,8 @@ pub fn focus_window(target: &str) -> bool {
                 }
 
                 // Trik Bypass Windows 10/11 Foreground Lock:
-                // Menekan tombol ALT memberitahu kernel Windows bahwa pengguna sedang berinteraksi,
-                // sehingga SetForegroundWindow tidak di-block / tidak hanya berkedip oranye di taskbar.
+                // Pressing the ALT key notifies the Windows kernel that the user is actively interacting,
+                // so SetForegroundWindow not in-block / not only berkedip oranye in taskbar.
                 keybd_event(VK_MENU.0 as u8, 0, KEYEVENTF_EXTENDEDKEY, 0);
 
                 if IsIconic(hwnd).as_bool() {
@@ -40,7 +40,7 @@ pub fn focus_window(target: &str) -> bool {
                 let _ = BringWindowToTop(hwnd);
                 let ok = SetForegroundWindow(hwnd).as_bool();
 
-                // Lepas tombol ALT
+                // Release ALT key
                 keybd_event(
                     VK_MENU.0 as u8,
                     0,
@@ -66,7 +66,7 @@ pub fn focus_window(target: &str) -> bool {
         }
 
         let sway_target = target.trim();
-        // 1. Coba Sway IPC (swaymsg) jika berada di lingkungan Sway Wayland
+        // 1. Coba Sway IPC (swaymsg) if berada in lingkungan Sway Wayland
         if let Some(id_str) = sway_target.strip_prefix("sway:") {
             if std::process::Command::new("swaymsg")
                 .args([&format!("[con_id=\"{}\"] focus", id_str)])
@@ -108,7 +108,7 @@ pub fn focus_window(target: &str) -> bool {
             return true;
         }
 
-        // 2. Coba Hyprland IPC (hyprctl) jika berada di lingkungan Hyprland
+        // 2. Coba Hyprland IPC (hyprctl) if berada in lingkungan Hyprland
         if std::env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok()
             && std::process::Command::new("hyprctl")
                 .args(["dispatch", "focuswindow", sway_target])
@@ -361,7 +361,7 @@ fn resolve_hwnd(target: &str) -> Option<windows::Win32::Foundation::HWND> {
         return None;
     }
 
-    // 1. Cek format hex window_id (misal "win:0x30354" atau "0x30354")
+    // 1. Check format hex window_id (for example "win:0x30354" or "0x30354")
     let hex_part = target_clean.strip_prefix("win:").unwrap_or(target_clean);
     if let Some(stripped) = hex_part.strip_prefix("0x") {
         if let Ok(val) = usize::from_str_radix(stripped, 16) {
@@ -372,7 +372,7 @@ fn resolve_hwnd(target: &str) -> Option<windows::Win32::Foundation::HWND> {
     let needle = target_clean.to_lowercase();
     let query_words: Vec<&str> = needle.split_whitespace().filter(|w| w.len() >= 2).collect();
 
-    // 2. Cek daftar jendela di snapshot JSON aktif (Ground of Truth)
+    // 2. Check list jendela in snapshot JSON active (Ground of Truth)
     if let Some(snap) = super::load_snapshot() {
         use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
         let mut fallback_hwnd = None;
@@ -382,10 +382,10 @@ fn resolve_hwnd(target: &str) -> Option<windows::Win32::Foundation::HWND> {
             let app_base = app_lower.strip_suffix(".exe").unwrap_or(&app_lower);
             let title_lower = w.title.to_lowercase();
 
-            // Pencocokan dinamis murni:
-            // 1. Apakah nama app atau title mengandung query?
-            // 2. Apakah query mengandung stem nama app (misal query "zed editor" mengandung "zed")?
-            // 3. Apakah ada kata dalam query yang cocok dengan nama app atau title?
+            // Pure dynamic matching:
+            // 1. Does the app name or title contain the query?
+            // 2. Does the query contain the app name stem (for example query "zed editor" contains "zed")?
+            // 3. Does any word in query match the app name or title?
             let is_match = app_lower.contains(&needle)
                 || title_lower.contains(&needle)
                 || (!app_base.is_empty() && needle.contains(app_base))
@@ -416,7 +416,7 @@ fn resolve_hwnd(target: &str) -> Option<windows::Win32::Foundation::HWND> {
         }
     }
 
-    // 3. Fallback: Live EnumWindows langsung ke OS
+    // 3. Fallback: Live EnumWindows direct to OS
     struct SearchCtx {
         query: String,
         words: Vec<String>,
@@ -439,7 +439,7 @@ fn resolve_hwnd(target: &str) -> Option<windows::Win32::Foundation::HWND> {
                         || ctx.words.iter().any(|w| title.contains(w.as_str()))
                     {
                         ctx.found = Some(hwnd);
-                        return BOOL(0); // Berhenti mencari
+                        return BOOL(0); // Stop searching
                     }
                 }
             }
