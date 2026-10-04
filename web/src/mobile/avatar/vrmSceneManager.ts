@@ -185,7 +185,7 @@ export class VrmSceneManager {
           try {
             vrm.springBoneManager.reset();
           } catch (_) {}
-          vrm.springBoneManager = null as any;
+          (vrm as any).springBoneManager = null;
         }
 
         vrm.scene.rotation.y = 0.0;
