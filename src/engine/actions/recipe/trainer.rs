@@ -703,7 +703,7 @@ RULES:
             let compiled_recipe = AutomationRecipe {
                 recipe_id: final_recipe_id.clone(),
                 name: final_recipe_name,
-                domain: clean_domain.clone(),
+                domain: Some(clean_domain.clone()),
                 version: 1,
                 required_params: final_params,
                 initial_action: InitialAction {

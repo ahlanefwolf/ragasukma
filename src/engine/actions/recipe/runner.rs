@@ -592,8 +592,9 @@ pub fn execute_recipe(payload: &str) -> Option<(String, String)> {
                 None,
                 None,
             );
-            // Tunggu snapshot active terbaru from active_tab_browser.json
-            wait_for_target_page(&recipe.domain, initial_ts, 6);
+            // Wait for latest active snapshot from active_tab_browser.json
+            let target_domain = recipe.domain.as_deref().unwrap_or("");
+            wait_for_target_page(target_domain, initial_ts, 6);
         }
 
         let total_steps = recipe.steps.len();

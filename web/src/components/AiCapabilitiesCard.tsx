@@ -14,7 +14,8 @@ import {
   AppWindow,
   AlertTriangle,
   Check,
-  Copy
+  Copy,
+  Workflow
 } from 'lucide-solid';
 
 interface CapabilityItem {
@@ -117,6 +118,20 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
         '"Scroll down"'
       ],
       badgeColor: 'text-[#29483A] bg-[#29483A]/12 border-[#29483A]/30'
+    },
+    {
+      id: 'recipe',
+      icon: Workflow,
+      title: 'Recipe Trainer & Runner (Autonomous Web Automation)',
+      category: 'web',
+      description: 'Train the AI once to navigate complex web workflows, then replay the recorded recipe instantly with 0 extra token cost.',
+      examples: [
+        '"Train recipe: open YouTube and play lofi"',
+        '"Train recipe to search product on Tokopedia"',
+        '"Run recipe youtube_music with query jazz"',
+        '"Run recipe tokopedia_search"'
+      ],
+      badgeColor: 'text-theme-cyan bg-theme-cyan/15 border-theme-cyan/30'
     },
     {
       id: 'media',

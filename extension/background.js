@@ -147,7 +147,7 @@ if (api?.tabs) {
   });
 }
 
-// Keep-Alive Alarm Watchdog (Mencegah MV3 Service Worker idle termination)
+// Keep-Alive Alarm Watchdog (Prevents MV3 Service Worker idle termination)
 if (api?.alarms) {
   api.alarms.create("keepAlive", { periodInMinutes: 0.5 });
   api.alarms.onAlarm.addListener((alarm) => {

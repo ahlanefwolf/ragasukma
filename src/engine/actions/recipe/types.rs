@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitialAction {
@@ -27,8 +27,8 @@ pub struct RecipeStep {
 pub struct AutomationRecipe {
     pub recipe_id: String,
     pub name: String,
-    #[serde(default)]
-    pub domain: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub domain: Option<String>,
     #[serde(default = "default_version")]
     pub version: u32,
     #[serde(default)]
@@ -87,7 +87,7 @@ pub enum ClickTarget {
 
 /// Gets storage directory for recipes: assets/recipes/
 pub fn get_recipes_dir() -> PathBuf {
-    Path::new("assets").join("recipes")
+    crate::assets::get_assets_dir().join("recipes")
 }
 
 /// Load all recipes stored in assets/recipes/*.json

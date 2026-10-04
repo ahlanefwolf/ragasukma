@@ -24,7 +24,7 @@
     const tag = el.tagName.toLowerCase();
     const candidates = [];
 
-    // Priority 1: Semantic ID (jika bukan auto-generated hash)
+    // Priority 1: Semantic ID (if not auto-generated hash)
     if (el.id && typeof el.id === "string") {
       const idTrim = el.id.trim();
       const isRandomHash = /^(:r\w+:|[0-9_-]+|[a-z]{1,3}\d+[a-z\d]*)$/i.test(idTrim);
@@ -59,7 +59,7 @@
     const testId = el.getAttribute?.("data-testid") || el.getAttribute?.("data-action");
     if (testId) candidates.push(`[data-testid='${testId}']`);
 
-    // Priority 4: Semantic Container & Web Component Hierarchy (membantu membedakan elemen dengan class sama di wadah berbeda)
+    // Priority 4: Semantic Container & Web Component Hierarchy (helps disambiguate elements with identical classes in different containers)
     let parentContainer = el.parentElement;
     while (parentContainer && parentContainer !== document.body) {
       if (
@@ -79,7 +79,7 @@
       candidates.push(`${pId} ${tag}`);
     }
 
-    // Priority 5: Semantic Class (hindari class utilitas/state generik)
+    // Priority 5: Semantic Class (avoid generic utility/state classes)
     const cls = Array.from(el.classList || []).filter(c => 
       c && !["btn", "button", "active", "focus", "selected", "disabled"].includes(c)
     );
@@ -89,7 +89,7 @@
 
     if (candidates.length === 0) candidates.push(tag);
 
-    // Cari kandidat pertama yang benar-benar unik (matches === 1 di DOM) jika memungkinkan
+    // Find the first truly unique candidate (matches === 1 in DOM) if possible
     const unique = Array.from(new Set(candidates));
     let bestPrimary = unique[0] || tag;
     for (const cand of unique) {
@@ -175,7 +175,7 @@
       const snap = extractSnapshot();
       if (!snap) return;
 
-      // Hash representatif mencakup URL, Judul, Jumlah Elemen, sample text, serta nilai input
+      // Representative hash covers URL, Title, element counts, sample texts, and input values
       const sampleTexts = snap.texts.length > 0 ? (snap.texts[0] + snap.texts[snap.texts.length - 1]) : "";
       const inputValues = snap.inputs.map(i => `${i.selector || ""}=${i.text || ""}`).join("|");
       const hash = `${snap.url}::${snap.title}::${snap.texts.length}::${snap.buttons.length}::${snap.inputs.length}::${sampleTexts}::${inputValues}`;
@@ -199,7 +199,7 @@
     try {
       el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
       const rect = el.getBoundingClientRect();
-      // Jika tertutup fixed header (posisi Y negatif atau mepet ke atas)
+      // If occluded by a fixed header (negative Y position or close to top)
       if (rect.top < 60) {
         window.scrollBy({ top: rect.top - 80, behavior: "smooth" });
       }
@@ -238,7 +238,7 @@
         if (isWritable(cand)) el = cand;
       } catch (_) {}
     }
-    // Fallback Selectors jika selector utama tidak ditemukan atau bukan input yang bisa diketik
+    // Fallback selectors if primary selector not found or not a writable element
     if (!el && Array.isArray(fallbacks)) {
       for (const fb of fallbacks) {
         try {
@@ -250,7 +250,7 @@
         } catch (_) {}
       }
     }
-    // Fallback Terakhir: Cari activeElement atau form input/textarea umum di halaman
+    // Final fallback: Look for activeElement or common form input/textarea on page
     if (!el) {
       if (document.activeElement && isWritable(document.activeElement)) {
         el = document.activeElement;
@@ -340,7 +340,7 @@
   sendSnapshot();
   window.addEventListener("focus", sendSnapshot, { passive: true });
 
-  // Deteksi mutasi DOM di SPA dengan debounce ringan (500ms)
+  // Detect DOM mutations in SPAs with debouncing (500ms)
   let domTimer = null;
   const observer = new MutationObserver(() => {
     clearTimeout(domTimer);
@@ -354,7 +354,7 @@
     }, { once: true });
   }
 
-  // Deteksi perubahan URL di SPA (pushState & popstate)
+  // Detect URL transitions in SPAs (pushState & popstate)
   window.addEventListener("popstate", () => setTimeout(sendSnapshot, 200), { passive: true });
   const origPushState = history.pushState;
   if (origPushState) {

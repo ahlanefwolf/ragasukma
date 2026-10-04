@@ -1,6 +1,8 @@
 import { Component, createSignal, createEffect, onMount, onCleanup, Show } from 'solid-js';
 import { Sidebar } from './components/Sidebar';
 import { MenuTab } from './components/MenuTab';
+import { RecipesTab } from './components/RecipesTab';
+import { HistoryTab } from './components/HistoryTab';
 
 import { SkillsTab } from './components/SkillsTab';
 import { MusicTab } from './components/MusicTab';
@@ -25,7 +27,10 @@ const TAB_HASH_ALIASES: Record<string, string> = {
   '': 'menu',
   '#': 'menu',
   '#menu': 'menu',
-
+  '#recipes': 'recipes',
+  '#recipe': 'recipes',
+  '#history': 'history',
+  '#chat-history': 'history',
   '#skills': 'skills',
   '#music': 'music',
   '#tuner': 'tuner',
@@ -378,6 +383,14 @@ const App: Component = () => {
                     showToast={showToast}
                     onNavigateTab={handleTabChange}
                   />
+                </Show>
+
+                <Show when={activeTab() === 'recipes'}>
+                  <RecipesTab showToast={showToast} />
+                </Show>
+
+                <Show when={activeTab() === 'history'}>
+                  <HistoryTab showToast={showToast} />
                 </Show>
 
                 <Show when={activeTab() === 'skills'}>

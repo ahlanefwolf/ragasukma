@@ -10,90 +10,93 @@
   [![License](https://img.shields.io/badge/License-Proprietary-F2B5D4?style=flat-square)](https://github.com/ahlanefwolf/ragasukma)
 
   <p align="center">
-    Asisten suara AI desktop berbahasa Indonesia dengan avatar 3D/2D transparent overlay, automasi browser in-page, local music player, dan local OpenAI-compatible LLM router.
+    Multilingual desktop AI voice assistant with transparent 3D/2D avatar overlay, in-page browser automation, local music player, and local OpenAI-compatible LLM router.
   </p>
 
 </div>
 
 ---
 
-## Fitur & Kemampuan Sistem
+## Features & System Capabilities
 
-### 1. Interaksi Suara & Visual 3D
+### 1. Voice Interaction & 3D Visuals
 - **Transparent 3D VRM Overlay & Spring Bone Physics**:
-  - Engine rendering native WGPU dengan shader MToon 1:1, sinkronisasi penuh **Three-VRM Spring Bone Verlet Physics** (rambut & pakaian avatar dengan dynamic colliders, drag force, dan gravitasi).
-  - Sinkronisasi ekspresi wajah (blendshapes/morph targets) 8 emosi kanonikal (*senang*, *malu*, *semangat*, *kaget*, *mikir*, *sedih*, *marah*, *netral*) serta dynamic auto-blink.
-- **Audio Engine Terpadu (Native Supertonic-3 TTS & Chromium STT)**:
-  - **Supertonic-3 Native Rust TTS Runtime (Pure ONNX, Zero Python)**: Inferensi suara berkecepatan tinggi via `ort v2.0.0-rc.13` langsung di binary Rust, menyediakan 10 profil suara studio (5 Pria: M1..M5, 5 Wanita: F1..F5) dengan preloading memori, pelestarian angka/desimal, dan streaming WAV 24kHz ke frontend dashboard dan smartphone client. Bebas 100% dari batasan browser `window.speechSynthesis`.
-  - **Chromium Native Web STT (`webkitSpeechRecognition`)**: Pengenalan suara berakurasi tinggi dengan sinkronisasi opsi bahasa terpadu (`id-ID`, `en-US`, `ja-JP`, `ar-SA`, dll) via properti tunggal `lang`.
-  - **Zero Mic Locks & VAD Barge-in**: Interupsi instan yang memotong audio TTS saat pengguna mulai berbicara kembali.
-  - **Visualizer Spectrum & VU Meter 60 FPS**: Diproses realtime melalui Web Audio API browser.
+  - Native WGPU rendering engine with 1:1 MToon shader and full **Three-VRM Spring Bone Verlet Physics** synchronization (avatar hair & clothing with dynamic colliders, drag force, and gravity).
+  - Facial expression blendshape/morph target synchronization across 8 canonical emotions (*happy*, *shy*, *excited*, *surprised*, *thinking*, *sad*, *angry*, *neutral*) with dynamic auto-blinking.
+- **Unified Audio Engine (Native Supertonic-3 TTS & Chromium STT)**:
+  - **Supertonic-3 Native Rust TTS Runtime (Pure ONNX, Zero Python)**: High-speed voice inference via `ort v2.0.0-rc.13` directly embedded within the Rust binary, offering 10 studio voice profiles (5 Male: M1..M5, 5 Female: F1..F5) with memory preloading, numeric preservation, and streaming 24kHz WAV to web dashboards and mobile clients. 100% free of browser `window.speechSynthesis` limitations.
+  - **Chromium Native Web STT (`webkitSpeechRecognition`)**: High-accuracy speech recognition with unified language synchronization (`id-ID`, `en-US`, `ja-JP`, `ar-SA`, etc.) via a single `lang` property.
+  - **Zero Mic Locks & VAD Barge-in**: Instant audio ducking and barge-in interruption cutting TTS playback the moment the user resumes speaking.
+  - **60 FPS Spectrum Visualizer & VU Meter**: Processed in real-time via the browser Web Audio API.
 - **Strict Single-Tab Ownership & Clean Teardown**:
-  - Eliminasi total konflik audio dobel: tab lama yang tereliminasi seketika memotong audio, membatalkan request pending, dan menutup SSE stream (`forceCloseSSE`).
+  - Total elimination of duplicate audio conflicts: obsolete tabs immediately cut audio, cancel pending requests, and close SSE streams (`forceCloseSSE`).
 
 ### 2. Browser DOM Automation & Click Engine
-- **Active Tab DOM Ground-of-Truth**: Analisis visual dan elemen interaktif tab aktif secara realtime untuk eksekusi perintah tanpa halusinasi.
+- **Active Tab DOM Ground-of-Truth**: Real-time visual analysis of interactive elements on the active tab for hallucination-free command execution.
 - **In-Page Navigation**:
-  - `browser:open` — Membuka atau berpindah ke tab website tertentu.
-  - `browser:search` — Melakukan pencarian di situs target atau pencarian in-page.
-  - `browser:type` & `browser:enter` — Mengetikkan teks ke form/input aktif dan mengeksekusi enter.
-  - `browser:click_text` & `browser:click_button` — Menemukan dan mengklik teks, tautan, atau tombol interaktif.
-  - `browser:switch` & `browser:close` — Manajemen tab aktif di browser.
+  - `browser:open` — Open or switch to a target website tab.
+  - `browser:search` — Search on a target site or search in-page content.
+  - `browser:type` & `browser:enter` — Type text into active forms/inputs and execute Enter.
+  - `browser:click_text` & `browser:click_button` — Locate and click text, links, or buttons.
+  - `browser:switch` & `browser:close` — Active tab management in the browser.
 
-### 3. Pemutar Musik & HiDPI PiP
-- **Automated YouTube Download & Playback**: Unduh dan putar audio lokal otomatis di latar belakang via `yt-dlp` (`media:play`, `media:pause`, `media:resume`, `media:next`, `media:prev`, `media:stop`).
-- **Retina Picture-in-Picture (PiP)**: Mini-player melayang widescreen (680x210 @ 2x HiDPI) dengan Dedicated Web Worker timer (30 FPS) yang tetap berjalan lancar saat browser diminimalkan.
+### 3. Music Player & HiDPI PiP
+- **Automated YouTube Download & Playback**: Automatic background downloading and local playback via `yt-dlp` (`media:play`, `media:pause`, `media:resume`, `media:next`, `media:prev`, `media:stop`).
+- **Retina Picture-in-Picture (PiP)**: Widescreen floating mini-player (680x210 @ 2x HiDPI) powered by a Dedicated Web Worker timer (30 FPS) that continues smooth playback when the browser tab is minimized.
 
-### 4. Kontrol Sistem OS, Desktop Precision & Utilitas
-- **Multiplatform Desktop Precision Click**: Mengklik tombol atau teks pada layar monitor (`desktop:click_text`, `desktop:click_button`, `desktop:click_at`) dengan integrasi native OS accessibility tree (UI Automation di Windows, AT-SPI di Linux, System Events di macOS) serta auto-fallback visual OCR perception saat elemen berada di kanvas atau aplikasi non-native.
-- **Peluncur Aplikasi**: Otomatis mendeteksi dan membuka aplikasi desktop terinstal (`app:open`).
-- **Kontrol Audio & OS**: Pengaturan volume sistem (`os:volume_up`, `os:volume_down`, `os:mute`), tangkapan layar (`os:screenshot`), kunci layar (`os:lock`), kalkulator, terminal, dan file manager.
-- **Manajemen Catatan**: Pencatatan agenda dan to-do list terintegrasi (`todo:add`, `todo:done`).
+### 4. OS System Control, Desktop Precision & Utilities
+- **Multiplatform Desktop Precision Click**: Click buttons or text on screen monitors (`desktop:click_text`, `desktop:click_button`, `desktop:click_at`) with native OS accessibility tree integration (UI Automation on Windows, AT-SPI on Linux, System Events on macOS) and automatic visual OCR perception fallbacks for non-native UI canvases.
+- **Application Launcher**: Automatically detect and launch installed desktop applications (`app:open`).
+- **Audio & OS Controls**: System volume control (`os:volume_up`, `os:volume_down`, `os:mute`), screenshots (`os:screenshot`), screen locking (`os:lock`), calculator, terminal, and file manager shortcuts.
+- **Note Management**: Integrated to-do list tracking (`todo:add`, `todo:done`).
 
 ### 5. Antigravity Pool & Local OpenAI Router
-- **Multi-Account OAuth Pooling**: Manajemen akun Google OAuth ganda dengan failover kuota otomatis.
-- **OpenAI-Compatible Local Endpoint (`http://127.0.0.1:42128/v1`)**: Kompatibel langsung dengan Cursor, VS Code, Cline, dan tools pengembang pihak ketiga.
+- **Multi-Account OAuth Pooling**: Dual Google OAuth account management with automated quota failover.
+- **OpenAI-Compatible Local Endpoint (`http://127.0.0.1:42128/v1`)**: Drop-in compatibility with Cursor, VS Code, Cline, and third-party developer tools.
 
 ---
 
-## Persyaratan Sistem
+## System Requirements
 
-| Platform | Kebutuhan Minimum |
+| Platform | Minimum Requirements |
 | :--- | :--- |
-| **Linux** | Kernel 5.4+, X11 / Wayland (Vulkan/OpenGL aktif), `libasound2` (ALSA/PulseAudio/PipeWire) |
+| **Linux** | Kernel 5.4+, X11 / Wayland (Vulkan/OpenGL enabled), `libasound2` (ALSA/PulseAudio/PipeWire) |
 | **Windows** | Windows 10 (64-bit) 1909+ / Windows 11, DirectX 12 / Vulkan support |
-| **macOS** | macOS 12 Monterey ke atas, Apple Silicon (M1/M2/M3/M4) dengan Metal Engine |
+| **macOS** | macOS 12 Monterey or later, Apple Silicon (M1/M2/M3/M4) with Metal Engine |
 
 ---
 
-## Panduan Penggunaan
+## Quick Start Guide
 
-### 1. Unduh & Jalankan
-Unduh installer binary dari [GitHub Releases](https://github.com/ahlanefwolf/ragasukma/releases):
+### 1. Download & Run
+Download installer binaries from [GitHub Releases](https://github.com/ahlanefwolf/ragasukma/releases):
 - **Linux**: `.AppImage`
 - **Windows**: `.exe`
 - **macOS**: `.dmg`
 
-Setelah aplikasi dibuka, avatar 3D akan tampil melayang di layar dan dashboard kontrol web otomatis terbuka di `http://127.0.0.1:42128`.
+Once launched, the floating 3D avatar appears on your desktop and the web control dashboard opens at `http://127.0.0.1:42128`.
 
-### 2. Mulai Percakapan
-1. Masuk ke tab **Main Menu** pada dashboard.
-2. Klik **Mulai Percakapan (Aktifkan AI)**.
-3. Berbicaralah langsung ke mikrofon untuk berinteraksi, memutar musik, atau menjalankan perintah sistem.
+### 2. Start Conversation
+1. Navigate to the **Main Menu** tab on the dashboard.
+2. Click **Start Conversation (Enable AI)**.
+3. Speak directly into your microphone to converse, play music, or execute system automation commands.
 
 ---
 
-## Standar Kualitas & Verifikasi Kode
+## Code Quality, Verification & Language Audits
 
-Seluruh pipeline kode diverifikasi melalui satu baris perintah:
+The full codebase pipeline is verified via a single command:
 ```bash
 cargo clippy && cargo fmt --check && (cd web && npx eslint . && npx tsc --noEmit && npx knip && npx jscpd .)
 ```
-Panduan lengkap verifikasi dapat dibaca pada [Dokumentasi Quality & Linting](docs/quality.md).
+For comprehensive quality guidelines and audit reports, refer to:
+- [Code Quality & Linting Documentation](docs/quality.md)
+- [Backend Rust Language & String Audit (`docs/language_audit/`)](docs/language_audit/README.md)
+- [Frontend Web & Console Audit (`docs/web_audit/`)](docs/web_audit/README.md)
 
 ---
 
-## Hak Cipta & Lisensi
+## Copyright & License
 
-Dibuat oleh **Ahlan Saputra** ([@ahlanefwolf](https://github.com/ahlanefwolf)).  
-Hak Cipta © 2026 Ahlan Saputra. Seluruh hak cipta dilindungi undang-undang (*Proprietary*).
+Created by **Ahlan Saputra** ([@ahlanefwolf](https://github.com/ahlanefwolf)).  
+Copyright © 2026 Ahlan Saputra. All rights reserved (*Proprietary*).

@@ -222,6 +222,19 @@ pub fn handle_api_route(
         ("POST", "/api/skills/delete") => handle_delete_skill(body_str, &mut stream),
         ("POST", "/api/skills/run") => handle_run_skill(body_str, &mut stream),
 
+        // Automation Recipes Service
+        ("GET", "/api/recipes") => handle_get_recipes(&mut stream),
+        ("POST", "/api/recipes/save") => handle_save_recipe(body_str, &mut stream),
+        ("POST", "/api/recipes/delete") => handle_delete_recipe(body_str, &mut stream),
+        ("POST", "/api/recipes/run") => handle_run_recipe(body_str, &mut stream),
+
+        // Conversation History Service
+        ("GET", "/api/history/dates") => handle_get_history_dates(&mut stream),
+        ("GET", path) if path.starts_with("/api/history/view") => {
+            handle_get_history_by_date(full_url, &mut stream);
+        }
+        ("POST", "/api/history/delete") => handle_delete_history(body_str, &mut stream),
+
         // Cloudflared Remote Tunnel & Mobile Voice
         ("GET", "/api/remote/tunnel/status") => handle_tunnel_status(&mut stream),
         ("GET", "/api/remote/tunnel/check") => handle_tunnel_check(&mut stream),

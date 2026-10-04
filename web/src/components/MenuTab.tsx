@@ -15,7 +15,9 @@ import {
   ExternalLink,
   X,
   Zap,
-  ZapOff
+  ZapOff,
+  Workflow,
+  MessageSquare
 } from 'lucide-solid';
 import { api } from '../api';
 import { AiCapabilitiesCard } from './AiCapabilitiesCard';
@@ -306,12 +308,30 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             </h2>
           </div>
 
-          {/* Quick Actions (Reset & Update) */}
-          <div class="flex items-center gap-2">
+          {/* Quick Actions (Recipes, History, Reset & Update) */}
+          <div class="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => props.onNavigateTab?.('recipes')}
+              title="Open Automation Recipes"
+              class="px-3.5 py-2 text-xs font-semibold bg-theme-bg hover:bg-theme-card text-theme-text hover:text-theme-cyan border border-theme-border flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <Workflow size={14} class="text-theme-cyan" />
+              <span class="hidden sm:inline">Recipes</span>
+            </button>
+
+            <button
+              onClick={() => props.onNavigateTab?.('history')}
+              title="Open Chat History Logs"
+              class="px-3.5 py-2 text-xs font-semibold bg-theme-bg hover:bg-theme-card text-theme-text hover:text-theme-cyan border border-theme-border flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <MessageSquare size={14} class="text-[#B08A4A]" />
+              <span class="hidden sm:inline">Chat History</span>
+            </button>
+
             <button
               onClick={handleResetSession}
               title="Reset AI Session Memory"
-              class="px-3.5 py-2 text-xs font-semibold bg-theme-bg hover:bg-theme-card text-theme-text hover:text-theme-cyan border border-theme-border flex items-center gap-2 transition-all"
+              class="px-3.5 py-2 text-xs font-semibold bg-theme-bg hover:bg-theme-card text-theme-text hover:text-theme-cyan border border-theme-border flex items-center gap-2 transition-all cursor-pointer"
             >
               <RotateCcw size={14} />
               <span class="hidden sm:inline">Reset AI</span>
@@ -321,7 +341,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
               onClick={handleCheckUpdate}
               disabled={isUpdating()}
               title="Check for Ragasukma Updates"
-              class="px-3.5 py-2 text-xs font-semibold bg-theme-bg hover:bg-theme-card text-theme-text hover:text-theme-cyan border border-theme-border flex items-center gap-2 transition-all"
+              class="px-3.5 py-2 text-xs font-semibold bg-theme-bg hover:bg-theme-card text-theme-text hover:text-theme-cyan border border-theme-border flex items-center gap-2 transition-all cursor-pointer"
             >
               <RefreshCw size={14} class={isUpdating() ? 'animate-spin text-theme-cyan' : ''} />
               <span class="hidden sm:inline">{isUpdating() ? 'Checking...' : 'Update'}</span>

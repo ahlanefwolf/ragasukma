@@ -634,7 +634,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
             type="button"
             onClick={zoomIn}
             class="p-2 text-theme-muted hover:text-theme-text active:scale-85 transition-transform drop-shadow-sm cursor-pointer"
-            title="Perbesar"
+            title="Zoom In"
           >
             <ZoomIn size={22} class="stroke-[2.2]" />
           </button>
@@ -642,7 +642,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
             type="button"
             onClick={zoomOut}
             class="p-2 text-theme-muted hover:text-theme-text active:scale-85 transition-transform drop-shadow-sm cursor-pointer"
-            title="Perkecil"
+            title="Zoom Out"
           >
             <ZoomOut size={22} class="stroke-[2.2]" />
           </button>

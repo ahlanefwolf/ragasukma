@@ -1,136 +1,140 @@
-# 📋 Changelog Ragasukma
+# 📋 Ragasukma Changelog
 
-Semua pembaruan penting, fitur baru, dan perbaikan bug pada aplikasi **Ragasukma AI Voice Assistant** didokumentasikan di file ini.
+All notable updates, new features, and bug fixes for the **Ragasukma AI Voice Assistant** application are documented in this file.
 
-Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/id/1.0.0/) dan menganut [Semantic Versioning](https://semver.org/).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
 ## [v0.2.0] - 2026-09-20
 
-### 🚀 Fitur Baru & Peningkatan Utama
+### 🚀 Major Features & Enhancements
 - **Supertonic-3 Native Rust TTS Runtime (Pure ONNX, Zero Python)**:
-  - Mengintegrasikan engine sintesis suara Supertonic-3 secara native di Rust menggunakan `ort v2.0.0-rc.13` (ONNX Runtime) tanpa runtime/subproses Python.
-  - Memuat 10 gaya suara studio alami (5 Pria: M1..M5, 5 Wanita: F1..F5) dengan preloading memori untuk latensi instan.
-  - Menyediakan endpoint streaming audio WAV 24kHz (`/api/tts/audio` dan `/api/tts/synthesize`) yang disalurkan langsung ke frontend web dashboard dan smartphone client.
-  - Pembersihan total (100%) Google Chrome TTS (`window.speechSynthesis` & `SpeechSynthesisUtterance`), mengeliminasi bug PipeWire audio deadlock di Linux dan issue garbage collection V8 Chromium.
-- **Chromium Native Web STT & Sinkronisasi Bahasa Terpadu**:
-  - Mempertahankan akurasi tinggi Google Chrome Web Speech API (`webkitSpeechRecognition`) di sisi client dengan opsi bahasa tersinkronisasi via properti tunggal `lang` (`id-ID`, `en-US`, `ja-JP`, dll).
-  - Mekanisme VAD Barge-in instan yang memutus pemutaran audio WAV saat pengguna mulai berbicara kembali, serta filter anti-echolalia terpadu.
-- **Three-VRM Spring Bone Physics & Ekspresi Wajah 3D**:
-  - Implementasi penuh simulasi fisika pegas rambut dan pakaian (Verlet Spring Bone) di Rust (`src/ui/spring_bone.rs`) yang 1:1 kompatibel dengan spesifikasi Three-VRM.
-  - Evaluasi tabrakan dynamic sphere collider, gravitasi, stiffness, dan redaman (damping) langsung di pipeline rendering WGPU.
-  - Penyelarasan parser emosi kanonikal 8 emosi (`*senang*`, `*malu*`, `*semangat*`, `*kaget*`, `*mikir*`, `*sedih*`, `*marah*`, `*netral*`) dengan dynamic auto-blink dan lip-sync vokal AIUEO.
+  - Integrated Supertonic-3 voice synthesis natively in Rust using `ort v2.0.0-rc.13` (ONNX Runtime) without Python sub-processes or runtimes.
+  - Loaded 10 studio voice profiles (5 Male: M1..M5, 5 Female: F1..F5) with memory preloading for instant latency.
+  - Provided 24kHz streaming WAV endpoints (`/api/tts/audio` and `/api/tts/synthesize`) piped directly to the web dashboard and smartphone clients.
+  - Completely removed (100%) Google Chrome TTS (`window.speechSynthesis` & `SpeechSynthesisUtterance`), eliminating Linux PipeWire audio deadlocks and Chromium V8 garbage collection issues.
+- **Chromium Native Web STT & Unified Language Synchronization**:
+  - Maintained high-accuracy Google Chrome Web Speech API (`webkitSpeechRecognition`) on the client side with synchronized language options via a single `lang` property (`id-ID`, `en-US`, `ja-JP`, etc.).
+  - Instant VAD Barge-in mechanism cutting WAV audio playback the moment the user speaks, complete with an integrated anti-echolalia filter.
+- **Three-VRM Spring Bone Physics & 3D Facial Expressions**:
+  - Full implementation of Verlet Spring Bone physics in Rust (`src/ui/spring_bone.rs`) matching 1:1 with the Three-VRM specification.
+  - Evaluated dynamic sphere collider collisions, gravity, stiffness, and damping directly within the WGPU rendering pipeline.
+  - Aligned canonical 8-emotion parsers (`*happy*`, `*shy*`, `*excited*`, `*surprised*`, `*thinking*`, `*sad*`, `*angry*`, `*neutral*`) with dynamic auto-blinking and AIUEO vocal lip-sync.
 - **Native OS OCR & Modular Perception Engine**:
-  - Menghapus total modul Python PaddleOCR (`ocr_paddle.rs`).
-  - Mengadopsi OCR native sistem operasi: Apple Vision OCR di macOS, Windows Media OCR di Windows, dan streaming pipa in-memory Tesseract TSV di Linux.
+  - Completely removed the Python PaddleOCR module (`ocr_paddle.rs`).
+  - Adopted native OS OCR engines: Apple Vision OCR on macOS, Windows Media OCR on Windows, and in-memory Tesseract TSV pipe streaming on Linux.
 - **Antigravity Pool & Local OpenAI-Compatible API Router (`:42128/v1`)**:
-  - Dukungan multi-akun Google Multi-OAuth dengan pooling otomatis, caching thought signature, dan failover kuota cerdas saat mencapai batas rate limit.
-  - Endpoint universal standar OpenAI-compatible (`http://127.0.0.1:42128/v1/chat/completions` & `/v1/models`) yang kompatibel langsung dengan Cursor, VS Code, Cline, OpenWebUI, dan third-party tools.
+  - Supported multi-account Google Multi-OAuth with automated pooling, thought signature caching, and intelligent quota failover upon hitting rate limits.
+  - Universal standard OpenAI-compatible endpoints (`http://127.0.0.1:42128/v1/chat/completions` & `/v1/models`) compatible directly with Cursor, VS Code, Cline, OpenWebUI, and third-party tools.
 - **Multiplatform Desktop Precision Click & Fallback Visual OCR Engine**:
-  - Deteksi elemen antarmuka desktop berbasis accessibility tree (UI Automation di Windows, AT-SPI D-Bus di Linux, System Events di macOS) kini mengekstrak elemen tombol dan teks secara terpadu.
-  - Fallback otomatis ke Visual OCR perception scan (`request_vision_scan_sync`) jika accessibility tree tidak menyertakan koordinat absolut atau target berada pada UI non-native (canvas, game, electron tanpa bridge accessibility).
-  - Eksekusi aksi `[CMD:desktop:click_text|...]` dan `[CMD:desktop:click_button|...]` berakurasi tinggi dengan koordinat aktual pixel monitor dan toleransi typo berbasis fuzzy string similarity.
+  - Desktop interface element detection based on accessibility trees (UI Automation on Windows, AT-SPI D-Bus on Linux, System Events on macOS) now extracts button and text elements in a unified structure.
+  - Automatic fallback to Visual OCR perception scan (`request_vision_scan_sync`) whenever accessibility trees lack absolute coordinates or targets reside in non-native UI canvases.
+  - High-precision execution of `[CMD:desktop:click_text|...]` and `[CMD:desktop:click_button|...]` with actual monitor pixel coordinates and typo tolerance via fuzzy string similarity.
 - **Defensive LLM Tool Call Guard & Multi-Language System Prompt**:
-  - Pencegahan halusinasi format XML tool call (`<dots_function_call>`, `<invoke>`, `<parameter>`) dari model keluarga Claude/Anthropic di `prompt.rs`.
-  - Filter defensif `RE_XML_TOOL_CALL` di `cleaner.rs` untuk membersihkan tag XML tak terduga agar audio TTS bebas dari artefak kode.
-  - Standardisasi 100% system prompt internal ke Bahasa Inggris universal yang kompatibel dan adaptif terhadap 30 bahasa dunia di sisi percakapan pengguna.
-  - Sinkronisasi format `assets/todo.md` ke Bahasa Inggris (`## ⏳ In Progress / To-Do` & `## ✅ Done`) selaras 1:1 dengan parser engine Rust.
+  - Prevented XML tool call hallucinations (`<dots_function_call>`, `<invoke>`, `<parameter>`) from Claude/Anthropic models in `prompt.rs`.
+  - Defensive `RE_XML_TOOL_CALL` filter in `cleaner.rs` cleaning unexpected XML tags to keep TTS audio free from code syntax.
+  - Standardized 100% of internal system prompts into universal English, dynamically compatible with 30+ world languages during user conversations.
+  - Synchronized `assets/todo.md` structure in English (`## ⏳ In Progress / To-Do` & `## ✅ Done`) matching 1:1 with the Rust engine parser.
 - **HiDPI Retina Picture-in-Picture (PiP) Widescreen Mini-Player**:
-  - Mini-player melayang berdesain horizontal widescreen (680 × 210 px) yang dirender pada resolusi **2x HiDPI / Retina (1360 × 420 px)** untuk teks dan artwork yang super jernih.
-  - Integrasi **Dedicated Web Worker Timer Loop (30 FPS)** yang kebal terhadap background tab throttling Chromium.
-- **Overhaul Desain Studio Zero-Border-Radius & Tipografi Premium**:
-  - Transformasi total UI dashboard web dengan pendekatan *Zero Radius (Crisp Edges)* dan hairline border halus `#2F3B46`.
-  - Migrasi seluruh font sistem ke keluarga **IBM Plex Sans** dan **IBM Plex Mono**.
-- **Standar Kualitas & Verifikasi Kode Terpadu (Docs & Linters 100% Bersih)**:
-  - Dokumentasi standar verifikasi kode di [`docs/quality.md`](docs/quality.md).
-  - Konfigurasi flat modern ESLint 9+ (`web/eslint.config.js`) dan deteksi dead code (`web/knip.json`).
-  - Lolos 100% pemeriksaan: `cargo clippy && cargo fmt --check && (cd web && npx eslint . && npx tsc --noEmit && npx knip && npx jscpd .)`.
+  - Horizontal widescreen floating mini-player (680 × 210 px) rendered at **2x HiDPI / Retina (1360 × 420 px)** resolution for crisp text and artwork.
+  - Integrated **Dedicated Web Worker Timer Loop (30 FPS)** immune to Chromium background tab throttling.
+- **Zero-Border-Radius Studio Design Overhaul & Premium Typography**:
+  - Transformed the web dashboard UI with a *Zero Radius (Crisp Edges)* design language and delicate `#2F3B46` hairline borders.
+  - Migrated all system fonts to the **IBM Plex Sans** and **IBM Plex Mono** families.
+- **Comprehensive Code Quality, Verification & Audits (100% Clean Linters)**:
+  - Quality verification standards documented in [`docs/quality.md`](docs/quality.md).
+  - Modern flat ESLint 9+ configuration (`web/eslint.config.js`) and dead code analysis (`web/knip.json`).
+  - 100% clean check: `cargo clippy && cargo fmt --check && (cd web && npx eslint . && npx tsc --noEmit && npx knip && npx jscpd .)`.
+- **Complete Codebase Language Audit & English Standardization (Zero Hybrid Comments)**:
+  - 100% standardization of all internal code comments (`//`, `///`, `/* */`, `{/* */}`) across backend Rust (`src/`) and frontend SolidJS/TypeScript (`web/src/`) to pure technical English.
+  - Eradicated all mixed/loan words in logic comments (such as *artikulasi*, *dialihkan*, *menumpuk*, *melebihi*, *kumpulkan*, *tulang*, *ruas*, *pegas*, *normalisasi*, *kontinuitas*, etc.).
+  - Standardized all frontend console messages (`console.log`, `console.warn`, `console.error`) and backend runtime logs to English.
+  - Comprehensive line-by-line audit documentation structured in [`docs/language_audit/`](docs/language_audit/README.md) (91 backend Rust files, 921 comment lines, 4,461 string literals) and [`docs/web_audit/`](docs/web_audit/README.md) (63 frontend files, 507 comment lines, 71 console calls).
 
-### 🐛 Perbaikan Bug & Optimasi Performa
-- **Pembersihan Modul Audio Usang**: Menghapus seluruh dependensi subprocess Python audio, speech synthesis worker browser lama, dan file duplikat.
-- **Zero Race Condition Audio Pipeline**: Mengeliminasi ketergantungan audio decode ganda di backend dan mengandalkan streaming WAV Supertonic single-source-of-truth langsung ke frontend web & mobile client.
-- **Pembersihan Elemen Dekoratif & Focus Outline**: Menghilangkan outline 2px tebal dan box shadow berlebih, menggantinya dengan border highlight 1px yang bersih dan responsif.
-- **Konsumsi Sumber Daya Minimal**: Render loop PiP dan Web Worker hanya mengonsumsi < 0.5% CPU dan ~3 MB RAM, dengan pembersihan memori otomatis (`terminate()`) saat ditutup.
-- **Kebersihan Kode**: Diagnostik proyek 0 error dan 0 warning di seluruh backend Rust dan frontend TypeScript.
+### 🐛 Bug Fixes & Performance Optimizations
+- **Legacy Audio Cleanup**: Completely removed obsolete Python audio subprocesses, legacy browser speech synthesis workers, and duplicate assets.
+- **Zero Race Condition Audio Pipeline**: Eliminated dual-backend audio decode dependencies in favor of Supertonic streaming WAV single-source-of-truth directly to web and mobile clients.
+- **Decorative Clutter Removal**: Replaced thick 2px focus outlines and heavy shadows with sleek, responsive 1px highlight borders.
+- **Minimal Resource Footprint**: PiP render loop and Web Worker consume < 0.5% CPU and ~3 MB RAM, featuring automated teardown (`terminate()`) upon closing.
+- **Clean Diagnostics & Clippy Lints**: Zero errors and zero warnings across the Rust backend (`cargo clippy` clean) and TypeScript frontend.
 
 ---
 
 ## [v0.1.4] - 2026-09-16
 
-### ✨ Fitur Baru & Peningkatan
+### ✨ New Features & Enhancements
 - **Native yt-dlp Music Engine & Offline Playback**:
-  - Download otomatis audio berkualitas tinggi (format m4a/aac) via engine `yt-dlp` terintegrasi.
-  - Caching & deteksi cerdas koleksi lagu lokal di folder `assets/music/` (tanpa download ulang jika lagu sudah tersedia).
-  - Penghapusan ketergantungan browser companion script/ekstensi untuk pemutaran audio.
+  - Automated high-quality audio downloads (m4a/aac) via integrated `yt-dlp`.
+  - Smart caching and local collection detection in `assets/music/` (bypasses re-downloading if files exist).
+  - Removed browser companion extension dependencies for audio playback.
 - **Embedded Web Music Player & Floating Bottom Bar**:
-  - Tab baru **Music Player** di web dashboard dengan visualisasi daftar lagu, thumbnail, durasi, dan kontrol hapus file.
-  - **Floating Bottom Mini-Player** yang persisten di seluruh tab dashboard (Play, Pause, Seek, Volume control, Loop mode).
+  - New **Music Player** tab on the web dashboard featuring track listings, artwork, duration, and delete actions.
+  - Persistent **Floating Bottom Mini-Player** across all dashboard tabs (Play, Pause, Seek, Volume, Loop mode).
 - **Strict Single-Tab Session Takeover**:
-  - Mekanisme pengambilalihan sesi secara instan saat tab baru dibuka.
-  - Tab lama otomatis disconnect dan dinonaktifkan tanpa modal alert yang mengganggu.
+  - Instant session takeover mechanism when a new tab opens.
+  - Obsolete tabs automatically disconnect quietly without intrusive modal dialogs.
 - **Modern UI & Typographic Refinement**:
-  - Penggunaan tipografi **Space Grotesk** dan palet tema CSS modern.
-  - Pembersihan menyeluruh dependensi Cargo (`rodio` dioptimasi hanya untuk `symphonia-mp3`, penghapusan crate tak terpakai).
+  - Adopted **Space Grotesk** typography and modern CSS color schemes.
+  - Cleaned Cargo dependencies (`rodio` optimized exclusively for `symphonia-mp3`).
 
-### 🐛 Perbaikan Bug & Optimasi
-- **Zero Race Condition Audio Pipeline**: Koordinasi mikrofon VAD dan pemutaran audio/TTS dengan atomic flag murni dan pengurasan buffer instan.
-- **Safe Teardown**: Semua interval, subscription, dan abort controller di frontend SolidJS dibersihkan via `onCleanup`.
-- **Git Ignore Safeguard**: Direktori `assets/music/` dan file audio unduhan kini terisolasi sepenuhnya dari tracking Git repository.
+### 🐛 Bug Fixes & Optimizations
+- **Zero Race Condition Audio Pipeline**: Coordinated microphone VAD and audio/TTS playback with atomic flags and instant buffer draining.
+- **Safe Teardown**: Cleared all intervals, subscriptions, and abort controllers via SolidJS `onCleanup`.
+- **Git Ignore Safeguard**: Isolated `assets/music/` and downloaded audio files completely from Git tracking.
 
 ---
 
 ## [v0.1.3] - 2026-09-16
 
-### ✨ Fitur Baru & Peningkatan
+### ✨ New Features & Enhancements
 - **Modular Architecture Overhaul**:
-  - Refaktor arsitektur modular backend Rust: `src/server/` terpisah rapi (`assets`, `handlers`, `state`), dan `src/engine/` (`skills`, `system_actions`).
-  - Pembersihan modul WhatsApp agar fokus penuh pada integrasi YouTube, YouTube Music, web navigasi, dan launcher aplikasi OS.
-- **Gestur Kontrol Kamera Layar 3D Lebih Presisi**:
-  - **Drag Kanan**: Orbit rotasi 3D.
-  - **Ctrl + Drag Kanan**: Pan / geser posisi 3D.
-  - **Scroll**: Zoom In / Zoom Out.
-  - **Klik Tengah**: Reset kamera ke default.
+  - Refactored modular Rust backend: cleanly segregated `src/server/` (`assets`, `handlers`, `state`) and `src/engine/` (`skills`, `system_actions`).
+  - Streamlined integrations to focus on YouTube, YouTube Music, web navigation, and OS application launchers.
+- **Precision 3D Camera Controls**:
+  - **Right-Click Drag**: 3D orbit rotation.
+  - **Ctrl + Right-Click Drag**: 3D pan / position shift.
+  - **Scroll Wheel**: Zoom In / Zoom Out.
+  - **Middle-Click**: Reset camera to default view.
 - **Universal Browser Companion**:
-  - 1-Click install script web companion untuk kontrol YouTube & YouTube Music langsung via suara AI.
+  - 1-Click web companion installation script for direct AI voice control of YouTube & YouTube Music.
 - **Atomic Single-Client Session & Instant Revoke**:
-  - Proteksi anti-double tab menggunakan Server-Sent Events (SSE) token broadcast (<50ms instant lock).
-  - Mekanisme tombol *Ambil Alih* aman bebas race condition.
+  - Dual-tab protection using Server-Sent Events (SSE) token broadcasts (<50ms instant lock).
+  - Race-condition-free session takeover action.
 - **In-Flight Lock & Throttled Pose Tuner**:
-  - Sinkronisasi real-time slider pose ditata ulang (max 20 req/dtk) dengan trailing-edge queue, mengeliminasi error Firefox `NS_BINDING_ABORT`.
+  - Real-time pose slider synchronization throttled (max 20 req/s) with trailing-edge queue, eliminating Firefox `NS_BINDING_ABORT` errors.
 
-### 🐛 Perbaikan Bug & Optimasi
-- Mengatasi tabrakan (race condition) antara Live Pose Tuner dan aktivasi sesi percakapan obrolan (chat loop).
-- Sinkronisasi dinamis konfigurasi audio pada `AudioRecorder` tanpa memutus/merusak stream thread mikrofon di background.
-- Proteksi payload limit HTTP (100MB max) dan WebSocket (2MB max) untuk mencegah OOM/crash.
-- Optimalisasi alokasi memori RAM dan penanganan buffer audio.
+### 🐛 Bug Fixes & Optimizations
+- Resolved race conditions between Live Pose Tuner and chat loop activation.
+- Dynamic audio configuration updates on `AudioRecorder` without breaking background microphone threads.
+- Added HTTP payload limits (100MB max) and WebSocket limits (2MB max) to prevent OOM errors.
+- Optimized RAM allocations and audio buffer handling.
 
 ---
 
 ## [v0.1.2] - 2026-09-14
 
-### ✨ Fitur Baru & Peningkatan
-- **Auto-Launch Default Browser**: Aplikasi otomatis membuka web dashboard di browser default sistem saat binary pertama kali dijalankan.
-- **Port Dashboard Terisolasi (`42128`)**: Migrasi port server lokal ke `42128` untuk mencegah konflik port dengan service lokal lain.
-- **Sistem Cek Pembaruan Terintegrasi**: Tombol *Periksa Pembaruan* kini terhubung langsung ke GitHub Releases API untuk mengecek versi dan menampilkan changelog / rilis terbaru.
-- **Transisi & Kecepatan Pose Alami**: Sinkronisasi interpolasi tulang WGPU dan siklus pose A ⇄ B mengikuti parameter `speed` dari `poses.json`.
-- **Ekspresi Emosi Dinamis**: Sinkronisasi emosi wajah avatar (blendshapes/morph targets) langsung dari respon tag LLM (`[EMO:emotion]`).
-- **Live Mic Audio Monitor**: Fitur pemantauan suara mikrofon langsung dari browser dengan DSP noise gate filter.
+### ✨ New Features & Enhancements
+- **Auto-Launch Default Browser**: Application automatically launches the web dashboard in the system default browser upon startup.
+- **Isolated Dashboard Port (`42128`)**: Migrated local server to port `42128` to avoid conflicts with common dev services.
+- **Integrated Update Checker**: *Check for Updates* button queries GitHub Releases API to verify versions and display changelogs.
+- **Natural Pose Interpolation & Speed**: Synchronized WGPU bone interpolation and A ⇄ B pose cycles according to the `speed` parameter in `poses.json`.
+- **Dynamic Emotion Expressions**: Synchronized facial blendshapes/morph targets directly from LLM response emotion tags (`[EMO:emotion]`).
+- **Live Mic Audio Monitor**: Browser-side microphone audio monitoring with DSP noise gate filtering.
 
-### 🐛 Perbaikan Bug & Optimasi
-- Mengatasi glitch tombol kontrol status di dashboard dengan pemisahan status visual WGPU dan status loop recorder.
-- Memperbaiki kompilasi `MeshPrimitiveData` dan `VrmModelData` pada loader VRM.
-- Efisiensi alokasi memori RAM (konsumsi stabil di ~200 MB).
+### 🐛 Bug Fixes & Optimizations
+- Resolved dashboard status control button glitches by decoupling WGPU visual states from recorder loop states.
+- Fixed `MeshPrimitiveData` and `VrmModelData` compilation in the VRM loader.
+- Stabilized RAM consumption around ~200 MB.
 
 ---
 
 ## [v0.1.1] - 2026-09-10
 
-### ✨ Fitur Awal
-- Engine Native WGPU 3D Cel-shaded VRM 0.x / 1.0 Overlay.
-- Continuous Microphone VAD (Voice Activity Detection) dengan Noise Reduction DSP & High-Pass Filter.
-- STT Terintegrasi (Google Speech Recognition & Groq Cloud Whisper).
+### ✨ Initial Features
+- Native WGPU 3D Cel-shaded VRM 0.x / 1.0 Overlay Engine.
+- Continuous Microphone VAD (Voice Activity Detection) with Noise Reduction DSP & High-Pass Filtering.
+- Integrated STT (Google Speech Recognition & Groq Cloud Whisper).
 - LLM Streaming Client (OpenAI-compatible & Groq).
-- TTS Terintegrasi (Google Translate TTS & ElevenLabs Multilingual v2).
-- Sistem Skill Command Registry (`assets/skill-command.md`).
-- Multiplatform Packaging (Linux `.deb` & `.AppImage`, Windows `.exe`, macOS `.dmg`).
+- Integrated TTS (Google Translate TTS & ElevenLabs Multilingual v2).
+- Skill Command Registry System (`assets/skill-command.md`).

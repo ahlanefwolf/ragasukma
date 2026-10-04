@@ -9,6 +9,8 @@ import {
   skillsService,
   antigravityService,
   remoteService,
+  recipeService,
+  historyService,
 } from './services';
 
 export * from './services';
@@ -81,4 +83,15 @@ export const api = {
   startTunnel: remoteService.startTunnel,
   stopTunnel: remoteService.stopTunnel,
   sendRemoteText: remoteService.sendText,
+
+  // Automation Recipes Service
+  getRecipes: recipeService.getRecipes,
+  saveRecipe: recipeService.saveRecipe,
+  deleteRecipe: recipeService.deleteRecipe,
+  runRecipe: recipeService.runRecipe,
+
+  // Conversation History Service
+  getHistoryDates: historyService.getHistoryDates,
+  getHistoryByDate: historyService.getHistoryByDate,
+  deleteHistory: historyService.deleteHistory,
 };
