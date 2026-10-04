@@ -188,7 +188,9 @@ export class VrmSceneManager {
           (vrm as any).springBoneManager = null;
         }
 
-        vrm.scene.rotation.y = 0.0;
+        // VRM 0.X compatibility: Rotate VRM0 models 180 degrees so they face the camera (+Z)
+        VRMUtils.rotateVRM0(vrm);
+
         this.vrmAnchor.add(vrm.scene);
         this.currentVrm = vrm;
         callbacks.onLoaded?.();

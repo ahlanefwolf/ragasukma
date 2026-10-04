@@ -90,6 +90,7 @@ pub struct SkinData {
 }
 
 pub struct VrmModelData {
+    pub is_vrm_0: bool,
     pub primitives: Vec<MeshPrimitiveData>,
     pub materials: Vec<MaterialData>,
     pub nodes: Vec<NodeData>,
@@ -201,6 +202,21 @@ impl VrmModelData {
                     }
                 }
             }
+        }
+
+        // Determine VRM version:
+        // VRM 1.0 has extensions.VRMC_vrm
+        // VRM 0.X has extensions.VRM
+        let is_vrm_0 = gltf_json
+            .as_ref()
+            .and_then(|j| j.get("extensions"))
+            .map(|e| e.get("VRMC_vrm").is_none() && e.get("VRM").is_some())
+            .unwrap_or(false);
+
+        if is_vrm_0 {
+            println!("[VRM Loader] Detected legacy VRM 0.X model - applying VRM 1.0 humanoid normalization");
+        } else {
+            println!("[VRM Loader] Detected modern VRM 1.0 model");
         }
 
         // 1. Ekstrak Material, MToon & KHR_materials_unlit Extensions
@@ -392,13 +408,13 @@ impl VrmModelData {
             });
         }
 
-        // Mapping Humanoid Bones from VRMC_vrm extension in raw JSON
-        if let Some(vrm_json) = gltf_json
+        // Mapping Humanoid Bones from VRMC_vrm (VRM 1.0) or VRM (VRM 0.X) in raw JSON
+        if let Some(vrm_1) = gltf_json
             .as_ref()
             .and_then(|j| j.get("extensions"))
             .and_then(|e| e.get("VRMC_vrm"))
         {
-            if let Some(bones) = vrm_json
+            if let Some(bones) = vrm_1
                 .get("humanoid")
                 .and_then(|h| h.get("humanBones"))
                 .and_then(|b| b.as_object())
@@ -423,6 +439,42 @@ impl VrmModelData {
                             bone_mapping.insert(std_name.to_string(), node_idx as usize);
                         } else {
                             bone_mapping.insert(bone_name.clone(), node_idx as usize);
+                        }
+                    }
+                }
+            }
+        } else if let Some(vrm_0) = gltf_json
+            .as_ref()
+            .and_then(|j| j.get("extensions"))
+            .and_then(|e| e.get("VRM"))
+        {
+            // VRM 0.X Humanoid Bones mapping (Array of { bone: string, node: number })
+            if let Some(bone_arr) = vrm_0
+                .get("humanoid")
+                .and_then(|h| h.get("humanBones"))
+                .and_then(|b| b.as_array())
+            {
+                for bone_item in bone_arr {
+                    let bone_name = bone_item.get("bone").and_then(|n| n.as_str()).unwrap_or("");
+                    if let Some(node_idx) = bone_item.get("node").and_then(|n| n.as_u64()) {
+                        let mapped_key = match bone_name {
+                            "leftThumb" | "leftThumbProximal" => Some("leftThumb"),
+                            "leftIndex" | "leftIndexProximal" => Some("leftIndex"),
+                            "leftMiddle" | "leftMiddleProximal" => Some("leftMiddle"),
+                            "leftRing" | "leftRingProximal" => Some("leftRing"),
+                            "leftLittle" | "leftLittleProximal" => Some("leftLittle"),
+                            "rightThumb" | "rightThumbProximal" => Some("rightThumb"),
+                            "rightIndex" | "rightIndexProximal" => Some("rightIndex"),
+                            "rightMiddle" | "rightMiddleProximal" => Some("rightMiddle"),
+                            "rightRing" | "rightRingProximal" => Some("rightRing"),
+                            "rightLittle" | "rightLittleProximal" => Some("rightLittle"),
+                            _ => None,
+                        };
+
+                        if let Some(std_name) = mapped_key {
+                            bone_mapping.insert(std_name.to_string(), node_idx as usize);
+                        } else {
+                            bone_mapping.insert(bone_name.to_string(), node_idx as usize);
                         }
                     }
                 }
@@ -677,6 +729,7 @@ impl VrmModelData {
         );
 
         Ok(Self {
+            is_vrm_0,
             primitives,
             materials,
             nodes,

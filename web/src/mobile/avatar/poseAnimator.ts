@@ -81,16 +81,28 @@ export class VrmPoseAnimator {
     const breathSpine = breathSine * 0.006;
     const breathShoulder = breathSine * 0.006;
 
+    // Check if model is VRM 0.X (metaVersion === "0")
+    // In VRM 0.X under 180° Y flip (R_y(π)), Euler angles transform as (-rx, ry, -rz)
+    const isVrm0 = (vrm.meta as any)?.metaVersion === '0';
+
     const applyBoneRotation = (boneName: string, rx: number, ry: number, rz: number) => {
       const node = this.getNormalizedBone(vrm, boneName);
       if (!node) return;
+
+      let effRx = rx;
+      let effRy = ry;
+      let effRz = rz;
+      if (isVrm0) {
+        effRx = -rx;
+        effRz = -rz;
+      }
 
       let offY = 0;
       if (boneName === 'chest') offY = breathChest;
       else if (boneName === 'spine') offY = breathSpine;
       else if (boneName === 'leftShoulder' || boneName === 'rightShoulder') offY = breathShoulder;
 
-      const targetEuler = new THREE.Euler(rx + offY, ry, rz, 'XYZ');
+      const targetEuler = new THREE.Euler(effRx + offY, effRy, effRz, 'XYZ');
       const targetQ = new THREE.Quaternion().setFromEuler(targetEuler);
 
       let finalQ: THREE.Quaternion;

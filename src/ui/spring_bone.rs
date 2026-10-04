@@ -35,8 +35,24 @@ pub struct SpringBoneManager {
 
 impl SpringBoneManager {
     pub fn from_gltf_json(gltf_json: &Value, nodes: &[NodeData]) -> Option<Self> {
-        let sb = gltf_json.get("extensions")?.get("VRMC_springBone")?;
+        let extensions = gltf_json.get("extensions")?;
 
+        // 1. VRMC_springBone (VRM 1.0)
+        if let Some(sb) = extensions.get("VRMC_springBone") {
+            return Self::from_vrmc_spring_bone(sb, nodes);
+        }
+
+        // 2. VRM 0.X secondaryAnimation fallback
+        if let Some(vrm_0) = extensions.get("VRM") {
+            if let Some(sec_anim) = vrm_0.get("secondaryAnimation") {
+                return Self::from_vrm0_secondary_animation(sec_anim, nodes);
+            }
+        }
+
+        None
+    }
+
+    fn from_vrmc_spring_bone(sb: &Value, nodes: &[NodeData]) -> Option<Self> {
         // 1. Parse colliders
         let mut colliders = Vec::new();
         if let Some(col_arr) = sb.get("colliders").and_then(|v| v.as_array()) {
@@ -88,7 +104,6 @@ impl SpringBoneManager {
         let mut joints = Vec::new();
         if let Some(springs_arr) = sb.get("springs").and_then(|v| v.as_array()) {
             for spring in springs_arr {
-                // Collect all relevant colliders for this spring chain
                 let mut spring_colliders = Vec::new();
                 if let Some(cg_indices) = spring.get("colliderGroups").and_then(|v| v.as_array()) {
                     for cg in cg_indices {
@@ -163,17 +178,17 @@ impl SpringBoneManager {
                         joints.push(SpringJoint {
                             node_idx,
                             child_node_idx,
-                            bone_axis,
-                            bone_length,
                             hit_radius,
                             stiffness,
                             gravity_power,
                             gravity_dir,
                             drag_force,
-                            collider_indices: spring_colliders.clone(),
+                            bone_axis,
+                            bone_length,
                             current_tail: Vec3::ZERO,
                             prev_tail: Vec3::ZERO,
                             initialized: false,
+                            collider_indices: spring_colliders.clone(),
                         });
                     }
                 }
@@ -183,11 +198,148 @@ impl SpringBoneManager {
         if joints.is_empty() {
             None
         } else {
-            println!(
-                "[SpringBone] Initialized: {} dynamic spring joints, {} collision colliders",
-                joints.len(),
-                colliders.len()
-            );
+            Some(Self { colliders, joints })
+        }
+    }
+
+    fn from_vrm0_secondary_animation(sec_anim: &Value, nodes: &[NodeData]) -> Option<Self> {
+        let mut colliders = Vec::new();
+        let mut collider_groups: Vec<Vec<usize>> = Vec::new();
+
+        if let Some(grp_arr) = sec_anim.get("colliderGroups").and_then(|v| v.as_array()) {
+            for grp in grp_arr {
+                let mut c_indices = Vec::new();
+                if let Some(node_idx) = grp.get("node").and_then(|v| v.as_u64()) {
+                    if let Some(col_arr) = grp.get("colliders").and_then(|v| v.as_array()) {
+                        for col in col_arr {
+                            let offset = col
+                                .get("offset")
+                                .and_then(|o| o.as_object())
+                                .map(|o| {
+                                    Vec3::new(
+                                        o.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32,
+                                        o.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32,
+                                        o.get("z").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32,
+                                    )
+                                })
+                                .unwrap_or(Vec3::ZERO);
+                            let radius = col
+                                .get("radius")
+                                .and_then(|v| v.as_f64())
+                                .unwrap_or(0.05) as f32;
+
+                            let col_idx = colliders.len();
+                            colliders.push(SpringCollider {
+                                node_idx: node_idx as usize,
+                                offset,
+                                radius,
+                            });
+                            c_indices.push(col_idx);
+                        }
+                    }
+                }
+                collider_groups.push(c_indices);
+            }
+        }
+
+        let mut joints = Vec::new();
+        if let Some(bone_groups) = sec_anim.get("boneGroups").and_then(|v| v.as_array()) {
+            for bg in bone_groups {
+                let mut spring_colliders = Vec::new();
+                if let Some(cg_indices) = bg.get("colliderGroups").and_then(|v| v.as_array()) {
+                    for cg in cg_indices {
+                        if let Some(cg_idx) = cg.as_u64().map(|v| v as usize) {
+                            if let Some(group) = collider_groups.get(cg_idx) {
+                                for &c_idx in group {
+                                    if !spring_colliders.contains(&c_idx) {
+                                        spring_colliders.push(c_idx);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let hit_radius = bg
+                    .get("hitRadius")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0) as f32;
+                let stiffness = bg
+                    .get("stiffiness")
+                    .or_else(|| bg.get("stiffness"))
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(1.0) as f32;
+                let gravity_power = bg
+                    .get("gravityPower")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0) as f32;
+                let gravity_dir = bg
+                    .get("gravityDir")
+                    .and_then(|v| v.as_object())
+                    .map(|o| {
+                        Vec3::new(
+                            o.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32,
+                            o.get("y").and_then(|v| v.as_f64()).unwrap_or(-1.0) as f32,
+                            o.get("z").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32,
+                        )
+                    })
+                    .unwrap_or(Vec3::new(0.0, -1.0, 0.0));
+                let drag_force = bg
+                    .get("dragForce")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.4) as f32;
+
+                if let Some(root_bones) = bg.get("bones").and_then(|v| v.as_array()) {
+                    for root_bone in root_bones {
+                        if let Some(root_node_idx) = root_bone.as_u64().map(|v| v as usize) {
+                            // Traverse recursive down the bone chain to build joints
+                            let mut stack = vec![root_node_idx];
+                            while let Some(parent_idx) = stack.pop() {
+                                if parent_idx >= nodes.len() {
+                                    continue;
+                                }
+                                for &child_idx in &nodes[parent_idx].children {
+                                    if child_idx >= nodes.len() {
+                                        continue;
+                                    }
+                                    let child_node = &nodes[child_idx];
+                                    let mut bone_axis = child_node.initial_translation;
+                                    let mut bone_length = bone_axis.length();
+                                    if bone_length > 0.0001 {
+                                        bone_axis /= bone_length;
+                                    } else {
+                                        bone_axis = Vec3::new(0.0, -1.0, 0.0);
+                                        bone_length = 0.07;
+                                    }
+
+                                    joints.push(SpringJoint {
+                                        node_idx: parent_idx,
+                                        child_node_idx: child_idx,
+                                        hit_radius,
+                                        stiffness,
+                                        gravity_power,
+                                        gravity_dir,
+                                        drag_force,
+                                        bone_axis,
+                                        bone_length,
+                                        current_tail: Vec3::ZERO,
+                                        prev_tail: Vec3::ZERO,
+                                        initialized: false,
+                                        collider_indices: spring_colliders.clone(),
+                                    });
+
+                                    stack.push(child_idx);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if joints.is_empty() {
+            None
+        } else {
             Some(Self { colliders, joints })
         }
     }
@@ -331,7 +483,11 @@ mod tests {
 
     #[test]
     fn test_spring_bone_from_char_vrm() {
-        if let Ok(bytes) = std::fs::read("assets/char.vrm") {
+        // Fallback to "assets/char (copy 1).vrm" or "assets/char.vrm"
+        let vrm_bytes = std::fs::read("assets/char (copy 1).vrm")
+            .or_else(|_| std::fs::read("assets/char.vrm"));
+
+        if let Ok(bytes) = vrm_bytes {
             if bytes.len() > 20 {
                 let chunk0_len =
                     u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]) as usize;
@@ -355,13 +511,14 @@ mod tests {
                             let sb = SpringBoneManager::from_gltf_json(&gltf_json, &dummy_nodes);
                             assert!(
                                 sb.is_some(),
-                                "SpringBoneManager should parse VRMC_springBone successfully"
+                                "SpringBoneManager should parse VRMC_springBone or secondaryAnimation successfully"
                             );
                             let mut sb = sb.unwrap();
                             assert_eq!(sb.colliders.len(), 28);
                             assert_eq!(sb.joints.len(), 145);
 
                             let model = VrmModelData {
+                                is_vrm_0: false,
                                 primitives: vec![],
                                 materials: vec![],
                                 nodes: dummy_nodes,

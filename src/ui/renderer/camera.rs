@@ -134,10 +134,20 @@ pub fn update_camera_and_bones(
             global_transforms.fill(Mat4::IDENTITY);
         }
 
+        // VRM 0.X Coordinate Alignment:
+        // In VRM 0.X (Unity standard), models naturally face towards -Z (away from camera / looking backwards in glTF).
+        // VRM 1.0 models face towards +Z (directly facing camera).
+        // Rotate the root model by 180 deg (PI) around Y axis so VRM 0.X faces forward towards the camera.
+        let root_transform = if model.is_vrm_0 {
+            Mat4::from_rotation_y(std::f32::consts::PI)
+        } else {
+            Mat4::IDENTITY
+        };
+
         for &root_idx in &model.root_nodes {
             compute_global_transforms(
                 root_idx,
-                Mat4::IDENTITY,
+                root_transform,
                 pose_manager,
                 model,
                 global_transforms,
@@ -181,7 +191,16 @@ fn compute_global_transforms(
     let mut rotation = node.initial_rotation;
 
     if let Some(Some(bone_name)) = model.node_to_bone.get(node_idx) {
-        if let Some(pose_rot) = pose_manager.get_bone_quat(bone_name) {
+        if let Some(mut pose_rot) = pose_manager.get_bone_quat(bone_name) {
+            // VRM 0.X Coordinate Alignment:
+            // VRM 0.X models natively face -Z (Unity convention) while VRM 1.0 faces +Z (glTF standard).
+            // Under 180° Y flip (R_y(π)), the bone rotation transforms as:
+            // Q_0 = R_y(π) * Q_1 * R_y(π) = (-qx, qy, -qz, qw).
+            // This ensures both VRM 0.X and VRM 1.0 start in standard T-Pose and animate identically.
+            if model.is_vrm_0 {
+                pose_rot = glam::Quat::from_xyzw(-pose_rot.x, pose_rot.y, -pose_rot.z, pose_rot.w);
+            }
+
             // Three-VRM Normalized Humanoid Rig standard (@pixiv/three-vrm)
             // boneNode.quaternion = inv(P) * rigBoneNode.quaternion * P * boneRotation
             let parent_rot = model
