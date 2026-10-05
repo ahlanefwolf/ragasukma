@@ -222,7 +222,7 @@ pub fn create_3d_pipeline(
     });
 
     let initial_bones = Box::new(BoneMatricesUniform {
-        matrices: [Mat4::IDENTITY.to_cols_array_2d(); 256],
+        matrices: [Mat4::IDENTITY.to_cols_array_2d(); 512],
     });
     let bone_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Bone Buffer"),

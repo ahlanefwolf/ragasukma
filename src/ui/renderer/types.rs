@@ -11,7 +11,7 @@ pub struct CameraUniform {
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct BoneMatricesUniform {
-    pub matrices: [[[f32; 4]; 4]; 256],
+    pub matrices: [[[f32; 4]; 4]; 512],
 }
 
 #[repr(C)]

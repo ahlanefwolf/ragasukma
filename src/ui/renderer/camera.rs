@@ -163,7 +163,7 @@ pub fn update_camera_and_bones(
 
         if let Some(skin) = model.skins.first() {
             for (joint_i, &node_idx) in skin.joints.iter().enumerate() {
-                if joint_i < 256 {
+                if joint_i < 512 {
                     let inv_bind = skin
                         .inverse_bind_matrices
                         .get(joint_i)

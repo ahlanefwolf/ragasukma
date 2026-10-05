@@ -112,11 +112,18 @@ impl Renderer {
             adapter.get_info().name
         );
 
+        let mut required_limits = wgpu::Limits::downlevel_webgl2_defaults();
+        let adapter_limits = adapter.limits();
+        // Allow larger uniform buffers (for models with up to 512 bone matrices = 32KB)
+        required_limits.max_uniform_buffer_binding_size = adapter_limits
+            .max_uniform_buffer_binding_size
+            .max(65536);
+
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
+                    required_limits,
                     label: Some("Ragasukma Device"),
                 },
                 None,
@@ -192,7 +199,7 @@ impl Renderer {
             bone_bind_group: pipeline_3d.bone_bind_group,
             cached_global_transforms: Vec::with_capacity(128),
             cached_bone_uniform: Box::new(BoneMatricesUniform {
-                matrices: [glam::Mat4::IDENTITY.to_cols_array_2d(); 256],
+                matrices: [glam::Mat4::IDENTITY.to_cols_array_2d(); 512],
             }),
             model_data: None,
             gpu_primitives: Vec::new(),

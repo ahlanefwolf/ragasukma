@@ -252,7 +252,7 @@ impl VrmModelData {
             };
 
             let pbr = mat.pbr_metallic_roughness();
-            let base_color_factor = pbr.base_color_factor();
+            let mut base_color_factor = pbr.base_color_factor();
             let double_sided = mat.double_sided();
 
             let alpha_cutoff = match mat.alpha_mode() {
@@ -267,6 +267,12 @@ impl VrmModelData {
             } else {
                 None
             };
+
+            // If a material has no base texture and base_color_factor alpha is 0.0,
+            // fallback alpha to 1.0 so untextured geometry is not discarded by alpha cutoff
+            if base_color_texture.is_none() && base_color_factor[3] <= 0.001 {
+                base_color_factor[3] = 1.0;
+            }
 
             // Emissive Texture & Factor
             let emissive_factor = mat.emissive_factor();
@@ -575,6 +581,43 @@ impl VrmModelData {
                 joints,
                 inverse_bind_matrices,
             });
+        }
+
+        // Remap primitive joint indices if a primitive belongs to a secondary skin (skin != 0)
+        // so all primitives reference indices in the primary master skin (skins[0])
+        if skins.len() > 1 {
+            let primary_joints = &skins[0].joints;
+            let mut node_to_primary_joint = HashMap::with_capacity(primary_joints.len());
+            for (p_idx, &node_idx) in primary_joints.iter().enumerate() {
+                node_to_primary_joint.insert(node_idx, p_idx as u32);
+            }
+
+            for prim in &mut primitives {
+                let node_skin_idx = nodes.get(prim.node_index).and_then(|n| n.skin_index);
+                if let Some(skin_idx) = node_skin_idx {
+                    if skin_idx > 0 && skin_idx < skins.len() {
+                        let sec_skin = &skins[skin_idx];
+                        let remap: Vec<u32> = sec_skin
+                            .joints
+                            .iter()
+                            .map(|&joint_node| {
+                                node_to_primary_joint
+                                    .get(&joint_node)
+                                    .copied()
+                                    .unwrap_or(0)
+                            })
+                            .collect();
+
+                        for v in &mut prim.vertices {
+                            v.joints[0] = remap.get(v.joints[0] as usize).copied().unwrap_or(0);
+                            v.joints[1] = remap.get(v.joints[1] as usize).copied().unwrap_or(0);
+                            v.joints[2] = remap.get(v.joints[2] as usize).copied().unwrap_or(0);
+                            v.joints[3] = remap.get(v.joints[3] as usize).copied().unwrap_or(0);
+                        }
+                        prim.base_vertices = prim.vertices.clone();
+                    }
+                }
+            }
         }
 
         // 5. Ekstrak Blend Shapes & Expressions (VRM 0.X & VRM 1.0)
