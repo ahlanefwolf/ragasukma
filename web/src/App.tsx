@@ -13,6 +13,8 @@ import { AntigravityTab } from './components/AntigravityTab';
 import { RemoteTab } from './components/RemoteTab';
 import { MobileClientView } from './components/MobileClientView';
 import { BottomPlayer } from './components/BottomPlayer';
+import { ModelLoadingOverlay } from './components/ModelLoadingOverlay';
+import { ModelDownloadStatus } from './services/eventsService';
 import { initGlobalAudio, killGlobalAudio, currentTrack, isPlaying, isPaused } from './playerStore';
 import { Menu as MenuIcon } from 'lucide-solid';
 import { api, killCurrentSession } from './api';
@@ -64,6 +66,12 @@ const App: Component = () => {
   const [toastMessage, setToastMessage] = createSignal('');
   const [toastVisible, setToastVisible] = createSignal(false);
   const [mobileMenuOpen, setMobileMenuOpen] = createSignal(false);
+  const [modelStatus, setModelStatus] = createSignal<ModelDownloadStatus | null>(null);
+
+  const isModelLocked = () => {
+    const s = modelStatus()?.status;
+    return s === 'downloading' || s === 'extracting' || s === 'error';
+  };
 
   // Detect whether current tab is mobile remote client (opened via QR scan or key auth)
   const isMobileClient = () => {
@@ -114,6 +122,7 @@ const App: Component = () => {
   let activeBc: BroadcastChannel | null = null;
   let unsubStateFn: (() => void) | null = null;
   let unsubActionsFn: (() => void) | null = null;
+  let unsubModelStatusFn: (() => void) | null = null;
 
   // Synchronize desktop browser tab title when playing music
   createEffect(() => {
@@ -145,6 +154,7 @@ const App: Component = () => {
     try {
       unsubStateFn?.();
       unsubActionsFn?.();
+      unsubModelStatusFn?.();
       api.forceCloseSSE();
     } catch {}
 
@@ -198,6 +208,16 @@ const App: Component = () => {
       try { bc?.postMessage({ type: 'CLAIM', token: MY_TOKEN }); } catch {}
       api.claimSession(MY_TOKEN, activeTab()).catch(() => {});
     }
+
+    // Check initial model status
+    api.getModelStatus().then((st) => {
+      setModelStatus(st);
+    }).catch(() => {});
+
+    // SSE: Model status listener
+    unsubModelStatusFn = api.subscribeModelStatus((st) => {
+      setModelStatus(st);
+    });
 
     // Start voice session manager (STT, VAD, Echo Guard)
     voiceSession.init();
@@ -429,6 +449,18 @@ const App: Component = () => {
         <MobileClientView
           authKey={getMobileAuthKey()}
           showToast={showToast}
+        />
+      </Show>
+
+      {/* Model Download & Extraction Fullscreen Overlay */}
+      <Show when={isModelLocked()}>
+        <ModelLoadingOverlay
+          modelStatus={modelStatus()}
+          onRetry={() => {
+            api.triggerModelDownload().then((st) => {
+              setModelStatus(st);
+            }).catch(() => {});
+          }}
         />
       </Show>
 

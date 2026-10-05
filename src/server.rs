@@ -217,6 +217,17 @@ pub fn handle_api_route(
         // Skills & Applications Service
         ("GET", "/api/system/apps") => handle_get_apps(&mut stream),
         ("GET", "/api/system/extension-path") => handle_get_extension_path(&mut stream),
+        ("GET", "/api/system/model-status") => {
+            let status = crate::services::model_manager_service::get_model_status();
+            let json = serde_json::to_string(&status).unwrap_or_default();
+            send_json_response(&mut stream, 200, &json);
+        }
+        ("POST", "/api/system/model-download") => {
+            crate::services::model_manager_service::ensure_model_ready_background();
+            let status = crate::services::model_manager_service::get_model_status();
+            let json = serde_json::to_string(&status).unwrap_or_default();
+            send_json_response(&mut stream, 200, &json);
+        }
         ("GET", "/api/skills") => handle_get_skills(&mut stream),
         ("POST", "/api/skills") => handle_post_skills(body_str, &mut stream),
         ("POST", "/api/skills/delete") => handle_delete_skill(body_str, &mut stream),

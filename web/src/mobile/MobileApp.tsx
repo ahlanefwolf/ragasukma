@@ -1,4 +1,4 @@
-import { Component, createSignal, onMount, onCleanup, createEffect } from 'solid-js';
+import { Component, createSignal, onMount, onCleanup, createEffect, Show } from 'solid-js';
 import { api, LogEntry } from '../api';
 import { API_BASE } from '../services/base';
 import { getChromeSttCode } from '../services/configService';
@@ -11,6 +11,8 @@ import { MobileFloatingMusic } from './components/MobileFloatingMusic';
 import { MobileInteractionDock } from './components/MobileInteractionDock';
 import { MobileLogsDrawer } from './components/MobileLogsDrawer';
 import { MobileAudioUnlockModal } from './components/MobileAudioUnlockModal';
+import { ModelLoadingOverlay } from '../components/ModelLoadingOverlay';
+import { ModelDownloadStatus } from '../services/eventsService';
 
 interface MobileAppProps {
   authKey: string;
@@ -25,6 +27,12 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   const [showSettings, setShowSettings] = createSignal(false);
   const [showTextInput, setShowTextInput] = createSignal(false);
   const [viewportHeight, setViewportHeight] = createSignal<string>('100dvh');
+  const [modelStatus, setModelStatus] = createSignal<ModelDownloadStatus | null>(null);
+
+  const isModelLocked = () => {
+    const s = modelStatus()?.status;
+    return s === 'downloading' || s === 'extracting' || s === 'error';
+  };
 
   const [isArActive, setIsArActive] = createSignal(false);
 
@@ -395,6 +403,11 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     });
 
     notifyRemoteActive();
+    // Check initial model status
+    api.getModelStatus().then((st) => {
+      setModelStatus(st);
+    }).catch(() => {});
+
     // Sync active mode to backend (if Full HP, send mode_full_mobile; if Remote PC, send mode_remote_desktop)
     const currentMode = audioMode();
     if (currentMode === 'full_mobile') {
@@ -493,6 +506,14 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
           }
         }
       } catch {}
+
+      // Model status polling if downloading or extracting
+      if (isModelLocked() || pollTick % 10 === 0) {
+        try {
+          const mSt = await api.getModelStatus();
+          setModelStatus(mSt);
+        } catch {}
+      }
 
       // 3. Logs polling (if log drawer open, poll every ~2.2s; if closed poll every ~6s)
       if (showLogsDrawer()) {
@@ -782,6 +803,18 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         }}
         formatStyle={formatMessageStyle}
       />
+
+      {/* Model Download & Extraction Fullscreen Overlay */}
+      <Show when={isModelLocked()}>
+        <ModelLoadingOverlay
+          modelStatus={modelStatus()}
+          onRetry={() => {
+            api.triggerModelDownload().then((st) => {
+              setModelStatus(st);
+            }).catch(() => {});
+          }}
+        />
+      </Show>
     </div>
   );
 };

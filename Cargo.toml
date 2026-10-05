@@ -29,6 +29,7 @@ rodio = { version = "0.19", default-features = false, features = ["symphonia-mp3
 form_urlencoded = "1.2"
 regex = "1.10"
 ort = { version = "2.0.0-rc.13", features = ["download-binaries", "copy-dylibs"] }
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
 
 # Windowing, 3D Graphics & Native Overlay Engine
 winit = "0.29"

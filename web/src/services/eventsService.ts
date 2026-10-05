@@ -12,6 +12,15 @@ export interface CoreStatePayload {
   is_running?: boolean;
 }
 
+export interface ModelDownloadStatus {
+  status: 'ready' | 'checking' | 'downloading' | 'extracting' | 'error' | string;
+  downloaded_bytes: number;
+  total_bytes: number;
+  percent: number;
+  speed_mbps: number;
+  message: string;
+}
+
 export interface ClientAction {
   id?: number;
   action: string;
@@ -21,15 +30,18 @@ export interface ClientAction {
 type StateListener = (state: CoreStatePayload) => void;
 type ActionListener = (action: ClientAction) => void;
 type LogListener = (log: any) => void;
+type ModelStatusListener = (status: ModelDownloadStatus) => void;
 type ConnectionListener = (connected: boolean) => void;
 
 let stateEventSource: EventSource | null = null;
 const stateListeners = new Set<StateListener>();
 const actionListeners = new Set<ActionListener>();
 const logListeners = new Set<LogListener>();
+const modelStatusListeners = new Set<ModelStatusListener>();
 const connectionListeners = new Set<ConnectionListener>();
 let stateReconnectTimer: number | null = null;
 let lastKnownState: CoreStatePayload | null = null;
+let lastKnownModelStatus: ModelDownloadStatus | null = null;
 let isConnected = false;
 
 function startStateSSE() {
@@ -75,6 +87,17 @@ function startStateSSE() {
       }
     });
 
+    // Event: 'model_status' -> Real-time Supertonic-3 download and extraction progress
+    stateEventSource.addEventListener('model_status', (event: MessageEvent) => {
+      try {
+        const status: ModelDownloadStatus = JSON.parse(event.data);
+        lastKnownModelStatus = status;
+        modelStatusListeners.forEach((cb) => cb(status));
+      } catch (err) {
+        console.error('Failed to parse SSE model_status:', err);
+      }
+    });
+
     stateEventSource.onerror = () => {
       isConnected = false;
       connectionListeners.forEach((cb) => cb(false));
@@ -96,7 +119,7 @@ function startStateSSE() {
 }
 
 function stopStateSSEIfNoListeners() {
-  if (stateListeners.size === 0 && actionListeners.size === 0 && logListeners.size === 0 && connectionListeners.size === 0) {
+  if (stateListeners.size === 0 && actionListeners.size === 0 && logListeners.size === 0 && modelStatusListeners.size === 0 && connectionListeners.size === 0) {
     if (stateReconnectTimer) {
       clearTimeout(stateReconnectTimer);
       stateReconnectTimer = null;
@@ -119,6 +142,7 @@ function forceCloseSSE() {
   stateListeners.clear();
   actionListeners.clear();
   logListeners.clear();
+  modelStatusListeners.clear();
   connectionListeners.clear();
   if (stateEventSource) {
     try {
@@ -200,6 +224,32 @@ export const eventsService = {
       logListeners.delete(onLog);
       stopStateSSEIfNoListeners();
     };
+  },
+
+  // 4. Subscribe Supertonic-3 Model Download Status via SSE
+  subscribeModelStatus(onStatus: (status: ModelDownloadStatus) => void): () => void {
+    modelStatusListeners.add(onStatus);
+    if (lastKnownModelStatus) {
+      onStatus(lastKnownModelStatus);
+    }
+    startStateSSE();
+
+    return () => {
+      modelStatusListeners.delete(onStatus);
+      stopStateSSEIfNoListeners();
+    };
+  },
+
+  async getModelStatus(): Promise<ModelDownloadStatus> {
+    const res = await fetch(`${API_BASE}/api/system/model-status`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
+
+  async triggerModelDownload(): Promise<ModelDownloadStatus> {
+    const res = await fetch(`${API_BASE}/api/system/model-download`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
   },
 
   isSSEConnected(): boolean {

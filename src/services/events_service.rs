@@ -53,6 +53,7 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
     let mut ping_ticks: u32 = 0;
     let mut last_action_id = crate::app_state::get_latest_action_id();
     let mut last_log_id = crate::config::get_latest_log_id();
+    let mut last_model_status_msg = String::new();
 
     loop {
         let mut had_activity = false;
@@ -133,6 +134,25 @@ pub fn handle_sse_state(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedSta
         for entry in new_logs {
             if let Ok(log_json) = serde_json::to_string(&entry) {
                 let msg = format!("event: log\ndata: {}\n\n", log_json);
+                if stream.write_all(msg.as_bytes()).is_err() || stream.flush().is_err() {
+                    return;
+                }
+                had_activity = true;
+            }
+        }
+
+        // 4. Stream real-time Model Download Status (event: model_status)
+        let current_model_status = crate::services::model_manager_service::get_model_status();
+        let status_sig = format!(
+            "{}:{}:{:.1}",
+            current_model_status.status,
+            current_model_status.downloaded_bytes,
+            current_model_status.percent
+        );
+        if status_sig != last_model_status_msg {
+            last_model_status_msg = status_sig;
+            if let Ok(status_json) = serde_json::to_string(&current_model_status) {
+                let msg = format!("event: model_status\ndata: {}\n\n", status_json);
                 if stream.write_all(msg.as_bytes()).is_err() || stream.flush().is_err() {
                     return;
                 }

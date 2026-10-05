@@ -94,4 +94,9 @@ export const api = {
   getHistoryDates: historyService.getHistoryDates,
   getHistoryByDate: historyService.getHistoryByDate,
   deleteHistory: historyService.deleteHistory,
+
+  // Model Manager Service
+  getModelStatus: eventsService.getModelStatus,
+  subscribeModelStatus: eventsService.subscribeModelStatus,
+  triggerModelDownload: eventsService.triggerModelDownload,
 };

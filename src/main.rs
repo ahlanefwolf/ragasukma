@@ -158,8 +158,8 @@ fn main() -> Result<()> {
     // Initialize dedicated background task worker thread
     crate::engine::init_background_task_worker();
 
-    // Initialize Supertonic-3 Neural TTS engine in background thread
-    crate::audio::supertonic::init_engine_background();
+    // Check & download Supertonic-3 TTS model if missing, then init engine
+    crate::services::model_manager_service::ensure_model_ready_background();
 
     let config = AppConfig::load();
     let config_clone = config.clone();
