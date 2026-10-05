@@ -246,12 +246,11 @@ export class WebXRArManager {
         this.reticle.quaternion.slerp(this.targetQuaternion, 0.28);
       }
 
-      // 3. DISTANCE AUTO-SCALE & PULSE RING ANIMATION:
-      // Menyesuaikan ukuran cincin secara proporsional sesuai jarak kamera pengguna
-      const dist = camera.position.distanceTo(this.reticle.position);
-      const baseScale = THREE.MathUtils.clamp(dist * 0.55, 0.65, 1.8);
+      // 3. NATURAL AR WORLD SCALE & PULSE RING ANIMATION:
+      // Di dunia nyata standar AR, ukuran cincin tetap konstan di dunia fisik (diameter ~25cm di lantai).
+      // Kamera Three.js secara alami akan membuatnya mengecil saat kita menjauh dan membesar saat mendekat.
       const pulse = 1.0 + Math.sin(performance.now() * 0.005) * 0.06;
-      this.reticle.scale.setScalar(baseScale * pulse);
+      this.reticle.scale.setScalar(pulse);
 
       // Denyut halus opacity
       this.ringMaterial.opacity = 0.75 + Math.sin(performance.now() * 0.006) * 0.15;
