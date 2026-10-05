@@ -140,10 +140,6 @@ impl AppSession {
 
             crate::term_log!("----------------------------------------------------\n");
 
-            if let Err(err) = result {
-                crate::term_err!("[ERROR] Network error: {err}\n");
-            }
-
             std::thread::sleep(std::time::Duration::from_millis(300));
             crate::term_log!("----------------------------------------------------\n");
         }

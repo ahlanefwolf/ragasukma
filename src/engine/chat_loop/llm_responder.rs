@@ -80,7 +80,20 @@ pub fn process_llm_response(
             txt.clone()
         }
         Err(e) => {
-            crate::term_err!("[LLM Error]: {e}");
+            let err_str = e.to_string();
+            crate::term_err!("[LLM Error]: {err_str}");
+
+            // Abaikan jika error disebabkan oleh interupsi pengguna
+            if !err_str.contains("Interrupted by user") {
+                let err_voice_msg = "Sorry, I encountered an error connecting to the language model. Please check the endpoint or authentication.";
+                let _ = tts_clone.speak_with_emotion_and_lang(
+                    err_voice_msg,
+                    "neutral",
+                    asst_name,
+                    Some("en"),
+                );
+            }
+
             String::new()
         }
     };

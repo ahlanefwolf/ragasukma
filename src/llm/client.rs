@@ -260,19 +260,16 @@ impl LlmClient {
 
                     return Ok(full_reply);
                 } else {
+                    let status = response.status();
                     let err_text = response.text().unwrap_or_default();
-                    crate::term_err!(
-                        "[LLM Client] Custom endpoint status {}: {}",
-                        custom_endpoint,
-                        err_text
-                    );
+                    anyhow::bail!("Endpoint {custom_endpoint} returned status {status}: {err_text}");
                 }
             }
             Err(e) => {
-                crate::term_err!(
-                    "[LLM Client] Failed streaming request to {}: {e}",
-                    custom_endpoint
-                );
+                // Hanya fallback ke Ollama jika memang endpoint-nya mengarah ke Ollama /api/chat
+                if !self.base_url.contains("/api/chat") && !self.base_url.contains(":11434") {
+                    return Err(anyhow::anyhow!("Failed streaming request to {custom_endpoint}: {e}"));
+                }
             }
         }
 

@@ -11,6 +11,17 @@ impl TextToSpeech {
     /// Voice synthesis is processed natively using Supertonic-3 neural model (ONNX Runtime Rust).
     /// High-fidelity WAV audio (44.1kHz Hi-Fi) is streamed to all clients (Desktop & Mobile).
     pub fn speak_with_emotion(&self, text: &str, emotion: &str, asst_name: &str) -> Result<()> {
+        self.speak_with_emotion_and_lang(text, emotion, asst_name, None)
+    }
+
+    /// Allows overriding the spoken language (e.g. explicitly forcing "en" for error notices).
+    pub fn speak_with_emotion_and_lang(
+        &self,
+        text: &str,
+        emotion: &str,
+        asst_name: &str,
+        lang_override: Option<&str>,
+    ) -> Result<()> {
         let clean_text = clean_text_for_speech(text);
         if clean_text.trim().is_empty() {
             return Ok(());
@@ -25,7 +36,9 @@ impl TextToSpeech {
         } else {
             "F4".to_string()
         };
-        let lang = if !cfg.lang.is_empty() {
+        let lang = if let Some(override_code) = lang_override {
+            override_code.to_string()
+        } else if !cfg.lang.is_empty() {
             cfg.lang.clone()
         } else {
             "id".to_string()
@@ -540,4 +553,3 @@ mod tests {
     }
 
 }
-
