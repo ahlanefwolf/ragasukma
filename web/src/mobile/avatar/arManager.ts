@@ -281,15 +281,39 @@ export class WebXRArManager {
     vrmAnchor.visible = true;
     this.reticle.visible = false;
     this.isAvatarLocked = true;
+
+    // OPTIMASI PERFORMA TINGGI:
+    // Matikan hit-test sensor lantai setelah avatar berhasil di-lock.
+    // Menghilangkan beban perhitungan SLAM/Raycasting ARCore per-frame yang bikin HP ngelag & panas.
+    if (this.hitTestSource) {
+      try {
+        this.hitTestSource.cancel();
+      } catch (_) {}
+      this.hitTestSource = null;
+    }
+
     this.notify();
     return true;
   }
 
-  public unlockAvatar(vrmAnchor: THREE.Group): void {
+  public async unlockAvatar(vrmAnchor: THREE.Group, session?: any): Promise<void> {
     if (!this.isActive) return;
     this.isAvatarLocked = false;
     this.hasFirstHit = false;
     this.reticle.visible = true;
+
+    // Hidupkan kembali hit-test sensor saat avatar di-unlock untuk mencari posisi baru
+    if (session && !this.hitTestSource) {
+      try {
+        const viewerSpace = await session.requestReferenceSpace('viewer');
+        if (this.isActive && !this.isAvatarLocked) {
+          this.hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+        }
+      } catch (err) {
+        console.warn('AR hit-test reactivation error:', err);
+      }
+    }
+
     this.notify();
   }
 

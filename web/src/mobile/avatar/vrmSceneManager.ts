@@ -210,7 +210,8 @@ export class VrmSceneManager {
     this.renderer.setAnimationLoop((_timestamp, frame) => {
       const isXr = this.renderer?.xr.isPresenting;
       const rawDelta = this.clock?.getDelta() || 0.016;
-      const delta = Math.min(rawDelta, 0.033);
+      // Safety clamp terhadap lonjakan lag/tab backgrounding tanpa membatasi 60Hz/90Hz/120Hz refresh rate
+      const delta = Math.min(rawDelta, 0.1);
 
       if (isXr) {
         if (this.renderer && this.camera) {
@@ -283,12 +284,12 @@ export class VrmSceneManager {
   private getArScaleFactorForQuality(quality: RenderQuality): number {
     switch (quality) {
       case 'sd':
-        return 0.5;
+        return 0.45;
       case 'hd':
-        return 0.75;
+        return 0.65;
       case 'ultra':
       default:
-        return 1.0;
+        return 0.85;
     }
   }
 
@@ -330,7 +331,8 @@ export class VrmSceneManager {
   }
 
   public unlockAvatarInRealWorld(): void {
-    this.arManager.unlockAvatar(this.vrmAnchor);
+    const session = this.renderer?.xr.getSession();
+    this.arManager.unlockAvatar(this.vrmAnchor, session);
   }
 
   private resetToNonAr(): void {
