@@ -558,6 +558,15 @@ pub fn get_last_audio_opus(req_id: Option<&str>) -> Option<Vec<u8>> {
     None
 }
 
+pub fn evict_audio(target_id: &str) {
+    if let Ok(mut list) = LAST_AUDIO_WAV_LIST.lock() {
+        list.retain(|(id, _)| id != target_id);
+    }
+    if let Ok(mut list) = LAST_AUDIO_OPUS_LIST.lock() {
+        list.retain(|(id, _)| id != target_id);
+    }
+}
+
 // Normalise any BCP-47 / ISO-639 tag to a bare two-letter base code.
 // Must stay in sync with SUPPORTED_LANGUAGES in AudioTtsSection.tsx and
 // resolve_language_info() in llm/prompt.rs.

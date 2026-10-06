@@ -218,6 +218,20 @@ pub fn handle_get_tts_audio(full_url: &str, header_str: &str, stream: &mut dyn W
     }
 }
 
+pub fn handle_tts_ack(body: &str, stream: &mut dyn Write) {
+    #[derive(Deserialize)]
+    struct AckRequest {
+        id: String,
+    }
+
+    if let Ok(req) = serde_json::from_str::<AckRequest>(body) {
+        crate::audio::supertonic::evict_audio(&req.id);
+        send_json_response(stream, 200, "{\"success\":true,\"evicted\":true}");
+    } else {
+        send_json_response(stream, 400, "{\"error\":\"Invalid ack request\"}");
+    }
+}
+
 fn md5_hash(s: &str) -> u64 {
     let mut h = 0xcbf29ce484222325u64;
     for b in s.bytes() {

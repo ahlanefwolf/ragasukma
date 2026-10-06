@@ -1,4 +1,5 @@
 import { api, YtTrackInfo } from '../api';
+import { API_BASE } from '../services/base';
 
 export interface MobileTrackState {
   track: YtTrackInfo | null;
@@ -363,6 +364,19 @@ export class MobileAudioSyncManager {
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const arrayBuf = await resp.arrayBuffer();
         safeRevoke();
+
+        // Send Ack to backend to free TTS audio buffer from RAM immediately after download
+        try {
+          const urlObj = new URL(url, window.location.href);
+          const audioId = urlObj.searchParams.get('id');
+          if (audioId) {
+            fetch(`${API_BASE}/api/tts/ack`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: audioId }),
+            }).catch(() => {});
+          }
+        } catch {}
 
         const audioBuf = await this.audioCtx.decodeAudioData(arrayBuf);
         const source = this.audioCtx.createBufferSource();

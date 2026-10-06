@@ -327,6 +327,7 @@ pub fn handle_api_route<W: Write>(
         ("POST", "/api/stt/transcript") => handle_stt_transcript(body_str, &mut stream),
         ("POST", "/api/tts/state") => handle_tts_state(body_str, &mut stream, &shared),
         ("POST", "/api/tts/synthesize") => handle_tts_synthesize(body_str, &mut stream),
+        ("POST", "/api/tts/ack") => crate::services::tts_service::handle_tts_ack(body_str, &mut stream),
         ("GET", path) if path.starts_with("/api/tts/audio") => {
             handle_get_tts_audio(full_url, header_str, &mut stream);
         }
