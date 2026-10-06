@@ -108,11 +108,11 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
                 <button
                   type="button"
                   onClick={openFileManager}
-                  class="px-3.5 py-2 bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card border border-theme-cyan font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer active:scale-95"
+                  class="p-2 bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card border border-theme-cyan font-bold flex items-center justify-center transition-all shadow-sm cursor-pointer active:scale-95"
                   title="Open folder in OS File Manager"
+                  aria-label="Open folder in OS File Manager"
                 >
-                  <ExternalLink size={14} />
-                  <span>Open Folder</span>
+                  <Folder size={15} />
                 </button>
               </div>
             </div>

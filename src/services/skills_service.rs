@@ -14,14 +14,32 @@ pub fn handle_get_apps(stream: &mut dyn Write) {
 }
 
 pub fn handle_get_extension_path(stream: &mut dyn Write) {
-    let assets_dir = crate::assets::get_assets_dir();
     let zip_file = crate::assets::find_file_in_candidates("ragasukma-companion.zip");
-    let zip_str = zip_file.to_string_lossy().to_string();
-    let assets_str = assets_dir.to_string_lossy().to_string();
+    let target_dir = if zip_file.exists() {
+        zip_file
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(crate::assets::get_assets_dir)
+    } else {
+        crate::assets::get_assets_dir()
+    };
+
+    let abs_zip = zip_file.canonicalize().unwrap_or(zip_file);
+    let abs_folder = target_dir.canonicalize().unwrap_or(target_dir);
+
+    #[cfg(target_os = "windows")]
+    let clean_zip_str = abs_zip.to_string_lossy().trim_start_matches(r"\\?\").to_string();
+    #[cfg(not(target_os = "windows"))]
+    let clean_zip_str = abs_zip.to_string_lossy().to_string();
+
+    #[cfg(target_os = "windows")]
+    let clean_folder_str = abs_folder.to_string_lossy().trim_start_matches(r"\\?\").to_string();
+    #[cfg(not(target_os = "windows"))]
+    let clean_folder_str = abs_folder.to_string_lossy().to_string();
 
     let json = serde_json::json!({
-        "folder": assets_str,
-        "zip": zip_str
+        "folder": clean_folder_str,
+        "zip": clean_zip_str
     });
     send_json_response(stream, 200, &json.to_string());
 }

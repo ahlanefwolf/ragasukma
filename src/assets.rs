@@ -219,21 +219,22 @@ pub fn open_browser(url: &str) {
 
         #[cfg(target_os = "windows")]
         {
-            let mut opened = false;
-            let chrome_candidates = ["chrome.exe", "msedge.exe", "brave.exe"];
-            for browser in chrome_candidates {
-                let mut cmd = std::process::Command::new(browser);
-                cmd.arg(&url);
+            use windows::core::HSTRING;
+            use windows::Win32::UI::Shell::ShellExecuteW;
+            use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-                if cmd.spawn().is_ok() {
-                    opened = true;
-                    break;
-                }
-            }
-            if !opened {
-                let _ = std::process::Command::new("cmd")
-                    .args(["/C", "start", "", &url])
-                    .spawn();
+            let h_op = HSTRING::from("open");
+            let h_url = HSTRING::from(&url);
+
+            unsafe {
+                let _ = ShellExecuteW(
+                    None,
+                    windows::core::PCWSTR(h_op.as_wide().as_ptr()),
+                    windows::core::PCWSTR(h_url.as_wide().as_ptr()),
+                    None,
+                    None,
+                    SW_SHOWNORMAL,
+                );
             }
         }
 

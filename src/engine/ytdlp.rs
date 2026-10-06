@@ -23,18 +23,26 @@ pub struct YtTrackInfo {
 pub fn install_ytdlp() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
-        let out = Command::new("winget")
-            .args([
-                "install",
-                "--id",
-                "yt-dlp.yt-dlp",
-                "-e",
-                "--accept-source-agreements",
-                "--accept-package-agreements",
-            ])
+        let mut winget_cmd = Command::new("winget");
+        winget_cmd.args([
+            "install",
+            "--id",
+            "yt-dlp.yt-dlp",
+            "-e",
+            "--accept-source-agreements",
+            "--accept-package-agreements",
+        ]);
+        {
+            use std::os::windows::process::CommandExt;
+            winget_cmd.creation_flags(0x08000000);
+        }
+        let out = winget_cmd
             .output()
             .map_err(|e| format!("Failed to run winget: {}", e))?;
         if out.status.success() {
+            if let Ok(mut guard) = CACHED_YTDLP.lock() {
+                *guard = None;
+            }
             Ok("yt-dlp successfully installed via winget".to_string())
         } else {
             Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
@@ -91,16 +99,9 @@ pub fn install_ytdlp() -> Result<String, String> {
 
 /// Search path executable yt-dlp in Windows (termasuk WinGet Links & Packages, Scoop, Python Script)
 fn find_ytdlp_executable() -> Option<std::path::PathBuf> {
-    // 1. Check direct if can dipanggil in PATH
-    if let Ok(out) = Command::new("yt-dlp").arg("--version").output() {
-        if out.status.success() {
-            return Some(std::path::PathBuf::from("yt-dlp"));
-        }
-    }
-
     #[cfg(target_os = "windows")]
     {
-        // 2. Check WinGet standard directory: %LOCALAPPDATA%\Microsoft\WinGet\Links\yt-dlp.exe
+        // 1. Check WinGet standard directory: %LOCALAPPDATA%\Microsoft\WinGet\Links\yt-dlp.exe
         if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
             let winget_link = std::path::Path::new(&local_app_data)
                 .join("Microsoft")
@@ -140,7 +141,7 @@ fn find_ytdlp_executable() -> Option<std::path::PathBuf> {
             }
         }
 
-        // 3. Check %USERPROFILE%\scoop\shims\yt-dlp.exe or %USERPROFILE%\.cargo\bin\yt-dlp.exe
+        // 2. Check %USERPROFILE%\scoop\shims\yt-dlp.exe or %USERPROFILE%\.cargo\bin\yt-dlp.exe
         if let Ok(user_profile) = std::env::var("USERPROFILE") {
             let scoop_cand = std::path::Path::new(&user_profile)
                 .join("scoop")
@@ -159,6 +160,32 @@ fn find_ytdlp_executable() -> Option<std::path::PathBuf> {
                 .join("yt-dlp.exe");
             if py_cand.exists() {
                 return Some(py_cand);
+            }
+        }
+
+        let program_files = [
+            "C:\\Program Files\\yt-dlp\\yt-dlp.exe",
+            "C:\\Program Files (x86)\\yt-dlp\\yt-dlp.exe",
+            "C:\\yt-dlp\\yt-dlp.exe",
+        ];
+        for path_str in program_files {
+            let p = std::path::PathBuf::from(path_str);
+            if p.exists() {
+                return Some(p);
+            }
+        }
+
+        // 3. Fallback: Search in system PATH directories directly without spawning probe process
+        if let Ok(path_var) = std::env::var("PATH") {
+            for dir in std::env::split_paths(&path_var) {
+                let candidate = dir.join("yt-dlp.exe");
+                if candidate.exists() {
+                    return Some(candidate);
+                }
+                let candidate_no_ext = dir.join("yt-dlp");
+                if candidate_no_ext.exists() {
+                    return Some(candidate_no_ext);
+                }
             }
         }
     }
@@ -210,21 +237,9 @@ fn find_ytdlp_executable() -> Option<std::path::PathBuf> {
 }
 
 /// Resolve command yt-dlp
-fn ytdlp_command() -> Command {
-    let mut cmd = if let Some(exe_path) = find_ytdlp_executable() {
-        Command::new(exe_path)
-    } else {
-        #[cfg(target_os = "windows")]
-        {
-            let mut c = Command::new("cmd");
-            c.args(["/C", "yt-dlp"]);
-            c
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            Command::new("yt-dlp")
-        }
-    };
+fn ytdlp_command() -> Option<Command> {
+    let exe_path = find_ytdlp_executable()?;
+    let mut cmd = Command::new(exe_path);
 
     // Clean environment variables hijacked by Linux AppImage wrapper
     // so that yt-dlp / Python using dynamic library asli milik OS host
@@ -232,25 +247,65 @@ fn ytdlp_command() -> Command {
     cmd.env_remove("PYTHONPATH");
     cmd.env_remove("LD_LIBRARY_PATH");
     cmd.env_remove("LD_PRELOAD");
-    cmd
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
+    }
+    cmd.stdin(std::process::Stdio::null());
+    Some(cmd)
 }
+
+static CACHED_YTDLP: std::sync::Mutex<Option<YtDlpInfo>> = std::sync::Mutex::new(None);
 
 /// Check whether yt-dlp is installed and return its version
 pub fn check_ytdlp() -> YtDlpInfo {
-    let result = ytdlp_command().arg("--version").output();
-    match result {
-        Ok(out) if out.status.success() => {
-            let version = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            YtDlpInfo {
-                version,
-                available: true,
+    if let Ok(guard) = CACHED_YTDLP.lock() {
+        if let Some(info) = guard.as_ref() {
+            return info.clone();
+        }
+    }
+
+    // 1. If yt-dlp binary path is known on disk, run --version directly with full detachment
+    if let Some(exe_path) = find_ytdlp_executable() {
+        let mut cmd = Command::new(exe_path);
+        cmd.arg("--version");
+        cmd.stdin(std::process::Stdio::null());
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::null());
+        cmd.env_remove("PYTHONHOME");
+        cmd.env_remove("PYTHONPATH");
+        cmd.env_remove("LD_LIBRARY_PATH");
+        cmd.env_remove("LD_PRELOAD");
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000);
+        }
+        if let Ok(out) = cmd.output() {
+            if out.status.success() {
+                let version = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                let info = YtDlpInfo {
+                    version,
+                    available: true,
+                };
+                if let Ok(mut guard) = CACHED_YTDLP.lock() {
+                    *guard = Some(info.clone());
+                }
+                return info;
             }
         }
-        _ => YtDlpInfo {
-            version: String::new(),
-            available: false,
-        },
     }
+
+    // 2. If not found on disk, report unavailable immediately without spawning fallback cmd.exe
+    let info = YtDlpInfo {
+        version: String::new(),
+        available: false,
+    };
+    if let Ok(mut guard) = CACHED_YTDLP.lock() {
+        *guard = Some(info.clone());
+    }
+    info
 }
 
 /// Download audio pakai yt-dlp to out_dir, return metadata track
@@ -288,7 +343,9 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
 
     // Extract audio directly to MP3 using yt-dlp / ffmpeg for maximum stability and compatibility across all platforms
     // Use --print "after_move:..." so that yt-dlp prints metadata after file is completely written
-    let mut child = ytdlp_command()
+    let mut cmd = ytdlp_command()
+        .ok_or_else(|| anyhow::anyhow!("yt-dlp executable not found on system"))?;
+    let mut child = cmd
         .current_dir(&abs_out_dir)
         .args([
             "--no-playlist",
@@ -585,36 +642,13 @@ pub fn list_downloaded(music_dir: &Path) -> Vec<YtTrackInfo> {
     tracks
 }
 
-/// Estimates audio duration in seconds using ffprobe if available, or symphonia/file probing
+/// Estimates audio duration in seconds using purely fast file metadata probing (zero external process spawns)
 pub fn estimate_audio_duration_secs(path: &Path) -> u64 {
     if !path.exists() {
         return 0;
     }
 
-    // 1. Try ffprobe for 100% accurate duration
-    if let Ok(out) = Command::new("ffprobe")
-        .args([
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "default=noprint_wrappers=1:nokey=1",
-            path.to_str().unwrap_or_default(),
-        ])
-        .output()
-    {
-        if out.status.success() {
-            let dur_str = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            if let Ok(dur_f) = dur_str.parse::<f64>() {
-                if dur_f > 0.0 {
-                    return dur_f.round() as u64;
-                }
-            }
-        }
-    }
-
-    // 2. Fallback heuristic based on typical high-quality audio bitrate (~256 kbps = 32000 bytes/sec)
+    // Fast, 100% in-process calculation based on typical audio bitrates (zero process spawn, zero CMD popup)
     if let Ok(meta) = std::fs::metadata(path) {
         let size_bytes = meta.len();
         let ext = path
@@ -624,9 +658,12 @@ pub fn estimate_audio_duration_secs(path: &Path) -> u64 {
             .to_lowercase();
 
         let bytes_per_sec = match ext.as_str() {
-            "wav" => 176400, // 44.1kHz 16bit stereo
+            "wav" => 176400,  // 44.1kHz 16bit stereo
             "flac" => 90000,
-            _ => 32000,      // yt-dlp mp3 audio-quality 0 generates ~256-320kbps
+            "opus" => 16000,  // 128kbps typical Opus
+            "ogg" => 20000,   // 160kbps typical Vorbis
+            "m4a" => 16000,   // 128kbps AAC
+            _ => 32000,       // ~256-320kbps standard MP3
         };
 
         if let Some(duration) = size_bytes.checked_div(bytes_per_sec) {

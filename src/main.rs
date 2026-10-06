@@ -1,5 +1,5 @@
-// Prevents additional console window on Windows in release
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Prevents console window on Windows (runs silently in background)
+#![windows_subsystem = "windows"]
 #![allow(clippy::collapsible_if)]
 
 pub mod app_state;
@@ -32,6 +32,21 @@ fn init_dpi_awareness() {
 }
 
 fn main() -> Result<()> {
+    #[cfg(target_os = "windows")]
+    unsafe {
+        use windows::Win32::System::Console::FreeConsole;
+        // Jika aplikasi dijalankan tanpa argument console/debug (misal via GUI/portable double-click),
+        // paksa lepaskan console handle agar Windows 11 / Windows Terminal tidak memunculkan window CMD.
+        if !std::env::args().any(|a| a == "--console" || a == "--debug") {
+            let _ = FreeConsole();
+        } else {
+            use windows::Win32::System::Console::{AllocConsole, AttachConsole, ATTACH_PARENT_PROCESS};
+            if AttachConsole(ATTACH_PARENT_PROCESS).is_err() {
+                let _ = AllocConsole();
+            }
+        }
+    }
+
     init_dpi_awareness();
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--scan-vision") {

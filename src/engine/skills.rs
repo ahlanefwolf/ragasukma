@@ -84,9 +84,15 @@ This file can be edited directly or managed via the Skill Commands UI.\n\n\
     std::fs::write(path, out)
 }
 
-/// Utility helper to configure subprocess to be isolated from AppImage runtime
+/// Utility helper to configure subprocess to be isolated from AppImage runtime and prevent console flash on Windows
 #[allow(unused_variables)]
 pub fn configure_subprocess(cmd: &mut std::process::Command) {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW (0x08000000)
+        cmd.creation_flags(0x08000000);
+    }
     #[cfg(target_os = "linux")]
     {
         cmd.env_remove("PYTHONHOME");
@@ -110,16 +116,17 @@ pub fn execute_command_by_os(cmd: &str) -> std::io::Result<()> {
             if let Some((prog, args)) = trimmed.split_once(' ') {
                 let clean_prog = prog.trim_matches('"');
                 let clean_args = args.trim_matches('"');
-                if std::process::Command::new(clean_prog)
-                    .arg(clean_args)
-                    .spawn()
-                    .is_ok()
-                {
+                let mut direct_cmd = std::process::Command::new(clean_prog);
+                direct_cmd.arg(clean_args);
+                configure_subprocess(&mut direct_cmd);
+                if direct_cmd.spawn().is_ok() {
                     return Ok(());
                 }
             } else {
                 let clean_prog = trimmed.trim_matches('"');
-                if std::process::Command::new(clean_prog).spawn().is_ok() {
+                let mut direct_cmd = std::process::Command::new(clean_prog);
+                configure_subprocess(&mut direct_cmd);
+                if direct_cmd.spawn().is_ok() {
                     return Ok(());
                 }
             }

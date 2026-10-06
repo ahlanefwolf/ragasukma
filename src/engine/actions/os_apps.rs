@@ -269,16 +269,17 @@ fn launch_windows_exec(exec: &str) -> std::io::Result<()> {
         if let Some((prog, args)) = trimmed.split_once(' ') {
             let clean_prog = prog.trim_matches('"');
             let clean_args = args.trim_matches('"');
-            if std::process::Command::new(clean_prog)
-                .arg(clean_args)
-                .spawn()
-                .is_ok()
-            {
+            let mut direct_cmd = std::process::Command::new(clean_prog);
+            direct_cmd.arg(clean_args);
+            crate::engine::skills::configure_subprocess(&mut direct_cmd);
+            if direct_cmd.spawn().is_ok() {
                 return Ok(());
             }
         } else {
             let clean_prog = trimmed.trim_matches('"');
-            if std::process::Command::new(clean_prog).spawn().is_ok() {
+            let mut direct_cmd = std::process::Command::new(clean_prog);
+            crate::engine::skills::configure_subprocess(&mut direct_cmd);
+            if direct_cmd.spawn().is_ok() {
                 return Ok(());
             }
         }

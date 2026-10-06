@@ -150,6 +150,11 @@ pub fn check_cloudflared() -> CloudflaredInfo {
     let bin_path = resolve_cloudflared_bin();
     let mut cmd = Command::new(&bin_path);
     cmd.arg("--version");
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
+    }
     match cmd.output() {
         Ok(out) if out.status.success() => {
             let full_out = String::from_utf8_lossy(&out.stdout);

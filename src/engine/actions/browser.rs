@@ -195,21 +195,44 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
         }
 
         "install_ext" | "open_ext_folder" => {
-            let assets_dir = crate::assets::get_assets_dir();
-            let abs_str = assets_dir.to_string_lossy().to_string();
+            let zip_file = crate::assets::find_file_in_candidates("ragasukma-companion.zip");
+            let target_dir = if zip_file.exists() {
+                zip_file
+                    .parent()
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or_else(crate::assets::get_assets_dir)
+            } else {
+                crate::assets::get_assets_dir()
+            };
+            let abs_dir = target_dir.canonicalize().unwrap_or(target_dir);
+
+            #[cfg(target_os = "windows")]
+            let abs_str = abs_dir.to_string_lossy().trim_start_matches(r"\\?\").to_string();
+            #[cfg(not(target_os = "windows"))]
+            let abs_str = abs_dir.to_string_lossy().to_string();
 
             #[cfg(target_os = "windows")]
             {
-                let mut cmd = std::process::Command::new("explorer");
-                cmd.arg(&abs_str);
-                crate::engine::skills::configure_subprocess(&mut cmd);
-                let _ = cmd.spawn();
+                use windows::core::HSTRING;
+                use windows::Win32::UI::Shell::ShellExecuteW;
+                use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+                let h_op = HSTRING::from("open");
+                let h_dir = HSTRING::from(&abs_str);
+
+                unsafe {
+                    let _ = ShellExecuteW(
+                        None,
+                        windows::core::PCWSTR(h_op.as_wide().as_ptr()),
+                        windows::core::PCWSTR(h_dir.as_wide().as_ptr()),
+                        None,
+                        None,
+                        SW_SHOWNORMAL,
+                    );
+                }
 
                 if action == "install_ext" {
-                    let mut b_cmd = std::process::Command::new("cmd");
-                    b_cmd.args(["/C", "start", "chrome://extensions"]);
-                    crate::engine::skills::configure_subprocess(&mut b_cmd);
-                    let _ = b_cmd.spawn();
+                    crate::assets::open_browser("chrome://extensions");
                 }
             }
 

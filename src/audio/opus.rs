@@ -8,18 +8,25 @@ pub fn encode_wav_to_opus(wav_bytes: &[u8]) -> Result<Vec<u8>, String> {
         return Err("Input WAV bytes are empty".to_string());
     }
 
-    let mut child = Command::new("ffmpeg")
-        .args([
-            "-y",
-            "-loglevel", "error",
-            "-i", "pipe:0",
-            "-c:a", "libopus",
-            "-b:a", "32k",
-            "-vbr", "on",
-            "-application", "voip",
-            "-f", "ogg",
-            "pipe:1",
-        ])
+    let mut child_cmd = Command::new("ffmpeg");
+    child_cmd.args([
+        "-y",
+        "-loglevel", "error",
+        "-i", "pipe:0",
+        "-c:a", "libopus",
+        "-b:a", "32k",
+        "-vbr", "on",
+        "-application", "voip",
+        "-f", "ogg",
+        "pipe:1",
+    ]);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW (0x08000000)
+        child_cmd.creation_flags(0x08000000);
+    }
+    let mut child = child_cmd
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

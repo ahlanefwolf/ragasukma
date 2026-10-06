@@ -154,6 +154,53 @@ pub fn execute_media_action(action: &str, payload: &str) -> Option<(String, Stri
             ))
         }
 
+        "open_folder" => {
+            let music_dir = crate::config::get_music_dir();
+            let abs_str = music_dir.to_string_lossy().to_string();
+
+            #[cfg(target_os = "windows")]
+            {
+                use windows::core::HSTRING;
+                use windows::Win32::UI::Shell::ShellExecuteW;
+                use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+                let h_op = HSTRING::from("open");
+                let h_dir = HSTRING::from(&abs_str);
+
+                unsafe {
+                    let _ = ShellExecuteW(
+                        None,
+                        windows::core::PCWSTR(h_op.as_wide().as_ptr()),
+                        windows::core::PCWSTR(h_dir.as_wide().as_ptr()),
+                        None,
+                        None,
+                        SW_SHOWNORMAL,
+                    );
+                }
+            }
+
+            #[cfg(target_os = "macos")]
+            {
+                let mut cmd = std::process::Command::new("open");
+                cmd.arg(&abs_str);
+                crate::engine::skills::configure_subprocess(&mut cmd);
+                let _ = cmd.spawn();
+            }
+
+            #[cfg(target_os = "linux")]
+            {
+                let mut cmd = std::process::Command::new("xdg-open");
+                cmd.arg(&abs_str);
+                crate::engine::skills::configure_subprocess(&mut cmd);
+                let _ = cmd.spawn();
+            }
+
+            Some((
+                "Open Music Folder".to_string(),
+                format!("Opening music folder ({abs_str})"),
+            ))
+        }
+
         "seek" => {
             if let Ok(sec) = payload.trim().parse::<f32>() {
                 crate::audio::player::seek(sec);
