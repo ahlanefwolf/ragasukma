@@ -97,48 +97,30 @@ fn main() -> Result<()> {
 
     //  Single Instance Check: Verify port and application identity handshake
     let server_port = 42128;
-    let single_instance_check = match std::net::TcpListener::bind(("127.0.0.1", server_port)) {
-        Ok(listener) => listener,
-        Err(_) => {
-            // Check whether port 42128 is indeed the Ragasukma instance (Handshake verification)
-            let is_ragasukma_instance = reqwest::blocking::Client::builder()
-                .timeout(std::time::Duration::from_millis(500))
-                .build()
+    // Check if port 42128 is already active using lightweight HTTP handshake
+    let is_ragasukma_instance = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_millis(300))
+        .build()
+        .ok()
+        .and_then(|client| {
+            client
+                .get(format!("http://127.0.0.1:{}/api/ping", server_port))
+                .send()
                 .ok()
-                .and_then(|client| {
-                    client
-                        .get(format!("http://127.0.0.1:{}/api/ping", server_port))
-                        .send()
-                        .ok()
-                })
-                .and_then(|res| res.text().ok())
-                .map(|text| text.contains("\"ragasukma\""))
-                .unwrap_or(false);
+        })
+        .and_then(|res| res.text().ok())
+        .map(|text| text.contains("\"ragasukma\""))
+        .unwrap_or(false);
 
-            if is_ragasukma_instance {
-                println!("[Single Instance] Ragasukma is already running in background!");
-                println!(
-                    " Opening active Dashboard at http://127.0.0.1:{} ...",
-                    server_port
-                );
-                crate::assets::open_browser(&format!("http://127.0.0.1:{}", server_port));
-                return Ok(());
-            } else {
-                eprintln!(
-                    "[Port Conflict] Port {} is in use by another application!",
-                    server_port
-                );
-                eprintln!(
-                    " Please close the process using port {}.",
-                    server_port
-                );
-                return Err(anyhow::anyhow!("Port conflict: port {} already bound by another application", server_port));
-            }
-        }
-    };
-
-    // Retain socket listener without drop to prevent TOCTOU (Time-of-Check to Time-of-Use) race conditions
-    crate::server::register_prebound_listener(single_instance_check);
+    if is_ragasukma_instance {
+        println!("[Single Instance] Ragasukma is already running in background!");
+        println!(
+            " Opening active Dashboard at http://127.0.0.1:{} ...",
+            server_port
+        );
+        crate::assets::open_browser(&format!("http://127.0.0.1:{}", server_port));
+        return Ok(());
+    }
 
     // Automatically copy all default assets to user config folder (~/.config/ragasukma/assets)
     crate::assets::ensure_default_user_assets();

@@ -3,6 +3,7 @@ import { MusicStatus } from './musicService';
 
 export interface AppStatePayload {
   state: string;
+  emotion?: string;
   is_running: boolean;
   is_paused: boolean;
   voice_muted: boolean;

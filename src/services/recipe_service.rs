@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use std::fs;
-use std::net::TcpStream;
+use std::io::Write;
 
 use crate::engine::actions::recipe::{
     AutomationRecipe, execute_recipe, get_recipes_dir, load_all_recipes,
@@ -8,14 +8,14 @@ use crate::engine::actions::recipe::{
 use crate::server::send_json_response;
 
 /// GET /api/recipes
-pub fn handle_get_recipes(stream: &mut TcpStream) {
+pub fn handle_get_recipes(stream: &mut dyn Write) {
     let recipes = load_all_recipes();
     let json = serde_json::to_string(&recipes).unwrap_or_else(|_| "[]".to_string());
     send_json_response(stream, 200, &json);
 }
 
 /// POST /api/recipes/save
-pub fn handle_save_recipe(body_str: &str, stream: &mut TcpStream) {
+pub fn handle_save_recipe(body_str: &str, stream: &mut dyn Write) {
     #[derive(Deserialize)]
     struct SaveRecipePayload {
         #[serde(flatten)]
@@ -75,7 +75,7 @@ pub fn handle_save_recipe(body_str: &str, stream: &mut TcpStream) {
 }
 
 /// POST /api/recipes/delete
-pub fn handle_delete_recipe(body_str: &str, stream: &mut TcpStream) {
+pub fn handle_delete_recipe(body_str: &str, stream: &mut dyn Write) {
     #[derive(Deserialize)]
     struct DeleteRecipePayload {
         recipe_id: String,
@@ -97,7 +97,7 @@ pub fn handle_delete_recipe(body_str: &str, stream: &mut TcpStream) {
 }
 
 /// POST /api/recipes/run
-pub fn handle_run_recipe(body_str: &str, stream: &mut TcpStream) {
+pub fn handle_run_recipe(body_str: &str, stream: &mut dyn Write) {
     #[derive(Deserialize)]
     struct RunRecipePayload {
         recipe_id: String,
@@ -112,7 +112,7 @@ pub fn handle_run_recipe(body_str: &str, stream: &mut TcpStream) {
         }
 
         let payload_str = if let Some(params) = item.params {
-            if params.is_object() && !params.as_object().unwrap().is_empty() {
+            if params.as_object().is_some_and(|obj| !obj.is_empty()) {
                 format!("{clean_id}|{}", params)
             } else {
                 clean_id.to_string()

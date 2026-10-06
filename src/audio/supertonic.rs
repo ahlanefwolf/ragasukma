@@ -58,7 +58,13 @@ pub struct SupertonicEngine {
 }
 
 static ENGINE: OnceLock<SupertonicEngine> = OnceLock::new();
-static LAST_AUDIO_WAV: Mutex<Option<(String, Vec<u8>)>> = Mutex::new(None);
+type AudioByteQueue = Mutex<std::collections::VecDeque<(String, Vec<u8>)>>;
+
+static LAST_AUDIO_WAV_LIST: std::sync::LazyLock<AudioByteQueue> =
+    std::sync::LazyLock::new(|| Mutex::new(std::collections::VecDeque::new()));
+static LAST_AUDIO_OPUS_LIST: std::sync::LazyLock<AudioByteQueue> =
+    std::sync::LazyLock::new(|| Mutex::new(std::collections::VecDeque::new()));
+static LATEST_AUDIO_ID: Mutex<Option<String>> = Mutex::new(None);
 
 pub fn get_engine() -> Option<&'static SupertonicEngine> {
     ENGINE.get()
@@ -97,10 +103,10 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
     File::open(&idx_path)?.read_to_string(&mut idx_str)?;
     let indexer: Vec<i64> = serde_json::from_str(&idx_str)?;
 
-    // 3. ONNX Sessions (use Level1 optimization & bounded threads to minimize memory footprint)
+    // 3. ONNX Sessions (single intra-thread per session to eliminate Windows thread contention & starvation)
     let text_enc_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_intra_threads(2)
+        .with_intra_threads(1)
         .map_err(|e| anyhow!("{e}"))?
         .with_optimization_level(GraphOptimizationLevel::Level1)
         .map_err(|e| anyhow!("{e}"))?
@@ -109,7 +115,7 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
 
     let dp_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_intra_threads(2)
+        .with_intra_threads(1)
         .map_err(|e| anyhow!("{e}"))?
         .with_optimization_level(GraphOptimizationLevel::Level1)
         .map_err(|e| anyhow!("{e}"))?
@@ -118,7 +124,7 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
 
     let vec_est_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_intra_threads(2)
+        .with_intra_threads(1)
         .map_err(|e| anyhow!("{e}"))?
         .with_optimization_level(GraphOptimizationLevel::Level1)
         .map_err(|e| anyhow!("{e}"))?
@@ -127,7 +133,7 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
 
     let vocoder_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_intra_threads(2)
+        .with_intra_threads(1)
         .map_err(|e| anyhow!("{e}"))?
         .with_optimization_level(GraphOptimizationLevel::Level1)
         .map_err(|e| anyhow!("{e}"))?
@@ -197,7 +203,9 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
     };
 
     let _ = ENGINE.set(engine);
-    Ok(ENGINE.get().unwrap())
+    ENGINE
+        .get()
+        .ok_or_else(|| anyhow::anyhow!("Supertonic engine not initialized"))
 }
 
 fn find_model_dir() -> Option<PathBuf> {
@@ -428,8 +436,8 @@ impl SupertonicEngine {
                 }
                 Err(e) => {
                     crate::term_err!(
-                        "[Supertonic TTS] Failed to synthesize sub-chunk \"{}\": {e}",
-                        chunk
+                        "[Supertonic TTS] Failed to synthesize sub-chunk \"{}\" (len {}): {e}",
+                        chunk, chunk.chars().count()
                     );
                 }
             }
@@ -443,87 +451,108 @@ impl SupertonicEngine {
     }
 }
 
-/// Splits long text into natural sentence/clause chunks so it does not exceed ONNX tensor limits (~140 characters)
+/// Splits paragraph into natural sentences based on punctuation marks (., !, ?, ;, :)
 pub fn split_into_tts_chunks(text: &str) -> Vec<String> {
     let text = text.trim();
     if text.is_empty() {
         return Vec::new();
     }
 
-    const MAX_CHUNK_CHARS: usize = 120;
-
-    let mut chunks = Vec::new();
+    let mut sentences = Vec::new();
     let mut current = String::new();
 
     for ch in text.chars() {
         current.push(ch);
 
-        let is_sentence_end = ch == '.' || ch == '!' || ch == '?' || ch == '\n';
-        let is_clause_end = ch == ',' || ch == ';' || ch == ':';
+        // Natural sentence endings
+        let is_terminal = ch == '.' || ch == '!' || ch == '?' || ch == '\n';
+        // Natural pause clauses (semicolon, colon)
+        let is_clause = ch == ';' || ch == ':';
 
-        if is_sentence_end {
-            if current.trim().len() >= 15 || current.len() >= MAX_CHUNK_CHARS {
-                chunks.push(current.trim().to_string());
+        if is_terminal || is_clause {
+            let trimmed = current.trim();
+            // Ignore single-character dots like middle initials if too short
+            if trimmed.len() >= 4 {
+                sentences.push(trimmed.to_string());
                 current.clear();
             }
-        } else if (is_clause_end && current.len() >= 45)
-            || (current.len() >= MAX_CHUNK_CHARS && ch.is_whitespace())
-        {
-            chunks.push(current.trim().to_string());
-            current.clear();
         }
     }
 
-    if !current.trim().is_empty() {
-        chunks.push(current.trim().to_string());
+    let remainder = current.trim();
+    if !remainder.is_empty() {
+        sentences.push(remainder.to_string());
     }
 
-    let mut result = Vec::new();
-    for chunk in chunks {
-        if chunk.chars().count() <= MAX_CHUNK_CHARS {
-            if !chunk.trim().is_empty() {
-                result.push(chunk);
-            }
-        } else {
-            let mut sub = String::new();
-            for word in chunk.split_whitespace() {
-                if !sub.is_empty() && (sub.len() + word.len() + 1) > MAX_CHUNK_CHARS {
-                    result.push(sub.trim().to_string());
-                    sub.clear();
-                }
-                if !sub.is_empty() {
-                    sub.push(' ');
-                }
-                sub.push_str(word);
-            }
-            if !sub.trim().is_empty() {
-                result.push(sub.trim().to_string());
-            }
-        }
+    if sentences.is_empty() && !text.is_empty() {
+        sentences.push(text.to_string());
     }
 
-    if result.is_empty() && !text.is_empty() {
-        result.push(text.to_string());
-    }
-
-    result
+    sentences
 }
 
 pub fn set_last_audio_wav(id: String, bytes: Vec<u8>) {
-    if let Ok(mut lock) = LAST_AUDIO_WAV.lock() {
-        *lock = Some((id, bytes));
+    if let Ok(mut id_lock) = LATEST_AUDIO_ID.lock() {
+        *id_lock = Some(id.clone());
+    }
+    if let Ok(mut list) = LAST_AUDIO_WAV_LIST.lock() {
+        // Keep maximum 3 recent audio items in memory (auto-evict older raw WAVs to prevent RAM growth)
+        while list.len() >= 3 {
+            list.pop_front();
+        }
+        list.push_back((id, bytes));
+    }
+}
+
+pub fn set_last_audio_opus(id: String, bytes: Vec<u8>) {
+    if let Ok(mut list) = LAST_AUDIO_OPUS_LIST.lock() {
+        // Keep maximum 3 recent audio items in memory
+        while list.len() >= 3 {
+            list.pop_front();
+        }
+        list.push_back((id, bytes));
     }
 }
 
 pub fn get_last_audio_wav(req_id: Option<&str>) -> Option<Vec<u8>> {
-    if let Ok(lock) = LAST_AUDIO_WAV.lock() {
-        if let Some((id, bytes)) = &*lock {
-            if let Some(r_id) = req_id {
-                if !r_id.is_empty() && id != r_id {
-                    return Some(bytes.clone()); // Fallback to last spoken
-                }
+    let key = if let Some(r_id) = req_id {
+        if !r_id.is_empty() {
+            Some(r_id.to_string())
+        } else {
+            LATEST_AUDIO_ID.lock().ok().and_then(|g| g.clone())
+        }
+    } else {
+        LATEST_AUDIO_ID.lock().ok().and_then(|g| g.clone())
+    };
+
+    let target_key = key?;
+    if let Ok(list) = LAST_AUDIO_WAV_LIST.lock() {
+        for (id, bytes) in list.iter().rev() {
+            if id == &target_key {
+                return Some(bytes.clone());
             }
-            return Some(bytes.clone());
+        }
+    }
+    None
+}
+
+pub fn get_last_audio_opus(req_id: Option<&str>) -> Option<Vec<u8>> {
+    let key = if let Some(r_id) = req_id {
+        if !r_id.is_empty() {
+            Some(r_id.to_string())
+        } else {
+            LATEST_AUDIO_ID.lock().ok().and_then(|g| g.clone())
+        }
+    } else {
+        LATEST_AUDIO_ID.lock().ok().and_then(|g| g.clone())
+    };
+
+    let target_key = key?;
+    if let Ok(list) = LAST_AUDIO_OPUS_LIST.lock() {
+        for (id, bytes) in list.iter().rev() {
+            if id == &target_key {
+                return Some(bytes.clone());
+            }
         }
     }
     None
@@ -576,18 +605,23 @@ fn clean_lang_code(lang: &str) -> String {
 fn preprocess_text(text: &str, lang: &str) -> String {
     let mut t = text.to_string();
     t = t
-        .replace(['–', '‑', '—'], "-")
-        .replace(['¯', '_'], " ")
-        .replace(['“', '”'], "\"")
-        .replace(['‘', '’', '´', '`'], "'")
-        .replace(['[', ']', '|', '/', '#', '→', '←'], " ");
+        .replace(['–', '‑', '—', '−'], "-")
+        .replace(['¯', '_', '~', '^'], " ")
+        .replace(['“', '”', '„', '«', '»', '"'], " ")
+        .replace(['‘', '’', '‚', '´', '`', '′'], "'")
+        .replace(['[', ']', '{', '}', '(', ')', '<', '>', '|', '/', '\\', '#', '→', '←', '•', '·', '…', '★', '☆'], " ");
 
     t = t.replace('@', " at ");
+    t = t.replace('&', " dan ");
+    t = t.replace('%', " persen ");
+    t = t.replace('+', " plus ");
+    t = t.replace('=', " sama dengan ");
     t = t.replace("e.g.,", "for example, ");
     t = t.replace("i.e.,", "that is, ");
 
-    let re_sp = regex::Regex::new(r"\s+").unwrap();
-    t = re_sp.replace_all(&t, " ").trim().to_string();
+    static RE_SP: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r"\s+").unwrap_or_else(|_| regex::Regex::new(" ").unwrap()));
+    t = RE_SP.replace_all(&t, " ").trim().to_string();
 
     let ends_with_punct = t.ends_with('.')
         || t.ends_with('!')

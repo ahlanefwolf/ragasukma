@@ -17,6 +17,7 @@ export interface YtTrackInfo {
 export interface MusicListResponse {
   music_dir: string;
   tracks: YtTrackInfo[];
+  volume?: number;
 }
 
 export interface MusicStatus {
@@ -58,6 +59,7 @@ export const musicService = {
       return {
         music_dir: data.music_dir || '',
         tracks: Array.isArray(data.tracks) ? data.tracks : [],
+        volume: typeof data.volume === 'number' ? data.volume : undefined,
       };
     } catch {
       return { music_dir: '', tracks: [] };

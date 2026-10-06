@@ -42,9 +42,11 @@ export class MobileAudioSyncManager {
 
       this.musicAudio = new Audio();
       this.musicAudio.preload = 'auto';
+      this.musicAudio.crossOrigin = 'anonymous';
 
       this.voiceAudio = new Audio();
       this.voiceAudio.preload = 'auto';
+      this.voiceAudio.crossOrigin = 'anonymous';
       // Use playsinline so iOS / Android routes directly to pure Media Speaker
       this.voiceAudio.setAttribute('playsinline', 'true');
       (this.voiceAudio as any).playsInline = true;
@@ -224,7 +226,13 @@ export class MobileAudioSyncManager {
       this.musicAudio.currentTime = 0;
       this.currentTrack = null;
       this.emitTrackState();
-      this.onStateChangeCb?.('idle');
+    }
+  }
+
+  public seekMusic(seconds: number) {
+    if (this.musicAudio) {
+      this.musicAudio.currentTime = seconds;
+      this.emitTrackState();
     }
   }
 
@@ -280,6 +288,8 @@ export class MobileAudioSyncManager {
   // ---------------------------------------------------------------------------
   private voiceAudio: HTMLAudioElement | null = null;
   private voiceSourceNode: MediaElementAudioSourceNode | null = null;
+  private activeBufferSource: AudioBufferSourceNode | null = null;
+  private isVoicePlaying = false;
   private voiceGainNode: GainNode | null = null;
   private voiceAnalyser: AnalyserNode | null = null;
   private voiceFreqData: Uint8Array | null = null;
@@ -290,7 +300,7 @@ export class MobileAudioSyncManager {
   }
 
   private initVoiceAnalyserOnce() {
-    if (!this.audioCtx || !this.voiceAudio || this.voiceSourceNode) return;
+    if (!this.audioCtx) return;
     try {
       if (!this.voiceAnalyser) {
         this.voiceAnalyser = this.audioCtx.createAnalyser();
@@ -303,18 +313,22 @@ export class MobileAudioSyncManager {
         this.voiceGainNode = this.audioCtx.createGain();
         // Backend WAV normalized to 0.92 peak, optimal gain (1.05) applied for clarity without distortion
         this.voiceGainNode.gain.value = 1.05;
+        this.voiceAnalyser.connect(this.voiceGainNode);
+        this.voiceGainNode.connect(this.audioCtx.destination);
       }
-      const source = this.audioCtx.createMediaElementSource(this.voiceAudio);
-      source.connect(this.voiceAnalyser);
-      this.voiceAnalyser.connect(this.voiceGainNode);
-      this.voiceGainNode.connect(this.audioCtx.destination);
-      this.voiceSourceNode = source;
+      if (this.voiceAudio && !this.voiceSourceNode) {
+        try {
+          const source = this.audioCtx.createMediaElementSource(this.voiceAudio);
+          source.connect(this.voiceAnalyser);
+          this.voiceSourceNode = source;
+        } catch {}
+      }
     } catch (e) {
       console.warn('[MobileAudio] Web Audio Analyser init note:', e);
     }
   }
 
-  public playVoice(
+  public async playVoice(
     url: string,
     callbacks?: {
       onPlaying?: () => void;
@@ -322,17 +336,14 @@ export class MobileAudioSyncManager {
       onError?: (err: any) => void;
     }
   ) {
-    if (!this.voiceAudio) return;
+    this.stopVoice();
     this.initVoiceAnalyserOnce();
 
     if (this.audioCtx && this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume().catch(() => {});
+      try {
+        await this.audioCtx.resume();
+      } catch {}
     }
-
-    // Clean up previous listeners
-    this.voiceAudio.onplaying = null;
-    this.voiceAudio.onended = null;
-    this.voiceAudio.onerror = null;
 
     let hasRevoked = false;
     const safeRevoke = () => {
@@ -344,16 +355,59 @@ export class MobileAudioSyncManager {
       }
     };
 
+    // Primary: Web Audio API AudioBufferSourceNode
+    // 100% immune to Mobile CORS muting, Range header stalls, and guarantees exact onended timing!
+    if (this.audioCtx && this.voiceAnalyser && this.voiceGainNode) {
+      try {
+        const resp = await fetch(url, { mode: 'cors' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const arrayBuf = await resp.arrayBuffer();
+        safeRevoke();
+
+        const audioBuf = await this.audioCtx.decodeAudioData(arrayBuf);
+        const source = this.audioCtx.createBufferSource();
+        source.buffer = audioBuf;
+        source.connect(this.voiceAnalyser);
+
+        this.activeBufferSource = source;
+        this.isVoicePlaying = true;
+
+        source.onended = () => {
+          if (this.activeBufferSource === source) {
+            this.activeBufferSource = null;
+            this.isVoicePlaying = false;
+            callbacks?.onEnded?.();
+          }
+        };
+
+        source.start(0);
+        callbacks?.onPlaying?.();
+        return;
+      } catch (err) {
+        console.warn('[MobileAudio] Web Audio buffer playback fallback to HTMLAudioElement:', err);
+      }
+    }
+
+    // Fallback: HTMLAudioElement
+    if (!this.voiceAudio) {
+      safeRevoke();
+      callbacks?.onError?.('Audio element unavailable');
+      return;
+    }
+
     this.voiceAudio.onplaying = () => {
+      this.isVoicePlaying = true;
       callbacks?.onPlaying?.();
     };
 
     this.voiceAudio.onended = () => {
+      this.isVoicePlaying = false;
       safeRevoke();
       callbacks?.onEnded?.();
     };
 
     this.voiceAudio.onerror = (e) => {
+      this.isVoicePlaying = false;
       safeRevoke();
       callbacks?.onError?.(e);
     };
@@ -364,6 +418,7 @@ export class MobileAudioSyncManager {
     const p = this.voiceAudio.play();
     if (p !== undefined) {
       p.catch((err) => {
+        this.isVoicePlaying = false;
         safeRevoke();
         callbacks?.onError?.(err);
       });
@@ -371,13 +426,24 @@ export class MobileAudioSyncManager {
   }
 
   public stopVoice() {
+    this.isVoicePlaying = false;
+    if (this.activeBufferSource) {
+      try {
+        this.activeBufferSource.stop();
+        this.activeBufferSource.disconnect();
+      } catch {}
+      this.activeBufferSource = null;
+    }
     if (this.voiceAudio) {
-      this.voiceAudio.pause();
-      this.voiceAudio.src = '';
+      try {
+        this.voiceAudio.pause();
+        this.voiceAudio.currentTime = 0;
+        this.voiceAudio.src = '';
+      } catch {}
     }
   }
 
-  public attachVoiceAudio(audio: HTMLAudioElement) {
+  public attachVoiceAudio(_audio: HTMLAudioElement) {
     // Reusable voiceAudio already attached
   }
 
@@ -387,18 +453,18 @@ export class MobileAudioSyncManager {
   }
 
   public isVoiceAudioActive(): boolean {
-    return !!(this.voiceAudio && !this.voiceAudio.paused && !this.voiceAudio.ended);
+    return this.isVoicePlaying || !!(this.voiceAudio && !this.voiceAudio.paused && !this.voiceAudio.ended);
   }
 
   public getVoiceLipWeights(): MobileLipWeights {
     const zero: MobileLipWeights = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0, mouthOpen: 0 };
-    if (!this.voiceAudio || this.voiceAudio.paused || this.voiceAudio.ended) {
+    if (!this.isVoiceAudioActive()) {
       return zero;
     }
 
     if (!this.voiceAnalyser || !this.voiceFreqData || !this.voiceTimeData) {
       // Lightweight sinusoidal fallback if Analyser not ready
-      const cur = this.voiceAudio.currentTime;
+      const cur = this.voiceAudio ? this.voiceAudio.currentTime : Date.now() / 1000;
       const open = Math.pow(Math.abs(Math.sin(cur * 16.0)), 1.3) * 0.55;
       return { aa: open, ih: 0, ou: 0, ee: 0, oh: 0, mouthOpen: open };
     }
@@ -463,6 +529,16 @@ export class MobileAudioSyncManager {
   public stopAll() {
     this.stopMusic();
     this.stopVoice();
+  }
+
+  public destroy() {
+    this.stopAll();
+    if (this.audioCtx) {
+      try {
+        this.audioCtx.close();
+      } catch {}
+      this.audioCtx = null;
+    }
   }
 }
 

@@ -33,122 +33,212 @@ type LogListener = (log: any) => void;
 type ModelStatusListener = (status: ModelDownloadStatus) => void;
 type ConnectionListener = (connected: boolean) => void;
 
-let stateEventSource: EventSource | null = null;
 const stateListeners = new Set<StateListener>();
 const actionListeners = new Set<ActionListener>();
 const logListeners = new Set<LogListener>();
 const modelStatusListeners = new Set<ModelStatusListener>();
 const connectionListeners = new Set<ConnectionListener>();
-let stateReconnectTimer: number | null = null;
 let lastKnownState: CoreStatePayload | null = null;
 let lastKnownModelStatus: ModelDownloadStatus | null = null;
+let lastKnownActionId: number = 0;
+let lastKnownLogId: number = 0;
 let isConnected = false;
+let stateFetchPromise: Promise<CoreStatePayload | null> | null = null;
 
-function startStateSSE() {
-  if (stateEventSource || stateReconnectTimer) return;
+function fetchStateOnce(): Promise<CoreStatePayload | null> {
+  if (lastKnownState) return Promise.resolve(lastKnownState);
+  if (stateFetchPromise) return stateFetchPromise;
+
+  stateFetchPromise = fetch(`${API_BASE}/api/state`)
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (data && data.state) {
+        const corePayload: CoreStatePayload = {
+          state: data.state,
+          emotion: data.emotion,
+          voice_muted: data.voice_muted,
+          mic_muted: data.mic_muted,
+          is_running: data.is_running,
+        };
+        lastKnownState = corePayload;
+        stateListeners.forEach((cb) => cb(corePayload));
+        return corePayload;
+      }
+      return null;
+    })
+    .catch(() => null)
+    .finally(() => {
+      stateFetchPromise = null;
+    });
+
+  return stateFetchPromise;
+}
+
+let activeWs: WebSocket | null = null;
+let wsReconnectTimer: number | null = null;
+let wsPingInterval: number | null = null;
+let listenersInitialized = false;
+
+function setupLifecycleListeners() {
+  if (listenersInitialized || typeof window === 'undefined') return;
+  listenersInitialized = true;
+
+  const tryReconnectNow = () => {
+    if (stateListeners.size === 0 && actionListeners.size === 0 && logListeners.size === 0 && modelStatusListeners.size === 0) {
+      return;
+    }
+    if (!activeWs || activeWs.readyState === WebSocket.CLOSED || activeWs.readyState === WebSocket.CLOSING) {
+      if (wsReconnectTimer) {
+        clearTimeout(wsReconnectTimer);
+        wsReconnectTimer = null;
+      }
+      startWsStream();
+    }
+  };
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      tryReconnectNow();
+    }
+  });
+
+  window.addEventListener('online', tryReconnectNow);
+  window.addEventListener('focus', tryReconnectNow);
+}
+
+function getWsUrl(): string {
+  if (typeof window === 'undefined') return 'ws://127.0.0.1:42128/api/ws';
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host;
+  if (!host.includes('127.0.0.1') && !host.includes('localhost')) {
+    return `${proto}//${host}/api/ws`;
+  }
+  return 'ws://127.0.0.1:42128/api/ws';
+}
+
+function startWsStream() {
+  if (activeWs && (activeWs.readyState === WebSocket.OPEN || activeWs.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+  if (wsReconnectTimer) return;
 
   try {
-    stateEventSource = new EventSource(`${API_BASE}/api/events/state`);
+    const wsUrl = getWsUrl();
+    const ws = new WebSocket(wsUrl);
+    activeWs = ws;
 
-    stateEventSource.onopen = () => {
+    ws.onopen = () => {
       isConnected = true;
       connectionListeners.forEach((cb) => cb(true));
+
+      // Start client ping heartbeat every 15s to keep mobile connection alive
+      if (wsPingInterval) clearInterval(wsPingInterval);
+      wsPingInterval = window.setInterval(() => {
+        if (activeWs && activeWs.readyState === WebSocket.OPEN) {
+          try {
+            activeWs.send(JSON.stringify({ type: 'ping' }));
+          } catch {}
+        }
+      }, 15000);
     };
 
-    // Event: 'state' -> Murni status visual AI and token
-    stateEventSource.addEventListener('state', (event: MessageEvent) => {
+    ws.onmessage = (event) => {
       try {
-        const data: CoreStatePayload = JSON.parse(event.data);
-        lastKnownState = data;
-        isConnected = true;
-        stateListeners.forEach((cb) => cb(data));
-      } catch (err) {
-        console.error('Failed to parse SSE state:', err);
-      }
-    });
+        const parsed = JSON.parse(event.data);
+        if (!parsed || !parsed.event) return;
 
-    // Event: 'action' -> Murni aksi perintah which dipicu AI (example: music:play)
-    stateEventSource.addEventListener('action', (event: MessageEvent) => {
-      try {
-        const act: ClientAction = JSON.parse(event.data);
-        actionListeners.forEach((cb) => cb(act));
-      } catch (err) {
-        console.error('Failed to parse SSE action:', err);
-      }
-    });
+        if (parsed.event === 'state' && parsed.data) {
+          lastKnownState = parsed.data;
+          isConnected = true;
+          stateListeners.forEach((cb) => cb(parsed.data));
+        } else if (parsed.event === 'action' && parsed.data) {
+          const act: ClientAction = parsed.data;
+          if (act.id !== undefined && act.id > lastKnownActionId) {
+            lastKnownActionId = act.id;
+          }
+          actionListeners.forEach((cb) => cb(act));
+        } else if (parsed.event === 'log' && parsed.data) {
+          const logEntry = parsed.data;
+          if (logEntry && logEntry.id && logEntry.id > lastKnownLogId) {
+            lastKnownLogId = logEntry.id;
+          }
+          logListeners.forEach((cb) => cb(logEntry));
+        } else if (parsed.event === 'model_status' && parsed.data) {
+          lastKnownModelStatus = parsed.data;
+          modelStatusListeners.forEach((cb) => cb(parsed.data));
+        }
+      } catch {}
+    };
 
-    // Event: 'log' -> Real-time console activity log stream (Zero Polling)
-    stateEventSource.addEventListener('log', (event: MessageEvent) => {
-      try {
-        const logEntry = JSON.parse(event.data);
-        logListeners.forEach((cb) => cb(logEntry));
-      } catch (err) {
-        console.error('Failed to parse SSE log:', err);
-      }
-    });
+    ws.onerror = () => {
+      try { ws.close(); } catch {}
+    };
 
-    // Event: 'model_status' -> Real-time Supertonic-3 download and extraction progress
-    stateEventSource.addEventListener('model_status', (event: MessageEvent) => {
-      try {
-        const status: ModelDownloadStatus = JSON.parse(event.data);
-        lastKnownModelStatus = status;
-        modelStatusListeners.forEach((cb) => cb(status));
-      } catch (err) {
-        console.error('Failed to parse SSE model_status:', err);
-      }
-    });
-
-    stateEventSource.onerror = () => {
+    ws.onclose = () => {
       isConnected = false;
       connectionListeners.forEach((cb) => cb(false));
-      try {
-        stateEventSource?.close();
-      } catch {}
-      stateEventSource = null;
+      activeWs = null;
+      if (wsPingInterval) {
+        clearInterval(wsPingInterval);
+        wsPingInterval = null;
+      }
 
-      if (!stateReconnectTimer && (stateListeners.size > 0 || actionListeners.size > 0)) {
-        stateReconnectTimer = window.setTimeout(() => {
-          stateReconnectTimer = null;
-          startStateSSE();
+      if (!wsReconnectTimer && (stateListeners.size > 0 || actionListeners.size > 0 || logListeners.size > 0 || modelStatusListeners.size > 0)) {
+        wsReconnectTimer = window.setTimeout(() => {
+          wsReconnectTimer = null;
+          startWsStream();
         }, 1500);
       }
     };
-  } catch (err) {
-    console.error('Failed to init State EventSource:', err);
+  } catch (e) {
+    console.warn('[WebSocket] Init error:', e);
   }
+}
+
+function startStateEvents() {
+  setupLifecycleListeners();
+  startWsStream();
 }
 
 function stopStateSSEIfNoListeners() {
   if (stateListeners.size === 0 && actionListeners.size === 0 && logListeners.size === 0 && modelStatusListeners.size === 0 && connectionListeners.size === 0) {
-    if (stateReconnectTimer) {
-      clearTimeout(stateReconnectTimer);
-      stateReconnectTimer = null;
+    if (wsReconnectTimer) {
+      clearTimeout(wsReconnectTimer);
+      wsReconnectTimer = null;
     }
-    if (stateEventSource) {
+    if (wsPingInterval) {
+      clearInterval(wsPingInterval);
+      wsPingInterval = null;
+    }
+    if (activeWs) {
       try {
-        stateEventSource.close();
+        activeWs.close();
       } catch {}
-      stateEventSource = null;
+      activeWs = null;
     }
     isConnected = false;
   }
 }
 
 function forceCloseSSE() {
-  if (stateReconnectTimer) {
-    clearTimeout(stateReconnectTimer);
-    stateReconnectTimer = null;
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+  }
+  if (wsPingInterval) {
+    clearInterval(wsPingInterval);
+    wsPingInterval = null;
   }
   stateListeners.clear();
   actionListeners.clear();
   logListeners.clear();
   modelStatusListeners.clear();
   connectionListeners.clear();
-  if (stateEventSource) {
+  if (activeWs) {
     try {
-      stateEventSource.close();
+      activeWs.close();
     } catch {}
-    stateEventSource = null;
+    activeWs = null;
   }
   isConnected = false;
 }
@@ -192,8 +282,12 @@ export const eventsService = {
     }
     if (lastKnownState) {
       onStateChange(lastKnownState);
+    } else {
+      fetchStateOnce().then((st) => {
+        if (st) onStateChange(st);
+      });
     }
-    startStateSSE();
+    startStateEvents();
 
     return () => {
       stateListeners.delete(onStateChange);
@@ -207,7 +301,7 @@ export const eventsService = {
   // 2. Subscribe Action Events (Perintah aksi AI murni, like music, notifikasi)
   subscribeActions(onAction: (act: ClientAction) => void): () => void {
     actionListeners.add(onAction);
-    startStateSSE();
+    startStateEvents();
 
     return () => {
       actionListeners.delete(onAction);
@@ -218,7 +312,7 @@ export const eventsService = {
   // 3. Subscribe Live Logs via SSE (Realtime zero-polling console stream)
   subscribeLogs(onLog: (log: any) => void): () => void {
     logListeners.add(onLog);
-    startStateSSE();
+    startStateEvents();
 
     return () => {
       logListeners.delete(onLog);
@@ -232,7 +326,7 @@ export const eventsService = {
     if (lastKnownModelStatus) {
       onStatus(lastKnownModelStatus);
     }
-    startStateSSE();
+    startStateEvents();
 
     return () => {
       modelStatusListeners.delete(onStatus);

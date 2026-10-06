@@ -8,11 +8,11 @@
   "llm_model": "",
   "llm_api_key": "",
   "lang": "id",
-  "tts_voice_name": "F5",
-  "tts_speed": 1.25,
+  "tts_voice_name": "F4",
+  "tts_speed": 1.0,
   "avatar_type": "vrm",
   "always_on_top": true,
-  "voice_interruption": true,
+  "voice_interruption": false,
   "vad_threshold": 0.15,
   "vad_noise_suppression": true
 }

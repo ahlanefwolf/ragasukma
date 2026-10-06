@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::net::TcpStream;
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 use crate::app_state::ServerSharedState;
@@ -7,7 +7,7 @@ use crate::assets::{load_poses, save_poses};
 use crate::server::send_json_response;
 use crate::ui::pose_system::AssistantVisualState;
 
-pub fn handle_get_poses(stream: &mut TcpStream) {
+pub fn handle_get_poses(stream: &mut dyn Write) {
     let poses = load_poses();
     let json = serde_json::to_string(&poses).unwrap_or_default();
     send_json_response(stream, 200, &json);
@@ -15,7 +15,7 @@ pub fn handle_get_poses(stream: &mut TcpStream) {
 
 pub fn handle_post_poses(
     body_str: &str,
-    stream: &mut TcpStream,
+    stream: &mut dyn Write,
     shared: &Arc<Mutex<ServerSharedState>>,
 ) {
     if let Ok(poses) = serde_json::from_str::<crate::ui::pose_system::PosesConfig>(body_str) {
@@ -35,7 +35,7 @@ pub fn handle_post_poses(
 
 pub fn handle_tuner_preview(
     body_str: &str,
-    stream: &mut TcpStream,
+    stream: &mut dyn Write,
     shared: &Arc<Mutex<ServerSharedState>>,
 ) {
     #[derive(Deserialize)]
@@ -70,7 +70,7 @@ pub fn handle_tuner_preview(
 
 pub fn handle_tuner_live(
     body_str: &str,
-    stream: &mut TcpStream,
+    stream: &mut dyn Write,
     shared: &Arc<Mutex<ServerSharedState>>,
 ) {
     #[derive(Deserialize)]

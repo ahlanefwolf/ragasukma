@@ -1,9 +1,7 @@
 use rust_embed::RustEmbed;
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 
 use crate::app_state::*;
 use crate::services::*;
@@ -12,7 +10,81 @@ use crate::services::*;
 #[folder = "web/dist"]
 pub struct EmbeddedWebDist;
 
-pub fn send_json_response(stream: &mut TcpStream, status: u16, json: &str) {
+// In-Memory Bidirectional Channel Stream Bridge
+// Zero OS socket overhead, purely in-memory buffers
+
+
+pub struct VirtualHttpResponse {
+    pub status: u16,
+    pub headers: Vec<(String, String)>,
+    pub body: Vec<u8>,
+}
+
+pub struct VirtualHttpStream {
+    pub response: VirtualHttpResponse,
+    buffer: Vec<u8>,
+}
+
+impl Default for VirtualHttpStream {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl VirtualHttpStream {
+    pub fn new() -> Self {
+        Self {
+            response: VirtualHttpResponse {
+                status: 200,
+                headers: Vec::new(),
+                body: Vec::new(),
+            },
+            buffer: Vec::new(),
+        }
+    }
+
+    pub fn parse_buffer_if_needed(&mut self) {
+        if !self.buffer.is_empty() {
+            if let Some(pos) = self.buffer.windows(4).position(|w| w == b"\r\n\r\n") {
+                let header_part = String::from_utf8_lossy(&self.buffer[..pos]);
+                let body_part = self.buffer[pos + 4..].to_vec();
+
+                let mut lines = header_part.lines();
+                if let Some(status_line) = lines.next() {
+                    let parts: Vec<&str> = status_line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        if let Ok(code) = parts[1].parse::<u16>() {
+                            self.response.status = code;
+                        }
+                    }
+                }
+
+                for line in lines {
+                    if let Some((k, v)) = line.split_once(':') {
+                        self.response.headers.push((k.trim().to_string(), v.trim().to_string()));
+                    }
+                }
+
+                self.response.body = body_part;
+                self.buffer.clear();
+            }
+        }
+    }
+}
+
+impl Write for VirtualHttpStream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.buffer.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.parse_buffer_if_needed();
+        Ok(())
+    }
+}
+
+pub fn send_json_response<W: Write + ?Sized>(stream: &mut W, status: u16, json: &str) {
     let status_text = match status {
         200 => "OK",
         400 => "Bad Request",
@@ -36,8 +108,8 @@ pub fn send_json_response(stream: &mut TcpStream, status: u16, json: &str) {
     let _ = stream.write_all(resp.as_bytes());
 }
 
-pub fn send_disk_file_stream_with_range(
-    stream: &mut TcpStream,
+pub fn send_disk_file_stream_with_range<W: Write + ?Sized>(
+    stream: &mut W,
     mime_type: &str,
     file_path: &std::path::Path,
     header_str: &str,
@@ -138,14 +210,14 @@ pub fn send_disk_file_stream_with_range(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn handle_api_route(
+pub fn handle_api_route<W: Write>(
     method: &str,
     url: &str,
     full_url: &str,
     header_str: &str,
     body_str: &str,
     body_bytes: &[u8],
-    mut stream: TcpStream,
+    mut stream: W,
     shared: Arc<Mutex<ServerSharedState>>,
 ) {
     match (method, url) {
@@ -252,14 +324,6 @@ pub fn handle_api_route(
         ("POST", "/api/remote/tunnel/install") => handle_tunnel_install(&mut stream),
         ("POST", "/api/remote/tunnel/start") => handle_tunnel_start(&mut stream),
         ("POST", "/api/remote/tunnel/stop") => handle_tunnel_stop(&mut stream),
-        ("POST", "/api/remote/active") => {
-            crate::app_state::touch_remote_active();
-            send_json_response(
-                &mut stream,
-                200,
-                "{\"success\":true,\"message\":\"Remote heartbeat updated\"}",
-            );
-        }
         ("POST", "/api/stt/transcript") => handle_stt_transcript(body_str, &mut stream),
         ("POST", "/api/tts/state") => handle_tts_state(body_str, &mut stream, &shared),
         ("POST", "/api/tts/synthesize") => handle_tts_synthesize(body_str, &mut stream),
@@ -276,7 +340,7 @@ pub fn handle_api_route(
         ("POST", "/api/session/tab") => handle_session_tab(body_str, &mut stream),
 
         // Logs Service
-        ("GET", "/api/logs") => handle_get_logs(&mut stream),
+        ("GET", path) if path.starts_with("/api/logs") => handle_get_logs(full_url, &mut stream),
         ("POST", "/api/logs/clear") => handle_clear_logs(&mut stream),
 
         // LLM Providers - Antigravity
@@ -314,8 +378,7 @@ pub fn handle_api_route(
         ("GET", "/api/state") => handle_get_state(&mut stream, &shared),
         ("POST", "/api/state") => handle_post_state(body_str, &mut stream, &shared),
 
-        // Events Service (SSE Stream & Actions Polling)
-        ("GET", "/api/events") | ("GET", "/api/events/state") => handle_sse_state(stream, shared),
+        // Events Service (Actions Polling)
         ("GET", path) if path.starts_with("/api/actions/since") => {
             handle_get_actions_since(full_url, &mut stream);
         }
@@ -440,166 +503,291 @@ pub fn handle_api_route(
     }
 }
 
-pub fn read_http_request(stream: &mut TcpStream) -> std::io::Result<(String, Vec<u8>)> {
-    let mut header_bytes = Vec::new();
-    let mut buf = [0u8; 4096];
-    let mut header_end_pos = None;
 
-    loop {
-        let n = stream.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        header_bytes.extend_from_slice(&buf[..n]);
-        if let Some(pos) = header_bytes.windows(4).position(|w| w == b"\r\n\r\n") {
-            header_end_pos = Some(pos);
-            break;
-        }
-        if header_bytes.len() > 1024 * 1024 {
-            break;
+
+async fn axum_tts_audio_handler(
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    let req_id = params.get("id").map(|s| s.as_str());
+    let requested_format = params.get("format").map(|s| s.as_str());
+
+    // 1. If WAV explicitly requested, serve raw WAV
+    if requested_format == Some("wav") {
+        if let Some(wav_bytes) = crate::audio::supertonic::get_last_audio_wav(req_id) {
+            return serve_audio_bytes_with_range(wav_bytes, "audio/wav", &headers);
         }
     }
 
-    let end_pos = match header_end_pos {
-        Some(pos) => pos,
-        None => {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Incomplete HTTP headers",
-            ));
-        }
-    };
+    // 2. High-speed, high-efficiency Opus audio (~95% smaller payload)
+    if let Some(opus_bytes) = crate::audio::supertonic::get_last_audio_opus(req_id) {
+        return serve_audio_bytes_with_range(opus_bytes, "audio/ogg; codecs=opus", &headers);
+    }
 
-    let header_str = String::from_utf8_lossy(&header_bytes[..end_pos]).to_string();
-    let mut content_length = 0usize;
-    for line in header_str.lines() {
-        let lower = line.to_lowercase();
-        if lower.starts_with("content-length:") {
-            if let Some(val) = line.split(':').nth(1) {
-                content_length = val.trim().parse::<usize>().unwrap_or(0);
+    // 3. If Opus not cached yet, encode on-the-fly and cache
+    if let Some(wav_bytes) = crate::audio::supertonic::get_last_audio_wav(req_id) {
+        if let Ok(opus_bytes) = crate::audio::opus::encode_wav_to_opus(&wav_bytes) {
+            if let Some(id) = req_id {
+                crate::audio::supertonic::set_last_audio_opus(id.to_string(), opus_bytes.clone());
             }
+            return serve_audio_bytes_with_range(opus_bytes, "audio/ogg; codecs=opus", &headers);
         }
+        // Fallback to WAV if Opus encoding unavailable
+        return serve_audio_bytes_with_range(wav_bytes, "audio/wav", &headers);
     }
 
-    if content_length > 100 * 1024 * 1024 {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "HTTP Content-Length exceeds 100MB limit",
-        ));
-    }
-
-    let initial_body = header_bytes[end_pos + 4..].to_vec();
-    let mut body = initial_body;
-    while body.len() < content_length {
-        let to_read = (content_length - body.len()).min(65536);
-        let mut chunk = vec![0u8; to_read];
-        let n = stream.read(&mut chunk)?;
-        if n == 0 {
-            break;
-        }
-        body.extend_from_slice(&chunk[..n]);
-    }
-
-    Ok((header_str, body))
+    (
+        axum::http::StatusCode::NOT_FOUND,
+        axum::Json(serde_json::json!({ "error": "TTS Audio not found or not synthesized yet" })),
+    )
+        .into_response()
 }
 
-fn handle_client(mut stream: TcpStream, shared: Arc<Mutex<ServerSharedState>>) {
-    // Prevent endless hanging sockets when browser refreshes rapidly
-    let _ = stream.set_nodelay(true);
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(3)));
-    let _ = stream.set_write_timeout(Some(Duration::from_secs(3)));
+async fn axum_music_stream_handler(
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
 
-    let (header_str, body_bytes) = match read_http_request(&mut stream) {
-        Ok(res) => res,
-        Err(_) => return,
+    let filename = params
+        .get("filename")
+        .or_else(|| params.get("file"))
+        .cloned()
+        .unwrap_or_default();
+
+    if filename.is_empty() {
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({ "error": "Missing filename param" })),
+        )
+            .into_response();
+    }
+
+    serve_music_file(&filename, &headers)
+}
+
+async fn axum_music_stream_path_handler(
+    axum::extract::Path(path): axum::extract::Path<String>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    let clean_filename = crate::services::music_service::decode_url_component(&path);
+    serve_music_file(&clean_filename, &headers)
+}
+
+fn serve_music_file(filename: &str, headers: &axum::http::HeaderMap) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    let music_dir = crate::config::get_music_dir();
+    let file_path = music_dir.join(filename);
+
+    if !file_path.exists() || !file_path.is_file() {
+        return (
+            axum::http::StatusCode::NOT_FOUND,
+            axum::Json(serde_json::json!({ "error": "File not found" })),
+        )
+            .into_response();
+    }
+
+    let ext = file_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let mime_type = match ext.as_str() {
+        "mp3" => "audio/mpeg",
+        "webm" => "audio/webm",
+        "opus" => "audio/opus",
+        "ogg" => "audio/ogg",
+        "m4a" | "mp4" | "aac" => "audio/mp4",
+        "wav" => "audio/wav",
+        "flac" => "audio/flac",
+        _ => "application/octet-stream",
     };
 
-    let mut lines = header_str.lines();
-    let request_line = match lines.next() {
-        Some(l) => l,
-        None => return,
+    match std::fs::read(&file_path) {
+        Ok(bytes) => serve_audio_bytes_with_range(bytes, mime_type, headers),
+        Err(_) => (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(serde_json::json!({ "error": "Failed to read audio file" })),
+        )
+            .into_response(),
+    }
+}
+
+fn serve_audio_bytes_with_range(
+    bytes: Vec<u8>,
+    mime_type: &str,
+    headers: &axum::http::HeaderMap,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    let total_len = bytes.len() as u64;
+    let range_header = headers
+        .get("range")
+        .and_then(|v| v.to_str().ok());
+
+    let (start, end, is_range) = if let Some(range_val) = range_header {
+        if let Some(bytes_range) = range_val.strip_prefix("bytes=") {
+            let parts: Vec<&str> = bytes_range.split('-').collect();
+            let start = parts
+                .first()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(0);
+            let end = parts
+                .get(1)
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(total_len.saturating_sub(1))
+                .min(total_len.saturating_sub(1));
+
+            if start <= end && start < total_len {
+                (start, end, true)
+            } else {
+                (0, total_len.saturating_sub(1), false)
+            }
+        } else {
+            (0, total_len.saturating_sub(1), false)
+        }
+    } else {
+        (0, total_len.saturating_sub(1), false)
     };
 
-    let parts: Vec<&str> = request_line.split_whitespace().collect();
-    if parts.len() < 2 {
-        return;
-    }
-    let method = parts[0];
-    let full_url = parts[1];
-    let url = full_url.split('?').next().unwrap_or(full_url);
+    let chunk_len = (end - start) + 1;
+    let start_idx = (start as usize).min(bytes.len());
+    let end_idx = ((end + 1) as usize).min(bytes.len());
+    let slice = bytes[start_idx..end_idx].to_vec();
 
-    // If this is an SSE endpoint or OpenAI API /v1, remove read/write timeouts so that long-lived streams don't get interrupted timeouts
-    if url.starts_with("/api/events") || url.starts_with("/v1") || url.starts_with("/api/v1") {
-        let _ = stream.set_read_timeout(None);
-        let _ = stream.set_write_timeout(None);
+    if is_range {
+        axum::response::Response::builder()
+            .status(axum::http::StatusCode::PARTIAL_CONTENT)
+            .header("Content-Type", mime_type)
+            .header("Content-Range", format!("bytes {}-{}/{}", start, end, total_len))
+            .header("Content-Length", chunk_len.to_string())
+            .header("Accept-Ranges", "bytes")
+            .header("Cache-Control", "no-cache, no-store")
+            .header("Access-Control-Allow-Origin", "*")
+            .body(axum::body::Body::from(slice))
+            .unwrap_or_else(|_| (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response())
+    } else {
+        axum::response::Response::builder()
+            .status(axum::http::StatusCode::OK)
+            .header("Content-Type", mime_type)
+            .header("Content-Length", total_len.to_string())
+            .header("Accept-Ranges", "bytes")
+            .header("Cache-Control", "no-cache, no-store")
+            .header("Access-Control-Allow-Origin", "*")
+            .body(axum::body::Body::from(slice))
+            .unwrap_or_else(|_| (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response())
     }
+}
 
-    // CORS preflight OPTIONS
-    if method == "OPTIONS" {
-        let resp = "HTTP/1.1 204 No Content\r\n\
-                    Access-Control-Allow-Origin: *\r\n\
-                    Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n\
-                    Access-Control-Allow-Headers: *\r\n\
-                    Connection: close\r\n\
-                    Content-Length: 0\r\n\r\n";
-        let _ = stream.write_all(resp.as_bytes());
-        return;
+async fn handle_axum_fallback(
+    req: axum::extract::Request,
+    shared: Arc<Mutex<ServerSharedState>>,
+) -> axum::response::Response {
+    use axum::body::to_bytes;
+    use axum::response::IntoResponse;
+
+    let (parts, body) = req.into_parts();
+    let method = parts.method.as_str().to_string();
+    let full_url = parts.uri.to_string();
+    let url = parts.uri.path().to_string();
+
+    let mut header_str = format!("{} {} HTTP/1.1\r\n", method, full_url);
+    for (k, v) in parts.headers.iter() {
+        if let Ok(v_str) = v.to_str() {
+            header_str.push_str(&format!("{}: {}\r\n", k.as_str(), v_str));
+        }
     }
+    header_str.push_str("\r\n");
 
-    let body_str = std::str::from_utf8(&body_bytes).unwrap_or_default();
+    let body_bytes = match to_bytes(body, 100 * 1024 * 1024).await {
+        Ok(b) => b.to_vec(),
+        Err(_) => Vec::new(),
+    };
+
+    let body_str = String::from_utf8_lossy(&body_bytes).to_string();
+    let mut virtual_stream = VirtualHttpStream::new();
 
     handle_api_route(
-        method,
-        url,
-        full_url,
+        &method,
+        &url,
+        &full_url,
         &header_str,
-        body_str,
+        &body_str,
         &body_bytes,
-        stream,
+        &mut virtual_stream,
         shared,
     );
-}
+    virtual_stream.parse_buffer_if_needed();
 
-static PREBOUND_TCP_LISTENER: Mutex<Option<TcpListener>> = Mutex::new(None);
-
-pub fn register_prebound_listener(listener: TcpListener) {
-    if let Ok(mut lock) = PREBOUND_TCP_LISTENER.lock() {
-        *lock = Some(listener);
+    let mut builder = axum::response::Response::builder().status(virtual_stream.response.status);
+    for (k, v) in virtual_stream.response.headers {
+        let k_trim = k.trim();
+        let v_trim = v.trim();
+        if !k_trim.eq_ignore_ascii_case("connection")
+            && !k_trim.eq_ignore_ascii_case("content-length")
+        {
+            builder = builder.header(k_trim, v_trim);
+        }
     }
-}
 
-pub fn take_prebound_listener() -> Option<TcpListener> {
-    if let Ok(mut lock) = PREBOUND_TCP_LISTENER.lock() {
-        lock.take()
-    } else {
-        None
-    }
+    builder
+        .body(axum::body::Body::from(virtual_stream.response.body))
+        .unwrap_or_else(|_| (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response())
 }
 
 pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
     thread::spawn(move || {
-        let addr = "127.0.0.1:42128";
-        let listener = if let Some(prebound) = take_prebound_listener() {
-            println!(" [Web Dashboard & API Server] Running at http://{}", addr);
-            prebound
-        } else {
-            match TcpListener::bind(addr) {
-                Ok(l) => {
-                    println!(" [Web Dashboard & API Server] Running at http://{}", addr);
-                    l
-                }
-                Err(e) => {
-                    eprintln!("[Web Server] Failed to bind to {}: {}", addr, e);
-                    return;
-                }
+        let addr_str = "127.0.0.1:42128";
+
+        let rt = match tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(4)
+            .enable_all()
+            .build()
+        {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("[Web Server] Failed to initialize Tokio runtime: {}", e);
+                return;
             }
         };
 
-        for stream in listener.incoming().flatten() {
-            let shared_clone = Arc::clone(&shared);
-            thread::spawn(move || {
-                handle_client(stream, shared_clone);
-            });
-        }
+        rt.block_on(async move {
+            let tokio_listener = match tokio::net::TcpListener::bind(addr_str).await {
+                Ok(l) => {
+                    println!(" [Web Dashboard & API Server] Running at http://{}", addr_str);
+                    l
+                }
+                Err(e) => {
+                    eprintln!("[Web Server] Failed to bind Tokio TcpListener to {}: {}", addr_str, e);
+                    return;
+                }
+            };
+
+            let cors = tower_http::cors::CorsLayer::permissive();
+
+            let app = axum::Router::new()
+                .route("/api/ws", axum::routing::get(crate::services::events_service::axum_ws_handler))
+                .route("/api/tts/audio", axum::routing::get(axum_tts_audio_handler))
+                .route("/api/music/stream", axum::routing::get(axum_music_stream_handler))
+                .route("/music/*path", axum::routing::get(axum_music_stream_path_handler))
+                .layer(cors)
+                .fallback({
+                    let shared_for_fallback = Arc::clone(&shared);
+                    move |req: axum::extract::Request| {
+                        let shared = Arc::clone(&shared_for_fallback);
+                        async move {
+                            handle_axum_fallback(req, shared).await
+                        }
+                    }
+                })
+                .with_state(shared);
+
+            if let Err(e) = axum::serve(tokio_listener, app).await {
+                eprintln!("[Web Server] Axum server error: {}", e);
+            }
+        });
     });
 }

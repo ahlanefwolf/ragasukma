@@ -20,6 +20,7 @@ import {
   currentTime,
   duration,
   volume,
+  isFullMobileActive,
   formatDuration,
   pauseMusic,
   resumeMusic,
@@ -52,12 +53,16 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
       <div class="w-full shrink-0 z-40 select-none border-t border-theme-border bg-theme-bg/95 backdrop-blur-xl">
         <div class="relative overflow-hidden">
           {/* Subtle Top Progress Line */}
-          <div class="w-full h-1 bg-theme-border/60 relative cursor-pointer" onClick={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const pos = (e.clientX - rect.left) / rect.width;
-            const dur = duration() || currentTrack()?.duration || 100;
-            seekMusic(pos * dur);
-          }}>
+          <div
+            class={`w-full h-1 bg-theme-border/60 relative ${isFullMobileActive() ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+            onClick={(e) => {
+              if (isFullMobileActive()) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const pos = (e.clientX - rect.left) / rect.width;
+              const dur = duration() || currentTrack()?.duration || 100;
+              seekMusic(pos * dur);
+            }}
+          >
             <div
               class="h-full bg-gradient-to-r from-theme-cyan via-theme-rose to-theme-cyan transition-all duration-150 relative shadow-[0_0_8px_rgba(89,107,69,0.5)]"
               style={{ width: `${progressPercent()}%` }}
@@ -110,6 +115,11 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
                 <p class="text-xs text-theme-text/60 truncate mt-0.5 font-medium">
                   {currentTrack()?.uploader || 'Local Library'}
                 </p>
+                <Show when={isFullMobileActive()}>
+                  <span class="inline-block mt-0.5 px-1.5 py-0.2 text-[9.5px] font-mono font-bold bg-theme-rose/20 text-theme-rose border border-theme-rose/40">
+                    AUDIO ON MOBILE (FULL HP)
+                  </span>
+                </Show>
               </div>
             </div>
 
@@ -189,15 +199,19 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
                     <Volume2 size={15} />
                   </Show>
                 </button>
+                {/* Volume slider */}
                 <input
                   type="range"
                   min="0"
                   max="1"
                   step="0.05"
                   value={volume()}
+                  disabled={isFullMobileActive()}
                   onInput={(e) => changeVolume(parseFloat(e.currentTarget.value))}
-                  class="w-20 h-1.5 bg-theme-border appearance-none cursor-pointer accent-theme-cyan"
-                  title={`Volume: ${Math.round(volume() * 100)}%`}
+                  class={`w-20 h-1.5 bg-theme-border appearance-none cursor-pointer accent-theme-cyan ${
+                    isFullMobileActive() ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  title={isFullMobileActive() ? 'Mode Full HP aktif di HP' : `Volume: ${Math.round(volume() * 100)}%`}
                 />
               </div>
 

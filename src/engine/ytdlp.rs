@@ -286,19 +286,21 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
         })
         .unwrap_or_default();
 
-    // Use -f "ba[ext=m4a]/ba" (best audio M4A/AAC or best audio)
-    // Use --print "after_move:..." so that yt-dlp CORRECT-CORRECT mendownload file to disk
-    // then print metadata after file is completely written
+    // Extract audio directly to MP3 using yt-dlp / ffmpeg for maximum stability and compatibility across all platforms
+    // Use --print "after_move:..." so that yt-dlp prints metadata after file is completely written
     let mut child = ytdlp_command()
         .current_dir(&abs_out_dir)
         .args([
             "--no-playlist",
-            "-f",
-            "ba[ext=m4a]/ba",
+            "-x",
+            "--audio-format",
+            "mp3",
+            "--audio-quality",
+            "0",
             "-o",
             "%(title)s [%(id)s].%(ext)s",
             "--print",
-            "after_move:%(id)s\t%(title)s\t%(uploader)s\t%(filename)s",
+            "after_move:%(id)s\t%(title)s\t%(uploader)s\t%(duration)s\t%(filename)s",
             "--no-warnings",
             &target,
         ])
@@ -343,7 +345,50 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
     // 1. Coba parse metadata persis from stdout yt-dlp (after_move)
     for line in stdout_str.lines().rev() {
         let parts: Vec<&str> = line.split('\t').collect();
-        if parts.len() >= 4 {
+        if parts.len() >= 5 {
+            let id = parts[0].trim().to_string();
+            let title = parts[1].trim().to_string();
+            let uploader = parts[2].trim().to_string();
+            let duration: u64 = parts[3].trim().parse().unwrap_or(0);
+            let raw_filename = parts[4].trim().to_string();
+
+            let filename = std::path::Path::new(&raw_filename)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(&raw_filename)
+                .to_string();
+
+            if !filename.is_empty() && abs_out_dir.join(&filename).exists() {
+                let thumbnail = if !id.is_empty() {
+                    Some(format!("https://i.ytimg.com/vi/{}/hqdefault.jpg", id))
+                } else {
+                    None
+                };
+
+                let real_dur = if duration > 0 {
+                    duration
+                } else {
+                    estimate_audio_duration_secs(&abs_out_dir.join(&filename))
+                };
+
+                println!(
+                    "[yt-dlp] Audio file successfully saved & loaded: {} ({}, dur: {}s)",
+                    title, filename, real_dur
+                );
+                return Ok(YtTrackInfo {
+                    id,
+                    title,
+                    uploader: if uploader.is_empty() {
+                        "YouTube Audio".to_string()
+                    } else {
+                        uploader
+                    },
+                    duration: real_dur,
+                    thumbnail,
+                    filename,
+                });
+            }
+        } else if parts.len() >= 4 {
             let id = parts[0].trim().to_string();
             let title = parts[1].trim().to_string();
             let uploader = parts[2].trim().to_string();
@@ -362,9 +407,11 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
                     None
                 };
 
+                let real_dur = estimate_audio_duration_secs(&abs_out_dir.join(&filename));
+
                 println!(
-                    "[yt-dlp] Audio file successfully saved & loaded: {} ({})",
-                    title, filename
+                    "[yt-dlp] Audio file successfully saved & loaded: {} ({}, dur: {}s)",
+                    title, filename, real_dur
                 );
                 return Ok(YtTrackInfo {
                     id,
@@ -374,7 +421,7 @@ pub fn download_audio(query: &str, out_dir: &Path) -> anyhow::Result<YtTrackInfo
                     } else {
                         uploader
                     },
-                    duration: 0,
+                    duration: real_dur,
                     thumbnail,
                     filename,
                 });
@@ -522,11 +569,13 @@ pub fn list_downloaded(music_dir: &Path) -> Vec<YtTrackInfo> {
             "YouTube Audio".to_string()
         };
 
+        let duration = estimate_audio_duration_secs(&path);
+
         tracks.push(YtTrackInfo {
             id,
             title,
             uploader,
-            duration: 0,
+            duration,
             thumbnail,
             filename,
         });
@@ -534,6 +583,58 @@ pub fn list_downloaded(music_dir: &Path) -> Vec<YtTrackInfo> {
 
     tracks.sort_by(|a, b| a.title.cmp(&b.title));
     tracks
+}
+
+/// Estimates audio duration in seconds using ffprobe if available, or symphonia/file probing
+pub fn estimate_audio_duration_secs(path: &Path) -> u64 {
+    if !path.exists() {
+        return 0;
+    }
+
+    // 1. Try ffprobe for 100% accurate duration
+    if let Ok(out) = Command::new("ffprobe")
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            path.to_str().unwrap_or_default(),
+        ])
+        .output()
+    {
+        if out.status.success() {
+            let dur_str = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if let Ok(dur_f) = dur_str.parse::<f64>() {
+                if dur_f > 0.0 {
+                    return dur_f.round() as u64;
+                }
+            }
+        }
+    }
+
+    // 2. Fallback heuristic based on typical high-quality audio bitrate (~256 kbps = 32000 bytes/sec)
+    if let Ok(meta) = std::fs::metadata(path) {
+        let size_bytes = meta.len();
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        let bytes_per_sec = match ext.as_str() {
+            "wav" => 176400, // 44.1kHz 16bit stereo
+            "flac" => 90000,
+            _ => 32000,      // yt-dlp mp3 audio-quality 0 generates ~256-320kbps
+        };
+
+        if let Some(duration) = size_bytes.checked_div(bytes_per_sec) {
+            return duration.max(1);
+        }
+    }
+
+    0
 }
 
 /// Parse "(title) [(id)].ext" from filename if no sidecar exists

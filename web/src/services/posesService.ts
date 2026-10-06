@@ -13,6 +13,41 @@ export interface PoseKeyframes {
 export type PosesConfig = Record<string, PoseKeyframes>;
 
 let liveTunerAbortController: AbortController | null = null;
+let tunerWs: WebSocket | null = null;
+let tunerWsConnecting = false;
+
+function getTunerWs(): WebSocket | null {
+  if (typeof window === 'undefined') return null;
+  if (tunerWs && tunerWs.readyState === WebSocket.OPEN) {
+    return tunerWs;
+  }
+  if (tunerWsConnecting) return null;
+
+  try {
+    tunerWsConnecting = true;
+    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = API_BASE.replace(/^https?:\/\//, '');
+    const wsUrl = `${wsProto}//${wsHost}/api/ws`;
+    const socket = new WebSocket(wsUrl);
+
+    socket.onopen = () => {
+      tunerWsConnecting = false;
+      tunerWs = socket;
+    };
+    socket.onerror = () => {
+      tunerWsConnecting = false;
+      tunerWs = null;
+    };
+    socket.onclose = () => {
+      tunerWsConnecting = false;
+      tunerWs = null;
+    };
+    return socket;
+  } catch {
+    tunerWsConnecting = false;
+    return null;
+  }
+}
 
 export const posesService = {
   async getPoses(): Promise<PosesConfig | null> {
@@ -61,7 +96,22 @@ export const posesService = {
     emotion?: string,
     state?: string
   ): Promise<boolean> {
-    // Cancel previous in-flight slider request if still running
+    // 1. Ultra-fast WebSocket path (sub-millisecond 60 FPS slider sync)
+    const ws = getTunerWs();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({
+          type: 'tuner_live',
+          active,
+          bones,
+          emotion,
+          state,
+        }));
+        return true;
+      } catch {}
+    }
+
+    // 2. HTTP Fallback
     if (liveTunerAbortController) {
       liveTunerAbortController.abort();
     }
@@ -77,7 +127,6 @@ export const posesService = {
       return res.ok;
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        // Normal when cancelled oleh slider input new
         return true;
       }
       return false;

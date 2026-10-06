@@ -476,11 +476,6 @@ pub fn cleanup_browser_sessions_on_startup() {
             let _ = fs::write(&local, &json_pretty);
         }
     }
-    // Also delete legacy browser_sessions directory if it exists
-    let old_dir = PathBuf::from("assets/browser_sessions");
-    if old_dir.exists() {
-        let _ = fs::remove_dir_all(&old_dir);
-    }
     println!("[Active Tab] Initializing 'assets/active_tab_browser.json' for new session.");
 }
 

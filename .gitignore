@@ -52,6 +52,8 @@ ai_voice_state.json
 overlay_pos.json
 assets/histories/
 /assets/histories/
+assets/recipes/
+/assets/recipes/
 
 # ------------------------------------------------------------------------------
 # OS, IDE & Editor metadata

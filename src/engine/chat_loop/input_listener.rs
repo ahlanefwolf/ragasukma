@@ -31,8 +31,22 @@ pub fn wait_for_user_turn(session: &mut AppSession, text_rx: &Receiver<String>) 
         }
 
         if let Ok(incoming_text) = text_rx.try_recv() {
-            let trimmed = incoming_text.trim();
+            // Drain any buffered older messages so only the latest user command is executed
+            let mut latest_text = incoming_text;
+            while let Ok(next_msg) = text_rx.try_recv() {
+                let next_trimmed = next_msg.trim();
+                if !next_trimmed.is_empty() {
+                    latest_text = next_msg;
+                }
+            }
+
+            let trimmed = latest_text.trim();
             if !trimmed.is_empty() {
+                // Instantly cut off assistant voice & clear speaking state on new user speech
+                crate::audio::player::stop_native_voice();
+                crate::app_state::trigger_interruption();
+                crate::app_state::set_ai_speaking(false);
+
                 return LoopAction::TextInput(trimmed.to_string());
             }
         }

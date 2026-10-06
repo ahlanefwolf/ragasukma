@@ -1,14 +1,17 @@
 use std::io::Cursor;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::OnceLock;
 use std::sync::atomic::Ordering;
 
 static CURRENT_TITLE: Mutex<Option<String>> = Mutex::new(None);
+static CURRENT_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
+static CURRENT_MUSIC_VOLUME: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(100);
 
 static AUDIO_HANDLE: OnceLock<Option<rodio::OutputStreamHandle>> = OnceLock::new();
 static NATIVE_MUSIC_SINK: Mutex<Option<rodio::Sink>> = Mutex::new(None);
-static NATIVE_VOICE_SINK: Mutex<Option<rodio::Sink>> = Mutex::new(None);
+static NATIVE_VOICE_SINK: Mutex<Option<Arc<rodio::Sink>>> = Mutex::new(None);
 static VOICE_PLAYBACK_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -193,173 +196,154 @@ fn get_audio_handle() -> Option<rodio::OutputStreamHandle> {
         .clone()
 }
 
-#[derive(Clone, Copy, Debug)]
-struct VoiceStreamControl {
-    generation: u64,
-    is_completed: bool,
+pub struct VoiceStreamSender {
+    sender: std::sync::mpsc::Sender<Option<Vec<u8>>>,
 }
 
-static VOICE_STREAM_CONTROL: Mutex<Option<VoiceStreamControl>> = Mutex::new(None);
+impl VoiceStreamSender {
+    pub fn push_chunk(&self, wav_bytes: Vec<u8>) {
+        let _ = self.sender.send(Some(wav_bytes));
+    }
 
-/// Plays Supertonic AI audio response chunks gaplessly via streaming to PC speakers
-pub fn play_native_voice_chunk(chunk_idx: usize, total_chunks: usize, wav_bytes: Vec<u8>) {
+    pub fn finish(&self) {
+        let _ = self.sender.send(None);
+    }
+}
+
+/// Starts an asynchronous, gapless streaming voice session.
+/// Chunks of WAV audio can be pushed sequentially while previous chunks are actively playing.
+pub fn start_voice_stream(emotion: String, asst_name: String) -> VoiceStreamSender {
+    let (tx, rx) = std::sync::mpsc::channel::<Option<Vec<u8>>>();
+
     if crate::app_state::is_voice_muted() {
-        return;
+        return VoiceStreamSender { sender: tx };
     }
 
-    if chunk_idx == 0 {
-        // First chunk: initialize new playback session
-        let my_gen = VOICE_PLAYBACK_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    let my_gen = VOICE_PLAYBACK_GEN.fetch_add(1, Ordering::SeqCst) + 1;
 
-        if let Ok(mut ctrl) = VOICE_STREAM_CONTROL.lock() {
-            *ctrl = Some(VoiceStreamControl {
-                generation: my_gen,
-                is_completed: total_chunks <= 1,
-            });
-        }
+    std::thread::spawn(move || {
+        let mut sink_arc: Option<Arc<rodio::Sink>> = None;
+        let mut is_speaking_triggered = false;
 
-        // Extract PCM sample data and sample_rate for precise AIUEO lip synchronization
-        if let Some((samples, sr)) = parse_wav_samples(&wav_bytes) {
-            if let Ok(mut lock) = ACTIVE_VOICE_SPEECH.lock() {
-                *lock = Some(ActiveVoiceSpeech {
-                    samples,
-                    sample_rate: sr,
-                    start_instant: std::time::Instant::now(),
-                });
+        while let Ok(msg) = rx.recv() {
+            if VOICE_PLAYBACK_GEN.load(Ordering::SeqCst) != my_gen {
+                break;
             }
-        }
 
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
-            if let Some(handle) = get_audio_handle() {
-                if let Ok(decoder) = rodio::Decoder::new(Cursor::new(wav_bytes)) {
-                    if let Ok(sink) = rodio::Sink::try_new(&handle) {
-                        // Duck native music if currently playing
-                        if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
-                            if let Some(ref m_sink) = *music_lock {
-                                m_sink.set_volume(0.25);
+            match msg {
+                Some(wav_bytes) => {
+                    // Extract PCM samples & append to lip-sync formant analyzer with clock alignment
+                    if let Some((samples, sr)) = parse_wav_samples(&wav_bytes) {
+                        if let Ok(mut lock) = ACTIVE_VOICE_SPEECH.lock() {
+                            if let Some(ref mut speech) = *lock {
+                                let elapsed = speech.start_instant.elapsed().as_secs_f32();
+                                let buffered_secs =
+                                    speech.samples.len() as f32 / speech.sample_rate as f32;
+                                if elapsed > buffered_secs {
+                                    let gap_samples =
+                                        ((elapsed - buffered_secs) * speech.sample_rate as f32) as usize;
+                                    speech.samples.extend(std::iter::repeat_n(0.0f32, gap_samples));
+                                }
+                                speech.samples.extend(samples);
+                            } else {
+                                *lock = Some(ActiveVoiceSpeech {
+                                    samples,
+                                    sample_rate: sr,
+                                    start_instant: std::time::Instant::now(),
+                                });
                             }
                         }
-                        sink.append(decoder);
-                        if let Ok(mut lock) = NATIVE_VOICE_SINK.lock() {
-                            if let Some(old) = lock.take() {
-                                old.stop();
-                            }
-                            *lock = Some(sink);
-                        }
+                    }
 
-                        // Restore music volume after all AI voice chunks finish and return avatar state to Idle
-                        std::thread::spawn(move || {
-                            let mut last_chunk_time = std::time::Instant::now();
-                            loop {
-                                std::thread::sleep(std::time::Duration::from_millis(100));
-                                if VOICE_PLAYBACK_GEN.load(Ordering::SeqCst) != my_gen {
-                                    // New voice thread or stop has already taken over
-                                    break;
-                                }
-
-                                let (is_completed, is_empty) = {
-                                    let empty = if let Ok(lock) = NATIVE_VOICE_SINK.lock() {
-                                        lock.as_ref().map(|s| s.empty()).unwrap_or(true)
-                                    } else {
-                                        true
-                                    };
-                                    let completed = if let Ok(ctrl) = VOICE_STREAM_CONTROL.lock() {
-                                        ctrl.as_ref().map(|c| c.is_completed).unwrap_or(true)
-                                    } else {
-                                        true
-                                    };
-                                    (completed, empty)
-                                };
-
-                                if !is_empty {
-                                    last_chunk_time = std::time::Instant::now();
-                                }
-
-                                // Playback complete if sink is already empty AND all chunks have been appended,
-                                // Or if stall exceeds the 8-second fail-safe
-                                if (is_empty && is_completed)
-                                    || (is_empty && last_chunk_time.elapsed().as_secs() >= 8)
-                                {
-                                    if VOICE_PLAYBACK_GEN.load(Ordering::SeqCst) != my_gen {
-                                        break;
-                                    }
-                                    if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
-                                        if let Some(ref m_sink) = *music_lock {
-                                            m_sink.set_volume(1.0);
+                    // Enqueue chunk into rodio sink
+                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        if let Some(handle) = get_audio_handle() {
+                            if let Ok(decoder) = rodio::Decoder::new(Cursor::new(wav_bytes)) {
+                                if sink_arc.is_none() {
+                                    if let Ok(new_sink) = rodio::Sink::try_new(&handle) {
+                                        // Duck background music
+                                        if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
+                                            if let Some(ref m_sink) = *music_lock {
+                                                m_sink.set_volume(get_music_volume() * 0.25);
+                                            }
                                         }
+                                        new_sink.append(decoder);
+                                        let arc = Arc::new(new_sink);
+                                        if let Ok(mut lock) = NATIVE_VOICE_SINK.lock() {
+                                            if let Some(old) = lock.take() {
+                                                old.stop();
+                                            }
+                                            *lock = Some(Arc::clone(&arc));
+                                        }
+                                        sink_arc = Some(arc);
                                     }
-                                    if let Ok(mut speech_lock) = ACTIVE_VOICE_SPEECH.lock() {
-                                        *speech_lock = None;
-                                    }
-                                    if let Ok(mut ctrl) = VOICE_STREAM_CONTROL.lock() {
-                                        *ctrl = None;
-                                    }
-                                    crate::app_state::set_ai_speaking(false);
-                                    crate::tray::TrayState::update_with_emotion(
-                                        crate::services::tray_service::AssistantState::Idle,
-                                        "Standby",
-                                        "neutral",
-                                    );
-                                    break;
+                                } else if let Some(ref sink) = sink_arc {
+                                    sink.append(decoder);
                                 }
                             }
-                        });
+                        }
+                    }));
+
+                    // Trigger Speaking state directly from worker player as soon as chunk 0 starts playing
+                    if !is_speaking_triggered {
+                        is_speaking_triggered = true;
+                        crate::app_state::set_ai_speaking(true);
+                        crate::app_state::touch_speech_activity();
+                        crate::tray::TrayState::update_with_emotion(
+                            crate::services::tray_service::AssistantState::Speaking,
+                            &format!("{asst_name} Speaking"),
+                            &emotion,
+                        );
                     }
                 }
+                None => {
+                    // End of stream marker from producer
+                    break;
+                }
             }
-        }));
-    } else {
-        // Subsequent chunks (> 0): check if still in active playback session
-        let current_gen = if let Ok(ctrl) = VOICE_STREAM_CONTROL.lock() {
-            ctrl.as_ref().map(|c| c.generation)
-        } else {
-            None
-        };
+        }
 
-        let Some(stream_gen) = current_gen else {
+        // Monitor playback until sink finishes playing all enqueued chunks
+        if let Some(sink) = sink_arc {
+            while !sink.empty() {
+                std::thread::sleep(std::time::Duration::from_millis(40));
+                if VOICE_PLAYBACK_GEN.load(Ordering::SeqCst) != my_gen {
+                    return;
+                }
+            }
+        }
+
+        if VOICE_PLAYBACK_GEN.load(Ordering::SeqCst) != my_gen {
             return;
-        };
-
-        if VOICE_PLAYBACK_GEN.load(Ordering::SeqCst) != stream_gen {
-            return;
         }
 
-        // Append PCM samples to active voice buffer so lip-sync remains synchronized
-        if let Some((new_samples, _)) = parse_wav_samples(&wav_bytes) {
-            if let Ok(mut lock) = ACTIVE_VOICE_SPEECH.lock() {
-                if let Some(ref mut speech) = *lock {
-                    speech.samples.extend(new_samples);
-                }
+        if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
+            if let Some(ref m_sink) = *music_lock {
+                m_sink.set_volume(get_music_volume());
             }
         }
-
-        // Enqueue audio directly to rodio Sink currently playing previous chunk
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
-            if let Ok(decoder) = rodio::Decoder::new(Cursor::new(wav_bytes)) {
-                if let Ok(lock) = NATIVE_VOICE_SINK.lock() {
-                    if let Some(ref sink) = *lock {
-                        sink.append(decoder);
-                    }
-                }
-            }
-        }));
-
-        if let Ok(mut ctrl) = VOICE_STREAM_CONTROL.lock() {
-            if let Some(ref mut c) = *ctrl {
-                if chunk_idx + 1 >= total_chunks {
-                    c.is_completed = true;
-                }
+        if let Ok(mut speech_lock) = ACTIVE_VOICE_SPEECH.lock() {
+            *speech_lock = None;
+        }
+        if let Ok(mut voice_lock) = NATIVE_VOICE_SINK.lock() {
+            if let Some(s) = voice_lock.take() {
+                s.stop();
             }
         }
-    }
+        crate::app_state::set_ai_speaking(false);
+        crate::tray::TrayState::update_with_emotion(
+            crate::services::tray_service::AssistantState::Idle,
+            "Standby",
+            "neutral",
+        );
+    });
+
+    VoiceStreamSender { sender: tx }
 }
 
 /// Stops native AI voice playback (e.g. during voice interruption or VAD barge-in)
 pub fn stop_native_voice() {
     VOICE_PLAYBACK_GEN.fetch_add(1, Ordering::SeqCst);
-    if let Ok(mut ctrl) = VOICE_STREAM_CONTROL.lock() {
-        *ctrl = None;
-    }
     if let Ok(mut lock) = NATIVE_VOICE_SINK.lock() {
         if let Some(sink) = lock.take() {
             sink.stop();
@@ -370,35 +354,30 @@ pub fn stop_native_voice() {
     }
     if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
         if let Some(ref m_sink) = *music_lock {
-            m_sink.set_volume(1.0);
+            m_sink.set_volume(get_music_volume());
         }
     }
 }
 
 /// Check whether native audio voice is currently playing on PC speakers
 pub fn is_native_voice_playing() -> bool {
-    let sink_active = if let Ok(lock) = NATIVE_VOICE_SINK.lock() {
+    if let Ok(lock) = NATIVE_VOICE_SINK.lock() {
         lock.as_ref().map(|s| !s.empty()).unwrap_or(false)
     } else {
         false
-    };
-    if sink_active {
-        return true;
     }
-    if let Ok(ctrl_lock) = VOICE_STREAM_CONTROL.lock() {
-        if let Some(ref ctrl) = *ctrl_lock {
-            return !ctrl.is_completed;
-        }
-    }
-    false
 }
 
 /// Sends audio play command (state synchronization and stream delegation to Web Dashboard & PiP)
 pub fn play_file(path: impl AsRef<Path>, title: impl Into<String>) {
     let t = title.into();
     let p = path.as_ref();
+    let path_buf = p.to_path_buf();
     if let Ok(mut lock) = CURRENT_TITLE.lock() {
         *lock = Some(t.clone());
+    }
+    if let Ok(mut lock) = CURRENT_PATH.lock() {
+        *lock = Some(path_buf.clone());
     }
     crate::term_log!(
         "[Music Controller] Playing track '{}' via Web Dashboard & PiP stream",
@@ -407,18 +386,18 @@ pub fn play_file(path: impl AsRef<Path>, title: impl Into<String>) {
 
     // Play to PC hardware speakers in a separate thread isolated with catch_unwind
     // so internal rodio format parser bugs never crash the main conversation session thread
-    let path_buf = p.to_path_buf();
     std::thread::spawn(move || {
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // If Phone Only mode is active (voice_muted = true), music only plays on phone, not on PC
             if !crate::app_state::is_voice_muted() && path_buf.exists() {
                 if let Some(handle) = get_audio_handle() {
-                    // Use in-memory Cursor buffer so symphonia decoder avoids seek errors during initialization
-                    if let Ok(bytes) = std::fs::read(&path_buf) {
-                        if let Ok(decoder) = rodio::Decoder::new(Cursor::new(bytes)) {
+                    // Open file stream directly with BufReader for optimal seek & decoder compatibility
+                    if let Ok(file) = std::fs::File::open(&path_buf) {
+                        if let Ok(decoder) = rodio::Decoder::new(std::io::BufReader::new(file)) {
                             if let Ok(sink) = rodio::Sink::try_new(&handle) {
                                 // If AI is currently speaking when music starts, apply ducked volume directly
-                                let current_vol = if crate::app_state::is_ai_speaking() { 0.25 } else { 1.0 };
+                                let user_vol = get_music_volume();
+                                let current_vol = if crate::app_state::is_ai_speaking() { user_vol * 0.25 } else { user_vol };
                                 sink.set_volume(current_vol);
                                 sink.append(decoder);
                                 if let Ok(mut lock) = NATIVE_MUSIC_SINK.lock() {
@@ -461,6 +440,9 @@ pub fn stop() {
     if let Ok(mut lock) = CURRENT_TITLE.lock() {
         *lock = None;
     }
+    if let Ok(mut lock) = CURRENT_PATH.lock() {
+        *lock = None;
+    }
     if let Ok(mut lock) = NATIVE_MUSIC_SINK.lock() {
         if let Some(sink) = lock.take() {
             sink.stop();
@@ -469,10 +451,98 @@ pub fn stop() {
     crate::term_log!("[Music Controller] Music stopped.");
 }
 
+/// Seek playback time in seconds
+pub fn seek(seconds: f32) {
+    if seconds < 0.0 {
+        return;
+    }
+    let dur = std::time::Duration::from_secs_f32(seconds);
+
+    // 1. First try native Sink try_seek
+    let mut seek_success = false;
+    if let Ok(lock) = NATIVE_MUSIC_SINK.lock() {
+        if let Some(ref sink) = *lock {
+            if sink.try_seek(dur).is_ok() {
+                seek_success = true;
+                crate::term_log!("[Music Controller] Seeked to {:.1}s via native sink", seconds);
+            }
+        }
+    }
+
+    // 2. If try_seek is not supported on current decoder, re-open audio file and seek stream
+    if !seek_success {
+        let was_paused = NATIVE_MUSIC_SINK
+            .lock()
+            .ok()
+            .and_then(|lock| lock.as_ref().map(|s| s.is_paused()))
+            .unwrap_or(false);
+
+        let path_opt = CURRENT_PATH.lock().ok().and_then(|p| p.clone());
+        if let Some(path_buf) = path_opt {
+            if path_buf.exists() {
+                if let Some(handle) = get_audio_handle() {
+                    if let Ok(file) = std::fs::File::open(&path_buf) {
+                        if let Ok(decoder) = rodio::Decoder::new(std::io::BufReader::new(file)) {
+                            if let Ok(sink) = rodio::Sink::try_new(&handle) {
+                                let user_vol = get_music_volume();
+                                let current_vol = if crate::app_state::is_ai_speaking() {
+                                    user_vol * 0.25
+                                } else {
+                                    user_vol
+                                };
+                                sink.set_volume(current_vol);
+                                sink.append(decoder);
+                                let _ = sink.try_seek(dur);
+                                if was_paused {
+                                    sink.pause();
+                                }
+                                if let Ok(mut lock) = NATIVE_MUSIC_SINK.lock() {
+                                    if let Some(old) = lock.take() {
+                                        old.stop();
+                                    }
+                                    *lock = Some(sink);
+                                    crate::term_log!(
+                                        "[Music Controller] Seeked to {:.1}s via stream reload",
+                                        seconds
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub fn get_current_title() -> Option<String> {
     if let Ok(lock) = CURRENT_TITLE.lock() {
         lock.clone()
     } else {
         None
     }
+}
+
+/// Set internal music volume (0.0 to 1.0 or higher)
+pub fn set_music_volume(vol: f32) {
+    let clamped = vol.clamp(0.0, 2.0);
+    let int_val = (clamped * 100.0).round() as u32;
+    CURRENT_MUSIC_VOLUME.store(int_val, Ordering::SeqCst);
+
+    if let Ok(lock) = NATIVE_MUSIC_SINK.lock() {
+        if let Some(ref sink) = *lock {
+            let actual = if crate::app_state::is_ai_speaking() {
+                clamped * 0.25
+            } else {
+                clamped
+            };
+            sink.set_volume(actual);
+        }
+    }
+}
+
+/// Get internal music volume as float (0.0 to 1.0)
+pub fn get_music_volume() -> f32 {
+    let int_val = CURRENT_MUSIC_VOLUME.load(Ordering::SeqCst);
+    (int_val as f32) / 100.0
 }

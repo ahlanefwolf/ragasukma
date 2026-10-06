@@ -40,11 +40,11 @@ fn get_status_lock() -> &'static Mutex<ModelDownloadStatus> {
 }
 
 pub fn get_model_status() -> ModelDownloadStatus {
-    get_status_lock().lock().unwrap().clone()
+    get_status_lock().lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 pub fn update_model_status(status: ModelDownloadStatus) {
-    let mut lock = get_status_lock().lock().unwrap();
+    let mut lock = get_status_lock().lock().unwrap_or_else(|e| e.into_inner());
     *lock = status;
 }
 

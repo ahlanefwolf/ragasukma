@@ -1,12 +1,11 @@
 use serde::Deserialize;
 use std::fs;
 use std::io::Write;
-use std::net::TcpStream;
 
 use crate::engine::ytdlp::{check_ytdlp, download_audio, list_downloaded};
 use crate::server::{send_disk_file_stream_with_range, send_json_response};
 
-pub fn handle_music_control(body_str: &str, stream: &mut TcpStream) {
+pub fn handle_music_control(body_str: &str, stream: &mut dyn Write) {
     #[derive(Deserialize)]
     struct ControlPayload {
         action: String,
@@ -36,13 +35,13 @@ pub fn handle_music_control(body_str: &str, stream: &mut TcpStream) {
     );
 }
 
-pub fn handle_music_check(stream: &mut TcpStream) {
+pub fn handle_music_check(stream: &mut dyn Write) {
     let info = check_ytdlp();
     let json = serde_json::to_string(&info).unwrap_or_default();
     send_json_response(stream, 200, &json);
 }
 
-pub fn handle_music_install_ytdlp(stream: &mut TcpStream) {
+pub fn handle_music_install_ytdlp(stream: &mut dyn Write) {
     match crate::engine::ytdlp::install_ytdlp() {
         Ok(msg) => {
             let info = check_ytdlp();
@@ -65,18 +64,19 @@ pub fn handle_music_install_ytdlp(stream: &mut TcpStream) {
     }
 }
 
-pub fn handle_music_list(stream: &mut TcpStream) {
+pub fn handle_music_list(stream: &mut dyn Write) {
     let music_dir = crate::config::get_music_dir();
     let tracks = list_downloaded(&music_dir);
     let resp = serde_json::json!({
         "music_dir": music_dir.to_string_lossy(),
-        "tracks": tracks
+        "tracks": tracks,
+        "volume": crate::audio::player::get_music_volume()
     });
     let json = serde_json::to_string(&resp).unwrap_or_default();
     send_json_response(stream, 200, &json);
 }
 
-fn decode_url_component(input: &str) -> String {
+pub fn decode_url_component(input: &str) -> String {
     let mut bytes = Vec::new();
     let input_bytes = input.as_bytes();
     let mut i = 0;
@@ -97,7 +97,7 @@ fn decode_url_component(input: &str) -> String {
     String::from_utf8_lossy(&bytes).to_string()
 }
 
-pub fn handle_music_stream(full_url: &str, header_str: &str, stream: &mut TcpStream) {
+pub fn handle_music_stream(full_url: &str, header_str: &str, stream: &mut dyn Write) {
     let url_without_query = full_url.split_once('?').map(|(p, _)| p).unwrap_or(full_url);
 
     // 1. Coba take name file from path direct /music/<filename>
@@ -149,7 +149,7 @@ pub fn handle_music_stream(full_url: &str, header_str: &str, stream: &mut TcpStr
     }
 }
 
-pub fn handle_music_download(body_str: &str, stream: &mut TcpStream) {
+pub fn handle_music_download(body_str: &str, stream: &mut dyn Write) {
     #[derive(Deserialize)]
     struct DownloadPayload {
         query: String,
@@ -184,7 +184,7 @@ pub fn handle_music_download(body_str: &str, stream: &mut TcpStream) {
     }
 }
 
-pub fn handle_music_delete(body_str: &str, stream: &mut TcpStream) {
+pub fn handle_music_delete(body_str: &str, stream: &mut dyn Write) {
     #[derive(Deserialize)]
     struct DeletePayload {
         filename: String,

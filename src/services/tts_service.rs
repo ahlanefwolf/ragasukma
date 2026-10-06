@@ -1,9 +1,11 @@
 use serde::Deserialize;
 use serde_json::json;
 use std::io::Write;
-use std::net::TcpStream;
 
-use crate::audio::supertonic::{get_engine, get_last_audio_wav, init_engine, set_last_audio_wav};
+use crate::audio::supertonic::{
+    get_engine, get_last_audio_opus, get_last_audio_wav, init_engine, set_last_audio_opus,
+    set_last_audio_wav,
+};
 use crate::server::send_json_response;
 
 #[derive(Deserialize)]
@@ -17,7 +19,7 @@ struct SynthesizeRequest {
     speed: Option<f32>,
 }
 
-pub fn handle_tts_synthesize(body: &str, stream: &mut TcpStream) {
+pub fn handle_tts_synthesize(body: &str, stream: &mut dyn Write) {
     let req: SynthesizeRequest = match serde_json::from_str(body) {
         Ok(r) => r,
         Err(e) => {
@@ -75,19 +77,28 @@ pub fn handle_tts_synthesize(body: &str, stream: &mut TcpStream) {
             let id = format!("{:x}", md5_hash(&req.text));
             set_last_audio_wav(id.clone(), wav_bytes.clone());
 
+            let (audio_bytes, content_type) =
+                if let Ok(opus_bytes) = crate::audio::opus::encode_wav_to_opus(&wav_bytes) {
+                    set_last_audio_opus(id.clone(), opus_bytes.clone());
+                    (opus_bytes, "audio/ogg; codecs=opus")
+                } else {
+                    (wav_bytes, "audio/wav")
+                };
+
             let resp_header = format!(
                 "HTTP/1.1 200 OK\r\n\
-                 Content-Type: audio/wav\r\n\
+                 Content-Type: {}\r\n\
                  Content-Length: {}\r\n\
                  Connection: close\r\n\
                  Access-Control-Allow-Origin: *\r\n\
                  X-Audio-Id: {}\r\n\
                  Cache-Control: no-cache\r\n\r\n",
-                wav_bytes.len(),
+                content_type,
+                audio_bytes.len(),
                 id
             );
             let _ = stream.write_all(resp_header.as_bytes());
-            let _ = stream.write_all(&wav_bytes);
+            let _ = stream.write_all(&audio_bytes);
         }
         Err(e) => {
             let resp = json!({ "error": format!("Synthesis failed: {e}") }).to_string();
@@ -96,33 +107,114 @@ pub fn handle_tts_synthesize(body: &str, stream: &mut TcpStream) {
     }
 }
 
-pub fn handle_get_tts_audio(full_url: &str, _header_str: &str, stream: &mut TcpStream) {
-    let req_id = full_url.split('?').nth(1).and_then(|query| {
+pub fn handle_get_tts_audio(full_url: &str, header_str: &str, stream: &mut dyn Write) {
+    let mut req_id = None;
+    let mut req_format = None;
+
+    if let Some(query) = full_url.split('?').nth(1) {
         for part in query.split('&') {
             let mut kv = part.splitn(2, '=');
             if let (Some(k), Some(v)) = (kv.next(), kv.next()) {
                 if k == "id" {
-                    return Some(v);
+                    req_id = Some(v);
+                } else if k == "format" {
+                    req_format = Some(v);
                 }
             }
         }
-        None
+    }
+
+    let (audio_bytes, content_type) = if req_format == Some("wav") {
+        if let Some(bytes) = get_last_audio_wav(req_id) {
+            (bytes, "audio/wav")
+        } else {
+            send_json_response(stream, 404, "{\"error\":\"Audio not found\"}");
+            return;
+        }
+    } else if let Some(opus) = get_last_audio_opus(req_id) {
+        (opus, "audio/ogg; codecs=opus")
+    } else if let Some(wav) = get_last_audio_wav(req_id) {
+        if let Ok(opus) = crate::audio::opus::encode_wav_to_opus(&wav) {
+            if let Some(id) = req_id {
+                set_last_audio_opus(id.to_string(), opus.clone());
+            }
+            (opus, "audio/ogg; codecs=opus")
+        } else {
+            (wav, "audio/wav")
+        }
+    } else {
+        send_json_response(stream, 404, "{\"error\":\"Audio not found\"}");
+        return;
+    };
+
+    let total_len = audio_bytes.len() as u64;
+    let range_header = header_str.lines().find_map(|line| {
+        let lower = line.to_lowercase();
+        if lower.starts_with("range:") {
+            Some(line.split(':').nth(1)?.trim())
+        } else {
+            None
+        }
     });
 
-    if let Some(wav_bytes) = get_last_audio_wav(req_id) {
-        let resp_header = format!(
-            "HTTP/1.1 200 OK\r\n\
-             Content-Type: audio/wav\r\n\
+    let (start, end, is_range) = if let Some(range_val) = range_header {
+        if let Some(bytes_range) = range_val.strip_prefix("bytes=") {
+            let parts: Vec<&str> = bytes_range.split('-').collect();
+            let start = parts
+                .first()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(0);
+            let end = parts
+                .get(1)
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(total_len.saturating_sub(1))
+                .min(total_len.saturating_sub(1));
+
+            if start <= end && start < total_len {
+                (start, end, true)
+            } else {
+                (0, total_len.saturating_sub(1), false)
+            }
+        } else {
+            (0, total_len.saturating_sub(1), false)
+        }
+    } else {
+        (0, total_len.saturating_sub(1), false)
+    };
+
+    let chunk_len = (end - start) + 1;
+    let resp_header = if is_range {
+        format!(
+            "HTTP/1.1 206 Partial Content\r\n\
+             Content-Type: {}\r\n\
+             Content-Range: bytes {}-{}/{}\r\n\
              Content-Length: {}\r\n\
+             Accept-Ranges: bytes\r\n\
              Connection: close\r\n\
              Access-Control-Allow-Origin: *\r\n\
-             Cache-Control: no-cache\r\n\r\n",
-            wav_bytes.len()
-        );
-        let _ = stream.write_all(resp_header.as_bytes());
-        let _ = stream.write_all(&wav_bytes);
+             Access-Control-Allow-Methods: GET, OPTIONS\r\n\
+             Access-Control-Allow-Headers: *\r\n\
+             Cache-Control: no-cache, no-store\r\n\r\n",
+            content_type, start, end, total_len, chunk_len
+        )
     } else {
-        send_json_response(stream, 404, "{\"error\":\"No audio available\"}");
+        format!(
+            "HTTP/1.1 200 OK\r\n\
+             Content-Type: {}\r\n\
+             Content-Length: {}\r\n\
+             Accept-Ranges: bytes\r\n\
+             Connection: close\r\n\
+             Access-Control-Allow-Origin: *\r\n\
+             Access-Control-Allow-Methods: GET, OPTIONS\r\n\
+             Access-Control-Allow-Headers: *\r\n\
+             Cache-Control: no-cache, no-store\r\n\r\n",
+            content_type, total_len
+        )
+    };
+
+    let _ = stream.write_all(resp_header.as_bytes());
+    if start < total_len && end < total_len {
+        let _ = stream.write_all(&audio_bytes[start as usize..=end as usize]);
     }
 }
 

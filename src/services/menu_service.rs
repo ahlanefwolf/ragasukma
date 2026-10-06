@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::net::TcpStream;
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 use crate::app_state::{ACTIVE_WEB_SESSION, AppStatePayload, ServerSharedState};
@@ -8,7 +8,7 @@ use crate::ui::pose_system::AssistantVisualState;
 
 pub fn handle_menu_cmd(
     body_str: &str,
-    stream: &mut TcpStream,
+    stream: &mut dyn Write,
     shared: &Arc<Mutex<ServerSharedState>>,
 ) {
     #[derive(Deserialize)]
@@ -97,7 +97,7 @@ pub fn handle_menu_cmd(
     }
 }
 
-pub fn handle_get_state(stream: &mut TcpStream, shared: &Arc<Mutex<ServerSharedState>>) {
+pub fn handle_get_state(stream: &mut dyn Write, shared: &Arc<Mutex<ServerSharedState>>) {
     if let Ok(lock) = shared.lock() {
         let st_str = match lock.current_state {
             AssistantVisualState::Idle => "idle",
@@ -125,7 +125,7 @@ pub fn handle_get_state(stream: &mut TcpStream, shared: &Arc<Mutex<ServerSharedS
 
 pub fn handle_post_state(
     body_str: &str,
-    stream: &mut TcpStream,
+    stream: &mut dyn Write,
     shared: &Arc<Mutex<ServerSharedState>>,
 ) {
     if let Ok(payload) = serde_json::from_str::<AppStatePayload>(body_str) {

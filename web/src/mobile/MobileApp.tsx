@@ -4,9 +4,8 @@ import { API_BASE } from '../services/base';
 import { getChromeSttCode } from '../services/configService';
 import { AvatarViewer } from './AvatarViewer';
 import { globalAudioSync, MobileTrackState } from './AudioSyncManager';
-import { MobileAudioMode } from './components/MobileHeader';
 import { MobileTopBar } from './components/MobileTopBar';
-import { MobileSettingsSheet } from './components/MobileSettingsSheet';
+import { MobileAudioMode, MobileSettingsSheet } from './components/MobileSettingsSheet';
 import { MobileFloatingMusic } from './components/MobileFloatingMusic';
 import { MobileInteractionDock } from './components/MobileInteractionDock';
 import { MobileLogsDrawer } from './components/MobileLogsDrawer';
@@ -39,6 +38,90 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   // Status Karakter Realtime
   const [visualState, setVisualState] = createSignal<'idle' | 'listening' | 'speaking' | 'thinking'>('idle');
   const [emotion, setEmotion] = createSignal('neutral');
+
+  let thinkingWatchdogTimer: number | null = null;
+  let speakingWatchdogTimer: number | null = null;
+  let listeningWatchdogTimer: number | null = null;
+  const updateVisualStateSafe = (st: 'idle' | 'listening' | 'speaking' | 'thinking') => {
+    setVisualState(st);
+    if (thinkingWatchdogTimer) {
+      window.clearTimeout(thinkingWatchdogTimer);
+      thinkingWatchdogTimer = null;
+    }
+    if (speakingWatchdogTimer) {
+      window.clearTimeout(speakingWatchdogTimer);
+      speakingWatchdogTimer = null;
+    }
+    if (listeningWatchdogTimer) {
+      window.clearTimeout(listeningWatchdogTimer);
+      listeningWatchdogTimer = null;
+    }
+    if (st === 'thinking') {
+      // Fail-safe watchdog: if thinking takes longer than 7s, sync with backend state
+      thinkingWatchdogTimer = window.setTimeout(async () => {
+        thinkingWatchdogTimer = null;
+        try {
+          const latest = await api.getState();
+          if (latest && latest.state && latest.state !== 'thinking') {
+            const s = latest.state.toLowerCase();
+            if (['idle', 'listening', 'speaking'].includes(s)) {
+              setVisualState(s as any);
+            } else {
+              setVisualState('idle');
+            }
+          } else {
+            setVisualState('idle');
+          }
+        } catch {
+          setVisualState('idle');
+        }
+      }, 7000);
+    } else if (st === 'speaking') {
+      // Fail-safe watchdog: speaking shouldn't get stuck on phone if audio already finished on PC
+      speakingWatchdogTimer = window.setTimeout(async () => {
+        speakingWatchdogTimer = null;
+        if (!isHpAudioActive() || (!activeVoiceAudio && !isVoiceSpeakingOnMobile)) {
+          try {
+            const latest = await api.getState();
+            if (latest && latest.state && latest.state !== 'speaking') {
+              const s = latest.state.toLowerCase();
+              if (['idle', 'listening', 'thinking'].includes(s)) {
+                setVisualState(s as any);
+              } else {
+                setVisualState('idle');
+              }
+            } else {
+              setVisualState('idle');
+            }
+          } catch {
+            setVisualState('idle');
+          }
+        }
+      }, 8000);
+    } else if (st === 'listening') {
+      // Fail-safe watchdog: listening shouldn't hang forever without speech
+      listeningWatchdogTimer = window.setTimeout(async () => {
+        listeningWatchdogTimer = null;
+        if (!isHpMicListening()) {
+          try {
+            const latest = await api.getState();
+            if (latest && latest.state && latest.state !== 'listening') {
+              const s = latest.state.toLowerCase();
+              if (['idle', 'speaking', 'thinking'].includes(s)) {
+                setVisualState(s as any);
+              } else {
+                setVisualState('idle');
+              }
+            } else {
+              setVisualState('idle');
+            }
+          } catch {
+            setVisualState('idle');
+          }
+        }
+      }, 10000);
+    }
+  };
   
   // Audio & Mic Mode Status on Mobile (Remote Desktop vs Full Mobile)
   const getInitialAudioMode = (): MobileAudioMode => {
@@ -53,6 +136,28 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
 
   const [audioMode, setAudioMode] = createSignal<MobileAudioMode>(getInitialAudioMode());
   const isHpAudioActive = () => audioMode() === 'full_mobile';
+
+  const syncAudioModeFromState = (voiceMuted?: boolean, micMuted?: boolean) => {
+    if (voiceMuted === undefined || micMuted === undefined) return;
+    const saved = localStorage.getItem('ragasukma_audio_mode') as MobileAudioMode | null;
+    if (saved && (saved === 'remote_desktop' || saved === 'full_mobile')) {
+      if (audioMode() !== saved) {
+        setAudioMode(saved);
+      }
+      return;
+    }
+
+    const targetMode: MobileAudioMode = (voiceMuted && micMuted) ? 'full_mobile' : 'remote_desktop';
+    if (audioMode() !== targetMode) {
+      setAudioMode(targetMode);
+      try {
+        localStorage.setItem('ragasukma_audio_mode', targetMode);
+      } catch {}
+      if (targetMode !== 'full_mobile') {
+        audioSync.stopAll();
+      }
+    }
+  };
   const [isHpMicListening, setIsHpMicListening] = createSignal(false);
   const [hasUnlockedAudio, setHasUnlockedAudio] = createSignal(false);
   const [mobileMusicState, setMobileMusicState] = createSignal<MobileTrackState>({
@@ -72,6 +177,31 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   let speechRec: any = null;
   const audioSync = globalAudioSync;
   let lastActionId = 0;
+
+  // Screen Wake Lock API to prevent phone screen sleep & keep SSE connection alive
+  let wakeLockSentinel: any = null;
+  const requestWakeLock = async () => {
+    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && !wakeLockSentinel) {
+      try {
+        wakeLockSentinel = await (navigator as any).wakeLock.request('screen');
+        wakeLockSentinel.addEventListener('release', () => {
+          wakeLockSentinel = null;
+        });
+        console.log('📱 [Mobile] Screen Wake Lock active (prevents screen sleep & socket freeze)');
+      } catch (err) {
+        console.warn('⚠️ [Mobile] Wake Lock request error:', err);
+      }
+    }
+  };
+
+  const releaseWakeLock = () => {
+    if (wakeLockSentinel) {
+      try {
+        wakeLockSentinel.release();
+      } catch {}
+      wakeLockSentinel = null;
+    }
+  };
 
   const fetchLogs = async () => {
     if (isFetchingLogs || document.hidden) return;
@@ -97,11 +227,114 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   let isVoiceSpeakingOnMobile = false;
   let mobileSpeakSeq = 0;
 
-  const speakOnMobile = (text: string, em: string, audioUrl?: string | null) => {
+  // Realtime Audio Chunk Queue for zero-latency progressive TTS playback
+  interface ChunkQueueItem {
+    chunkIndex: number;
+    totalChunks: number;
+    audioUrl: string;
+    text: string;
+    emotion: string;
+    seq: number;
+  }
+  let audioChunkQueue: ChunkQueueItem[] = [];
+  let isPlayingChunk = false;
+
+  const processAudioChunkQueue = async () => {
+    if (isPlayingChunk || audioChunkQueue.length === 0) return;
+    isPlayingChunk = true;
+
+    const item = audioChunkQueue.shift()!;
+    if (item.seq !== mobileSpeakSeq) {
+      isPlayingChunk = false;
+      return;
+    }
+
+    const fullUrl = item.audioUrl.startsWith('http') || item.audioUrl.startsWith('blob:')
+      ? item.audioUrl
+      : `${API_BASE}${item.audioUrl}`;
+
+    updateVisualStateSafe('speaking');
+    setEmotion(item.emotion);
+
+    const playNext = () => {
+      isPlayingChunk = false;
+      if (audioChunkQueue.length > 0) {
+        processAudioChunkQueue();
+      } else if (item.chunkIndex >= item.totalChunks - 1) {
+        // Last chunk finished
+        isVoiceSpeakingOnMobile = false;
+        audioSync.unduckMusic();
+        updateVisualStateSafe('idle');
+        setEmotion('neutral');
+      }
+    };
+
+    audioSync.playVoice(fullUrl, {
+      onPlaying: () => {
+        updateVisualStateSafe('speaking');
+      },
+      onEnded: playNext,
+      onError: (err) => {
+        console.warn('[Mobile Chunk Audio] Error playing chunk, trying WAV fallback:', err);
+        if (!fullUrl.includes('format=wav') && !fullUrl.startsWith('blob:')) {
+          const fallbackUrl = fullUrl.includes('?') ? `${fullUrl}&format=wav` : `${fullUrl}?format=wav`;
+          audioSync.playVoice(fallbackUrl, {
+            onPlaying: () => updateVisualStateSafe('speaking'),
+            onEnded: playNext,
+            onError: () => {
+              playNext();
+            },
+          });
+        } else {
+          playNext();
+        }
+      },
+    });
+  };
+
+  const enqueueAudioChunk = (
+    chunkIndex: number,
+    totalChunks: number,
+    audioUrl: string,
+    text: string,
+    emotion: string
+  ) => {
+    if (!isHpAudioActive()) return;
+
+    if (chunkIndex === 0) {
+      mobileSpeakSeq++;
+      audioChunkQueue = [];
+      isPlayingChunk = false;
+      audioSync.stopVoice();
+      isVoiceSpeakingOnMobile = true;
+      updateVisualStateSafe('speaking');
+      setEmotion(emotion);
+      audioSync.duckMusic(0.25);
+    }
+
+    audioChunkQueue.push({
+      chunkIndex,
+      totalChunks,
+      audioUrl,
+      text,
+      emotion,
+      seq: mobileSpeakSeq,
+    });
+
+    // Ensure chunks are processed in order
+    audioChunkQueue.sort((a, b) => a.chunkIndex - b.chunkIndex);
+
+    if (!isPlayingChunk) {
+      processAudioChunkQueue();
+    }
+  };
+
+  const speakOnMobile = (text: string, em: string, audioUrl?: string | null, lang?: string) => {
     if (!isHpAudioActive()) return;
     const mySeq = ++mobileSpeakSeq;
 
     // Stop previous TTS voice if any (do not stop music!)
+    audioSync.stopVoice();
     if (activeVoiceAudio) {
       try {
         activeVoiceAudio.pause();
@@ -112,18 +345,29 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
 
     // Lock speaking status immediately so mobile avatar responds without premature idle
     isVoiceSpeakingOnMobile = true;
-    setVisualState('speaking');
+    updateVisualStateSafe('speaking');
     setEmotion(em);
 
     // Audio Ducking: lower music volume so AI voice is clearly audible
     audioSync.duckMusic(0.25);
 
-    // Notify backend that speaking mode is active
-    fetch(`${API_BASE}/api/tts/state`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ speaking: true, emotion: em }),
-    }).catch(() => {});
+    let isFinished = false;
+    const finishSpeaking = () => {
+      if (isFinished || mySeq !== mobileSpeakSeq) return;
+      isFinished = true;
+      activeVoiceAudio = null;
+      isVoiceSpeakingOnMobile = false;
+      audioSync.unduckMusic();
+      updateVisualStateSafe('idle');
+      setEmotion('neutral');
+    };
+
+    // Absolute fail-safe maximum speaking timeout watchdog:
+    // Guarantees speaking state never gets stuck on mobile even if onEnded is dropped
+    const estDurationMs = Math.max(3000, Math.min(16000, (text.length || 20) * 110));
+    const maxWatchdog = window.setTimeout(() => {
+      finishSpeaking();
+    }, estDurationMs + 2500);
 
     const playAudio = (url: string) => {
       const fullUrl = url.startsWith('http') || url.startsWith('blob:') ? url : `${API_BASE}${url}`;
@@ -134,7 +378,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       const notifySpeaking = () => {
         if (hasReportedSpeaking) return;
         hasReportedSpeaking = true;
-        setVisualState('speaking');
+        updateVisualStateSafe('speaking');
         fetch(`${API_BASE}/api/tts/state`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -142,26 +386,42 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         }).catch(() => {});
       };
 
-      const finishSpeaking = () => {
-        if (mySeq !== mobileSpeakSeq) return;
-        activeVoiceAudio = null;
-        isVoiceSpeakingOnMobile = false;
-        audioSync.unduckMusic();
-        setVisualState('idle');
-        setEmotion('neutral');
-        fetch(`${API_BASE}/api/tts/state`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ speaking: false, emotion: 'neutral' }),
-        }).catch(() => {});
-      };
-
       audioSync.playVoice(fullUrl, {
         onPlaying: notifySpeaking,
-        onEnded: finishSpeaking,
+        onEnded: () => {
+          window.clearTimeout(maxWatchdog);
+          finishSpeaking();
+        },
         onError: (err) => {
           console.warn('[Mobile Supertonic Audio] Playback error/blocked:', err);
-          finishSpeaking();
+          // Auto-fallback to WAV if Opus fails on specific device
+          if (!fullUrl.includes('format=wav') && !fullUrl.startsWith('blob:')) {
+            const fallbackUrl = fullUrl.includes('?') ? `${fullUrl}&format=wav` : `${fullUrl}?format=wav`;
+            console.log('[Mobile Supertonic Audio] Retrying with raw WAV format:', fallbackUrl);
+            audioSync.playVoice(fallbackUrl, {
+              onPlaying: notifySpeaking,
+              onEnded: () => {
+                window.clearTimeout(maxWatchdog);
+                finishSpeaking();
+              },
+              onError: (err2) => {
+                console.warn('[Mobile Supertonic Audio] WAV fallback also failed:', err2);
+                window.clearTimeout(maxWatchdog);
+                const readingMs = Math.max(1500, Math.min(6000, text.length * 65));
+                window.setTimeout(() => {
+                  finishSpeaking();
+                }, readingMs);
+              },
+            });
+            return;
+          }
+
+          window.clearTimeout(maxWatchdog);
+          // If audio playback failed due to gesture lock or network, simulate speaking for reading duration
+          const readingMs = Math.max(1500, Math.min(6000, text.length * 65));
+          window.setTimeout(() => {
+            finishSpeaking();
+          }, readingMs);
         },
       });
     };
@@ -184,7 +444,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       body: JSON.stringify({
         text,
         voice: 'F4',
-        lang: 'id',
+        lang: lang || mobileLang() || 'id',
         speed: 1.05,
       }),
     })
@@ -214,24 +474,53 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       lastActionId = act.id;
     }
 
-    // 1. Voice respon Supertonic-3 Neural Audio (WAV stream)
+    console.log('[MobileApp] Action received:', act.action, act.payload);
+
+    // 1. Voice respon Supertonic-3 Neural Audio (Opus / WAV stream)
     if (act.action === 'assistant:speak') {
       let textToSpeak = '';
       let em = 'neutral';
       let audioUrl: string | null = null;
+      let lang: string | undefined;
+      let isChunk = false;
+      let chunkIndex = 0;
+      let totalChunks = 1;
       try {
         const parsed = typeof act.payload === 'string' ? JSON.parse(act.payload) : act.payload;
         textToSpeak = parsed.text || '';
         em = parsed.emotion || 'neutral';
         audioUrl = parsed.audio_url || null;
+        lang = parsed.lang;
+        isChunk = !!parsed.is_chunk;
+        chunkIndex = parsed.chunk_index ?? 0;
+        totalChunks = parsed.total_chunks ?? 1;
       } catch {
         textToSpeak = typeof act.payload === 'string' ? act.payload : '';
       }
       if (em) {
         setEmotion(em);
       }
-      if ((textToSpeak.trim() || audioUrl) && isHpAudioActive()) {
-        speakOnMobile(textToSpeak.trim(), em, audioUrl);
+
+      if (isChunk && audioUrl) {
+        console.log(`[MobileApp] assistant:speak (chunk ${chunkIndex}/${totalChunks}). audioUrl:`, audioUrl);
+        if (isHpAudioActive()) {
+          enqueueAudioChunk(chunkIndex, totalChunks, audioUrl, textToSpeak, em);
+        }
+        return;
+      }
+
+      // If non-chunk fallback (e.g., direct synthesize or single full audio)
+      if (textToSpeak.trim() || audioUrl) {
+        console.log('[MobileApp] assistant:speak received. Mode:', audioMode(), 'audioUrl:', audioUrl);
+        if (isHpAudioActive()) {
+          // If we already received and played streaming chunks for this turn, ignore the redundant final combined action
+          if (isVoiceSpeakingOnMobile || audioChunkQueue.length > 0 || isPlayingChunk) {
+            return;
+          }
+          speakOnMobile(textToSpeak.trim(), em, audioUrl, lang);
+        } else {
+          console.log('[MobileApp] Audio ignored on mobile because mode is:', audioMode());
+        }
       }
     }
 
@@ -260,6 +549,27 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         audioSync.resumeMusic();
       } else {
         setMobileMusicState((prev) => ({ ...prev, isPlaying: true, isPaused: false }));
+      }
+    } else if (act.action === 'music:seek') {
+      if (act.payload) {
+        const sec = parseFloat(act.payload);
+        if (!isNaN(sec)) {
+          if (isHpAudioActive()) {
+            audioSync.seekMusic(sec);
+          } else {
+            setMobileMusicState((prev) => ({ ...prev, currentTime: sec }));
+          }
+        }
+      }
+    } else if (act.action === 'music:volume') {
+      if (act.payload) {
+        const v = parseFloat(act.payload);
+        if (!isNaN(v)) {
+          const clamped = Math.max(0, Math.min(1, v > 2 ? v / 100 : v));
+          if (isHpAudioActive()) {
+            audioSync.setVolume(clamped);
+          }
+        }
       }
     } else if (act.action === 'music:stop') {
       if (isHpAudioActive()) {
@@ -349,7 +659,6 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   const unlockAudioContext = async (silent = false) => {
     await audioSync.unlockAudio();
     setHasUnlockedAudio(true);
-    notifyRemoteActive();
     if (!silent) {
       props.showToast('Phone audio active & synchronized');
     }
@@ -360,24 +669,28 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     try {
       localStorage.setItem('ragasukma_audio_mode', mode);
     } catch {}
+    setAudioMode(mode);
 
     if (mode === 'remote_desktop') {
       audioSync.stopAll();
       try {
         await api.sendCommand('mode_remote_desktop');
       } catch {}
-      props.showToast('Switching to Remote Desktop Mode... reloading');
+      props.showToast('Switched to Remote Desktop Mode. Reloading session...');
+      setShowSettings(false);
+      setTimeout(() => {
+        window.location.reload();
+      }, 350);
     } else {
       try {
         await api.sendCommand('mode_full_mobile');
       } catch {}
-      props.showToast('Switching to Full Mobile Mode... reloading');
+      props.showToast('Switched to Full Mobile Mode. Reloading audio session...');
+      setShowSettings(false);
+      setTimeout(() => {
+        window.location.reload();
+      }, 350);
     }
-
-    // Refresh page to cleanly reinitialize AudioContext and SSE
-    setTimeout(() => {
-      window.location.reload();
-    }, 250);
   };
 
   const handleDisconnectRemote = async () => {
@@ -398,17 +711,46 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   };
 
   onMount(() => {
+    // Auto unlock audio on any first user touch/click anywhere on mobile screen
+    const handleGlobalUserInteraction = () => {
+      if (!hasUnlockedAudio()) {
+        unlockAudioContext(true);
+      }
+    };
+    window.addEventListener('touchstart', handleGlobalUserInteraction, { passive: true, once: true });
+    window.addEventListener('click', handleGlobalUserInteraction, { passive: true, once: true });
+
+    onCleanup(() => {
+      window.removeEventListener('touchstart', handleGlobalUserInteraction);
+      window.removeEventListener('click', handleGlobalUserInteraction);
+    });
+
     audioSync.setOnTrackStateChange((st) => {
       setMobileMusicState(st);
     });
 
-    notifyRemoteActive();
+    // Hydrate initial state immediately
+    api.getState().then((st) => {
+      if (st) {
+        if (st.voice_muted !== undefined && st.mic_muted !== undefined) {
+          syncAudioModeFromState(st.voice_muted, st.mic_muted);
+        }
+        if (st.state) {
+          const s = st.state.toLowerCase();
+          if (['idle', 'listening', 'speaking', 'thinking'].includes(s)) {
+            setVisualState(s as any);
+          }
+          if (st.emotion) setEmotion(st.emotion);
+        }
+      }
+    }).catch(() => {});
+
     // Check initial model status
     api.getModelStatus().then((st) => {
       setModelStatus(st);
     }).catch(() => {});
 
-    // Sync active mode to backend (if Full HP, send mode_full_mobile; if Remote PC, send mode_remote_desktop)
+    // Sync active mode to backend (Full HP -> mode_full_mobile; Remote PC -> mode_remote_desktop)
     const currentMode = audioMode();
     if (currentMode === 'full_mobile') {
       api.sendCommand('mode_full_mobile').catch(() => {});
@@ -453,80 +795,58 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       if (!hasUnlockedAudio()) {
         unlockAudioContext(true);
       }
+      requestWakeLock();
     };
     window.addEventListener('touchstart', handleFirstInteraction, { once: true, passive: true });
     window.addEventListener('click', handleFirstInteraction, { once: true });
 
-    // Polling Terpadu Super Fast & Ringan (Murni Polling HTTP GET - 100% Kebal Blokir SSE)
-    let pollTick = 0;
-    const pollInterval = setInterval(async () => {
-      if (document.hidden) return;
-      pollTick++;
+    // Request wake lock so the mobile display stays awake
+    requestWakeLock();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-      // 1. Actions polling (assistant:speak & music:play) - Every 750ms
-      try {
-        const res = await api.getActionsSince(lastActionId);
-        if (res && res.actions && Array.isArray(res.actions)) {
-          if (lastActionId === 0 && res.last_id) {
-            lastActionId = res.last_id;
+    // ── Pure SSE Subscriptions (Zero Polling, Zero Battery Waste, Zero Latency) ──
+    const unsubState = api.subscribeState((st) => {
+      if (st) {
+        if (st.voice_muted !== undefined && st.mic_muted !== undefined) {
+          syncAudioModeFromState(st.voice_muted, st.mic_muted);
+        }
+        if (st.state) {
+          const s = st.state.toLowerCase();
+          // IF HP currently playing voice TTS, maintain speaking state
+          if (activeVoiceAudio !== null || isVoiceSpeakingOnMobile) {
+            updateVisualStateSafe('speaking');
+          } else if (isHpMicListening()) {
+            updateVisualStateSafe('listening');
           } else {
-            for (const act of res.actions) {
-              handleIncomingAction(act);
+            if (['idle', 'listening', 'speaking', 'thinking'].includes(s)) {
+              updateVisualStateSafe(s as any);
             }
-            if (res.last_id) {
-              lastActionId = Math.max(lastActionId, res.last_id);
-            }
-          }
-        }
-      } catch {}
-
-      // 2. State polling (idle, speaking, listening, thinking, emotion) - Every 750ms
-      try {
-        const stRes = await fetch(`${API_BASE}/api/state`);
-        if (stRes.ok) {
-          const st = await stRes.json();
-          if (st && st.state) {
-            const s = st.state.toLowerCase();
-            // IF HP currently playing voice TTS (activeVoiceAudio != null || isVoiceSpeakingOnMobile),
-            // LOCK speaking status! Prevent premature idle overwrite until audio ends.
-            if (activeVoiceAudio !== null || isVoiceSpeakingOnMobile) {
-              setVisualState('speaking');
-            } else if (isHpMicListening()) {
-              setVisualState('listening');
-            } else {
-              if (['idle', 'listening', 'speaking', 'thinking'].includes(s)) {
-                setVisualState(s as any);
-              }
-              if (st.emotion) {
-                setEmotion(st.emotion);
-              } else if (s === 'idle') {
-                setEmotion('neutral');
-              }
+            if (st.emotion) {
+              setEmotion(st.emotion);
+            } else if (s === 'idle') {
+              setEmotion('neutral');
             }
           }
         }
-      } catch {}
-
-      // Model status polling if downloading or extracting
-      if (isModelLocked() || pollTick % 10 === 0) {
-        try {
-          const mSt = await api.getModelStatus();
-          setModelStatus(mSt);
-        } catch {}
       }
+    });
 
-      // 3. Logs polling (if log drawer open, poll every ~2.2s; if closed poll every ~6s)
-      if (showLogsDrawer()) {
-        if (pollTick % 3 === 0) fetchLogs();
-      } else {
-        if (pollTick % 8 === 0) fetchLogs();
-      }
+    const unsubActions = api.subscribeActions((act) => {
+      handleIncomingAction(act);
+    });
 
-      // 4. Remote active heartbeat to host every ~10s
-      if (pollTick % 13 === 0) {
-        notifyRemoteActive();
-      }
-    }, 750);
+    const unsubLogs = api.subscribeLogs((logEntry) => {
+      setLogs((prev) => [...prev.slice(Math.max(0, prev.length - 59)), logEntry]);
+    });
+
+    const unsubModel = api.subscribeModelStatus((status) => {
+      setModelStatus(status);
+    });
 
     // Session recovery helper: restore full mic & voice to desktop on close
     const restoreDesktopSession = () => {
@@ -547,12 +867,16 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     };
 
     window.addEventListener('beforeunload', restoreDesktopSession);
-    window.addEventListener('pagehide', restoreDesktopSession);
 
     onCleanup(() => {
       document.title = 'Ragasukma - AI Companion & Dashboard';
+      unsubState();
+      unsubActions();
+      unsubLogs();
+      unsubModel();
+      releaseWakeLock();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', restoreDesktopSession);
-      window.removeEventListener('pagehide', restoreDesktopSession);
       window.removeEventListener('touchstart', handleFirstInteraction);
       window.removeEventListener('click', handleFirstInteraction);
       if (window.visualViewport) {
@@ -561,7 +885,6 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       } else {
         window.removeEventListener('resize', updateViewport);
       }
-      clearInterval(pollInterval);
       if (speechRec) {
         try {
           speechRec.onstart = null;
@@ -629,7 +952,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       if (res.success) {
         setLastSentText(textToSend);
         setInputText('');
-        setVisualState('thinking');
+        updateVisualStateSafe('thinking');
         props.showToast(`Sent: "${textToSend}"`);
       } else {
         props.showToast(res.error || 'Failed to send message');

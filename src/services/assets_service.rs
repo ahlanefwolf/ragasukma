@@ -1,12 +1,12 @@
 use std::fs;
-use std::net::TcpStream;
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 use crate::app_state::ServerSharedState;
 use crate::assets::{find_file_in_candidates, get_assets_dir};
 use crate::server::send_json_response;
 
-pub fn handle_assets_info(stream: &mut TcpStream) {
+pub fn handle_assets_info(stream: &mut dyn Write) {
     let assets_dir = get_assets_dir();
     let vrm_path = find_file_in_candidates("char.vrm");
     let vrm_exists = vrm_path.exists();
@@ -54,7 +54,7 @@ pub fn handle_assets_info(stream: &mut TcpStream) {
 
 pub fn handle_upload_vrm(
     body_bytes: &[u8],
-    stream: &mut TcpStream,
+    stream: &mut dyn Write,
     shared: &Arc<Mutex<ServerSharedState>>,
 ) {
     if body_bytes.is_empty() {
@@ -92,7 +92,7 @@ pub fn handle_upload_vrm(
 pub fn handle_upload_avatar(
     full_url: &str,
     body_bytes: &[u8],
-    stream: &mut TcpStream,
+    stream: &mut dyn Write,
     shared: &Arc<Mutex<ServerSharedState>>,
 ) {
     if body_bytes.is_empty() {

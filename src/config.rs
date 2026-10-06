@@ -39,7 +39,7 @@ pub fn push_log(level: &str, message: String) {
         message,
     };
     if let Ok(mut buf) = LOG_BUFFER.lock() {
-        if buf.len() >= 1000 {
+        if buf.len() >= 150 {
             buf.pop_front();
         }
         buf.push_back(entry);

@@ -118,19 +118,6 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     };
     window.addEventListener('ragasukma:config_updated' as any, handleConfigUpdated);
 
-    // Fetch initial control state 1x via GET /api/state
-    api.getState().then((initState) => {
-      if (initState) {
-        setIsRunning(initState.is_running);
-        setIsPaused(initState.is_paused);
-        setVoiceMuted(initState.voice_muted);
-        setMicMuted(initState.mic_muted);
-        if (initState.state) {
-          props.setCurrentState(initState.state);
-        }
-      }
-    });
-
     const barsBuffer = new Array<number>(24).fill(0);
     let rafId: number | null = null;
     let localAnalyser: AnalyserNode | null = null;

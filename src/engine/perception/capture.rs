@@ -63,15 +63,16 @@ fn capture_screen_image_linux_fallback() -> Result<DynamicImage, String> {
 /// Capture screenshot of the primary display or target window
 pub fn capture_screen_image() -> Result<DynamicImage, String> {
     let xcap_res = (|| -> Result<DynamicImage, String> {
-        let monitors = Monitor::all().map_err(|e| format!("Failed to list monitors: {e}"))?;
+        let mut monitors = Monitor::all().map_err(|e| format!("Failed to list monitors: {e}"))?;
         if monitors.is_empty() {
             return Err("No monitor found".to_string());
         }
 
-        let primary = monitors
-            .into_iter()
-            .find(|m| m.is_primary())
-            .unwrap_or_else(|| Monitor::all().unwrap().remove(0));
+        let primary = if let Some(idx) = monitors.iter().position(|m| m.is_primary()) {
+            monitors.remove(idx)
+        } else {
+            monitors.remove(0)
+        };
 
         let frame = primary
             .capture_image()

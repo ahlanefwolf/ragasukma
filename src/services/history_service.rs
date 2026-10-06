@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::net::TcpStream;
+use std::io::Write;
 
 use crate::server::send_json_response;
 
@@ -60,7 +60,7 @@ fn parse_history_file(content: &str, date_str: &str) -> ChatHistoryDay {
 }
 
 /// GET /api/history/dates
-pub fn handle_get_history_dates(stream: &mut TcpStream) {
+pub fn handle_get_history_dates(stream: &mut dyn Write) {
     let histories_dir = crate::assets::get_assets_dir().join("histories");
     let mut dates: Vec<String> = Vec::new();
 
@@ -84,7 +84,7 @@ pub fn handle_get_history_dates(stream: &mut TcpStream) {
 }
 
 /// GET /api/history/view?date=YYYY-MM-DD
-pub fn handle_get_history_by_date(full_url: &str, stream: &mut TcpStream) {
+pub fn handle_get_history_by_date(full_url: &str, stream: &mut dyn Write) {
     let date_param = full_url.split('?').nth(1).and_then(|query| {
         query.split('&').find_map(|pair| {
             let mut parts = pair.split('=');
@@ -136,7 +136,7 @@ pub fn handle_get_history_by_date(full_url: &str, stream: &mut TcpStream) {
 }
 
 /// POST /api/history/delete
-pub fn handle_delete_history(body_str: &str, stream: &mut TcpStream) {
+pub fn handle_delete_history(body_str: &str, stream: &mut dyn Write) {
     #[derive(Deserialize)]
     struct DeleteHistoryPayload {
         date: String,

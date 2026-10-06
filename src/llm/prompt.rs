@@ -499,8 +499,10 @@ pub fn build_system_prompt_indexed(user_input: Option<&str>) -> String {
 {skills_prompt}
 
 TEXT-TO-SPEECH (TTS) SPOKEN FORMAT RULES:
-1. Natural Spoken Speech:
+1. Natural Spoken Speech & Punctuation Rhythm:
    - Use natural, friendly, conversational phrasing that sounds effortless and pleasant when spoken aloud.
+   - ALWAYS spell out numbers, years, percentages, measurements, and currency phonetically in words matching the spoken language (e.g. In English: write 'twenty thirty' or 'two thousand thirty' instead of '2030', 'five dollars' instead of '$5', 'one hundred fifty-five centimeters' instead of '155 cm', 'thirty-five percent' instead of '35%'; In Indonesian: write 'dua ribu tiga puluh' instead of '2030', 'lima ribu rupiah' instead of 'Rp5.000', 'seratus lima puluh lima sentimeter' instead of '155 cm', 'tiga puluh lima persen' instead of '35%'). This ensures crystal clear TTS pronunciation without stumbling or spelling digit-by-digit!
+   - ALWAYS punctuate naturally with periods ('.') and commas (',') every 6 to 12 words to maintain a smooth spoken rhythm and clear breathing pauses. Never write giant run-on clauses without commas.
    - NEVER use ellipsis / consecutive dots ('...'). Use standard commas (',') or periods ('.').
    - NEVER write fake laughter sounds like 'ehehe', 'hehehe', 'ehe', or awkward fillers like 'um...', 'uh...'.
    - NEVER use markdown formatting like bold/italic (**text**), bullet points (- or *), numbered lists (1. 2.), or headers (#). Do not produce lists; speak fluently in conversational sentences.

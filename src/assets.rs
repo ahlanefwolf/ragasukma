@@ -8,6 +8,8 @@ use crate::ui::pose_system::PosesConfig;
 
 #[derive(RustEmbed)]
 #[folder = "assets/"]
+#[exclude = "histories/*"]
+#[exclude = "recipes/*"]
 pub struct EmbeddedAssets;
 
 pub fn get_assets_dir() -> PathBuf {
@@ -136,6 +138,8 @@ pub fn save_poses(poses: &PosesConfig) -> Result<(), String> {
 pub fn ensure_default_user_assets() {
     let cfg_assets_dir = crate::config::get_app_config_dir().join("assets");
     let _ = fs::create_dir_all(&cfg_assets_dir);
+    let _ = fs::create_dir_all(cfg_assets_dir.join("histories"));
+    let _ = fs::create_dir_all(cfg_assets_dir.join("recipes"));
 
     // Dynamically extract all asset files embedded in the binary
     for file_path in EmbeddedAssets::iter() {

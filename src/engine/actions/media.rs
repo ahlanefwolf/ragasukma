@@ -154,6 +154,34 @@ pub fn execute_media_action(action: &str, payload: &str) -> Option<(String, Stri
             ))
         }
 
+        "seek" => {
+            if let Ok(sec) = payload.trim().parse::<f32>() {
+                crate::audio::player::seek(sec);
+                crate::app_state::push_client_action("music:seek", Some(&format!("{:.1}", sec)));
+                return Some((
+                    "Seek Music".to_string(),
+                    format!("Seeked to {:.1}s", sec),
+                ));
+            }
+            None
+        }
+
+        "volume" => {
+            let clean_payload = payload.trim().trim_end_matches('%');
+            if let Ok(mut vol) = clean_payload.parse::<f32>() {
+                if vol > 2.0 && vol <= 100.0 {
+                    vol /= 100.0;
+                }
+                crate::audio::player::set_music_volume(vol);
+                crate::app_state::push_client_action("music:volume", Some(&format!("{:.2}", vol)));
+                return Some((
+                    "Music Volume".to_string(),
+                    format!("Set music volume to {:.0}%", vol * 100.0),
+                ));
+            }
+            None
+        }
+
         _ => None,
     }
 }

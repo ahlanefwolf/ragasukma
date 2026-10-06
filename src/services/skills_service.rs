@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::net::TcpStream;
+use std::io::Write;
 
 use crate::engine::{
     SkillItem, execute_command_by_os, get_installed_applications, parse_skills_markdown,
@@ -7,13 +7,13 @@ use crate::engine::{
 };
 use crate::server::send_json_response;
 
-pub fn handle_get_apps(stream: &mut TcpStream) {
+pub fn handle_get_apps(stream: &mut dyn Write) {
     let apps = get_installed_applications();
     let json = serde_json::to_string(&apps).unwrap_or_default();
     send_json_response(stream, 200, &json);
 }
 
-pub fn handle_get_extension_path(stream: &mut TcpStream) {
+pub fn handle_get_extension_path(stream: &mut dyn Write) {
     let assets_dir = crate::assets::get_assets_dir();
     let zip_file = crate::assets::find_file_in_candidates("ragasukma-companion.zip");
     let zip_str = zip_file.to_string_lossy().to_string();
@@ -26,13 +26,13 @@ pub fn handle_get_extension_path(stream: &mut TcpStream) {
     send_json_response(stream, 200, &json.to_string());
 }
 
-pub fn handle_get_skills(stream: &mut TcpStream) {
+pub fn handle_get_skills(stream: &mut dyn Write) {
     let skills = parse_skills_markdown();
     let json = serde_json::to_string(&skills).unwrap_or_default();
     send_json_response(stream, 200, &json);
 }
 
-pub fn handle_post_skills(body_str: &str, stream: &mut TcpStream) {
+pub fn handle_post_skills(body_str: &str, stream: &mut dyn Write) {
     #[derive(Deserialize)]
     struct AddSkillPayload {
         name: String,
@@ -68,7 +68,7 @@ pub fn handle_post_skills(body_str: &str, stream: &mut TcpStream) {
     }
 }
 
-pub fn handle_delete_skill(body_str: &str, stream: &mut TcpStream) {
+pub fn handle_delete_skill(body_str: &str, stream: &mut dyn Write) {
     #[derive(Deserialize)]
     struct DeleteSkillPayload {
         name: String,
@@ -87,7 +87,7 @@ pub fn handle_delete_skill(body_str: &str, stream: &mut TcpStream) {
     }
 }
 
-pub fn handle_run_skill(body_str: &str, stream: &mut TcpStream) {
+pub fn handle_run_skill(body_str: &str, stream: &mut dyn Write) {
     #[derive(Deserialize)]
     struct RunSkillPayload {
         command: String,

@@ -1,6 +1,6 @@
 import { Component, Show } from 'solid-js';
-import { Monitor, Smartphone, Terminal, X, Settings2, Power } from 'lucide-solid';
-import { MobileAudioMode } from './MobileHeader';
+import { Smartphone, Mic, Terminal, X, Settings2, Power } from 'lucide-solid';
+export type MobileAudioMode = 'remote_desktop' | 'full_mobile';
 
 interface MobileSettingsSheetProps {
   isOpen: boolean;
@@ -53,8 +53,8 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
             <label class="text-[11px] font-mono font-bold text-theme-muted uppercase tracking-wider block">
               Audio & Conversation Mode
             </label>
-            <div class="grid grid-cols-2 gap-2.5">
-              {/* Remote PC Button */}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {/* Remote Desktop Button */}
               <button
                 type="button"
                 onClick={() => props.onSwitchMode('remote_desktop')}
@@ -65,14 +65,14 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
                 }`}
               >
                 <div class="flex items-center justify-between">
-                  <Monitor size={17} class={props.audioMode === 'remote_desktop' ? 'text-theme-bg' : 'text-theme-cyan'} />
+                  <Mic size={17} class={props.audioMode === 'remote_desktop' ? 'text-theme-bg' : 'text-theme-cyan'} />
                   <Show when={props.audioMode === 'remote_desktop'}>
                     <span class="text-[10px] font-mono font-bold uppercase tracking-wider">ACTIVE</span>
                   </Show>
                 </div>
                 <span class="text-xs font-bold mt-1">Remote PC</span>
                 <span class={`text-[10.5px] leading-tight ${props.audioMode === 'remote_desktop' ? 'opacity-90' : 'text-theme-muted'}`}>
-                  Assistant voice & mic on PC speaker
+                  Speaker PC, Mic HP
                 </span>
               </button>
 
@@ -92,9 +92,9 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
                     <span class="text-[10px] font-mono font-bold uppercase tracking-wider">ACTIVE</span>
                   </Show>
                 </div>
-                <span class="text-xs font-bold mt-1">Full Mobile</span>
+                <span class="text-xs font-bold mt-1">Phone Only</span>
                 <span class={`text-[10.5px] leading-tight ${props.audioMode === 'full_mobile' ? 'opacity-90' : 'text-theme-muted'}`}>
-                  Assistant voice & mic on phone
+                  Speaker & Mic di HP
                 </span>
               </button>
             </div>

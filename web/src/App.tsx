@@ -6,7 +6,7 @@ import { HistoryTab } from './components/HistoryTab';
 
 import { SkillsTab } from './components/SkillsTab';
 import { MusicTab } from './components/MusicTab';
-import { TunerTab } from './components/TunerTab';
+import { TunerTab } from './components/tuner/TunerTab';
 import { LogsTab } from './components/LogsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { AntigravityTab } from './components/AntigravityTab';
@@ -296,6 +296,7 @@ const App: Component = () => {
       window.removeEventListener('ragasukma:test_voice' as any, handleTestVoiceEvent);
       unsubState();
       unsubActions();
+      unsubModelStatusFn?.();
     });
   });
 

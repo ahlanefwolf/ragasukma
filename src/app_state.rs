@@ -359,7 +359,7 @@ pub fn push_client_action(action: &str, payload: Option<&str>) {
     };
 
     if let Ok(mut q) = CLIENT_ACTIONS_BUFFER.lock() {
-        if q.len() >= 100 {
+        if q.len() >= 50 {
             q.pop_front();
         }
         q.push_back(item);

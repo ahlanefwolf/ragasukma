@@ -17,12 +17,20 @@ pub fn set_remote_text_sender(sender: Sender<String>) {
     }
 }
 
+pub fn clear_remote_text_sender() {
+    if let Ok(mut lock) = REMOTE_TEXT_INJECTOR.lock() {
+        *lock = None;
+    }
+}
+
 pub fn inject_remote_text(text: String) -> bool {
-    if let Ok(lock) = REMOTE_TEXT_INJECTOR.lock() {
+    if let Ok(mut lock) = REMOTE_TEXT_INJECTOR.lock() {
         if let Some(ref sender) = *lock {
             if sender.send(text.clone()).is_ok() {
                 return true;
             }
+            // Sender is disconnected / stale, clear it
+            *lock = None;
         }
     }
 

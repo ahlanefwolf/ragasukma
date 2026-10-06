@@ -1,11 +1,11 @@
-use std::net::TcpStream;
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 use crate::app_state::ServerSharedState;
 use crate::assets::{load_config, save_config};
 use crate::server::send_json_response;
 
-pub fn handle_get_config(stream: &mut TcpStream) {
+pub fn handle_get_config(stream: &mut dyn Write) {
     let cfg = load_config();
     let json = serde_json::to_string(&cfg).unwrap_or_default();
     send_json_response(stream, 200, &json);
@@ -13,7 +13,7 @@ pub fn handle_get_config(stream: &mut TcpStream) {
 
 pub fn handle_post_config(
     body_str: &str,
-    stream: &mut TcpStream,
+    stream: &mut dyn Write,
     shared: &Arc<Mutex<ServerSharedState>>,
 ) {
     if let Ok(cfg) = serde_json::from_str::<crate::config::UserConfig>(body_str) {

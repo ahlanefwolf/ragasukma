@@ -183,7 +183,7 @@ static VISION_SENDER: Mutex<Option<std::sync::mpsc::Sender<VisionRequest>>> = Mu
 /// Initialize Vision Worker in thread background terpisah.
 /// This thread is 100% idle (0% CPU, 0 MB model load) when there are no scan requests.
 pub fn start_vision_worker() {
-    let mut sender_lock = VISION_SENDER.lock().unwrap();
+    let mut sender_lock = VISION_SENDER.lock().unwrap_or_else(|e| e.into_inner());
     if sender_lock.is_some() {
         return; // Already running
     }
@@ -357,7 +357,7 @@ pub fn apply_perception_to_snapshot(res: &PerceptionResult) {
 
 /// On-demand visual perception scan
 pub fn scan_screen_visual_elements() -> PerceptionResult {
-    let mut lock = PERCEPTION_ENGINE.lock().unwrap();
+    let mut lock = PERCEPTION_ENGINE.lock().unwrap_or_else(|e| e.into_inner());
     if lock.is_none() {
         match PerceptionEngine::new() {
             Ok(engine) => *lock = Some(engine),

@@ -7,8 +7,9 @@ const [isPaused, setIsPaused] = createSignal(false);
 const [currentTime, setCurrentTime] = createSignal(0);
 const [duration, setDuration] = createSignal(0);
 const [volume, setVolume] = createSignal(1);
+const [isFullMobileActive, setIsFullMobileActive] = createSignal(false);
 
-export { currentTrack, isPlaying, isPaused, currentTime, duration, volume };
+export { currentTrack, isPlaying, isPaused, currentTime, duration, volume, isFullMobileActive };
 
 // Bridge status for komponen BottomPlayer, PiP & UI
 export const globalStatus = () => ({
@@ -16,6 +17,7 @@ export const globalStatus = () => ({
   is_playing: isPlaying(),
   is_paused: isPaused(),
   volume: volume() * 100,
+  is_full_mobile: isFullMobileActive(),
 });
 
 let audioEl: HTMLAudioElement | null = null;
@@ -84,11 +86,33 @@ function bindAudioListeners(el: HTMLAudioElement) {
   });
 }
 
-// Initialize automatically audio element singleton in browser
-if (typeof window !== 'undefined' && typeof Audio !== 'undefined') {
-  audioEl = new Audio();
-  audioEl.volume = volume();
-  bindAudioListeners(audioEl);
+// Internal ticker for UI time update when desktop native player plays audio
+let playbackTicker: any = null;
+
+function startPlaybackTicker() {
+  stopPlaybackTicker();
+  playbackTicker = setInterval(() => {
+    if (isPlaying() && !isPaused()) {
+      const cur = currentTime();
+      const dur = duration() || currentTrack()?.duration || 0;
+      if (dur > 0 && cur >= dur) {
+        setIsPlaying(false);
+        setIsPaused(false);
+        setCurrentTime(0);
+        stopPlaybackTicker();
+        nextTrack();
+      } else {
+        setCurrentTime(cur + 1);
+      }
+    }
+  }, 1000);
+}
+
+function stopPlaybackTicker() {
+  if (playbackTicker) {
+    clearInterval(playbackTicker);
+    playbackTicker = null;
+  }
 }
 
 export const initGlobalAudio = (el?: HTMLAudioElement) => {
@@ -104,13 +128,12 @@ export const initGlobalAudio = (el?: HTMLAudioElement) => {
 
 let isDucked = false;
 let preDuckVolume = 1.0;
-let isDesktopVoiceMuted = false;
 
-// Listen for mute status from server (if Phone Only active, mute music playback on PC browser)
+// Listen for mute status from server (if Full HP active, mute music playback on PC browser)
 api.subscribeState((st) => {
   if (st && typeof st.voice_muted === 'boolean') {
-    isDesktopVoiceMuted = st.voice_muted;
-    if (isDesktopVoiceMuted && audioEl && !audioEl.paused) {
+    setIsFullMobileActive(st.voice_muted);
+    if (st.voice_muted && audioEl && !audioEl.paused) {
       audioEl.pause();
       setIsPlaying(false);
       setIsPaused(false);
@@ -204,10 +227,28 @@ api.subscribeActions(async (act) => {
     if (audioEl) audioEl.pause();
     setIsPlaying(false);
     setIsPaused(true);
+    stopPlaybackTicker();
   } else if (act.action === 'music:resume') {
     if (audioEl) audioEl.play().catch(() => {});
     setIsPlaying(true);
     setIsPaused(false);
+    startPlaybackTicker();
+  } else if (act.action === 'music:seek') {
+    if (act.payload) {
+      const sec = parseFloat(act.payload);
+      if (!isNaN(sec)) {
+        setCurrentTime(sec);
+      }
+    }
+  } else if (act.action === 'music:volume') {
+    if (act.payload) {
+      const v = parseFloat(act.payload);
+      if (!isNaN(v)) {
+        const clamped = Math.max(0, Math.min(1, v > 2 ? v / 100 : v));
+        setVolume(clamped);
+        if (audioEl) audioEl.volume = clamped;
+      }
+    }
   } else if (act.action === 'music:stop') {
     if (audioEl) {
       audioEl.pause();
@@ -216,26 +257,32 @@ api.subscribeActions(async (act) => {
     setIsPlaying(false);
     setIsPaused(false);
     setCurrentTime(0);
+    stopPlaybackTicker();
   }
 });
 
 function playLocalAudio(track: YtTrackInfo) {
   if (!track || !track.filename) return;
-  // If server is in Phone Only mode (isDesktopVoiceMuted = true), PC browser must remain silent
-  if (isDesktopVoiceMuted) return;
+  // Always update track title and UI playback status
   setCurrentTrack(track);
   setCurrentTime(0);
   setDuration(track.duration || 0);
   setIsPlaying(true);
   setIsPaused(false);
+  startPlaybackTicker();
 
-  if (audioEl) {
-    audioEl.src = api.getMusicUrl(track.filename);
-    audioEl.currentTime = 0;
-    audioEl.play().catch((err) => {
-      console.warn('[AudioPlayer] Autoplay prevented:', err);
-    });
+  // Desktop browser must NOT play audio element if server native audio is playing on desktop speakers,
+  // preventing double/echo sound. Audio is only emitted by browser if in Phone Only / explicit web streaming mode.
+  if (isFullMobileActive()) {
+    if (audioEl) {
+      audioEl.pause();
+      audioEl.currentTime = 0;
+    }
+    return;
   }
+
+  // When on desktop web dashboard, native backend player handles desktop hardware speaker output.
+  // We do not play audioEl in desktop browser tab to prevent double audio playback.
 }
 
 // ---------------------------------------------------------------------------
@@ -243,30 +290,30 @@ function playLocalAudio(track: YtTrackInfo) {
 // ---------------------------------------------------------------------------
 export const playTrack = (track: YtTrackInfo) => {
   if (!track || !track.filename) return;
+  if (isFullMobileActive()) return;
   playLocalAudio(track);
   api.controlMusic('play', track.title);
 };
 
 export const pauseMusic = () => {
+  if (isFullMobileActive()) return;
   if (audioEl) audioEl.pause();
   setIsPlaying(false);
   setIsPaused(true);
+  stopPlaybackTicker();
   api.controlMusic('pause');
 };
 
 export const resumeMusic = () => {
-  if (audioEl) {
-    if (!audioEl.src && currentTrack()?.filename) {
-      audioEl.src = api.getMusicUrl(currentTrack()!.filename);
-    }
-    audioEl.play().catch(() => {});
-  }
+  if (isFullMobileActive()) return;
   setIsPlaying(true);
   setIsPaused(false);
+  startPlaybackTicker();
   api.controlMusic('resume');
 };
 
 export const nextTrack = async () => {
+  if (isFullMobileActive()) return;
   const res = await api.listMusic();
   const list = Array.isArray(res) ? res : res?.tracks || [];
   if (list.length === 0) return;
@@ -283,6 +330,7 @@ export const nextTrack = async () => {
 };
 
 export const prevTrack = async () => {
+  if (isFullMobileActive()) return;
   const res = await api.listMusic();
   const list = Array.isArray(res) ? res : res?.tracks || [];
   if (list.length === 0) return;
@@ -299,6 +347,7 @@ export const prevTrack = async () => {
 };
 
 export const stopMusic = () => {
+  if (isFullMobileActive()) return;
   if (audioEl) {
     audioEl.pause();
     audioEl.currentTime = 0;
@@ -306,6 +355,7 @@ export const stopMusic = () => {
   setIsPlaying(false);
   setIsPaused(false);
   setCurrentTime(0);
+  stopPlaybackTicker();
   api.controlMusic('stop');
 };
 
@@ -315,15 +365,36 @@ export const killGlobalAudio = () => {
 };
 
 export const seekMusic = (time: number) => {
+  if (isFullMobileActive()) return;
   setCurrentTime(time);
   if (audioEl) {
     audioEl.currentTime = time;
   }
+  api.controlMusic('seek', time.toString());
 };
 
+let volumeDebounceTimer: any = null;
+
 export const changeVolume = (val: number) => {
-  setVolume(val);
+  if (isFullMobileActive()) return;
+  const clamped = Math.max(0, Math.min(1, val));
+  setVolume(clamped);
   if (audioEl) {
-    audioEl.volume = val;
+    audioEl.volume = clamped;
   }
+  if (volumeDebounceTimer) {
+    clearTimeout(volumeDebounceTimer);
+  }
+  volumeDebounceTimer = setTimeout(() => {
+    api.controlMusic('volume', clamped.toFixed(2));
+  }, 40);
 };
+
+// Initial sync with backend music player volume
+api.listMusic().then((res) => {
+  if (res && typeof res.volume === 'number' && !isNaN(res.volume)) {
+    const v = Math.max(0, Math.min(1, res.volume));
+    setVolume(v);
+    if (audioEl) audioEl.volume = v;
+  }
+}).catch(() => {});

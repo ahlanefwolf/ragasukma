@@ -1,4 +1,3 @@
-use crate::tray::{AssistantState, TrayState};
 use anyhow::Result;
 
 pub struct TextToSpeech;
@@ -57,19 +56,87 @@ impl TextToSpeech {
         let asst_name_str = asst_name.to_string();
         let emotion_str = emotion.to_string();
 
-        let mut on_chunk = |chunk_idx: usize, total_chunks: usize, chunk_wav: Vec<u8>| {
-            if !crate::app_state::is_voice_muted() {
-                // Once first chunk is ready, directly set avatar & tray status to Speaking
-                if chunk_idx == 0 {
-                    crate::tray::TrayState::update_with_emotion(
-                        crate::services::tray_service::AssistantState::Speaking,
-                        &format!("{asst_name_str} Speaking"),
-                        &emotion_str,
-                    );
-                    crate::app_state::set_ai_speaking(true);
+        // ---------------------------------------------------------------------
+        // Worker 3 (Mobile Opus Network Worker): Background Task via MPSC Channel
+        // ---------------------------------------------------------------------
+        struct MobileChunkItem {
+            chunk_id: String,
+            chunk_wav: Vec<u8>,
+            chunk_idx: usize,
+            total_chunks: usize,
+        }
+
+        let (mobile_tx, mobile_rx) = std::sync::mpsc::channel::<MobileChunkItem>();
+
+        let clean_text_for_worker = clean_text.clone();
+        let emotion_for_worker = emotion_str.clone();
+        let voice_for_worker = voice.clone();
+        let lang_for_worker = lang.clone();
+
+        let mobile_worker_handle = std::thread::spawn(move || {
+            while let Ok(item) = mobile_rx.recv() {
+                // 1. Cache WAV bytes
+                crate::audio::supertonic::set_last_audio_wav(item.chunk_id.clone(), item.chunk_wav.clone());
+
+                // 2. Encode to Opus in background worker (does not block inference or PC audio)
+                if let Ok(opus_bytes) = crate::audio::opus::encode_wav_to_opus(&item.chunk_wav) {
+                    crate::audio::supertonic::set_last_audio_opus(item.chunk_id.clone(), opus_bytes);
                 }
-                crate::audio::player::play_native_voice_chunk(chunk_idx, total_chunks, chunk_wav);
+
+                // 3. Broadcast chunk immediately to mobile clients over WebSocket
+                let chunk_audio_url = format!("/api/tts/audio?id={}", item.chunk_id);
+                let chunk_duration = wav_duration_secs(&item.chunk_wav);
+                let chunk_payload = serde_json::json!({
+                    "text": clean_text_for_worker,
+                    "emotion": emotion_for_worker,
+                    "audio_url": Some(chunk_audio_url),
+                    "duration": chunk_duration,
+                    "voice": voice_for_worker,
+                    "lang": lang_for_worker,
+                    "chunk_index": item.chunk_idx,
+                    "total_chunks": item.total_chunks,
+                    "is_chunk": true,
+                    "native_played": !crate::app_state::is_voice_muted()
+                })
+                .to_string();
+                crate::app_state::push_client_action("assistant:speak", Some(&chunk_payload));
             }
+        });
+
+        // ---------------------------------------------------------------------
+        // Worker 2 (Native Audio & Lip-Sync Worker): Start Stream Receiver
+        // ---------------------------------------------------------------------
+        let native_pc_stream = if !crate::app_state::is_voice_muted() {
+            Some(crate::audio::player::start_voice_stream(
+                emotion_str.clone(),
+                asst_name_str.clone(),
+            ))
+        } else {
+            None
+        };
+
+        // ---------------------------------------------------------------------
+        // Worker 1 (Chunk Inference Producer): Generate WAV Chunks via ONNX
+        // ---------------------------------------------------------------------
+        let mut on_chunk = |chunk_idx: usize, total_chunks: usize, chunk_wav: Vec<u8>| {
+            let chunk_id = if total_chunks > 1 {
+                format!("{}_{}", audio_id, chunk_idx)
+            } else {
+                audio_id.clone()
+            };
+
+            // Stream to PC speakers immediately as soon as chunk is synthesized
+            if let Some(ref pc_stream) = native_pc_stream {
+                pc_stream.push_chunk(chunk_wav.clone());
+            }
+
+            // Push to mobile background worker for async Opus encoding & WebSocket transmission
+            let _ = mobile_tx.send(MobileChunkItem {
+                chunk_id,
+                chunk_wav,
+                chunk_idx,
+                total_chunks,
+            });
         };
 
         let engine_opt = crate::audio::supertonic::get_engine()
@@ -78,18 +145,46 @@ impl TextToSpeech {
         let synthesized = if let Some(engine) = engine_opt {
             match engine.synthesize_stream(&clean_text, &voice, &lang, speed, &mut on_chunk) {
                 Ok(bytes) => {
+                    // Close sender to signal mobile worker when all chunks are pushed
+                    drop(mobile_tx);
+
+                    // Signal PC native audio stream that all chunks have been pushed
+                    if let Some(ref pc_stream) = native_pc_stream {
+                        pc_stream.finish();
+                    }
+
+                    // Cache complete combined WAV & trigger background Opus encode for full fallback
                     crate::audio::supertonic::set_last_audio_wav(audio_id.clone(), bytes.clone());
+                    let audio_id_clone = audio_id.clone();
+                    let bytes_clone = bytes.clone();
+                    std::thread::spawn(move || {
+                        if let Ok(opus_bytes) = crate::audio::opus::encode_wav_to_opus(&bytes_clone) {
+                            crate::audio::supertonic::set_last_audio_opus(audio_id_clone, opus_bytes);
+                        }
+                    });
+
                     audio_bytes_opt = Some(bytes);
                     true
                 }
                 Err(e) => {
+                    drop(mobile_tx);
+                    if let Some(ref pc_stream) = native_pc_stream {
+                        pc_stream.finish();
+                    }
                     crate::term_err!("[Supertonic TTS] Failed to synthesize audio: {e}");
                     false
                 }
             }
         } else {
+            drop(mobile_tx);
+            if let Some(ref pc_stream) = native_pc_stream {
+                pc_stream.finish();
+            }
             false
         };
+
+        // Ensure background mobile worker thread finishes cleanly
+        let _ = mobile_worker_handle.join();
 
         let actual_audio_duration = audio_bytes_opt
             .as_ref()
@@ -99,7 +194,7 @@ impl TextToSpeech {
 
         crate::app_state::record_last_spoken_text(&clean_text);
 
-        // 1. Stream response sentence, emotion, duration, and audio_url to all clients (Desktop & Mobile) via SSE action
+        // 1. Sync full text and fallback combined audio_url to clients (Desktop & Mobile) via action
         let payload = serde_json::json!({
             "text": clean_text,
             "emotion": emotion,
@@ -107,37 +202,13 @@ impl TextToSpeech {
             "duration": actual_audio_duration,
             "voice": voice,
             "lang": lang,
+            "is_chunk": false,
             "native_played": native_played
         })
         .to_string();
         crate::app_state::push_client_action("assistant:speak", Some(&payload));
 
-        // 2. Synchronize avatar state & AIUEO lip sync:
-        if native_played {
-            TrayState::update_with_emotion(
-                AssistantState::Speaking,
-                &format!("{asst_name} Speaking"),
-                emotion,
-            );
-            crate::app_state::set_ai_speaking(true);
-        } else {
-            let has_web_client = crate::app_state::ACTIVE_WEB_SESSION
-                .lock()
-                .ok()
-                .and_then(|s| s.as_ref().map(|_| true))
-                .unwrap_or(false);
-
-            if !has_web_client {
-                TrayState::update_with_emotion(
-                    AssistantState::Speaking,
-                    &format!("{asst_name} Speaking"),
-                    emotion,
-                );
-                crate::app_state::set_ai_speaking(true);
-            }
-        }
-
-        // 3. Precision passive fail-safe watchdog based on actual WAV duration:
+        // 2. Precision passive fail-safe watchdog based on actual WAV duration:
         // Calculated directly from duration in seconds of synthesized Supertonic-3 WAV audio.
         let epoch = crate::app_state::next_speaking_epoch();
         crate::app_state::touch_speech_activity();
@@ -145,11 +216,12 @@ impl TextToSpeech {
         let exact_audio_secs = actual_audio_duration.unwrap_or_else(|| {
             (clean_text.chars().count() as f32 / 10.0).max(5.0)
         });
-        // Network latency and audio player buffering tolerance grace period (~6 seconds)
-        let timeout_limit_secs = (exact_audio_secs + 6.0).ceil() as u64;
+        // Generous tolerance buffer based on length to account for long text playback
+        let tolerance_buffer = (exact_audio_secs * 0.4).clamp(10.0, 60.0);
+        let timeout_limit_secs = (exact_audio_secs + tolerance_buffer).ceil() as u64;
 
         std::thread::spawn(move || {
-            let start = std::time::Instant::now();
+            let mut last_activity = std::time::Instant::now();
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(400));
 
@@ -160,22 +232,19 @@ impl TextToSpeech {
                     break;
                 }
 
-                // If native PC audio is still actively playing, never force idle!
+                // If native PC audio is still actively playing, refresh activity timer
                 if crate::audio::player::is_native_voice_playing() {
                     crate::app_state::touch_speech_activity();
+                    last_activity = std::time::Instant::now();
                     continue;
                 }
 
-                // If client still sent voice activity within the last 3 seconds, extend timeout
-                if crate::app_state::last_speech_activity_elapsed().as_secs() < 3 {
-                    continue;
-                }
-
-                // If duration exceeds actual audio duration plus tolerance buffer
-                if start.elapsed().as_secs() >= timeout_limit_secs {
+                // If duration since last active audio playback exceeds timeout buffer, force avatar back to Standby
+                if last_activity.elapsed().as_secs() >= timeout_limit_secs {
                     crate::term_log!(
-                        "[TTS Watchdog] Audio playback finished ({exact_audio_secs:.1}s), returning avatar to Standby."
+                        "[TTS Watchdog] Audio playback timeout reached ({exact_audio_secs:.1}s), returning avatar to Standby."
                     );
+                    crate::audio::player::stop_native_voice();
                     crate::app_state::set_ai_speaking(false);
                     crate::tray::TrayState::update_with_emotion(
                         crate::services::tray_service::AssistantState::Idle,

@@ -1,5 +1,5 @@
 use serde_json::json;
-use std::net::TcpStream;
+use std::io::Write;
 
 use crate::engine::cloudflared::{
     check_cloudflared, get_tunnel_status, install_cloudflared, is_auth_key_valid,
@@ -7,7 +7,7 @@ use crate::engine::cloudflared::{
 };
 use crate::server::send_json_response;
 
-pub fn handle_tunnel_status(stream: &mut TcpStream) {
+pub fn handle_tunnel_status(stream: &mut dyn Write) {
     let (status, url, auth_key) = get_tunnel_status();
     let cf_info = check_cloudflared();
     let resp = json!({
@@ -20,13 +20,13 @@ pub fn handle_tunnel_status(stream: &mut TcpStream) {
     send_json_response(stream, 200, &resp);
 }
 
-pub fn handle_tunnel_check(stream: &mut TcpStream) {
+pub fn handle_tunnel_check(stream: &mut dyn Write) {
     let cf_info = check_cloudflared();
     let resp = json!(cf_info).to_string();
     send_json_response(stream, 200, &resp);
 }
 
-pub fn handle_tunnel_install(stream: &mut TcpStream) {
+pub fn handle_tunnel_install(stream: &mut dyn Write) {
     match install_cloudflared() {
         Ok(msg) => {
             let info = check_cloudflared();
@@ -49,7 +49,7 @@ pub fn handle_tunnel_install(stream: &mut TcpStream) {
     }
 }
 
-pub fn handle_tunnel_start(stream: &mut TcpStream) {
+pub fn handle_tunnel_start(stream: &mut dyn Write) {
     match start_cloudflared_tunnel(42128) {
         Ok((url, auth_key)) => {
             let status = if url.is_empty() {
@@ -75,7 +75,7 @@ pub fn handle_tunnel_start(stream: &mut TcpStream) {
     }
 }
 
-pub fn handle_tunnel_stop(stream: &mut TcpStream) {
+pub fn handle_tunnel_stop(stream: &mut dyn Write) {
     let _ = stop_cloudflared_tunnel();
     let resp = json!({
         "status": "stopped"
@@ -96,7 +96,7 @@ fn extract_query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
     None
 }
 
-pub fn handle_remote_text(full_url: &str, body_str: &str, stream: &mut TcpStream) {
+pub fn handle_remote_text(full_url: &str, body_str: &str, stream: &mut dyn Write) {
     let query = full_url.split('?').nth(1).unwrap_or("");
     let key = extract_query_param(query, "key").unwrap_or("");
 
@@ -146,7 +146,7 @@ pub fn handle_remote_text(full_url: &str, body_str: &str, stream: &mut TcpStream
     }
 }
 
-pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
+pub fn handle_stt_transcript(body_str: &str, stream: &mut dyn Write) {
     #[derive(serde::Deserialize)]
     struct SttPayload {
         #[serde(alias = "transcript")]
@@ -178,9 +178,9 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
         let ai_speaking = crate::app_state::is_ai_speaking()
             || crate::audio::player::is_native_voice_playing();
 
-        // If AI is currently speaking and voice interruption is disabled by user,
-        // reject transcript outright to prevent overlapping speech.
-        if ai_speaking && !cfg.voice_interruption {
+        // 1. Interruption DISABLED (false): Source of Truth is `is_speaking`.
+        // Mic / STT is completely locked while AI speaks; discard transcript immediately without queuing.
+        if !cfg.voice_interruption && ai_speaking {
             crate::term_log!(
                 "[Chrome Web STT] Transcript ignored because assistant is speaking (interruption disabled): \"{}\"",
                 clean
@@ -193,17 +193,22 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
             return;
         }
 
+        // 2. Interruption ENABLED (true) or AI is Idle: Source of Truth is incoming STT.
+        // Instantly cut off active voice, drop memory buffers, and clear speaking flags.
+        if ai_speaking {
+            crate::audio::player::stop_native_voice();
+            crate::app_state::trigger_interruption();
+            crate::app_state::set_ai_speaking(false);
+            crate::term_log!(
+                "[Chrome Web STT] Voice interruption cuts assistant speech: \"{}\"",
+                clean
+            );
+        } else {
+            crate::term_log!("[Chrome Web STT] Transcript received: \"{}\"", clean);
+        }
+
         let injected = crate::engine::remote_text::inject_remote_text(clean.to_string());
         if injected {
-            if ai_speaking && cfg.voice_interruption {
-                crate::term_log!(
-                    "[Chrome Web STT] Voice interruption cuts assistant speech: \"{}\"",
-                    clean
-                );
-                crate::app_state::trigger_interruption();
-            } else {
-                crate::term_log!("[Chrome Web STT] Transcript received: \"{}\"", clean);
-            }
             let asst_name = cfg.assistant_name;
             crate::tray::TrayState::update(
                 crate::services::tray_service::AssistantState::Thinking,
@@ -233,7 +238,7 @@ pub fn handle_stt_transcript(body_str: &str, stream: &mut TcpStream) {
 
 pub fn handle_tts_state(
     body_str: &str,
-    stream: &mut TcpStream,
+    stream: &mut dyn Write,
     shared: &std::sync::Arc<std::sync::Mutex<crate::app_state::ServerSharedState>>,
 ) {
     #[derive(serde::Deserialize)]
@@ -279,9 +284,24 @@ pub fn handle_tts_state(
                 send_json_response(stream, 200, "{\"success\":true,\"ignored\":true}");
                 return;
             }
-            crate::audio::player::stop_native_voice();
+
+            let is_speaking = crate::app_state::is_ai_speaking() || crate::audio::player::is_native_voice_playing();
+            let cfg = crate::assets::load_config();
+
+            // If voice_interruption is disabled (false), ignore listening trigger while AI is speaking
+            if is_speaking && !cfg.voice_interruption {
+                send_json_response(stream, 200, "{\"success\":true,\"ignored\":true,\"reason\":\"voice_interruption_disabled\"}");
+                return;
+            }
+
+            // If voice_interruption is enabled (true), stop active speaking immediately
+            if is_speaking && cfg.voice_interruption {
+                crate::audio::player::stop_native_voice();
+                crate::app_state::trigger_interruption();
+            }
+
             crate::app_state::set_ai_speaking(false);
-            let asst_name = crate::config::load_user_config().assistant_name;
+            let asst_name = cfg.assistant_name;
             crate::tray::TrayState::update_with_emotion(
                 crate::services::tray_service::AssistantState::Listening,
                 &format!("{asst_name} Listening..."),
@@ -293,7 +313,9 @@ pub fn handle_tts_state(
                 lock.state_version = lock.state_version.wrapping_add(1);
             }
         } else if target_state == "thinking" {
-            crate::app_state::set_ai_speaking(false);
+            if !crate::audio::player::is_native_voice_playing() {
+                crate::app_state::set_ai_speaking(false);
+            }
             let asst_name = crate::config::load_user_config().assistant_name;
             crate::tray::TrayState::update_with_emotion(
                 crate::services::tray_service::AssistantState::Thinking,
@@ -306,13 +328,14 @@ pub fn handle_tts_state(
                 lock.state_version = lock.state_version.wrapping_add(1);
             }
         } else {
-            crate::audio::player::stop_native_voice();
-            crate::app_state::set_ai_speaking(false);
-            crate::tray::TrayState::update_with_emotion(
-                crate::services::tray_service::AssistantState::Idle,
-                "Standby",
-                "neutral",
-            );
+            if !crate::audio::player::is_native_voice_playing() {
+                crate::app_state::set_ai_speaking(false);
+                crate::tray::TrayState::update_with_emotion(
+                    crate::services::tray_service::AssistantState::Idle,
+                    "Standby",
+                    "neutral",
+                );
+            }
             if let Ok(mut lock) = shared.lock() {
                 lock.current_state = crate::ui::pose_system::AssistantVisualState::Idle;
                 lock.state_version = lock.state_version.wrapping_add(1);

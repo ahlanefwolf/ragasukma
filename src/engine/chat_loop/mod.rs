@@ -32,6 +32,7 @@ impl AppSession {
             // 1. Check external commands before turn (GUI / Tray)
             if let Some(cmd) = check_and_consume_cmd() {
                 if cmd == "stop_chat" || cmd == "quit" {
+                    crate::engine::remote_text::clear_remote_text_sender();
                     crate::app_state::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Standby");
                     crate::term_log!("\n[DONE] Chat session stopped.");
@@ -50,6 +51,7 @@ impl AppSession {
             if is_paused {
                 let should_exit = handle_paused_loop(self);
                 if should_exit {
+                    crate::engine::remote_text::clear_remote_text_sender();
                     crate::app_state::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Standby");
                     crate::term_log!("\n[DONE] Chat session stopped.");
@@ -58,13 +60,14 @@ impl AppSession {
                 is_paused = false;
             }
 
-            if !crate::app_state::is_ai_speaking() {
+            if !crate::app_state::is_ai_speaking() && !crate::audio::player::is_native_voice_playing() {
                 TrayState::update(AssistantState::Idle, "Standby");
             }
 
             // 3. Wait for text input turn from Chrome Web Speech API / Mobile STT
             let raw_text = match wait_for_user_turn(self, &text_rx) {
                 LoopAction::Exit => {
+                    crate::engine::remote_text::clear_remote_text_sender();
                     crate::app_state::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Standby");
                     crate::term_log!("\n[DONE] Chat session stopped.");
@@ -80,6 +83,7 @@ impl AppSession {
             // Check interupsi stop_chat/pause when STT new masuk
             if let Some(cmd) = check_and_consume_cmd() {
                 if cmd == "stop_chat" || cmd == "quit" {
+                    crate::engine::remote_text::clear_remote_text_sender();
                     crate::app_state::update_session_running(false);
                     TrayState::update(AssistantState::Idle, "Main Menu");
                     crate::term_log!("\n[DONE] Chat session stopped.");
@@ -93,7 +97,7 @@ impl AppSession {
             // 4. Validate text
             if raw_text.is_empty() {
                 crate::term_log!("[INFO] (Voice unclear or too low)\n");
-                if !crate::app_state::is_ai_speaking() {
+                if !crate::app_state::is_ai_speaking() && !crate::audio::player::is_native_voice_playing() {
                     TrayState::update(AssistantState::Idle, "Standby");
                 }
                 continue;

@@ -16,6 +16,7 @@ import {
   currentTime,
   duration,
   volume,
+  isFullMobileActive,
   formatDuration,
   pauseMusic,
   resumeMusic,
@@ -30,6 +31,16 @@ export const NowPlayingHeroCard: Component = () => {
   const handleSeek = (e: Event) => {
     const val = parseFloat((e.target as HTMLInputElement).value);
     seekMusic(val);
+  };
+
+  const getTrackDuration = () => {
+    return duration() || globalStatus().current_track?.duration || 0;
+  };
+
+  const progressPercent = () => {
+    const dur = getTrackDuration();
+    if (dur <= 0) return 0;
+    return Math.min(100, (currentTime() / dur) * 100);
   };
 
   return (
@@ -75,19 +86,26 @@ export const NowPlayingHeroCard: Component = () => {
           <div class="flex-1 min-w-0 w-full space-y-3.5 text-center md:text-left">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-2">
               <div class="min-w-0">
-                <div class="inline-flex items-center gap-2 px-2.5 py-0.5 bg-theme-card border border-theme-border text-xs font-bold uppercase tracking-wider mb-1">
-                  <span
-                    class={`w-2 h-2 shrink-0 ${
-                      globalStatus().is_playing
-                        ? 'bg-theme-cyan shadow-[0_0_8px_var(--cyan)] animate-pulse'
-                        : 'bg-theme-rose'
-                    }`}
-                  />
-                  <span class="text-theme-text/80">
-                    {globalStatus().is_paused
-                      ? 'Paused'
-                      : 'Now Playing'}
-                  </span>
+                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                  <div class="inline-flex items-center gap-2 px-2.5 py-0.5 bg-theme-card border border-theme-border text-xs font-bold uppercase tracking-wider">
+                    <span
+                      class={`w-2 h-2 shrink-0 ${
+                        globalStatus().is_playing
+                          ? 'bg-theme-cyan shadow-[0_0_8px_var(--cyan)] animate-pulse'
+                          : 'bg-theme-rose'
+                      }`}
+                    />
+                    <span class="text-theme-text/80">
+                      {globalStatus().is_paused
+                        ? 'Paused'
+                        : 'Now Playing'}
+                    </span>
+                  </div>
+                  <Show when={isFullMobileActive()}>
+                    <span class="px-2 py-0.5 text-[11px] font-mono font-bold bg-theme-rose/20 text-theme-rose border border-theme-rose/40">
+                      MODE FULL HP (Controlled on Mobile)
+                    </span>
+                  </Show>
                 </div>
                 <h3 class="text-base sm:text-lg font-bold text-theme-text truncate hover:text-theme-cyan transition-colors">
                   {globalStatus().current_track!.title}
@@ -100,9 +118,12 @@ export const NowPlayingHeroCard: Component = () => {
               {/* Volume slider pill */}
               <div class="hidden sm:flex items-center justify-center md:justify-end gap-2 px-3 py-1.5 bg-theme-card border border-theme-border self-center md:self-start">
                 <button
-                  onClick={() => changeVolume(volume() > 0 ? 0 : 1)}
-                  class="text-theme-text/70 hover:text-theme-cyan p-0.5 transition-colors"
-                  title={volume() > 0 ? 'Mute' : 'Unmute'}
+                  onClick={() => !isFullMobileActive() && changeVolume(volume() > 0 ? 0 : 1)}
+                  disabled={isFullMobileActive()}
+                  class={`text-theme-text/70 hover:text-theme-cyan p-0.5 transition-colors ${
+                    isFullMobileActive() ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  title={isFullMobileActive() ? 'Mode Full HP aktif' : volume() > 0 ? 'Mute' : 'Unmute'}
                 >
                   <Show when={volume() > 0} fallback={<VolumeX size={15} />}>
                     <Volume2 size={15} />
@@ -114,9 +135,12 @@ export const NowPlayingHeroCard: Component = () => {
                   max="1"
                   step="0.05"
                   value={volume()}
+                  disabled={isFullMobileActive()}
                   onInput={(e) => changeVolume(parseFloat(e.currentTarget.value))}
-                  class="w-20 h-1.5 bg-theme-border appearance-none cursor-pointer accent-theme-cyan"
-                  title={`Volume: ${Math.round(volume() * 100)}%`}
+                  class={`w-20 h-1.5 bg-theme-border appearance-none cursor-pointer accent-theme-cyan ${
+                    isFullMobileActive() ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  title={isFullMobileActive() ? 'Audio dikontrol dari HP' : `Volume: ${Math.round(volume() * 100)}%`}
                 />
                 <span class="text-xs font-mono text-theme-text/60 w-8 text-right">
                   {Math.round(volume() * 100)}%
@@ -125,26 +149,43 @@ export const NowPlayingHeroCard: Component = () => {
             </div>
 
             {/* Progress Seekbar */}
-            <div class="space-y-1">
-              <div class="relative flex items-center group">
+            <div class="space-y-1.5">
+              <div
+                class={`relative flex items-center group py-1.5 ${isFullMobileActive() ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                onClick={(e) => {
+                  if (isFullMobileActive()) return;
+                  if (e.target instanceof HTMLInputElement) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                  const dur = getTrackDuration();
+                  if (dur > 0) {
+                    seekMusic(pos * dur);
+                  }
+                }}
+              >
+                <div class="w-full h-1.5 bg-theme-border/60 relative">
+                  <div
+                    class="h-full bg-gradient-to-r from-theme-cyan via-theme-rose to-theme-cyan transition-all duration-150 relative shadow-[0_0_8px_rgba(89,107,69,0.5)]"
+                    style={{ width: `${progressPercent()}%` }}
+                  >
+                    <span class="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-2.5 h-2.5 rounded-full bg-white shadow-[0_0_6px_#fff] group-hover:scale-125 transition-transform" />
+                  </div>
+                </div>
                 <input
                   type="range"
                   min="0"
-                  max={duration() || globalStatus().current_track!.duration || 100}
+                  max={getTrackDuration() || 100}
                   value={currentTime()}
+                  disabled={isFullMobileActive()}
                   onInput={handleSeek}
-                  class="w-full h-1.5 bg-theme-border/60 appearance-none cursor-pointer accent-theme-cyan transition-all"
+                  class={`absolute inset-0 w-full h-full opacity-0 ${
+                    isFullMobileActive() ? 'cursor-not-allowed pointer-events-none' : 'cursor-pointer'
+                  }`}
                 />
               </div>
               <div class="flex justify-between text-xs font-mono text-theme-text/60">
                 <span>{formatDuration(Math.floor(currentTime()))}</span>
-                <span>
-                  {formatDuration(
-                    Math.floor(
-                      duration() || globalStatus().current_track!.duration || 0
-                    )
-                  )}
-                </span>
+                <span>{formatDuration(Math.floor(getTrackDuration()))}</span>
               </div>
             </div>
 

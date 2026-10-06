@@ -3,8 +3,7 @@ use crate::llm::v1_engine::{V1ChatRequest, V1StreamEvent, V1ToolCall};
 use crate::server::send_json_response;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use std::net::TcpStream;
-use std::sync::Mutex;
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -76,7 +75,7 @@ fn current_ts() -> u64 {
         .as_secs()
 }
 
-pub fn handle_v1_options(stream: &mut TcpStream) {
+pub fn handle_v1_options(stream: &mut dyn Write) {
     let resp = "HTTP/1.1 200 OK\r\n\
         Access-Control-Allow-Origin: *\r\n\
         Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n\
@@ -85,7 +84,7 @@ pub fn handle_v1_options(stream: &mut TcpStream) {
     let _ = stream.write_all(resp.as_bytes());
 }
 
-pub fn handle_v1_models(stream: &mut TcpStream) {
+pub fn handle_v1_models(stream: &mut dyn Write) {
     let now = current_ts();
     let model_names = vec![
         "ag/claude-3-5-sonnet",
@@ -125,7 +124,7 @@ pub fn handle_v1_models(stream: &mut TcpStream) {
     }
 }
 
-pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
+pub fn handle_v1_chat_completions(body_str: &str, stream: &mut dyn Write) {
     let req: V1ChatRequest = match serde_json::from_str(body_str) {
         Ok(r) => r,
         Err(e) => {
@@ -176,80 +175,74 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
             let _ = stream.flush();
         }
 
-        let mut stream_writer = stream.try_clone().ok();
         let cmpl_id_clone = cmpl_id.clone();
         let model_clone = model.clone();
-        let final_finish_reason = std::sync::Arc::new(Mutex::new("stop".to_string()));
-        let final_reason_clone = final_finish_reason.clone();
+        let mut final_finish_reason = "stop".to_string();
 
-        let stream_result = provider.chat_stream_v1(&req, move |event| {
-            if let Some(ref mut sw) = stream_writer {
-                match event {
-                    V1StreamEvent::ContentDelta(delta_text) => {
-                        let chunk = StreamChunk {
-                            id: cmpl_id_clone.clone(),
-                            object: "chat.completion.chunk".to_string(),
-                            created: now,
-                            model: model_clone.clone(),
-                            choices: vec![StreamChoice {
-                                index: 0,
-                                delta: serde_json::json!({ "content": delta_text }),
-                                finish_reason: None,
-                            }],
-                        };
-                        if let Ok(json) = serde_json::to_string(&chunk) {
-                            let msg = format!("data: {}\n\n", json);
-                            let _ = sw.write_all(msg.as_bytes());
-                            let _ = sw.flush();
-                        }
+        let stream_result = provider.chat_stream_v1(&req, |event| {
+            match event {
+                V1StreamEvent::ContentDelta(delta_text) => {
+                    let chunk = StreamChunk {
+                        id: cmpl_id_clone.clone(),
+                        object: "chat.completion.chunk".to_string(),
+                        created: now,
+                        model: model_clone.clone(),
+                        choices: vec![StreamChoice {
+                            index: 0,
+                            delta: serde_json::json!({ "content": delta_text }),
+                            finish_reason: None,
+                        }],
+                    };
+                    if let Ok(json) = serde_json::to_string(&chunk) {
+                        let msg = format!("data: {}\n\n", json);
+                        let _ = stream.write_all(msg.as_bytes());
+                        let _ = stream.flush();
                     }
-                    V1StreamEvent::ToolCallDelta {
-                        index,
-                        id,
-                        name,
-                        arguments,
-                    } => {
-                        let mut tc_json = serde_json::json!({
-                            "index": index,
-                            "type": "function",
-                            "function": {
-                                "arguments": arguments
-                            }
-                        });
-                        if let Some(ref call_id) = id {
-                            tc_json["id"] = serde_json::json!(call_id);
+                }
+                V1StreamEvent::ToolCallDelta {
+                    index,
+                    id,
+                    name,
+                    arguments,
+                } => {
+                    let mut tc_json = serde_json::json!({
+                        "index": index,
+                        "type": "function",
+                        "function": {
+                            "arguments": arguments
                         }
-                        if let Some(ref fn_name) = name {
-                            tc_json["function"]["name"] = serde_json::json!(fn_name);
-                        }
+                    });
+                    if let Some(ref call_id) = id {
+                        tc_json["id"] = serde_json::json!(call_id);
+                    }
+                    if let Some(ref fn_name) = name {
+                        tc_json["function"]["name"] = serde_json::json!(fn_name);
+                    }
 
-                        let chunk = StreamChunk {
-                            id: cmpl_id_clone.clone(),
-                            object: "chat.completion.chunk".to_string(),
-                            created: now,
-                            model: model_clone.clone(),
-                            choices: vec![StreamChoice {
-                                index: 0,
-                                delta: serde_json::json!({ "tool_calls": [tc_json] }),
-                                finish_reason: None,
-                            }],
-                        };
-                        if let Ok(json) = serde_json::to_string(&chunk) {
-                            let msg = format!("data: {}\n\n", json);
-                            let _ = sw.write_all(msg.as_bytes());
-                            let _ = sw.flush();
-                        }
+                    let chunk = StreamChunk {
+                        id: cmpl_id_clone.clone(),
+                        object: "chat.completion.chunk".to_string(),
+                        created: now,
+                        model: model_clone.clone(),
+                        choices: vec![StreamChoice {
+                            index: 0,
+                            delta: serde_json::json!({ "tool_calls": [tc_json] }),
+                            finish_reason: None,
+                        }],
+                    };
+                    if let Ok(json) = serde_json::to_string(&chunk) {
+                        let msg = format!("data: {}\n\n", json);
+                        let _ = stream.write_all(msg.as_bytes());
+                        let _ = stream.flush();
                     }
-                    V1StreamEvent::KeepAlive => {
-                        // Send SSE comment to keep TCP connection alive during thinking phases
-                        let _ = sw.write_all(b":\n\n");
-                        let _ = sw.flush();
-                    }
-                    V1StreamEvent::Finish { finish_reason } => {
-                        if let Ok(mut lock) = final_reason_clone.lock() {
-                            *lock = finish_reason;
-                        }
-                    }
+                }
+                V1StreamEvent::KeepAlive => {
+                    // Send SSE comment to keep connection alive during thinking phases
+                    let _ = stream.write_all(b":\n\n");
+                    let _ = stream.flush();
+                }
+                V1StreamEvent::Finish { finish_reason } => {
+                    final_finish_reason = finish_reason;
                 }
             }
             Ok(())
@@ -257,10 +250,11 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut TcpStream) {
 
         match stream_result {
             Ok(v1_resp) => {
-                let finish_reason = final_finish_reason
-                    .lock()
-                    .map(|l| l.clone())
-                    .unwrap_or(v1_resp.finish_reason);
+                let finish_reason = if final_finish_reason.is_empty() {
+                    v1_resp.finish_reason
+                } else {
+                    final_finish_reason
+                };
 
                 let finish_chunk = StreamChunk {
                     id: cmpl_id,

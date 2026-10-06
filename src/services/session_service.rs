@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::net::TcpStream;
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 use crate::app_state::{ACTIVE_WEB_SESSION, ActiveWebSession, ServerSharedState};
@@ -8,7 +8,7 @@ use crate::server::send_json_response;
 /// Claim ownership of single web dashboard session (called once when tab opens or refreshes)
 pub fn handle_session_claim(
     body_str: &str,
-    stream: &mut TcpStream,
+    stream: &mut dyn Write,
     shared: &Arc<Mutex<ServerSharedState>>,
 ) {
     #[derive(Deserialize)]
@@ -43,7 +43,7 @@ pub fn handle_session_claim(
 }
 
 /// Update active tab when berpindah tab in dashboard
-pub fn handle_session_tab(body_str: &str, stream: &mut TcpStream) {
+pub fn handle_session_tab(body_str: &str, stream: &mut dyn Write) {
     #[derive(Deserialize)]
     struct TabPayload {
         active_tab: String,

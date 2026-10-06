@@ -47,11 +47,8 @@ fn generate_random_auth_key() -> String {
 }
 
 pub fn get_tunnel_status() -> (String, Option<String>, String) {
-    let mut lock = TUNNEL_MANAGER.lock().unwrap();
-    if lock.is_none() {
-        *lock = Some(CloudflaredTunnelManager::new());
-    }
-    let mgr = lock.as_mut().unwrap();
+    let mut lock = TUNNEL_MANAGER.lock().unwrap_or_else(|e| e.into_inner());
+    let mgr = lock.get_or_insert_with(CloudflaredTunnelManager::new);
 
     // Check if child exited
     if let Some(ref mut child) = mgr.child {
@@ -70,11 +67,8 @@ pub fn get_tunnel_status() -> (String, Option<String>, String) {
 }
 
 pub fn is_auth_key_valid(key: &str) -> bool {
-    let mut lock = TUNNEL_MANAGER.lock().unwrap();
-    if lock.is_none() {
-        *lock = Some(CloudflaredTunnelManager::new());
-    }
-    let mgr = lock.as_ref().unwrap();
+    let mut lock = TUNNEL_MANAGER.lock().unwrap_or_else(|e| e.into_inner());
+    let mgr = lock.get_or_insert_with(CloudflaredTunnelManager::new);
     mgr.auth_key == key
 }
 
@@ -262,8 +256,9 @@ pub fn install_cloudflared() -> Result<String, String> {
             arch
         );
 
+        let target_str = target_path.to_string_lossy();
         let out = Command::new("curl")
-            .args(["-L", "-o", target_path.to_str().unwrap(), &url])
+            .args(["-L", "-o", target_str.as_ref(), &url])
             .output()
             .map_err(|e| format!("Failed to run curl: {}", e))?;
 
@@ -272,7 +267,7 @@ pub fn install_cloudflared() -> Result<String, String> {
         }
 
         let _ = Command::new("chmod")
-            .args(["+x", target_path.to_str().unwrap()])
+            .args(["+x", target_str.as_ref()])
             .output();
 
         Ok(format!(
@@ -287,11 +282,8 @@ pub fn install_cloudflared() -> Result<String, String> {
 }
 
 pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), String> {
-    let mut lock = TUNNEL_MANAGER.lock().unwrap();
-    if lock.is_none() {
-        *lock = Some(CloudflaredTunnelManager::new());
-    }
-    let mgr = lock.as_mut().unwrap();
+    let mut lock = TUNNEL_MANAGER.lock().unwrap_or_else(|e| e.into_inner());
+    let mgr = lock.get_or_insert_with(CloudflaredTunnelManager::new);
 
     if let Some(ref mut child) = mgr.child {
         if let Ok(None) = child.try_wait() {
@@ -350,11 +342,13 @@ pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), Str
     // Spawn stderr reader
     thread::spawn(move || {
         let reader = BufReader::new(stderr);
-        let url_regex = regex::Regex::new(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com").unwrap();
+        static URL_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+            regex::Regex::new(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com").unwrap_or_else(|_| regex::Regex::new("trycloudflare").unwrap())
+        });
 
         for line in reader.lines().map_while(Result::ok) {
             crate::term_log!("[Cloudflared] {}", line);
-            if let Some(matched) = url_regex.find(&line) {
+            if let Some(matched) = URL_REGEX.find(&line) {
                 let found_url = matched.as_str().to_string();
                 if let Ok(mut lock) = TUNNEL_MANAGER.lock() {
                     if let Some(ref mut mgr) = *lock {
@@ -367,14 +361,16 @@ pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), Str
         }
     });
 
-    // Spawn stdout reader as well (in case cloudflared outputs URL to stdout)
+    // Spawn stdout reader
     thread::spawn(move || {
         let reader = BufReader::new(stdout);
-        let url_regex = regex::Regex::new(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com").unwrap();
+        static URL_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+            regex::Regex::new(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com").unwrap_or_else(|_| regex::Regex::new("trycloudflare").unwrap())
+        });
 
         for line in reader.lines().map_while(Result::ok) {
             crate::term_log!("[Cloudflared stdout] {}", line);
-            if let Some(matched) = url_regex.find(&line) {
+            if let Some(matched) = URL_REGEX.find(&line) {
                 let found_url = matched.as_str().to_string();
                 if let Ok(mut lock) = TUNNEL_MANAGER.lock() {
                     if let Some(ref mut mgr) = *lock {
@@ -393,7 +389,7 @@ pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), Str
 }
 
 pub fn stop_cloudflared_tunnel() -> Result<(), String> {
-    let mut lock = TUNNEL_MANAGER.lock().unwrap();
+    let mut lock = TUNNEL_MANAGER.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(ref mut mgr) = *lock {
         if let Some(mut child) = mgr.child.take() {
             #[allow(unused_variables)]

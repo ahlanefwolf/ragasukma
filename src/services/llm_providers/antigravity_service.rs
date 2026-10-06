@@ -3,7 +3,6 @@ use crate::llm::providers::antigravity::oauth::build_auth_url;
 use crate::server::send_json_response;
 use serde::Deserialize;
 use std::io::Write;
-use std::net::TcpStream;
 
 pub const OAUTH_REDIRECT_URI: &str = "http://localhost:42128/api/llm/antigravity/oauth/callback";
 
@@ -29,7 +28,7 @@ struct ExchangeCodePayload {
     redirect_uri: Option<String>,
 }
 
-pub fn handle_get_antigravity_auth_url(full_url: &str, stream: &mut TcpStream) {
+pub fn handle_get_antigravity_auth_url(full_url: &str, stream: &mut dyn Write) {
     let state = format!(
         "ragasukma_{}",
         std::time::SystemTime::now()
@@ -51,7 +50,7 @@ pub fn handle_get_antigravity_auth_url(full_url: &str, stream: &mut TcpStream) {
     send_json_response(stream, 200, &json.to_string());
 }
 
-pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut TcpStream) {
+pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut dyn Write) {
     // Parse query string for ?code=...
     let query_str = full_url.split('?').nth(1).unwrap_or("");
     let mut code: Option<String> = None;
@@ -197,7 +196,7 @@ pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut TcpStream)
     }
 }
 
-pub fn handle_post_antigravity_oauth_exchange(body: &str, stream: &mut TcpStream) {
+pub fn handle_post_antigravity_oauth_exchange(body: &str, stream: &mut dyn Write) {
     let payload: ExchangeCodePayload = match serde_json::from_str(body) {
         Ok(p) => p,
         Err(e) => {
@@ -233,7 +232,7 @@ pub fn handle_post_antigravity_oauth_exchange(body: &str, stream: &mut TcpStream
     }
 }
 
-fn send_html_response(stream: &mut TcpStream, status: u16, html: &str) {
+fn send_html_response(stream: &mut dyn Write, status: u16, html: &str) {
     let status_text = match status {
         200 => "OK",
         400 => "Bad Request",
@@ -254,7 +253,7 @@ fn send_html_response(stream: &mut TcpStream, status: u16, html: &str) {
     let _ = stream.write_all(resp.as_bytes());
 }
 
-pub fn handle_get_antigravity_accounts(stream: &mut TcpStream) {
+pub fn handle_get_antigravity_accounts(stream: &mut dyn Write) {
     let mut provider = AntigravityProvider::new();
     let _ = provider.load_accounts();
     let accounts = provider.list_accounts();
@@ -269,7 +268,7 @@ pub fn handle_get_antigravity_accounts(stream: &mut TcpStream) {
     }
 }
 
-pub fn handle_post_antigravity_account(body: &str, stream: &mut TcpStream) {
+pub fn handle_post_antigravity_account(body: &str, stream: &mut dyn Write) {
     let payload: AddAccountPayload = match serde_json::from_str(body) {
         Ok(p) => p,
         Err(e) => {
@@ -301,7 +300,7 @@ pub fn handle_post_antigravity_account(body: &str, stream: &mut TcpStream) {
     }
 }
 
-pub fn handle_delete_antigravity_account(body: &str, stream: &mut TcpStream) {
+pub fn handle_delete_antigravity_account(body: &str, stream: &mut dyn Write) {
     let payload: IdPayload = match serde_json::from_str(body) {
         Ok(p) => p,
         Err(e) => {
@@ -324,7 +323,7 @@ pub fn handle_delete_antigravity_account(body: &str, stream: &mut TcpStream) {
     }
 }
 
-pub fn handle_refresh_antigravity_account(body: &str, stream: &mut TcpStream) {
+pub fn handle_refresh_antigravity_account(body: &str, stream: &mut dyn Write) {
     let payload: IdPayload = match serde_json::from_str(body) {
         Ok(p) => p,
         Err(e) => {
@@ -356,7 +355,7 @@ pub fn handle_refresh_antigravity_account(body: &str, stream: &mut TcpStream) {
     }
 }
 
-pub fn handle_toggle_antigravity_account(body: &str, stream: &mut TcpStream) {
+pub fn handle_toggle_antigravity_account(body: &str, stream: &mut dyn Write) {
     let payload: IdPayload = match serde_json::from_str(body) {
         Ok(p) => p,
         Err(e) => {
@@ -384,7 +383,7 @@ pub fn handle_toggle_antigravity_account(body: &str, stream: &mut TcpStream) {
     }
 }
 
-pub fn handle_get_antigravity_account_quota(body: &str, full_url: &str, stream: &mut TcpStream) {
+pub fn handle_get_antigravity_account_quota(body: &str, full_url: &str, stream: &mut dyn Write) {
     let mut id = None;
     if !body.trim().is_empty() {
         if let Ok(payload) = serde_json::from_str::<IdPayload>(body) {

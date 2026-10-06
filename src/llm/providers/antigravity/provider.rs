@@ -56,7 +56,7 @@ impl AntigravityProvider {
     }
 
     pub fn load_accounts(&mut self) -> Result<()> {
-        let _guard = ACCOUNTS_FILE_LOCK.lock().unwrap();
+        let _guard = ACCOUNTS_FILE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
 
         if !self.config_file.exists() {
             self.config_file = Self::get_accounts_file_path();
@@ -150,7 +150,7 @@ impl AntigravityProvider {
     }
 
     pub fn save_accounts(&self) -> Result<()> {
-        let _guard = ACCOUNTS_FILE_LOCK.lock().unwrap();
+        let _guard = ACCOUNTS_FILE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
 
         let target_path = if self.config_file.exists() {
             self.config_file.clone()

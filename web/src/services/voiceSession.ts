@@ -1,5 +1,6 @@
 import { API_BASE } from './base';
 import { configService, UserConfig, getChromeSttCode } from './configService';
+import { eventsService } from './eventsService';
 import { duckMusic, unduckMusic } from '../playerStore';
 
 export interface VoiceSessionOptions {
@@ -101,25 +102,38 @@ export class VoiceSessionManager {
       }
     } catch (_) {}
 
-    try {
-      const res = await fetch(`${API_BASE}/api/state`);
-      if (res.ok) {
-        const initState = await res.json();
-        if (initState && typeof initState.is_running === 'boolean') {
-          this.isAssistantRunning = initState.is_running;
-        }
-        if (initState && (typeof initState.voice_muted === 'boolean' || typeof initState.mic_muted === 'boolean')) {
-          this.updateMuteState(Boolean(initState.voice_muted), Boolean(initState.mic_muted));
+    eventsService.subscribeState((initState) => {
+      if (initState && typeof initState.is_running === 'boolean') {
+        this.isAssistantRunning = initState.is_running;
+      }
+      if (initState && (typeof initState.voice_muted === 'boolean' || typeof initState.mic_muted === 'boolean')) {
+        this.updateMuteState(Boolean(initState.voice_muted), Boolean(initState.mic_muted));
+      }
+
+      // Synchronize Speaking State directly with backend AIUEO & rodio playback
+      const isSpeaking = initState.state === 'speaking';
+      if (isSpeaking) {
+        this.isTtsSpeaking = true;
+        this.cancelListeningWatchdog();
+        this.isListeningActive = false;
+        try {
+          this.recognition?.abort();
+        } catch {}
+      } else if (this.isTtsSpeaking) {
+        this.isTtsSpeaking = false;
+        unduckMusic();
+        if (this.isAssistantRunning && !this.isMicMuted && !this.isRecognitionRunning) {
+          this.startRecognitionSafely();
         }
       }
-    } catch (_) {}
 
-    // If assistant is active (e.g. after F5 refresh during active session), start STT immediately!
-    if (this.isAssistantRunning && !this.isMicMuted && !this.isTtsSpeaking && !this.isRecognitionRunning) {
-      console.log('[Voice Session] Auto-starting recognition on session init...');
-      this.startRecognitionSafely();
-      this.ensureMicrophonePermission();
-    }
+      // If assistant is active (e.g. after F5 refresh during active session), start STT immediately!
+      if (this.isAssistantRunning && !this.isMicMuted && !this.isTtsSpeaking && !this.isRecognitionRunning) {
+        console.log('[Voice Session] Auto-starting recognition on session init...');
+        this.startRecognitionSafely();
+        this.ensureMicrophonePermission();
+      }
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -639,19 +653,7 @@ export class VoiceSessionManager {
       try {
         this.recognition?.abort();
       } catch {}
-
-      // Mute microphone while voice plays on PC speakers, adding 400ms pause to eliminate echo
-      const waitMs =
-        durationSecs > 0 ? durationSecs * 1000 + 400 : Math.max(3000, textToSpeak.length * 70);
       clearTimeout(this.nativeSpeakTimer);
-      this.nativeSpeakTimer = setTimeout(() => {
-        if (sessionId !== this.speakSessionId) return;
-        this.isTtsSpeaking = false;
-        unduckMusic();
-        if (!this.isDead() && !this.isMicMuted && this.isAssistantRunning) {
-          this.startRecognitionSafely();
-        }
-      }, waitMs);
       return;
     }
 
