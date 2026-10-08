@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use ort::ep::CPU;
 use ort::session::Session;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::value::Tensor;
@@ -55,6 +56,8 @@ pub fn init_engine() -> Result<OpenVoiceEngine> {
 
     let ref_enc_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
+        .with_execution_providers([CPU::default().with_arena_allocator(false).build()])
+        .map_err(|e| anyhow!("{e}"))?
         .with_intra_threads(intra_threads)
         .map_err(|e| anyhow!("{e}"))?
         .with_optimization_level(GraphOptimizationLevel::Level3)
@@ -65,6 +68,8 @@ pub fn init_engine() -> Result<OpenVoiceEngine> {
         .map_err(|e| anyhow!("{e}"))?;
 
     let tone_conv_sess = Session::builder()
+        .map_err(|e| anyhow!("{e}"))?
+        .with_execution_providers([CPU::default().with_arena_allocator(false).build()])
         .map_err(|e| anyhow!("{e}"))?
         .with_intra_threads(intra_threads)
         .map_err(|e| anyhow!("{e}"))?

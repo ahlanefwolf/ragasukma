@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use ort::ep::CPU;
 use ort::session::Session;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::value::Tensor;
@@ -106,8 +107,10 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
         .unwrap_or(4);
     let intra_threads = available_threads.min(8);
 
-    // 3. ONNX Sessions (multi-threaded with Level3 graph optimization and constrained memory arena)
+    // 3. ONNX Sessions (multi-threaded with Level3 graph optimization and disabled memory arena)
     let text_enc_sess = Session::builder()
+        .map_err(|e| anyhow!("{e}"))?
+        .with_execution_providers([CPU::default().with_arena_allocator(false).build()])
         .map_err(|e| anyhow!("{e}"))?
         .with_intra_threads(intra_threads)
         .map_err(|e| anyhow!("{e}"))?
@@ -120,6 +123,8 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
 
     let dp_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
+        .with_execution_providers([CPU::default().with_arena_allocator(false).build()])
+        .map_err(|e| anyhow!("{e}"))?
         .with_intra_threads(intra_threads)
         .map_err(|e| anyhow!("{e}"))?
         .with_optimization_level(GraphOptimizationLevel::Level3)
@@ -131,6 +136,8 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
 
     let vec_est_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
+        .with_execution_providers([CPU::default().with_arena_allocator(false).build()])
+        .map_err(|e| anyhow!("{e}"))?
         .with_intra_threads(intra_threads)
         .map_err(|e| anyhow!("{e}"))?
         .with_optimization_level(GraphOptimizationLevel::Level3)
@@ -141,6 +148,8 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
         .map_err(|e| anyhow!("{e}"))?;
 
     let vocoder_sess = Session::builder()
+        .map_err(|e| anyhow!("{e}"))?
+        .with_execution_providers([CPU::default().with_arena_allocator(false).build()])
         .map_err(|e| anyhow!("{e}"))?
         .with_intra_threads(intra_threads)
         .map_err(|e| anyhow!("{e}"))?
