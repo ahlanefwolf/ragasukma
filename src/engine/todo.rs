@@ -1,4 +1,7 @@
 use std::path::PathBuf;
+use std::sync::Mutex;
+
+static TODO_MUTEX: Mutex<()> = Mutex::new(());
 
 pub fn get_todo_path() -> PathBuf {
     let candidate = crate::assets::find_file_in_candidates("todo.md");
@@ -108,6 +111,7 @@ pub fn complete_task_in_content(content: &str, query: &str) -> Option<(String, S
 }
 
 pub fn add_task(task_text: &str) -> std::io::Result<String> {
+    let _guard = TODO_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
     let task = task_text.trim();
     if task.is_empty() {
         return Ok("Task text must not be empty".to_string());
@@ -127,6 +131,7 @@ pub fn add_task(task_text: &str) -> std::io::Result<String> {
 }
 
 pub fn complete_task(query: &str) -> std::io::Result<String> {
+    let _guard = TODO_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
     let q = query.trim();
     if q.is_empty() {
         return Ok("Task keyword must not be empty".to_string());

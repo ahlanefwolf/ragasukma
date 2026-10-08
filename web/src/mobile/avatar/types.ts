@@ -2,6 +2,8 @@ export type AvatarState = 'idle' | 'listening' | 'speaking' | 'thinking';
 
 export type RenderQuality = 'sd' | 'hd' | 'ultra';
 
+export type FpsLimit = 30 | 60 | 0; // 0 = Unlimited / Max (120Hz)
+
 export interface AvatarViewerProps {
   state: AvatarState;
   emotion?: string;

@@ -19,6 +19,7 @@ export class WebXRArManager {
   private isActive = false;
   private isStarting = false;
   private listeners: Set<ArStateListener> = new Set();
+  private hitTestThrottleCounter = 0;
   private onEndCallback: (() => void) | null = null;
   private sessionStartTime = 0;
 
@@ -190,7 +191,11 @@ export class WebXRArManager {
 
     let hitFound = false;
 
-    if (this.hitTestSource && frame) {
+    // Optimasi AR Performance: Throttle Hit-Test SLAM scan setiap 2 frame untuk meringankan CPU smartphone
+    this.hitTestThrottleCounter++;
+    const shouldRunHitTest = this.hitTestThrottleCounter % 2 === 0;
+
+    if (shouldRunHitTest && this.hitTestSource && frame) {
       try {
         const hitTestResults = frame.getHitTestResults(this.hitTestSource);
         if (hitTestResults.length > 0) {

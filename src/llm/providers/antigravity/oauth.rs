@@ -6,25 +6,17 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct OAuthTokenResponse {
     pub access_token: String,
     pub expires_in: u64,
     #[serde(default)]
     pub refresh_token: Option<String>,
-    #[serde(default)]
-    pub scope: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct UserInfo {
     #[serde(default)]
-    pub id: Option<String>,
-    #[serde(default)]
     pub email: Option<String>,
-    #[serde(default)]
-    pub name: Option<String>,
 }
 
 pub fn build_auth_url(redirect_uri: &str, state: &str) -> String {

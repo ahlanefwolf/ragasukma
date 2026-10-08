@@ -171,6 +171,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   // Live Console Logs
   const [logs, setLogs] = createSignal<LogEntry[]>([]);
   const [isRefreshingLogs, setIsRefreshingLogs] = createSignal(false);
+  const [networkPing, setNetworkPing] = createSignal<number | null>(null);
 
   let logsContainerRef: HTMLDivElement | undefined;
   let isFetchingLogs = false;
@@ -235,51 +236,151 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     text: string;
     emotion: string;
     seq: number;
+    prefetchedBlobUrl?: string;
   }
-  let audioChunkQueue: ChunkQueueItem[] = [];
+  let audioChunkQueue: Map<number, ChunkQueueItem> = new Map();
+  let prefetchedBlobUrls: Map<number, string> = new Map();
+  let nextExpectedChunkIndex = 0;
   let isPlayingChunk = false;
+  let chunkTotalExpected = 1;
+  let chunkWaitTimer: number | null = null;
+
+  const clearPrefetchedBlobs = () => {
+    prefetchedBlobUrls.forEach((blobUrl) => {
+      try {
+        URL.revokeObjectURL(blobUrl);
+      } catch {}
+    });
+    prefetchedBlobUrls.clear();
+  };
+
+  const prefetchChunkAudio = async (item: ChunkQueueItem) => {
+    if (prefetchedBlobUrls.has(item.chunkIndex) || item.seq !== mobileSpeakSeq) return;
+    try {
+      const fullUrl = item.audioUrl.startsWith('http') || item.audioUrl.startsWith('blob:')
+        ? item.audioUrl
+        : `${API_BASE}${item.audioUrl}`;
+      const res = await fetch(fullUrl, { mode: 'cors' });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      if (item.seq !== mobileSpeakSeq) return;
+      const blobUrl = URL.createObjectURL(blob);
+      prefetchedBlobUrls.set(item.chunkIndex, blobUrl);
+      const queueItem = audioChunkQueue.get(item.chunkIndex);
+      if (queueItem && queueItem.seq === item.seq) {
+        queueItem.prefetchedBlobUrl = blobUrl;
+      }
+    } catch {}
+  };
+
+  const notifySpeakingState = (speaking: boolean, em: string = 'neutral') => {
+    fetch(`${API_BASE}/api/tts/state`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ speaking, state: speaking ? 'speaking' : 'idle', emotion: em }),
+    }).catch(() => {});
+  };
 
   const processAudioChunkQueue = async () => {
-    if (isPlayingChunk || audioChunkQueue.length === 0) return;
-    isPlayingChunk = true;
+    if (isPlayingChunk) return;
 
-    const item = audioChunkQueue.shift()!;
+    // Cari chunk yang persis sesuai urutan berikutnya (strictly sequential 0 -> 1 -> 2 -> ...)
+    const item = audioChunkQueue.get(nextExpectedChunkIndex);
+    if (!item) {
+      // Jika chunk belum tiba tapi totalChunks belum tercapai, beri toleransi buffer
+      if (nextExpectedChunkIndex < chunkTotalExpected) {
+        if (!chunkWaitTimer) {
+          chunkWaitTimer = window.setTimeout(() => {
+            chunkWaitTimer = null;
+            // Jika chunk hilang/gagal download setelah 3 detik, paksa lompat ke chunk berikutnya
+            if (audioChunkQueue.size > 0) {
+              const availableKeys = Array.from(audioChunkQueue.keys()).sort((a, b) => a - b);
+              if (availableKeys.length > 0 && availableKeys[0] > nextExpectedChunkIndex) {
+                nextExpectedChunkIndex = availableKeys[0];
+                processAudioChunkQueue();
+                return;
+              }
+            }
+            if (isVoiceSpeakingOnMobile && audioChunkQueue.size === 0) {
+              isVoiceSpeakingOnMobile = false;
+              audioSync.unduckMusic();
+              updateVisualStateSafe('idle');
+              setEmotion('neutral');
+              notifySpeakingState(false);
+              clearPrefetchedBlobs();
+            }
+          }, 3000);
+        }
+      }
+      return;
+    }
+
+    if (chunkWaitTimer) {
+      window.clearTimeout(chunkWaitTimer);
+      chunkWaitTimer = null;
+    }
+
     if (item.seq !== mobileSpeakSeq) {
+      audioChunkQueue.clear();
+      clearPrefetchedBlobs();
       isPlayingChunk = false;
       return;
     }
 
-    const fullUrl = item.audioUrl.startsWith('http') || item.audioUrl.startsWith('blob:')
-      ? item.audioUrl
-      : `${API_BASE}${item.audioUrl}`;
+    isPlayingChunk = true;
+    audioChunkQueue.delete(nextExpectedChunkIndex);
+    chunkTotalExpected = item.totalChunks;
 
+    const playUrl = item.prefetchedBlobUrl || (item.audioUrl.startsWith('http') || item.audioUrl.startsWith('blob:')
+      ? item.audioUrl
+      : `${API_BASE}${item.audioUrl}`);
+
+    isVoiceSpeakingOnMobile = true;
     updateVisualStateSafe('speaking');
     setEmotion(item.emotion);
+    notifySpeakingState(true, item.emotion);
 
     const playNext = () => {
+      // Clean up prefetched blob memory immediately after this chunk finishes playing
+      if (item.prefetchedBlobUrl) {
+        try {
+          URL.revokeObjectURL(item.prefetchedBlobUrl);
+        } catch {}
+        prefetchedBlobUrls.delete(item.chunkIndex);
+      }
+
       isPlayingChunk = false;
-      if (audioChunkQueue.length > 0) {
+      nextExpectedChunkIndex++;
+
+      if (nextExpectedChunkIndex < chunkTotalExpected || audioChunkQueue.size > 0) {
         processAudioChunkQueue();
-      } else if (item.chunkIndex >= item.totalChunks - 1) {
-        // Last chunk finished
+      } else {
+        // Semua chunk selesai diputar sempurna
         isVoiceSpeakingOnMobile = false;
         audioSync.unduckMusic();
         updateVisualStateSafe('idle');
         setEmotion('neutral');
+        notifySpeakingState(false);
+        clearPrefetchedBlobs();
       }
     };
 
-    audioSync.playVoice(fullUrl, {
+    audioSync.playVoice(playUrl, {
       onPlaying: () => {
+        isVoiceSpeakingOnMobile = true;
         updateVisualStateSafe('speaking');
+        notifySpeakingState(true, item.emotion);
       },
       onEnded: playNext,
       onError: (err) => {
         console.warn('[Mobile Chunk Audio] Error playing chunk, trying WAV fallback:', err);
-        if (!fullUrl.includes('format=wav') && !fullUrl.startsWith('blob:')) {
-          const fallbackUrl = fullUrl.includes('?') ? `${fullUrl}&format=wav` : `${fullUrl}?format=wav`;
+        if (!playUrl.includes('format=wav') && !playUrl.startsWith('blob:')) {
+          const fallbackUrl = playUrl.includes('?') ? `${playUrl}&format=wav` : `${playUrl}?format=wav`;
           audioSync.playVoice(fallbackUrl, {
-            onPlaying: () => updateVisualStateSafe('speaking'),
+            onPlaying: () => {
+              updateVisualStateSafe('speaking');
+              notifySpeakingState(true, item.emotion);
+            },
             onEnded: playNext,
             onError: () => {
               playNext();
@@ -303,26 +404,31 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
 
     if (chunkIndex === 0) {
       mobileSpeakSeq++;
-      audioChunkQueue = [];
+      audioChunkQueue.clear();
+      clearPrefetchedBlobs();
+      nextExpectedChunkIndex = 0;
+      chunkTotalExpected = totalChunks;
       isPlayingChunk = false;
       audioSync.stopVoice();
       isVoiceSpeakingOnMobile = true;
       updateVisualStateSafe('speaking');
       setEmotion(emotion);
+      notifySpeakingState(true, emotion);
       audioSync.duckMusic(0.25);
     }
 
-    audioChunkQueue.push({
+    const item: ChunkQueueItem = {
       chunkIndex,
       totalChunks,
       audioUrl,
       text,
       emotion,
       seq: mobileSpeakSeq,
-    });
+    };
+    audioChunkQueue.set(chunkIndex, item);
 
-    // Ensure chunks are processed in order
-    audioChunkQueue.sort((a, b) => a.chunkIndex - b.chunkIndex);
+    // Pre-fetch in background as fast as network permits to eliminate any latency gaps
+    prefetchChunkAudio(item);
 
     if (!isPlayingChunk) {
       processAudioChunkQueue();
@@ -360,6 +466,11 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       audioSync.unduckMusic();
       updateVisualStateSafe('idle');
       setEmotion('neutral');
+      fetch(`${API_BASE}/api/tts/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ speaking: false, emotion: 'neutral' }),
+      }).catch(() => {});
     };
 
     // Absolute fail-safe maximum speaking timeout watchdog:
@@ -513,8 +624,8 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       if (textToSpeak.trim() || audioUrl) {
         console.log('[MobileApp] assistant:speak received. Mode:', audioMode(), 'audioUrl:', audioUrl);
         if (isHpAudioActive()) {
-          // If we already received and played streaming chunks for this turn, ignore the redundant final combined action
-          if (isVoiceSpeakingOnMobile || audioChunkQueue.length > 0 || isPlayingChunk) {
+          // If we already received streaming chunks for this turn or audio is still playing, ignore the duplicate full action
+          if (isVoiceSpeakingOnMobile || audioChunkQueue.size > 0 || isPlayingChunk) {
             return;
           }
           speakOnMobile(textToSpeak.trim(), em, audioUrl, lang);
@@ -848,6 +959,23 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       setModelStatus(status);
     });
 
+    // ── Network Latency Ping Monitor (Check every 4s) ──
+    let pingInterval: number | null = null;
+    const measurePing = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      const t0 = performance.now();
+      try {
+        await fetch(`${API_BASE}/api/state`, { method: 'GET', cache: 'no-store' });
+        const roundtrip = Math.round(performance.now() - t0);
+        setNetworkPing(roundtrip);
+      } catch {
+        setNetworkPing(null);
+      }
+    };
+
+    measurePing();
+    pingInterval = window.setInterval(measurePing, 4000);
+
     // Session recovery helper: restore full mic & voice to desktop on close
     const restoreDesktopSession = () => {
       try {
@@ -874,6 +1002,10 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       unsubActions();
       unsubLogs();
       unsubModel();
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+      }
       releaseWakeLock();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', restoreDesktopSession);
@@ -896,7 +1028,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         speechRec = null;
       }
       audioSync.stopAll();
-      restoreDesktopSession();
+      clearPrefetchedBlobs();
     });
   });
 
@@ -938,6 +1070,14 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       setIsHpMicListening(false);
     }
 
+    // Interupsi response lama seketika: invalidasi seq, bersihkan antrean chunk & blob
+    mobileSpeakSeq++;
+    audioChunkQueue.clear();
+    clearPrefetchedBlobs();
+    isPlayingChunk = false;
+    isVoiceSpeakingOnMobile = false;
+    audioSync.unduckMusic();
+
     if (activeVoiceAudio) {
       try {
         activeVoiceAudio = null;
@@ -945,6 +1085,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     }
     // Stop assistant voice if speaking (user interruption), do not stop music!
     audioSync.stopVoice();
+    notifySpeakingState(false);
 
     setIsSending(true);
     try {
@@ -1010,10 +1151,12 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       />
 
       {/* 2. Floating Top Controls (Ultra Clean: Left Floating Status Pill & Right Settings Button) */}
+      {/* 1. Header Ringkas Mobile Modern (Status avatar, network ping & settings) */}
       <MobileTopBar
         visualState={visualState()}
         onOpenSettings={() => setShowSettings(true)}
         logsCount={logs().length}
+        pingMs={networkPing()}
       />
 
       {/* Sheet Companion Settings */}

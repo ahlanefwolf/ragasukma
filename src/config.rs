@@ -286,7 +286,6 @@ fn save_user_config_locked(cfg: &UserConfig) -> Result<(), String> {
     Ok(())
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct AppConfig {
     pub llm_provider: String,

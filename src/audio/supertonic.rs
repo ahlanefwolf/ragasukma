@@ -558,6 +558,21 @@ pub fn get_last_audio_opus(req_id: Option<&str>) -> Option<Vec<u8>> {
     None
 }
 
+pub fn clear_all_audio_cache() {
+    if let Ok(mut list) = LAST_AUDIO_WAV_LIST.lock() {
+        list.clear();
+    }
+    if let Ok(mut list) = LAST_AUDIO_OPUS_LIST.lock() {
+        list.clear();
+    }
+}
+
+pub fn evict_audio_wav(target_id: &str) {
+    if let Ok(mut list) = LAST_AUDIO_WAV_LIST.lock() {
+        list.retain(|(id, _)| id != target_id);
+    }
+}
+
 pub fn evict_audio(target_id: &str) {
     if let Ok(mut list) = LAST_AUDIO_WAV_LIST.lock() {
         list.retain(|(id, _)| id != target_id);

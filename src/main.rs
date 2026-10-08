@@ -2,6 +2,9 @@
 #![windows_subsystem = "windows"]
 #![allow(clippy::collapsible_if)]
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 pub mod app_state;
 pub mod assets;
 mod audio;
@@ -178,7 +181,7 @@ fn main() -> Result<()> {
             let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 match AppSession::new(cfg) {
                     Ok(mut session) => {
-                        if let Err(e) = session.run_interactive_menu() {
+                        if let Err(e) = session.start_chat_loop() {
                             crate::term_err!("[Session Error]: {:?}", e);
                         }
                     }

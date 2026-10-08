@@ -133,7 +133,7 @@ impl App {
         let shared_server_state = Arc::new(Mutex::new(ServerSharedState {
             current_state: AssistantVisualState::Idle,
             current_emotion: "neutral".to_string(),
-            is_running: false,
+            is_running: true,
             is_paused: false,
             is_shutdown: false,
             voice_muted: false,

@@ -1,17 +1,19 @@
 import { Component, Show } from 'solid-js';
-import { ZoomIn, ZoomOut, Maximize, Minimize, RotateCcw, Glasses, Sparkles } from 'lucide-solid';
-import { RenderQuality } from '../types';
+import { ZoomIn, ZoomOut, Maximize, Minimize, RotateCcw, Glasses, Sparkles, Gauge } from 'lucide-solid';
+import { FpsLimit, RenderQuality } from '../types';
 
 interface AvatarCameraControlsProps {
   isFullscreen: boolean;
   isArSupported: boolean;
   quality: RenderQuality;
+  fpsLimit: FpsLimit;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onToggleFullscreen: () => void;
   onResetCamera: () => void;
   onStartAr: () => void;
   onCycleQuality: () => void;
+  onCycleFps: () => void;
 }
 
 export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props) => {
@@ -61,6 +63,18 @@ export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props
         title={`Render Quality: ${qualityLabel()} (Tap to switch SD / HD / 4K)`}
       >
         <span>{qualityLabel()}</span>
+      </button>
+
+      {/* FPS Limit Toggle Button (30 FPS -> 60 FPS -> Max) */}
+      <button
+        type="button"
+        onClick={props.onCycleFps}
+        class={`p-2 font-mono text-[11px] font-bold tracking-wider active:scale-85 transition-transform drop-shadow-sm cursor-pointer ${
+          props.fpsLimit === 30 ? 'text-emerald-400 hover:text-emerald-300' : props.fpsLimit === 60 ? 'text-cyan-400 hover:text-cyan-300' : 'text-purple-400 hover:text-purple-300'
+        }`}
+        title={`FPS Limit: ${props.fpsLimit === 0 ? 'Max' : `${props.fpsLimit} FPS`} (Tap to switch 30 / 60 / Max)`}
+      >
+        <span>{props.fpsLimit === 0 ? 'MAX' : `${props.fpsLimit}F`}</span>
       </button>
 
       <button

@@ -1,45 +1,59 @@
 use std::collections::VecDeque;
 use std::sync::Mutex;
-use std::sync::mpsc::Sender;
 
-pub static REMOTE_TEXT_INJECTOR: Mutex<Option<Sender<String>>> = Mutex::new(None);
-static PENDING_TEXT_QUEUE: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
+static REMOTE_TEXT_QUEUE: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
 
-pub fn set_remote_text_sender(sender: Sender<String>) {
-    if let Ok(mut lock) = REMOTE_TEXT_INJECTOR.lock() {
-        // Flush any pending texts sent while the session was starting
-        if let Ok(mut pending) = PENDING_TEXT_QUEUE.lock() {
-            while let Some(msg) = pending.pop_front() {
-                let _ = sender.send(msg);
-            }
-        }
-        *lock = Some(sender);
-    }
-}
-
-pub fn clear_remote_text_sender() {
-    if let Ok(mut lock) = REMOTE_TEXT_INJECTOR.lock() {
-        *lock = None;
-    }
-}
-
+/// Push incoming text (from Web STT or Mobile remote) to the unified global queue
 pub fn inject_remote_text(text: String) -> bool {
-    if let Ok(mut lock) = REMOTE_TEXT_INJECTOR.lock() {
-        if let Some(ref sender) = *lock {
-            if sender.send(text.clone()).is_ok() {
-                return true;
-            }
-            // Sender is disconnected / stale, clear it
-            *lock = None;
-        }
+    let cfg = crate::assets::load_config();
+    // Jika voice_interruption aktif (true), potong suara asisten seketika saat user berbicara
+    if cfg.voice_interruption {
+        crate::app_state::trigger_interruption();
+        crate::audio::player::stop_native_voice();
+        crate::app_state::set_ai_speaking(false);
     }
 
-    // If chat loop is not running yet, save to pending queue and trigger start_chat automatically
-    if let Ok(mut pending) = PENDING_TEXT_QUEUE.lock() {
-        if pending.len() < 10 {
-            pending.push_back(text);
+    if let Ok(mut queue) = REMOTE_TEXT_QUEUE.lock() {
+        if queue.len() >= 20 {
+            queue.pop_front();
         }
+        queue.push_back(text);
+        crate::term_log!("[Remote Text Queue] Push succeeded, queue len = {}", queue.len());
+    } else {
+        crate::term_err!("[Remote Text Queue] Failed to acquire lock on REMOTE_TEXT_QUEUE!");
     }
-    crate::tray::TrayState::push_command("start_chat".to_string());
     true
+}
+
+/// Pop and concatenate all buffered speech chunks into one complete sentence
+pub fn pop_remote_text() -> Option<String> {
+    if let Ok(mut queue) = REMOTE_TEXT_QUEUE.lock() {
+        if queue.is_empty() {
+            return None;
+        }
+
+        let mut chunks = Vec::new();
+        while let Some(msg) = queue.pop_front() {
+            let trimmed = msg.trim();
+            if !trimmed.is_empty() {
+                chunks.push(trimmed.to_string());
+            }
+        }
+
+        if chunks.is_empty() {
+            return None;
+        }
+
+        // Gabungkan seluruh potongan teks di queue menjadi 1 kalimat percakapan utuh
+        let combined = chunks.join(" ");
+        let clean_combined = combined.trim();
+        if !clean_combined.is_empty() {
+            crate::term_log!("[Remote Text Queue] Merged {} speech chunks into single prompt: \"{}\"", chunks.len(), clean_combined);
+            Some(clean_combined.to_string())
+        } else {
+            None
+        }
+    } else {
+        None
+    }
 }

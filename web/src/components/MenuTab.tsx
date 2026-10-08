@@ -65,7 +65,7 @@ async function getOrCreateWebAudioAnalyser(): Promise<AnalyserNode | null> {
 }
 
 export const MenuTab: Component<MenuTabProps> = (props) => {
-  const [isRunning, setIsRunning] = createSignal(false);
+  const [isRunning, setIsRunning] = createSignal(true);
   const [isPaused, setIsPaused] = createSignal(false);
   const [voiceMuted, setVoiceMuted] = createSignal(false);
   const [micMuted, setMicMuted] = createSignal(false);
@@ -172,6 +172,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     setMicActive(true);
 
     onCleanup(() => {
+      window.removeEventListener('ragasukma:config_updated' as any, handleConfigUpdated);
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
       }
@@ -335,28 +336,6 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             </button>
           </div>
         </div>
-
-        {/* Master Action Button */}
-        <button
-          onClick={toggleAssistant}
-          class={`w-full flex items-center justify-center gap-3 py-3.5 px-4 font-bold text-sm sm:text-base transition-all shadow-md active:scale-[0.99] border ${
-            isRunning()
-              ? 'bg-theme-card hover:bg-theme-rose/20 text-theme-rose border-theme-rose/50 shadow-rose-900/20'
-              : 'bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card border-theme-cyan anime-shadow-green'
-          }`}
-        >
-          {isRunning() ? (
-            <>
-              <Square size={18} class="fill-current" />
-              <span>Stop Voice Assistant</span>
-            </>
-          ) : (
-            <>
-              <Play size={18} class="fill-current" />
-              <span>Start Voice Assistant</span>
-            </>
-          )}
-        </button>
 
         {/* Quick Toggles: TTS, STT & Voice Interruption */}
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">

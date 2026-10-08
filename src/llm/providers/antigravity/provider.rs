@@ -546,6 +546,9 @@ impl AntigravityProvider {
         let mut active_emotion = "neutral";
 
         for line in reader.lines() {
+            if crate::app_state::is_interruption_requested() {
+                bail!("Interrupted by user");
+            }
             let line = line?;
             let trimmed = line.trim();
             if let Some(data_str) = trimmed.strip_prefix("data: ") {

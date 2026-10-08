@@ -448,7 +448,7 @@ pub fn handle_api_route<W: Write>(
             }
         }
 
-        // Static Web Dashboard Files
+        // Static Web Dashboard Files (Prioritas: file fisik di web/dist/ jika ada, fallback: EmbeddedWebDist)
         ("GET", path) => {
             let clean_path = path.trim_start_matches('/');
             let target_path = if clean_path.is_empty() {
@@ -457,17 +457,48 @@ pub fn handle_api_route<W: Write>(
                 clean_path
             };
 
-            if let Some(file) = EmbeddedWebDist::get(target_path) {
-                let mime_type = match target_path.split('.').next_back().unwrap_or("") {
-                    "html" => "text/html; charset=utf-8",
-                    "js" => "application/javascript; charset=utf-8",
-                    "css" => "text/css; charset=utf-8",
-                    "svg" => "image/svg+xml",
-                    "png" => "image/png",
-                    "json" => "application/json",
-                    _ => "application/octet-stream",
-                };
+            let mime_for = |fname: &str| match fname.split('.').next_back().unwrap_or("") {
+                "html" => "text/html; charset=utf-8",
+                "js" => "application/javascript; charset=utf-8",
+                "css" => "text/css; charset=utf-8",
+                "svg" => "image/svg+xml",
+                "png" => "image/png",
+                "json" => "application/json",
+                _ => "application/octet-stream",
+            };
 
+            // 1. Cek file fisik langsung di disk (Development / Live dist update)
+            let disk_file = std::path::Path::new("web/dist").join(target_path);
+            let disk_index = std::path::Path::new("web/dist/index.html");
+
+            if disk_file.is_file() {
+                if let Ok(bytes) = std::fs::read(&disk_file) {
+                    let mime = mime_for(target_path);
+                    let resp_header = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-cache, no-store, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\n\r\n",
+                        mime,
+                        bytes.len()
+                    );
+                    let _ = stream.write_all(resp_header.as_bytes());
+                    let _ = stream.write_all(&bytes);
+                    return;
+                }
+            } else if disk_index.is_file() {
+                // SPA fallback dari disk
+                if let Ok(bytes) = std::fs::read(disk_index) {
+                    let resp_header = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-cache, no-store, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\n\r\n",
+                        bytes.len()
+                    );
+                    let _ = stream.write_all(resp_header.as_bytes());
+                    let _ = stream.write_all(&bytes);
+                    return;
+                }
+            }
+
+            // 2. Fallback jika tidak ada folder web/dist di disk (Binary standalone embedded)
+            if let Some(file) = EmbeddedWebDist::get(target_path) {
+                let mime_type = mime_for(target_path);
                 let resp_header = format!(
                     "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-cache, no-store, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\n\r\n",
                     mime_type,
@@ -544,6 +575,23 @@ async fn axum_tts_audio_handler(
         axum::Json(serde_json::json!({ "error": "TTS Audio not found or not synthesized yet" })),
     )
         .into_response()
+}
+
+#[derive(serde::Deserialize)]
+struct EvictAudioPayload {
+    id: Option<String>,
+}
+
+async fn axum_tts_evict_handler(
+    axum::Json(payload): axum::Json<EvictAudioPayload>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    if let Some(id) = payload.id {
+        if !id.is_empty() {
+            crate::audio::supertonic::evict_audio(&id);
+        }
+    }
+    axum::Json(serde_json::json!({ "success": true })).into_response()
 }
 
 async fn axum_music_stream_handler(
@@ -772,6 +820,8 @@ pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
             let app = axum::Router::new()
                 .route("/api/ws", axum::routing::get(crate::services::events_service::axum_ws_handler))
                 .route("/api/tts/audio", axum::routing::get(axum_tts_audio_handler))
+                .route("/api/tts/evict", axum::routing::post(axum_tts_evict_handler))
+                .route("/api/tts/ack", axum::routing::post(axum_tts_evict_handler))
                 .route("/api/music/stream", axum::routing::get(axum_music_stream_handler))
                 .route("/music/*path", axum::routing::get(axum_music_stream_path_handler))
                 .layer(cors)

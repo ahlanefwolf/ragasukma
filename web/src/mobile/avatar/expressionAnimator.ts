@@ -117,22 +117,12 @@ export class VrmExpressionAnimator {
 
       const lip = globalAudioSync.getVoiceLipWeights();
       if (lip.mouthOpen > 0.015) {
-        // Active audio from phone speaker: apply precise AIUEO formant weights
+        // Suara aktif dari speaker HP: terapkan pembacaan formant vokal AIUEO
         targetWeights['aa'] = lip.aa;
         targetWeights['ih'] = lip.ih;
         targetWeights['ou'] = lip.ou;
         targetWeights['ee'] = lip.ee;
         targetWeights['oh'] = lip.oh;
-      } else if (!globalAudioSync.isVoiceAudioActive()) {
-        // Natural vocal articulation fallback animation when audio is played on remote desktop PC:
-        const vowels = ['aa', 'ih', 'ou', 'ee', 'oh'];
-        const vowelIdx = Math.floor(stateElapsedTime * 3.2) % vowels.length;
-        const targetVowel = vowels[vowelIdx];
-
-        const vowelMouthOpen = Math.pow(Math.abs(Math.sin(stateElapsedTime * 5.0)), 1.4) * 0.45;
-        if (vowelMouthOpen > 0.04) {
-          targetWeights[targetVowel] = vowelMouthOpen;
-        }
       }
     }
 

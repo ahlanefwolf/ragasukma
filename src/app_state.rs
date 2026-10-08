@@ -102,6 +102,8 @@ pub fn is_ai_speaking() -> bool {
 
 pub fn trigger_interruption() {
     INTERRUPT_FLAG.store(true, Ordering::SeqCst);
+    clear_client_actions();
+    crate::audio::supertonic::clear_all_audio_cache();
 }
 
 pub fn is_interruption_requested() -> bool {
@@ -348,6 +350,12 @@ pub fn get_latest_action_id() -> u64 {
     NEXT_ACTION_ID
         .load(std::sync::atomic::Ordering::SeqCst)
         .saturating_sub(1)
+}
+
+pub fn clear_client_actions() {
+    if let Ok(mut q) = CLIENT_ACTIONS_BUFFER.lock() {
+        q.clear();
+    }
 }
 
 pub fn push_client_action(action: &str, payload: Option<&str>) {

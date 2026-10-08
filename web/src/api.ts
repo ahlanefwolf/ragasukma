@@ -48,14 +48,16 @@ export const api = {
   uploadVrm: assetsService.uploadVrm,
   uploadAvatarImage: assetsService.uploadAvatarImage,
 
-  // Single Client Session & SSE Events Service
+  // Single Client Session & Realtime Events Service (WebSocket /api/ws)
   claimSession: eventsService.claimSession,
   notifyActiveTab: eventsService.notifyActiveTab,
   subscribeState: eventsService.subscribeState,
   subscribeActions: eventsService.subscribeActions,
   subscribeLogs: eventsService.subscribeLogs,
+  isWsConnected: eventsService.isConnected,
   isSSEConnected: eventsService.isSSEConnected,
   getActionsSince: eventsService.getActionsSince,
+  disconnectWs: eventsService.disconnect,
   forceCloseSSE: eventsService.forceCloseSSE,
 
   // Music Storage & Downloader Service

@@ -4,7 +4,6 @@ use std::sync::Arc;
 use crate::audio::tts::TextToSpeech;
 use crate::config::AppConfig;
 use crate::llm::LlmClient;
-use crate::tray::TrayState;
 
 pub struct AppSession {
     pub(crate) config: AppConfig,
@@ -99,43 +98,5 @@ impl AppSession {
         }
 
         self.config = latest_config;
-    }
-
-    pub fn run_interactive_menu(&mut self) -> Result<()> {
-        TrayState::update(crate::tray::AssistantState::Idle, "Standby");
-
-        let mut last_config_check = std::time::Instant::now();
-
-        loop {
-            // Check configuration changes live while in standby
-            if last_config_check.elapsed() >= std::time::Duration::from_millis(500) {
-                self.reload_config_if_changed();
-                last_config_check = std::time::Instant::now();
-            }
-
-            // Standby mode: waiting for commands from Web Dashboard or Start button
-            if let Some(cmd) = check_and_consume_cmd() {
-                match cmd.as_str() {
-                    "start_chat" => {
-                        TrayState::clear_commands();
-                        let _ = self.start_chat_loop();
-                    }
-                    "reset_session" => {
-                        self.llm.reset_history();
-                        crate::term_log!(
-                            "[Reset Session] AI chat memory history successfully reset!"
-                        );
-                    }
-                    "quit" => {
-                        let _ = crate::engine::cloudflared::stop_cloudflared_tunnel();
-                        TrayState::clear();
-                        crate::term_log!("\n Program finished. Goodbye!");
-                        return Ok(());
-                    }
-                    _ => {}
-                }
-            }
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
     }
 }

@@ -199,7 +199,7 @@ impl Renderer {
             bone_bind_group: pipeline_3d.bone_bind_group,
             cached_global_transforms: Vec::with_capacity(128),
             cached_bone_uniform: Box::new(BoneMatricesUniform {
-                matrices: [glam::Mat4::IDENTITY.to_cols_array_2d(); 512],
+                matrices: [glam::Mat4::IDENTITY.to_cols_array_2d(); 1024],
             }),
             model_data: None,
             gpu_primitives: Vec::new(),

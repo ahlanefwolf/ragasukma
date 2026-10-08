@@ -16,26 +16,23 @@ impl AppSession {
     /// Loop utama conversation voice and aksi assistant AI Ragasukma
     pub fn start_chat_loop(&mut self) -> Result<()> {
         crate::app_state::update_session_running(true);
-        TrayState::update(AssistantState::Idle, "Standby");
+        TrayState::update(AssistantState::Idle, "Ready");
         crate::term_log!("====================================================");
-        crate::term_log!(" RAGASUKMA CHAT SESSION STARTED");
+        crate::term_log!(" RAGASUKMA CHAT SESSION ACTIVE");
         crate::term_log!("   - Assistant: {}", self.config.assistant_name);
         crate::term_log!("   - Dashboard: http://127.0.0.1:42128");
         crate::term_log!("====================================================\n");
 
         let mut is_paused = false;
 
-        let (text_tx, text_rx) = std::sync::mpsc::channel::<String>();
-        crate::engine::remote_text::set_remote_text_sender(text_tx);
-
         loop {
             // 1. Check external commands before turn (GUI / Tray)
             if let Some(cmd) = check_and_consume_cmd() {
-                if cmd == "stop_chat" || cmd == "quit" {
-                    crate::engine::remote_text::clear_remote_text_sender();
+                if cmd == "quit" {
                     crate::app_state::update_session_running(false);
-                    TrayState::update(AssistantState::Idle, "Standby");
-                    crate::term_log!("\n[DONE] Chat session stopped.");
+                    let _ = crate::engine::cloudflared::stop_cloudflared_tunnel();
+                    TrayState::clear();
+                    crate::term_log!("\n[DONE] Program finished. Goodbye!");
                     return Ok(());
                 } else if cmd == "toggle_pause" {
                     is_paused = true;
@@ -45,32 +42,30 @@ impl AppSession {
                 }
             }
 
-            self.reload_config_if_changed();
-
             // 2. If in paused state
             if is_paused {
                 let should_exit = handle_paused_loop(self);
                 if should_exit {
-                    crate::engine::remote_text::clear_remote_text_sender();
                     crate::app_state::update_session_running(false);
-                    TrayState::update(AssistantState::Idle, "Standby");
-                    crate::term_log!("\n[DONE] Chat session stopped.");
+                    let _ = crate::engine::cloudflared::stop_cloudflared_tunnel();
+                    TrayState::clear();
+                    crate::term_log!("\n[DONE] Program finished. Goodbye!");
                     return Ok(());
                 }
                 is_paused = false;
             }
 
             if !crate::app_state::is_ai_speaking() && !crate::audio::player::is_native_voice_playing() {
-                TrayState::update(AssistantState::Idle, "Standby");
+                TrayState::update(AssistantState::Idle, "Ready");
             }
 
             // 3. Wait for text input turn from Chrome Web Speech API / Mobile STT
-            let raw_text = match wait_for_user_turn(self, &text_rx) {
+            let raw_text = match wait_for_user_turn(self) {
                 LoopAction::Exit => {
-                    crate::engine::remote_text::clear_remote_text_sender();
                     crate::app_state::update_session_running(false);
-                    TrayState::update(AssistantState::Idle, "Standby");
-                    crate::term_log!("\n[DONE] Chat session stopped.");
+                    let _ = crate::engine::cloudflared::stop_cloudflared_tunnel();
+                    TrayState::clear();
+                    crate::term_log!("\n[DONE] Program finished. Goodbye!");
                     break;
                 }
                 LoopAction::Pause => {
@@ -80,13 +75,13 @@ impl AppSession {
                 LoopAction::TextInput(txt) => txt,
             };
 
-            // Check interupsi stop_chat/pause when STT new masuk
+            // Check interupsi pause / quit
             if let Some(cmd) = check_and_consume_cmd() {
-                if cmd == "stop_chat" || cmd == "quit" {
-                    crate::engine::remote_text::clear_remote_text_sender();
+                if cmd == "quit" {
                     crate::app_state::update_session_running(false);
-                    TrayState::update(AssistantState::Idle, "Main Menu");
-                    crate::term_log!("\n[DONE] Chat session stopped.");
+                    let _ = crate::engine::cloudflared::stop_cloudflared_tunnel();
+                    TrayState::clear();
+                    crate::term_log!("\n[DONE] Program finished. Goodbye!");
                     return Ok(());
                 } else if cmd == "toggle_pause" {
                     is_paused = true;
@@ -96,9 +91,8 @@ impl AppSession {
 
             // 4. Validate text
             if raw_text.is_empty() {
-                crate::term_log!("[INFO] (Voice unclear or too low)\n");
                 if !crate::app_state::is_ai_speaking() && !crate::audio::player::is_native_voice_playing() {
-                    TrayState::update(AssistantState::Idle, "Standby");
+                    TrayState::update(AssistantState::Idle, "Ready");
                 }
                 continue;
             }

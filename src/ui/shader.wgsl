@@ -23,7 +23,7 @@ struct CameraUniform {
 var<uniform> camera: CameraUniform;
 
 struct BoneMatrices {
-    matrices: array<mat4x4<f32>, 512>,
+    matrices: array<mat4x4<f32>, 1024>,
 }
 
 @group(1) @binding(0)

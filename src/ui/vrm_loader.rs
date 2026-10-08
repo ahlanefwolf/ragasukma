@@ -586,10 +586,29 @@ impl VrmModelData {
         // Remap primitive joint indices if a primitive belongs to a secondary skin (skin != 0)
         // so all primitives reference indices in the primary master skin (skins[0])
         if skins.len() > 1 {
-            let primary_joints = &skins[0].joints;
-            let mut node_to_primary_joint = HashMap::with_capacity(primary_joints.len());
-            for (p_idx, &node_idx) in primary_joints.iter().enumerate() {
+            let mut node_to_primary_joint = HashMap::with_capacity(skins[0].joints.len());
+            for (p_idx, &node_idx) in skins[0].joints.iter().enumerate() {
                 node_to_primary_joint.insert(node_idx, p_idx as u32);
+            }
+
+            // Merge any missing joints from secondary skins into primary master skin
+            for s_idx in 1..skins.len() {
+                let sec_joints = skins[s_idx].joints.clone();
+                let sec_inv_mats = skins[s_idx].inverse_bind_matrices.clone();
+                for (sec_j_idx, joint_node) in sec_joints.into_iter().enumerate() {
+                    if let std::collections::hash_map::Entry::Vacant(entry) =
+                        node_to_primary_joint.entry(joint_node)
+                    {
+                        let new_p_idx = skins[0].joints.len() as u32;
+                        skins[0].joints.push(joint_node);
+                        let inv_mat = sec_inv_mats
+                            .get(sec_j_idx)
+                            .copied()
+                            .unwrap_or(Mat4::IDENTITY);
+                        skins[0].inverse_bind_matrices.push(inv_mat);
+                        entry.insert(new_p_idx);
+                    }
+                }
             }
 
             for prim in &mut primitives {

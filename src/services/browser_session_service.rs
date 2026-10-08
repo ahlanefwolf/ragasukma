@@ -122,13 +122,6 @@ fn write_snapshot_to_disk(snap: &BrowserDomSnapshot) {
 
     if let Ok(json_pretty) = serde_json::to_string_pretty(snap) {
         let _ = fs::write(&file_path, &json_pretty);
-        let local = PathBuf::from("assets/active_tab_browser.json");
-        if local != file_path {
-            if let Some(parent) = local.parent() {
-                let _ = fs::create_dir_all(parent);
-            }
-            let _ = fs::write(&local, &json_pretty);
-        }
     }
 }
 

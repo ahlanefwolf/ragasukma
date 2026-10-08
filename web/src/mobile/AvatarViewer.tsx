@@ -2,6 +2,7 @@ import { Component, Show, createSignal, onMount, onCleanup } from 'solid-js';
 import { API_BASE } from '../services/base';
 import {
   AvatarViewerProps,
+  FpsLimit,
   PosesConfig,
   RenderQuality,
   VrmSceneManager,
@@ -28,6 +29,9 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
   const [isFullscreen, setIsFullscreen] = createSignal(false);
   const [renderQuality, setRenderQuality] = createSignal<RenderQuality>(
     (typeof localStorage !== 'undefined' && localStorage.getItem('avatar_render_quality') as RenderQuality) || 'hd'
+  );
+  const [fpsLimit, setFpsLimit] = createSignal<FpsLimit>(
+    (typeof localStorage !== 'undefined' && Number(localStorage.getItem('avatar_fps_limit')) as FpsLimit) || 60
   );
 
   // WebXR AR states
@@ -110,11 +114,23 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
     } catch (_) {}
   };
 
+  const handleCycleFps = () => {
+    const order: FpsLimit[] = [60, 30, 0];
+    const nextIdx = (order.indexOf(fpsLimit()) + 1) % order.length;
+    const nextFps = order[nextIdx];
+    setFpsLimit(nextFps);
+    sceneManager.setFpsLimit(nextFps);
+    try {
+      localStorage.setItem('avatar_fps_limit', String(nextFps));
+    } catch (_) {}
+  };
+
   onMount(() => {
     // 1. Inisialisasi canvas 3D langsung tanpa menunggu network fetch selesai
     setTimeout(() => {
       startVrmScene();
       sceneManager.setRenderQuality(renderQuality());
+      sceneManager.setFpsLimit(fpsLimit());
     }, 50);
 
     // 2. Cek kapabilitas WebXR AR di browser
@@ -179,9 +195,13 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
           <AvatarArControls
             isAvatarLocked={isAvatarLocked()}
             hasFoundSurface={hasFoundSurface()}
+            quality={renderQuality()}
+            fpsLimit={fpsLimit()}
             onLockAvatar={handleLockAvatar}
             onUnlockAvatar={handleUnlockAvatar}
             onExitAr={handleExitAr}
+            onCycleQuality={handleCycleQuality}
+            onCycleFps={handleCycleFps}
             bottomSlot={props.arBottomSlot?.()}
           />
         </Show>
@@ -193,12 +213,14 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
           isFullscreen={isFullscreen()}
           isArSupported={isArSupported()}
           quality={renderQuality()}
+          fpsLimit={fpsLimit()}
           onZoomIn={() => sceneManager.zoomIn()}
           onZoomOut={() => sceneManager.zoomOut()}
           onToggleFullscreen={toggleFullscreen}
           onResetCamera={() => sceneManager.resetCameraView()}
           onStartAr={handleStartAr}
           onCycleQuality={handleCycleQuality}
+          onCycleFps={handleCycleFps}
         />
       </Show>
 

@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRM, VRMUtils } from '@pixiv/three-vrm';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DEFAULT_CAM_POS, DEFAULT_TARGET } from './constants';
-import { AvatarState, PosesConfig, RenderQuality } from './types';
+import { AvatarState, FpsLimit, PosesConfig, RenderQuality } from './types';
 import { VrmPoseAnimator } from './poseAnimator';
 import { VrmExpressionAnimator } from './expressionAnimator';
 import { WebXRArManager, ArStateListener } from './arManager';
@@ -32,6 +32,8 @@ export class VrmSceneManager {
   private expressionAnimator = new VrmExpressionAnimator();
   private arManager = new WebXRArManager();
   private currentQuality: RenderQuality = 'hd';
+  private currentFpsLimit: FpsLimit = 60; // Default 60 FPS (adem & stabil untuk baterai smartphone)
+  private lastRenderTimestamp = 0;
 
   constructor() {
     this.arManager.setOnEndCallback(() => {
@@ -47,34 +49,18 @@ export class VrmSceneManager {
     return this.arManager.subscribe(listener);
   }
 
-  private createContactShadow(): THREE.Mesh {
-    const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 128;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-      gradient.addColorStop(0, 'rgba(0, 0, 0, 0.70)');
-      gradient.addColorStop(0.35, 'rgba(0, 0, 0, 0.45)');
-      gradient.addColorStop(0.70, 'rgba(0, 0, 0, 0.15)');
-      gradient.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 128, 128);
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    const geometry = new THREE.PlaneGeometry(0.85, 0.85);
+  private createRealShadowPlane(): THREE.Mesh {
+    const geometry = new THREE.PlaneGeometry(3.0, 3.0);
     geometry.rotateX(-Math.PI / 2);
 
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      opacity: 0.65,
+    const material = new THREE.ShadowMaterial({
+      opacity: 0.3,
       depthWrite: false,
     });
 
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.y = 0.005; // Slightly above ground to prevent z-fighting
+    mesh.position.y = 0.001;
+    mesh.receiveShadow = true;
     return mesh;
   }
 
@@ -97,14 +83,17 @@ export class VrmSceneManager {
 
     this.renderer = new THREE.WebGLRenderer({
       alpha: true,
-      antialias: true,
-      powerPreference: 'high-performance',
+      antialias: false,
+      powerPreference: 'default',
+      stencil: false,
+      depth: true,
     });
+    this.renderer.shadowMap.enabled = false;
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(this.getPixelRatioForQuality(this.currentQuality));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    // Linear tone mapping bawaan standar VRM agar saturasi dan rona warna kulit/baju tetap hidup & tidak pucat
+    // Linear tone mapping bawaan standar VRM agar saturasi dan rona warna kulit/baju tetap bersih, konsisten & tidak berbayang kotor
     this.renderer.toneMapping = THREE.LinearToneMapping;
     this.renderer.toneMappingExposure = 1.0;
 
@@ -114,10 +103,6 @@ export class VrmSceneManager {
     this.vrmAnchor.position.set(0, 0, 0);
     this.vrmAnchor.rotation.set(0, 0, 0);
     this.vrmAnchor.visible = true;
-
-    // Add soft contact shadow directly beneath avatar feet
-    this.contactShadow = this.createContactShadow();
-    this.vrmAnchor.add(this.contactShadow);
 
     this.scene.add(this.vrmAnchor);
     this.scene.add(this.arManager.getReticle());
@@ -152,13 +137,17 @@ export class VrmSceneManager {
       TWO: THREE.TOUCH.DOLLY_PAN,
     };
 
-    // Pencahayaan standar VRM MToon yang cerah dan berwarna alami:
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.25);
+    // Lighting Setup Standar MToon / VRM (1:1 Identik Bersih dengan Native UI):
+    // 1. Ambient Light yang cukup terang agar base color MToon merata di seluruh sudut
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.3);
     this.scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.15);
-    dirLight.position.set(0.5, 2.5, 1.8);
-    this.scene.add(dirLight);
+    // 2. Main Key Light dipasang langsung sebagai anak kamera (Camera Child Light)
+    // Dengan begitu arah cahaya 100% terkunci dari depan kamera ke model tanpa pernah bergeser sudutnya!
+    const light = new THREE.DirectionalLight(0xffffff, 0.9);
+    light.position.set(0.0, 0.2, 1.0);
+    this.camera.add(light);
+    this.scene.add(this.camera);
 
     this.clock = new THREE.Clock();
 
@@ -181,15 +170,84 @@ export class VrmSceneManager {
           VRMUtils.removeUnnecessaryJoints(gltf.scene);
         } catch (_) {}
 
+        // VRM Spring Bone (Fisika dinamis rambut, rok, dan aksesoris)
         if (vrm.springBoneManager) {
           try {
             vrm.springBoneManager.reset();
           } catch (_) {}
-          (vrm as any).springBoneManager = null;
         }
 
         // VRM 0.X compatibility: Rotate VRM0 models 180 degrees so they face the camera (+Z)
         VRMUtils.rotateVRM0(vrm);
+
+        // Matikan total shading gelap / belang MToon pada seluruh avatar (1:1 Identik Bersih dengan Native UI):
+        // Di Native UI, shade_color_factor = 1.0 dan shading_shift = -1.0 sehingga wajah 100% mulus anime tanpa bayangan kotor
+        const maxAnisotropy = this.renderer ? this.renderer.capabilities.getMaxAnisotropy() : 1;
+
+        vrm.scene.traverse((obj) => {
+          if ((obj as THREE.Mesh).isMesh) {
+            const mesh = obj as THREE.Mesh;
+            mesh.frustumCulled = false;
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            for (const mat of materials) {
+              if (!mat) continue;
+
+              // 1. Samakan warna shade dengan warna dasar (100% putih / bersih)
+              if ('shadeColorFactor' in mat && (mat as any).shadeColorFactor) {
+                (mat as any).shadeColorFactor.set(1.0, 1.0, 1.0);
+              }
+
+              // 2. Samakan tekstur bayangan dengan tekstur diffuse utama
+              if ('shadeMultiplyTexture' in mat && 'map' in mat) {
+                (mat as any).shadeMultiplyTexture = (mat as any).map || null;
+              }
+
+              // 3. Dorong batas shading keluar (-1.0 = 100% full lit tanpa cel-shading cutoff kotor)
+              if ('shadingShiftFactor' in mat) {
+                (mat as any).shadingShiftFactor = -1.0;
+              }
+
+              if ('shadingToonyFactor' in mat) {
+                (mat as any).shadingToonyFactor = 0.0;
+              }
+
+              // 4. Samakan pencahayaan ambient di segala sudut normal
+              if ('giEqualizationFactor' in mat) {
+                (mat as any).giEqualizationFactor = 1.0;
+              }
+
+              if ('lightColorAttenuationFactor' in mat) {
+                (mat as any).lightColorAttenuationFactor = 0.0;
+              }
+
+              // 5. Parametric Rim Lighting Halus (1:1 Identik dengan shader.wgsl di @ui: fresnel power 4.5, intensitas lembut)
+              if ('rimFactor' in mat && (mat as any).rimFactor) {
+                (mat as any).rimFactor.set(0.25, 0.25, 0.25);
+              }
+
+              if ('parametricRimFresnelPowerFactor' in mat) {
+                (mat as any).parametricRimFresnelPowerFactor = 4.5;
+              }
+
+              if ('parametricRimLiftFactor' in mat) {
+                (mat as any).parametricRimLiftFactor = 0.0;
+              }
+
+              if ('rimLightingMixFactor' in mat) {
+                (mat as any).rimLightingMixFactor = 1.0;
+              }
+
+              // 6. Anisotropy filtering untuk ketajaman tekstur saat zoom
+              if ('map' in mat && (mat as any).map) {
+                const tex = (mat as any).map as THREE.Texture;
+                tex.anisotropy = Math.min(maxAnisotropy, 4);
+              }
+            }
+          }
+        });
 
         this.vrmAnchor.add(vrm.scene);
         this.currentVrm = vrm;
@@ -207,10 +265,30 @@ export class VrmSceneManager {
       }
     );
 
-    this.renderer.setAnimationLoop((_timestamp, frame) => {
+    this.renderer.setAnimationLoop((timestamp, frame) => {
+      // Pause total render loop jika tab browser di HP sedang diminimize/backgrounded
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
+
       const isXr = this.renderer?.xr.isPresenting;
+
+      // Ambil delta waktu SEBELUM throttling agar accumulator internal Clock Three.js tetap akurat
       const rawDelta = this.clock?.getDelta() || 0.016;
-      // Safety clamp terhadap lonjakan lag/tab backgrounding tanpa membatasi 60Hz/90Hz/120Hz refresh rate
+
+      // FPS Throttler:
+      // Hanya aktifkan throttling frame di mode 3D standar.
+      // Di mode WebXR AR, frame loop WAJIB mengikuti display XR native refresh rate tanpa dropped frame
+      // agar kamera AR dan pose model tidak flickering/berkedip.
+      if (!isXr && this.currentFpsLimit > 0) {
+        const minFrameInterval = 1000 / this.currentFpsLimit;
+        if (timestamp - this.lastRenderTimestamp < minFrameInterval - 1.5) {
+          return;
+        }
+      }
+      this.lastRenderTimestamp = timestamp;
+
+      // Safety clamp terhadap lonjakan lag/tab backgrounding
       const delta = Math.min(rawDelta, 0.1);
 
       if (isXr) {
@@ -262,34 +340,69 @@ export class VrmSceneManager {
     });
   }
 
+  public setFpsLimit(fps: FpsLimit): void {
+    this.currentFpsLimit = fps;
+  }
+
   public setRenderQuality(quality: RenderQuality): void {
     this.currentQuality = quality;
-    if (!this.renderer || this.renderer.xr.isPresenting) return;
-    this.renderer.setPixelRatio(this.getPixelRatioForQuality(quality));
+    if (!this.renderer) return;
+
+    if (this.renderer.xr.isPresenting) {
+      try {
+        const arScale = this.getArScaleFactorForQuality(quality);
+        this.renderer.xr.setFramebufferScaleFactor(arScale);
+      } catch (_) {}
+    } else {
+      this.renderer.setPixelRatio(this.getPixelRatioForQuality(quality));
+    }
+
+    // Sesuaikan ketajaman bayangan dan filtering tekstur sesuai profil kualitas
+    if (this.currentVrm) {
+      const maxAnisotropy = this.renderer.capabilities.getMaxAnisotropy();
+      const targetAnisotropy = quality === 'sd' ? 1 : quality === 'hd' ? Math.min(maxAnisotropy, 4) : Math.min(maxAnisotropy, 8);
+      
+      this.currentVrm.scene.traverse((obj) => {
+        if ((obj as THREE.Mesh).isMesh) {
+          const mesh = obj as THREE.Mesh;
+          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          for (const mat of materials) {
+            if (mat && 'map' in mat && (mat as { map?: THREE.Texture }).map) {
+              const tex = (mat as { map: THREE.Texture }).map;
+              tex.anisotropy = targetAnisotropy;
+              tex.needsUpdate = true;
+            }
+          }
+        }
+      });
+    }
   }
 
   private getPixelRatioForQuality(quality: RenderQuality): number {
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     switch (quality) {
       case 'sd':
-        return 1.0;
+        // SD: 1.0x native resolution (sangat hemat baterai / GPU entri level)
+        return Math.min(dpr, 1.0);
       case 'ultra':
-        return Math.min(dpr, 2.75);
+        // Ultra / 4K Crisp: Full Native Screen DPI (hingga 3.0x di layar OLED flagship)
+        return Math.min(dpr, 3.0);
       case 'hd':
       default:
-        return Math.min(dpr, 1.6);
+        // HD: 1.5x balanced (tajam tanpa membebani GPU & baterai)
+        return Math.min(dpr, 1.5);
     }
   }
 
   private getArScaleFactorForQuality(quality: RenderQuality): number {
     switch (quality) {
       case 'sd':
-        return 0.45;
+        return 0.5;
       case 'hd':
-        return 0.65;
+        return 0.75;
       case 'ultra':
       default:
-        return 0.85;
+        return 1.0;
     }
   }
 
@@ -305,6 +418,10 @@ export class VrmSceneManager {
       this.renderer.xr.setFramebufferScaleFactor(arScaleFactor);
     } catch (_) {}
 
+    // Matikan Shadow Map saat masuk AR agar kamera AR 60 FPS mulus tanpa drop frame
+    if (this.renderer) {
+      this.renderer.shadowMap.enabled = false;
+    }
     this.renderer.setPixelRatio(1.0);
     this.vrmAnchor.visible = false;
 
@@ -338,6 +455,10 @@ export class VrmSceneManager {
   private resetToNonAr(): void {
     if (this.controls) {
       this.controls.enabled = true;
+    }
+
+    if (this.renderer) {
+      this.renderer.shadowMap.enabled = true;
     }
 
     if (this.renderer && this.container) {

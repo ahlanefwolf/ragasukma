@@ -1,8 +1,9 @@
 import { API_BASE } from './base';
 
 // ---------------------------------------------------------------------------
-// 1. APP STATE SSE STREAM (/api/events/state)
-// Using event 'state' for visual AI and event 'action' for trigger skill
+// 1. REALTIME WEBSOCKET STREAM (/api/ws)
+// Mengirim event 'state' (visual/status AI), 'action' (trigger skill/audio),
+// 'log' (live console logs), dan 'model_status' secara instan dua arah.
 // ---------------------------------------------------------------------------
 export interface CoreStatePayload {
   state: string;
@@ -200,7 +201,7 @@ function startStateEvents() {
   startWsStream();
 }
 
-function stopStateSSEIfNoListeners() {
+function stopWsIfNoListeners() {
   if (stateListeners.size === 0 && actionListeners.size === 0 && logListeners.size === 0 && modelStatusListeners.size === 0 && connectionListeners.size === 0) {
     if (wsReconnectTimer) {
       clearTimeout(wsReconnectTimer);
@@ -220,7 +221,7 @@ function stopStateSSEIfNoListeners() {
   }
 }
 
-function forceCloseSSE() {
+function disconnectWs() {
   if (wsReconnectTimer) {
     clearTimeout(wsReconnectTimer);
     wsReconnectTimer = null;
@@ -242,6 +243,9 @@ function forceCloseSSE() {
   }
   isConnected = false;
 }
+
+// Backward compatibility alias
+const forceCloseSSE = disconnectWs;
 
 
 
@@ -294,7 +298,7 @@ export const eventsService = {
       if (onConnectionChange) {
         connectionListeners.delete(onConnectionChange);
       }
-      stopStateSSEIfNoListeners();
+      stopWsIfNoListeners();
     };
   },
 
@@ -305,22 +309,22 @@ export const eventsService = {
 
     return () => {
       actionListeners.delete(onAction);
-      stopStateSSEIfNoListeners();
+      stopWsIfNoListeners();
     };
   },
 
-  // 3. Subscribe Live Logs via SSE (Realtime zero-polling console stream)
+  // 3. Subscribe Live Logs via WebSocket (Realtime zero-polling console stream)
   subscribeLogs(onLog: (log: any) => void): () => void {
     logListeners.add(onLog);
     startStateEvents();
 
     return () => {
       logListeners.delete(onLog);
-      stopStateSSEIfNoListeners();
+      stopWsIfNoListeners();
     };
   },
 
-  // 4. Subscribe Supertonic-3 Model Download Status via SSE
+  // 4. Subscribe Supertonic-3 Model Download Status via WebSocket
   subscribeModelStatus(onStatus: (status: ModelDownloadStatus) => void): () => void {
     modelStatusListeners.add(onStatus);
     if (lastKnownModelStatus) {
@@ -330,7 +334,7 @@ export const eventsService = {
 
     return () => {
       modelStatusListeners.delete(onStatus);
-      stopStateSSEIfNoListeners();
+      stopWsIfNoListeners();
     };
   },
 
@@ -346,15 +350,22 @@ export const eventsService = {
     return res.json();
   },
 
+  isConnected(): boolean {
+    return isConnected;
+  },
+
+  // Backward compatibility alias
   isSSEConnected(): boolean {
     return isConnected;
   },
 
+  // HTTP Fallback: hanya digunakan jika client membutuhkan polling actions manual tanpa WS
   async getActionsSince(lastId: number): Promise<{ actions: ClientAction[]; last_id: number }> {
     const res = await fetch(`${API_BASE}/api/actions/since?last_id=${lastId}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   },
 
+  disconnect: disconnectWs,
   forceCloseSSE,
 };

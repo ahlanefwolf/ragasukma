@@ -2,7 +2,7 @@ use super::cleaner::clean_ai_text;
 use super::prompt::{build_system_prompt, build_system_prompt_indexed};
 use super::providers::antigravity::AntigravityProvider;
 use super::types::{ChatMessage, ChatRequest, OllamaChatRequest, OllamaChatResponse};
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 
 pub struct LlmClient {
     pub provider: String,
@@ -27,7 +27,7 @@ impl LlmClient {
         let model = u.llm_model;
 
         let client = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_secs(60))
+            .timeout(std::time::Duration::from_secs(8)) // Max timeout 8s agar cepat auto-recover jika model offline/hang
             .build()
             .unwrap_or_default();
 
@@ -172,7 +172,18 @@ impl LlmClient {
                     let mut active_emotion = "neutral";
 
                     for line in reader.lines() {
-                        let line = line?;
+                        if crate::app_state::is_interruption_requested() {
+                            bail!("Interrupted by user");
+                        }
+                        let line = match line {
+                            Ok(l) => l,
+                            Err(e) => {
+                                if crate::app_state::is_interruption_requested() {
+                                    bail!("Interrupted by user");
+                                }
+                                return Err(e.into());
+                            }
+                        };
                         let trimmed = line.trim();
                         if let Some(data_str) = trimmed.strip_prefix("data: ") {
                             if data_str.trim() == "[DONE]" {
@@ -266,6 +277,9 @@ impl LlmClient {
                 }
             }
             Err(e) => {
+                if crate::app_state::is_interruption_requested() {
+                    bail!("Interrupted by user");
+                }
                 // Hanya fallback ke Ollama jika memang endpoint-nya mengarah ke Ollama /api/chat
                 if !self.base_url.contains("/api/chat") && !self.base_url.contains(":11434") {
                     return Err(anyhow::anyhow!("Failed streaming request to {custom_endpoint}: {e}"));

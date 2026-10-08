@@ -163,13 +163,13 @@ pub fn update_camera_and_bones(
 
         if let Some(skin) = model.skins.first() {
             for (joint_i, &node_idx) in skin.joints.iter().enumerate() {
-                if joint_i < 512 {
+                if joint_i < 1024 {
                     let inv_bind = skin
                         .inverse_bind_matrices
                         .get(joint_i)
                         .copied()
                         .unwrap_or(Mat4::IDENTITY);
-                    let global_joint = global_transforms[node_idx];
+                    let global_joint = global_transforms.get(node_idx).copied().unwrap_or(Mat4::IDENTITY);
                     let final_mat = global_joint * inv_bind;
                     bone_uniform.matrices[joint_i] = final_mat.to_cols_array_2d();
                 }

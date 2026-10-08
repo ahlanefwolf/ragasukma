@@ -569,6 +569,22 @@ pub fn execute_recipe(payload: &str) -> Option<(String, String)> {
         }
     }
 
+    if super::IS_RECIPE_RUNNING
+        .compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        )
+        .is_err()
+    {
+        crate::term_err!("[Recipe Runner] Another recipe is currently running. Skipping.");
+        return Some((
+            "Recipe Busy".to_string(),
+            "Another recipe or workflow automation is already running. Please wait until it completes.".to_string(),
+        ));
+    }
+
     crate::term_log!(
         "[Recipe Runner] Executing recipe '{}' ({}) with {} params...",
         recipe.recipe_id,
@@ -581,6 +597,14 @@ pub fn execute_recipe(payload: &str) -> Option<(String, String)> {
 
     // Execute steps in background thread without blocking main chat loop (Silent Worker)
     thread::spawn(move || {
+        struct RecipeGuard;
+        impl Drop for RecipeGuard {
+            fn drop(&mut self) {
+                super::IS_RECIPE_RUNNING.store(false, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+        let _guard = RecipeGuard;
+
         let initial_ts = get_latest_snapshot().map(|s| s.timestamp).unwrap_or(0);
 
         // Step 0: Open Tab New (Isolated Clean State) sesuai aturan mandatory

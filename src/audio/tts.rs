@@ -75,15 +75,17 @@ impl TextToSpeech {
 
         let mobile_worker_handle = std::thread::spawn(move || {
             while let Ok(item) = mobile_rx.recv() {
-                // 1. Cache WAV bytes
-                crate::audio::supertonic::set_last_audio_wav(item.chunk_id.clone(), item.chunk_wav.clone());
-
-                // 2. Encode to Opus in background worker (does not block inference or PC audio)
+                // 1. Encode to Opus in background worker
                 if let Ok(opus_bytes) = crate::audio::opus::encode_wav_to_opus(&item.chunk_wav) {
                     crate::audio::supertonic::set_last_audio_opus(item.chunk_id.clone(), opus_bytes);
+                    // Jika Opus sukses ter-encode, langsung buang WAV chunk dari RAM
+                    crate::audio::supertonic::evict_audio_wav(&item.chunk_id);
+                } else {
+                    // Fallback jika sistem tidak memiliki FFmpeg: simpan WAV
+                    crate::audio::supertonic::set_last_audio_wav(item.chunk_id.clone(), item.chunk_wav.clone());
                 }
 
-                // 3. Broadcast chunk immediately to mobile clients over WebSocket
+                // 2. Broadcast chunk immediately to mobile clients over WebSocket
                 let chunk_audio_url = format!("/api/tts/audio?id={}", item.chunk_id);
                 let chunk_duration = wav_duration_secs(&item.chunk_wav);
                 let chunk_payload = serde_json::json!({
@@ -119,6 +121,11 @@ impl TextToSpeech {
         // Worker 1 (Chunk Inference Producer): Generate WAV Chunks via ONNX
         // ---------------------------------------------------------------------
         let mut on_chunk = |chunk_idx: usize, total_chunks: usize, chunk_wav: Vec<u8>| {
+            // Jika ada interupsi dari user, jangan teruskan chunk ke player/mobile
+            if crate::app_state::is_interruption_requested() {
+                return;
+            }
+
             let chunk_id = if total_chunks > 1 {
                 format!("{}_{}", audio_id, chunk_idx)
             } else {
@@ -153,13 +160,15 @@ impl TextToSpeech {
                         pc_stream.finish();
                     }
 
-                    // Cache complete combined WAV & trigger background Opus encode for full fallback
-                    crate::audio::supertonic::set_last_audio_wav(audio_id.clone(), bytes.clone());
                     let audio_id_clone = audio_id.clone();
                     let bytes_clone = bytes.clone();
                     std::thread::spawn(move || {
                         if let Ok(opus_bytes) = crate::audio::opus::encode_wav_to_opus(&bytes_clone) {
-                            crate::audio::supertonic::set_last_audio_opus(audio_id_clone, opus_bytes);
+                            crate::audio::supertonic::set_last_audio_opus(audio_id_clone.clone(), opus_bytes);
+                            crate::audio::supertonic::evict_audio_wav(&audio_id_clone);
+                        } else {
+                            // Fallback jika FFmpeg tidak tersedia
+                            crate::audio::supertonic::set_last_audio_wav(audio_id_clone, bytes_clone);
                         }
                     });
 

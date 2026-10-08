@@ -1,4 +1,3 @@
-use std::sync::mpsc::Receiver;
 use std::time::Instant;
 
 use crate::engine::session::{AppSession, check_and_consume_cmd};
@@ -11,8 +10,10 @@ pub enum LoopAction {
 
 /// Waits for transcript text input from Web STT / Mobile STT
 /// while simultaneously responding to GUI / Tray controls non-blockingly with 0% idle CPU.
-pub fn wait_for_user_turn(session: &mut AppSession, text_rx: &Receiver<String>) -> LoopAction {
+/// Listens for user text turn from unified global text queue
+pub fn wait_for_user_turn(session: &mut AppSession) -> LoopAction {
     let mut last_audio_check = Instant::now();
+    crate::term_log!("[Input Listener] Started waiting for user speech in Chat Loop...");
     loop {
         if last_audio_check.elapsed() >= std::time::Duration::from_millis(500) {
             session.reload_config_if_changed();
@@ -22,7 +23,7 @@ pub fn wait_for_user_turn(session: &mut AppSession, text_rx: &Receiver<String>) 
         if let Some(cmd) = check_and_consume_cmd() {
             if cmd == "toggle_pause" {
                 return LoopAction::Pause;
-            } else if cmd == "stop_chat" || cmd == "quit" {
+            } else if cmd == "quit" {
                 return LoopAction::Exit;
             } else if cmd == "reset_session" {
                 session.llm.reset_history();
@@ -30,25 +31,16 @@ pub fn wait_for_user_turn(session: &mut AppSession, text_rx: &Receiver<String>) 
             }
         }
 
-        if let Ok(incoming_text) = text_rx.try_recv() {
-            // Drain any buffered older messages so only the latest user command is executed
-            let mut latest_text = incoming_text;
-            while let Ok(next_msg) = text_rx.try_recv() {
-                let next_trimmed = next_msg.trim();
-                if !next_trimmed.is_empty() {
-                    latest_text = next_msg;
-                }
-            }
-
-            let trimmed = latest_text.trim();
-            if !trimmed.is_empty() {
-                // Instantly cut off assistant voice & clear speaking state on new user speech
+        if let Some(trimmed) = crate::engine::remote_text::pop_remote_text() {
+            // Taati setting voice_interruption dari config
+            if session.config.voice_interruption {
                 crate::audio::player::stop_native_voice();
                 crate::app_state::trigger_interruption();
                 crate::app_state::set_ai_speaking(false);
-
-                return LoopAction::TextInput(trimmed.to_string());
             }
+
+            crate::term_log!("[Queue Dispatcher] Polled speech text: \"{}\"", trimmed);
+            return LoopAction::TextInput(trimmed);
         }
 
         std::thread::sleep(std::time::Duration::from_millis(30));

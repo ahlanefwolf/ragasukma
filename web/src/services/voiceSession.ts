@@ -20,12 +20,13 @@ export class VoiceSessionManager {
   private isListeningActive = false;
   private isVoiceMuted = false;
   private isMicMuted = false;
-  private isAssistantRunning = false;
+  private isAssistantRunning = true;
   private isRecognitionRunning = false;
   private isRecognitionStarting = false;
   private isWaitingForUserGesture = false;
   private startingTimeoutId: any = null;
   private listeningWatchdogTimer: any = null;
+  private sttHeartbeatTimer: any = null;
   private removeGlobalGestureListeners: (() => void) | null = null;
 
   // VAD Audio Nodes
@@ -50,6 +51,7 @@ export class VoiceSessionManager {
       // Synchronously initialize SpeechRecognition from start
       this.initSpeechRecognition();
       this.setupGlobalGestureListeners();
+      this.startSttWatchdog();
     }
   }
 
@@ -327,9 +329,9 @@ export class VoiceSessionManager {
           this.startingTimeoutId = null;
         }
 
-        // 'aborted' and 'no-speech' is event normal lifecycle Web Speech API:
-        // - 'aborted': triggered when app deliberately calls recognition.abort() (e.g. when TTS starts speaking or mic mute).
-        // - 'no-speech': user remained silent before timeout.
+        // 'aborted' and 'no-speech' are normal lifecycle events in Web Speech API:
+        // - 'aborted': triggered when app calls recognition.abort() (e.g. when TTS starts speaking or mic mute).
+        // - 'no-speech': user remained silent before browser silence detection triggered.
         if (e.error === 'aborted' || e.error === 'no-speech') {
           return;
         }
@@ -340,7 +342,7 @@ export class VoiceSessionManager {
             if (!this.isDead() && !this.isMicMuted && !this.isTtsSpeaking && this.isAssistantRunning) {
               this.startRecognitionSafely();
             }
-          }, 1500);
+          }, 1000);
           return;
         }
 
@@ -375,11 +377,12 @@ export class VoiceSessionManager {
           return;
         }
 
+        // Auto-revive microphone immediately if user is still active and assistant is running
         const shouldListen = !this.isDead() && !this.isMicMuted && !this.isTtsSpeaking && this.isAssistantRunning;
         if (shouldListen) {
           setTimeout(() => {
             this.startRecognitionSafely();
-          }, 200);
+          }, 100);
         }
       };
 
@@ -830,11 +833,41 @@ export class VoiceSessionManager {
     }
   }
 
+  private startSttWatchdog() {
+    if (this.sttHeartbeatTimer) {
+      clearInterval(this.sttHeartbeatTimer);
+    }
+    // Periodic health-check (every 2.5s) to guarantee mic never stays silently dead in Chrome
+    this.sttHeartbeatTimer = setInterval(() => {
+      if (this.isDead()) {
+        if (this.sttHeartbeatTimer) {
+          clearInterval(this.sttHeartbeatTimer);
+          this.sttHeartbeatTimer = null;
+        }
+        return;
+      }
+
+      const shouldBeListening =
+        this.isAssistantRunning &&
+        !this.isMicMuted &&
+        !this.isTtsSpeaking &&
+        !this.isWaitingForUserGesture;
+
+      if (shouldBeListening && !this.isRecognitionRunning && !this.isRecognitionStarting) {
+        this.startRecognitionSafely();
+      }
+    }, 2500);
+  }
+
   public getRecognition() {
     return this.recognition;
   }
 
   public destroy() {
+    if (this.sttHeartbeatTimer) {
+      clearInterval(this.sttHeartbeatTimer);
+      this.sttHeartbeatTimer = null;
+    }
     this.cancelListeningWatchdog();
     this.stopVadMonitoring();
     this.removeGlobalGestureListeners?.();

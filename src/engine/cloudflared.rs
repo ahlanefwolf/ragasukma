@@ -35,6 +35,12 @@ impl CloudflaredTunnelManager {
     }
 }
 
+static CLOUDFLARED_URL_REGEX: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
+            .unwrap_or_else(|_| regex::Regex::new("trycloudflare").unwrap())
+    });
+
 pub static TUNNEL_MANAGER: Mutex<Option<CloudflaredTunnelManager>> = Mutex::new(None);
 
 fn generate_random_auth_key() -> String {
@@ -347,13 +353,10 @@ pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), Str
     // Spawn stderr reader
     thread::spawn(move || {
         let reader = BufReader::new(stderr);
-        static URL_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-            regex::Regex::new(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com").unwrap_or_else(|_| regex::Regex::new("trycloudflare").unwrap())
-        });
 
         for line in reader.lines().map_while(Result::ok) {
             crate::term_log!("[Cloudflared] {}", line);
-            if let Some(matched) = URL_REGEX.find(&line) {
+            if let Some(matched) = CLOUDFLARED_URL_REGEX.find(&line) {
                 let found_url = matched.as_str().to_string();
                 if let Ok(mut lock) = TUNNEL_MANAGER.lock() {
                     if let Some(ref mut mgr) = *lock {
@@ -369,13 +372,10 @@ pub fn start_cloudflared_tunnel(local_port: u16) -> Result<(String, String), Str
     // Spawn stdout reader
     thread::spawn(move || {
         let reader = BufReader::new(stdout);
-        static URL_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-            regex::Regex::new(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com").unwrap_or_else(|_| regex::Regex::new("trycloudflare").unwrap())
-        });
 
         for line in reader.lines().map_while(Result::ok) {
             crate::term_log!("[Cloudflared stdout] {}", line);
-            if let Some(matched) = URL_REGEX.find(&line) {
+            if let Some(matched) = CLOUDFLARED_URL_REGEX.find(&line) {
                 let found_url = matched.as_str().to_string();
                 if let Ok(mut lock) = TUNNEL_MANAGER.lock() {
                     if let Some(ref mut mgr) = *lock {

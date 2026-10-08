@@ -1,20 +1,49 @@
 import { Component, Show, JSX } from 'solid-js';
 import { Lock, Unlock, X } from 'lucide-solid';
+import { FpsLimit, RenderQuality } from '../types';
 
 interface AvatarArControlsProps {
   isAvatarLocked: boolean;
   hasFoundSurface: boolean;
+  quality: RenderQuality;
+  fpsLimit: FpsLimit;
   onLockAvatar: () => void;
   onUnlockAvatar: () => void;
   onExitAr: () => void;
+  onCycleQuality: () => void;
+  onCycleFps: () => void;
   bottomSlot?: JSX.Element;
 }
 
 export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
+  const qualityLabel = () => {
+    switch (props.quality) {
+      case 'sd':
+        return 'SD';
+      case 'ultra':
+        return '4K';
+      case 'hd':
+      default:
+        return 'HD';
+    }
+  };
+
+  const qualityColor = () => {
+    switch (props.quality) {
+      case 'sd':
+        return 'text-amber-400 hover:text-amber-300';
+      case 'ultra':
+        return 'text-pink-400 hover:text-pink-300';
+      case 'hd':
+      default:
+        return 'text-cyan-400 hover:text-cyan-300';
+    }
+  };
+
   return (
     <div class="absolute inset-0 pointer-events-none z-40 p-4 flex flex-col justify-between">
-      {/* Floating Action Icons: X dan Lock/Unlock di sudut kanan atas tanpa box/border/teks */}
-      <div class="absolute top-4 right-4 flex flex-col items-center gap-3 pointer-events-auto select-none">
+      {/* Floating Action Icons: X, Lock, Quality & FPS di sudut kanan atas */}
+      <div class="absolute top-4 right-4 flex flex-col items-center gap-2 pointer-events-auto select-none">
         {/* Tombol Keluar (X) */}
         <button
           type="button"
@@ -53,6 +82,28 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
             <Unlock size={24} class="stroke-[2.2]" />
           </button>
         </Show>
+
+        {/* AR Quality Switcher */}
+        <button
+          type="button"
+          onClick={props.onCycleQuality}
+          class={`p-2 font-mono text-[11px] font-bold tracking-wider active:scale-85 transition-transform drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer ${qualityColor()}`}
+          title={`AR Render Quality: ${qualityLabel()}`}
+        >
+          <span>{qualityLabel()}</span>
+        </button>
+
+        {/* AR FPS Switcher */}
+        <button
+          type="button"
+          onClick={props.onCycleFps}
+          class={`p-2 font-mono text-[11px] font-bold tracking-wider active:scale-85 transition-transform drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer ${
+            props.fpsLimit === 30 ? 'text-emerald-400 hover:text-emerald-300' : props.fpsLimit === 60 ? 'text-cyan-400 hover:text-cyan-300' : 'text-purple-400 hover:text-purple-300'
+          }`}
+          title={`AR FPS Limit: ${props.fpsLimit === 0 ? 'Max' : `${props.fpsLimit} FPS`}`}
+        >
+          <span>{props.fpsLimit === 0 ? 'MAX' : `${props.fpsLimit}F`}</span>
+        </button>
       </div>
 
       {/* Spacer atas */}

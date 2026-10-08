@@ -49,6 +49,9 @@ glam = { version = "0.25", features = ["bytemuck"] }
 rust-embed = { version = "8.5", features = ["include-exclude"] }
 
 xcap = "0.0.14"
+ogg = "0.9.2"
+opus = "0.4.0"
+mimalloc = { version = "0.1", default-features = false }
 
 # OS Accessibility Tree Scanner (Cross-Platform Native)
 [target.'cfg(target_os = "linux")'.dependencies]
