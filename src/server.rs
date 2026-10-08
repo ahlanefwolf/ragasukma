@@ -257,6 +257,10 @@ pub fn handle_api_route<W: Write>(
         ("POST", "/api/upload/avatar") => {
             handle_upload_avatar(full_url, body_bytes, &mut stream, &shared)
         }
+        ("POST", path) if path.starts_with("/api/upload/refvoice") => {
+            handle_upload_refvoice(full_url, body_bytes, &mut stream)
+        }
+        ("POST", "/api/delete/refvoice") => handle_delete_refvoice(&mut stream),
 
         // Browser Sessions & DOM Snapshot Service
         ("POST", "/api/browser/snapshot") => {
@@ -419,6 +423,12 @@ pub fn handle_api_route<W: Write>(
                         "webp" => "image/webp",
                         "vrm" | "glb" => "model/gltf-binary",
                         "json" => "application/json",
+                        "wav" => "audio/wav",
+                        "mp3" => "audio/mpeg",
+                        "ogg" => "audio/ogg",
+                        "flac" => "audio/flac",
+                        "m4a" => "audio/mp4",
+                        "aac" => "audio/aac",
                         _ => "application/octet-stream",
                     };
                     let resp_header = format!(

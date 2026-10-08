@@ -101,39 +101,52 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
     File::open(&idx_path)?.read_to_string(&mut idx_str)?;
     let indexer: Vec<i64> = serde_json::from_str(&idx_str)?;
 
-    // 3. ONNX Sessions (single intra-thread per session to eliminate Windows thread contention & starvation)
+    let available_threads = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
+    let intra_threads = available_threads.min(8);
+
+    // 3. ONNX Sessions (multi-threaded with Level3 graph optimization and constrained memory arena)
     let text_enc_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_intra_threads(1)
+        .with_intra_threads(intra_threads)
         .map_err(|e| anyhow!("{e}"))?
-        .with_optimization_level(GraphOptimizationLevel::Level1)
+        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .map_err(|e| anyhow!("{e}"))?
+        .with_memory_pattern(false)
         .map_err(|e| anyhow!("{e}"))?
         .commit_from_file(model_dir.join("onnx/text_encoder.onnx"))
         .map_err(|e| anyhow!("{e}"))?;
 
     let dp_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_intra_threads(1)
+        .with_intra_threads(intra_threads)
         .map_err(|e| anyhow!("{e}"))?
-        .with_optimization_level(GraphOptimizationLevel::Level1)
+        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .map_err(|e| anyhow!("{e}"))?
+        .with_memory_pattern(false)
         .map_err(|e| anyhow!("{e}"))?
         .commit_from_file(model_dir.join("onnx/duration_predictor.onnx"))
         .map_err(|e| anyhow!("{e}"))?;
 
     let vec_est_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_intra_threads(1)
+        .with_intra_threads(intra_threads)
         .map_err(|e| anyhow!("{e}"))?
-        .with_optimization_level(GraphOptimizationLevel::Level1)
+        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .map_err(|e| anyhow!("{e}"))?
+        .with_memory_pattern(false)
         .map_err(|e| anyhow!("{e}"))?
         .commit_from_file(model_dir.join("onnx/vector_estimator.onnx"))
         .map_err(|e| anyhow!("{e}"))?;
 
     let vocoder_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_intra_threads(1)
+        .with_intra_threads(intra_threads)
         .map_err(|e| anyhow!("{e}"))?
-        .with_optimization_level(GraphOptimizationLevel::Level1)
+        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .map_err(|e| anyhow!("{e}"))?
+        .with_memory_pattern(false)
         .map_err(|e| anyhow!("{e}"))?
         .commit_from_file(model_dir.join("onnx/vocoder.onnx"))
         .map_err(|e| anyhow!("{e}"))?;
@@ -409,27 +422,70 @@ impl SupertonicEngine {
         }
 
         let total_chunks = chunks.len();
+        let ref_voice_opt = crate::audio::openvoice::find_ref_voice_path();
+        let openvoice_opt = if ref_voice_opt.is_some() {
+            crate::audio::openvoice::get_engine()
+        } else {
+            None
+        };
+
         if total_chunks == 1 {
             let samples = self.synthesize_chunk(&chunks[0], style, &lang_code, speed)?;
-            let wav_bytes = samples_to_wav_bytes(&samples, self.cfg.ae.sample_rate);
+            let (final_samples, out_sample_rate) = match (openvoice_opt, ref_voice_opt.as_ref()) {
+                (Some(ov), Some(ref_path)) => {
+                    match ov.convert_voice(&samples, self.cfg.ae.sample_rate, ref_path, 0.3) {
+                        Ok(converted) => (converted, 22050),
+                        Err(e) => {
+                            crate::term_err!("[OpenVoice] Tone conversion failed: {e}");
+                            (samples, self.cfg.ae.sample_rate)
+                        }
+                    }
+                }
+                _ => (samples, self.cfg.ae.sample_rate),
+            };
+            let wav_bytes = samples_to_wav_bytes(&final_samples, out_sample_rate);
             on_chunk_ready(0, 1, wav_bytes.clone());
             return Ok(wav_bytes);
         }
 
         let mut all_samples = Vec::new();
-        let pause_samples = (0.10 * self.cfg.ae.sample_rate as f32) as usize;
+        let out_sample_rate = if ref_voice_opt.is_some() && openvoice_opt.is_some() {
+            22050
+        } else {
+            self.cfg.ae.sample_rate
+        };
+        let pause_samples = (0.10 * out_sample_rate as f32) as usize;
+
+        // Pre-fetch target speaker embedding once for all subsequent chunks
+        let target_se_opt = match (openvoice_opt, ref_voice_opt.as_ref()) {
+            (Some(ov), Some(ref_path)) => ov.get_target_se(ref_path).ok(),
+            _ => None,
+        };
 
         for (i, chunk) in chunks.iter().enumerate() {
             match self.synthesize_chunk(chunk, style, &lang_code, speed) {
-                Ok(samples) => {
-                    if !samples.is_empty() {
-                        let chunk_wav = samples_to_wav_bytes(&samples, self.cfg.ae.sample_rate);
+                Ok(raw_samples) => {
+                    if !raw_samples.is_empty() {
+                        let (chunk_samples, chunk_rate) = match (openvoice_opt, target_se_opt.as_ref()) {
+                            (Some(ov), Some(target_se)) => {
+                                match ov.convert_voice_with_target_se(&raw_samples, self.cfg.ae.sample_rate, target_se, 0.3) {
+                                    Ok(converted) => (converted, 22050),
+                                    Err(e) => {
+                                        crate::term_err!("[OpenVoice] Tone conversion failed: {e}");
+                                        (raw_samples, self.cfg.ae.sample_rate)
+                                    }
+                                }
+                            }
+                            _ => (raw_samples, self.cfg.ae.sample_rate),
+                        };
+
+                        let chunk_wav = samples_to_wav_bytes(&chunk_samples, chunk_rate);
                         on_chunk_ready(i, total_chunks, chunk_wav);
 
                         if i > 0 && !all_samples.is_empty() {
                             all_samples.extend(std::iter::repeat_n(0.0f32, pause_samples));
                         }
-                        all_samples.extend(samples);
+                        all_samples.extend(chunk_samples);
                     }
                 }
                 Err(e) => {
@@ -445,7 +501,7 @@ impl SupertonicEngine {
             return Err(anyhow!("All audio sub-chunks failed to synthesize"));
         }
 
-        Ok(samples_to_wav_bytes(&all_samples, self.cfg.ae.sample_rate))
+        Ok(samples_to_wav_bytes(&all_samples, out_sample_rate))
     }
 }
 

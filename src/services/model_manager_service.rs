@@ -6,8 +6,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
-pub const MODEL_DOWNLOAD_URL: &str =
+pub const SUPERTONIC_DOWNLOAD_URL: &str =
     "https://huggingface.co/ahlanefwolf/ragasukma-models/resolve/main/supertonic-3.zip";
+pub const OPENVOICE_DOWNLOAD_URL: &str =
+    "https://huggingface.co/ahlanefwolf/ragasukma-models/resolve/main/openvoice-v2.zip";
+
+pub const MODEL_DOWNLOAD_URL: &str = SUPERTONIC_DOWNLOAD_URL;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelDownloadStatus {
@@ -48,7 +52,7 @@ pub fn update_model_status(status: ModelDownloadStatus) {
     *lock = status;
 }
 
-pub fn check_model_exists() -> bool {
+pub fn check_supertonic_exists() -> bool {
     let candidates = [
         PathBuf::from("models/supertonic-3"),
         PathBuf::from("../models/supertonic-3"),
@@ -57,6 +61,21 @@ pub fn check_model_exists() -> bool {
     candidates
         .into_iter()
         .any(|c| c.join("onnx/vocoder.onnx").exists())
+}
+
+pub fn check_openvoice_exists() -> bool {
+    let candidates = [
+        PathBuf::from("models/openvoice-v2"),
+        PathBuf::from("../models/openvoice-v2"),
+        PathBuf::from("/home/headway/MyWork/project/node/ai-voice/models/openvoice-v2"),
+    ];
+    candidates
+        .into_iter()
+        .any(|c| c.join("openvoice_tone_converter.onnx").exists())
+}
+
+pub fn check_model_exists() -> bool {
+    check_supertonic_exists() && check_openvoice_exists()
 }
 
 pub fn ensure_model_ready_background() {
@@ -107,38 +126,71 @@ pub fn ensure_model_ready_background() {
 }
 
 fn run_download_and_extract() -> anyhow::Result<()> {
-    crate::term_log!("[Model Manager] Supertonic-3 model missing. Starting automated download...");
-
     let models_dir = Path::new("models");
     if !models_dir.exists() {
         std::fs::create_dir_all(models_dir)?;
     }
 
-    let zip_path = models_dir.join("supertonic-3.zip");
+    // 1. Check and download Supertonic-3 if missing
+    if !check_supertonic_exists() {
+        crate::term_log!("[Model Manager] Supertonic-3 model missing. Starting automated download...");
+        download_and_extract_item(
+            "Supertonic-3",
+            SUPERTONIC_DOWNLOAD_URL,
+            &models_dir.join("supertonic-3.zip"),
+            models_dir,
+        )?;
+        crate::term_log!("[Model Manager] Supertonic-3 model successfully installed!");
+    }
 
+    // 2. Check and download OpenVoice-V2 if missing
+    if !check_openvoice_exists() {
+        crate::term_log!("[Model Manager] OpenVoice-V2 model missing. Starting automated download...");
+        let openvoice_dir = models_dir.join("openvoice-v2");
+        if !openvoice_dir.exists() {
+            std::fs::create_dir_all(&openvoice_dir)?;
+        }
+        download_and_extract_item(
+            "OpenVoice-V2",
+            OPENVOICE_DOWNLOAD_URL,
+            &models_dir.join("openvoice-v2.zip"),
+            &openvoice_dir,
+        )?;
+        crate::term_log!("[Model Manager] OpenVoice-V2 model successfully installed!");
+    }
+
+    Ok(())
+}
+
+fn download_and_extract_item(
+    model_name: &str,
+    download_url: &str,
+    zip_path: &Path,
+    extract_to_dir: &Path,
+) -> anyhow::Result<()> {
     update_model_status(ModelDownloadStatus {
         status: "downloading".to_string(),
         downloaded_bytes: 0,
         total_bytes: 0,
         percent: 0.0,
         speed_mbps: 0.0,
-        message: "Connecting to Hugging Face...".to_string(),
+        message: format!("Connecting to download {model_name}..."),
     });
 
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(3600))
         .build()?;
 
-    let mut response = client.get(MODEL_DOWNLOAD_URL).send()?;
+    let mut response = client.get(download_url).send()?;
     if !response.status().is_success() {
         return Err(anyhow::anyhow!(
-            "HTTP request failed with status: {}",
+            "Failed to download {model_name}: HTTP {}",
             response.status()
         ));
     }
 
     let total_bytes = response.content_length().unwrap_or(0);
-    let mut dest_file = File::create(&zip_path)?;
+    let mut dest_file = File::create(zip_path)?;
 
     let mut downloaded_bytes: u64 = 0;
     let mut buffer = [0u8; 64 * 1024]; // 64KB chunks
@@ -169,7 +221,8 @@ fn run_download_and_extract() -> anyhow::Result<()> {
                 percent,
                 speed_mbps,
                 message: format!(
-                    "Downloading Supertonic-3 ({:.1} MB / {:.1} MB)...",
+                    "Downloading {} ({:.1} MB / {:.1} MB)...",
+                    model_name,
                     downloaded_bytes as f32 / (1024.0 * 1024.0),
                     total_bytes as f32 / (1024.0 * 1024.0)
                 ),
@@ -181,7 +234,8 @@ fn run_download_and_extract() -> anyhow::Result<()> {
     drop(dest_file);
 
     crate::term_log!(
-        "[Model Manager] Download complete ({:.1} MB). Extracting...",
+        "[Model Manager] {} download complete ({:.1} MB). Extracting...",
+        model_name,
         downloaded_bytes as f32 / (1024.0 * 1024.0)
     );
 
@@ -191,14 +245,12 @@ fn run_download_and_extract() -> anyhow::Result<()> {
         total_bytes,
         percent: 100.0,
         speed_mbps: 0.0,
-        message: "Extracting model files...".to_string(),
+        message: format!("Extracting {model_name} files..."),
     });
 
-    extract_zip(&zip_path, models_dir)?;
+    extract_zip(zip_path, extract_to_dir)?;
+    let _ = std::fs::remove_file(zip_path);
 
-    let _ = std::fs::remove_file(&zip_path);
-
-    crate::term_log!("[Model Manager] Model successfully installed to models/supertonic-3!");
     Ok(())
 }
 

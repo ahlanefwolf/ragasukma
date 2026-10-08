@@ -1,5 +1,5 @@
-import { Component, createSignal, onCleanup, createEffect } from 'solid-js';
-import { Mic, Volume2, Play, Square, Sparkles, Zap, Shield, Flame, User } from 'lucide-solid';
+import { Component, createSignal, onCleanup, createEffect, onMount } from 'solid-js';
+import { Mic, Volume2, Play, Square, Sparkles, Zap, Shield, Flame, User, Upload, Trash2, Music, CheckCircle2 } from 'lucide-solid';
 import { API_BASE } from '../../services/base';
 
 interface SupertonicVoice {
@@ -10,16 +10,16 @@ interface SupertonicVoice {
 }
 
 const SUPERTONIC_VOICES: SupertonicVoice[] = [
-  { id: 'M1', name: 'Alex', label: 'Alex · Warm Male', gender: 'male' },
-  { id: 'M2', name: 'James', label: 'James · Clear Male', gender: 'male' },
-  { id: 'M3', name: 'Robert', label: 'Robert · Deep Male', gender: 'male' },
-  { id: 'M4', name: 'Sam', label: 'Sam · Bright Male', gender: 'male' },
-  { id: 'M5', name: 'Daniel', label: 'Daniel · Narrator Male', gender: 'male' },
-  { id: 'F1', name: 'Sarah', label: 'Sarah · Warm Female', gender: 'female' },
-  { id: 'F2', name: 'Lily', label: 'Lily · Clear Female', gender: 'female' },
-  { id: 'F3', name: 'Jessica', label: 'Jessica · Bright Female', gender: 'female' },
-  { id: 'F4', name: 'Olivia', label: 'Olivia · Narrator Female', gender: 'female' },
-  { id: 'F5', name: 'Emily', label: 'Emily · Soft Female', gender: 'female' },
+  { id: 'M1', name: 'M1', label: 'Warm Male', gender: 'male' },
+  { id: 'M2', name: 'M2', label: 'Clear Male', gender: 'male' },
+  { id: 'M3', name: 'M3', label: 'Deep Male', gender: 'male' },
+  { id: 'M4', name: 'M4', label: 'Bright Male', gender: 'male' },
+  { id: 'M5', name: 'M5', label: 'Narrator Male', gender: 'male' },
+  { id: 'F1', name: 'F1', label: 'Warm Female', gender: 'female' },
+  { id: 'F2', name: 'F2', label: 'Clear Female', gender: 'female' },
+  { id: 'F3', name: 'F3', label: 'Bright Female', gender: 'female' },
+  { id: 'F4', name: 'F4', label: 'Narrator Female', gender: 'female' },
+  { id: 'F5', name: 'F5', label: 'Soft Female', gender: 'female' },
 ];
 
 interface LanguageOption {
@@ -89,6 +89,33 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
   const [isPlayingTest, setIsPlayingTest] = createSignal(false);
   const [testText, setTestText] = createSignal('Hello! I am your AI assistant Ragasukma.');
   const [genderFilter, setGenderFilter] = createSignal<'all' | 'female' | 'male'>('all');
+
+  // 🎙️ Reference Voice (OpenVoice V2 Tone Converter) State
+  const [refVoiceExists, setRefVoiceExists] = createSignal(false);
+  const [refVoiceFilename, setRefVoiceFilename] = createSignal('');
+  const [refVoiceSizeMb, setRefVoiceSizeMb] = createSignal(0);
+  const [isUploadingRef, setIsUploadingRef] = createSignal(false);
+  const [isPlayingRefPreview, setIsPlayingRefPreview] = createSignal(false);
+  let refFileInputRef: HTMLInputElement | undefined;
+  let activeRefAudio: HTMLAudioElement | null = null;
+
+  const loadRefVoiceInfo = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/assets/info`);
+      if (res.ok) {
+        const data = await res.json();
+        setRefVoiceExists(Boolean(data.refvoice_exists));
+        setRefVoiceFilename(data.refvoice_filename || '');
+        setRefVoiceSizeMb(data.refvoice_size_mb || 0);
+      }
+    } catch (err) {
+      console.warn('[Assets Info Error]:', err);
+    }
+  };
+
+  onMount(() => {
+    loadRefVoiceInfo();
+  });
 
   let activeTestAudio: HTMLAudioElement | null = null;
   let voiceSelectRef: HTMLSelectElement | undefined;
@@ -205,7 +232,92 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
       activeTestAudio.pause();
       activeTestAudio = null;
     }
+    if (activeRefAudio) {
+      activeRefAudio.pause();
+      activeRefAudio = null;
+    }
   });
+
+  const handleUploadRefVoice = async (file: File) => {
+    if (!file) return;
+    setIsUploadingRef(true);
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'wav';
+      const arrayBuffer = await file.arrayBuffer();
+      const res = await fetch(`${API_BASE}/api/upload/refvoice?ext=${ext}&filename=${encodeURIComponent(file.name)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+        },
+        body: arrayBuffer,
+      });
+
+      if (!res.ok) {
+        throw new Error(`Upload reference voice failed: HTTP ${res.status}`);
+      }
+
+      await loadRefVoiceInfo();
+    } catch (err) {
+      console.error('[Upload Ref Voice Error]:', err);
+      alert('Gagal mengunggah file audio referensi: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setIsUploadingRef(false);
+      if (refFileInputRef) {
+        refFileInputRef.value = '';
+      }
+    }
+  };
+
+  const handleDeleteRefVoice = async () => {
+    if (isPlayingRefPreview() && activeRefAudio) {
+      activeRefAudio.pause();
+      activeRefAudio = null;
+      setIsPlayingRefPreview(false);
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/delete/refvoice`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        throw new Error(`Delete reference voice failed: HTTP ${res.status}`);
+      }
+      await loadRefVoiceInfo();
+    } catch (err) {
+      console.error('[Delete Ref Voice Error]:', err);
+    }
+  };
+
+  const handleToggleRefPreview = () => {
+    if (isPlayingRefPreview()) {
+      if (activeRefAudio) {
+        activeRefAudio.pause();
+        activeRefAudio = null;
+      }
+      setIsPlayingRefPreview(false);
+      return;
+    }
+
+    if (!refVoiceFilename()) return;
+
+    const audioUrl = `${API_BASE}/api/assets/file/${refVoiceFilename()}?t=${Date.now()}`;
+    const audio = new Audio(audioUrl);
+    activeRefAudio = audio;
+    setIsPlayingRefPreview(true);
+
+    audio.onended = () => {
+      setIsPlayingRefPreview(false);
+      activeRefAudio = null;
+    };
+    audio.onerror = () => {
+      setIsPlayingRefPreview(false);
+      activeRefAudio = null;
+    };
+
+    audio.play().catch((e) => {
+      console.warn('[Play Ref Audio Error]:', e);
+      setIsPlayingRefPreview(false);
+    });
+  };
 
   const handleTestVoice = async () => {
     if (isPlayingTest()) {
@@ -621,6 +733,93 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
               </>
             )}
           </button>
+        </div>
+
+        {/* 🎙️ Reference Voice (Zero-Shot Clone / Tone Color Converter) */}
+        <div class="p-4 bg-theme-card border border-theme-border space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div class="space-y-0.5">
+              <div class="flex items-center gap-2">
+                <Music size={16} class="text-theme-cyan" />
+                <span class="text-xs sm:text-sm font-bold text-theme-text">
+                  Reference Voice Timbre (Zero-Shot OpenVoice V2)
+                </span>
+                {refVoiceExists() ? (
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-mono bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 font-semibold">
+                    <CheckCircle2 size={10} /> Active Clone
+                  </span>
+                ) : (
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-mono bg-theme-bg text-theme-text/60 border border-theme-border">
+                    Native Supertonic
+                  </span>
+                )}
+              </div>
+              <p class="text-xs text-theme-text/60">
+                Reference audio is automatically saved as <code class="text-theme-cyan font-mono font-bold">assets/refvoice.*</code>. Leave empty to use native Supertonic 3 voice timbre.
+              </p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input
+                ref={refFileInputRef}
+                type="file"
+                accept="audio/wav,audio/mp3,audio/ogg,audio/flac,audio/m4a,audio/aac,.wav,.mp3,.ogg,.flac,.m4a,.aac"
+                class="hidden"
+                onChange={(e) => {
+                  const files = e.currentTarget.files;
+                  if (files && files[0]) {
+                    handleUploadRefVoice(files[0]);
+                  }
+                }}
+              />
+
+              <button
+                type="button"
+                disabled={isUploadingRef()}
+                onClick={() => refFileInputRef?.click()}
+                class="px-3 py-1.5 text-xs font-semibold bg-theme-cyan text-theme-card border border-theme-cyan hover:opacity-90 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Upload size={13} />
+                <span>{isUploadingRef() ? 'Uploading...' : refVoiceExists() ? 'Replace Audio' : 'Upload Reference Audio'}</span>
+              </button>
+
+              {refVoiceExists() && (
+                <button
+                  type="button"
+                  onClick={handleDeleteRefVoice}
+                  title="Remove reference voice (fallback to native Supertonic)"
+                  class="p-1.5 text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20 transition-all cursor-pointer"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {refVoiceExists() && (
+            <div class="p-2.5 bg-theme-bg border border-theme-border flex items-center justify-between gap-3 text-xs">
+              <div class="flex items-center gap-2 min-w-0">
+                <button
+                  type="button"
+                  onClick={handleToggleRefPreview}
+                  class={`p-1.5 border transition-all cursor-pointer ${
+                    isPlayingRefPreview()
+                      ? 'bg-theme-cyan text-theme-card border-theme-cyan'
+                      : 'bg-theme-card text-theme-cyan border-theme-border hover:border-theme-cyan'
+                  }`}
+                >
+                  {isPlayingRefPreview() ? <Square size={12} /> : <Play size={12} />}
+                </button>
+                <div class="truncate">
+                  <span class="font-mono font-bold text-theme-text">{refVoiceFilename()}</span>
+                  <span class="text-theme-text/50 text-[11px] ml-2">({refVoiceSizeMb().toFixed(2)} MB)</span>
+                </div>
+              </div>
+              <span class="text-[11px] text-theme-text/60 italic hidden sm:inline">
+                OpenVoice V2 Tone Color Converter ONNX Active
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>

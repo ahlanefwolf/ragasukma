@@ -308,12 +308,18 @@ pub fn start_voice_stream(emotion: String, asst_name: String) -> VoiceStreamSend
             while !sink.empty() {
                 std::thread::sleep(std::time::Duration::from_millis(40));
                 if VOICE_PLAYBACK_GEN.load(Ordering::SeqCst) != my_gen {
+                    if let Ok(mut speech_lock) = ACTIVE_VOICE_SPEECH.lock() {
+                        *speech_lock = None;
+                    }
                     return;
                 }
             }
         }
 
         if VOICE_PLAYBACK_GEN.load(Ordering::SeqCst) != my_gen {
+            if let Ok(mut speech_lock) = ACTIVE_VOICE_SPEECH.lock() {
+                *speech_lock = None;
+            }
             return;
         }
 
