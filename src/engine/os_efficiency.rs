@@ -64,11 +64,11 @@ pub fn trim_process_memory() {
 
     #[cfg(target_os = "linux")]
     {
+        // Tell allocator / libc to release free memory back to OS
+        unsafe extern "C" {
+            fn malloc_trim(pad: usize) -> i32;
+        }
         unsafe {
-            // Tell allocator / libc to release free memory back to OS
-            extern "C" {
-                fn malloc_trim(pad: usize) -> i32;
-            }
             malloc_trim(0);
         }
     }
