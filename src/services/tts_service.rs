@@ -71,8 +71,10 @@ pub fn handle_tts_synthesize(body: &str, stream: &mut dyn Write) {
         1.05
     });
 
+    crate::engine::os_efficiency::notify_active();
     match engine.synthesize(&req.text, &voice, &lang, speed) {
         Ok(wav_bytes) => {
+            crate::engine::os_efficiency::notify_active();
             let id = format!("{:x}", md5_hash(&req.text));
             set_last_audio_wav(id.clone(), wav_bytes.clone());
 

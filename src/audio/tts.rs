@@ -143,8 +143,10 @@ impl TextToSpeech {
             .or_else(|| crate::audio::supertonic::init_engine().ok());
 
         let synthesized = if let Some(engine) = engine_opt {
+            crate::engine::os_efficiency::notify_active();
             match engine.synthesize_stream(&clean_text, &voice, &lang, speed, &mut on_chunk) {
                 Ok(bytes) => {
+                    crate::engine::os_efficiency::notify_active();
                     // Close sender to signal mobile worker when all chunks are pushed
                     drop(mobile_tx);
 
