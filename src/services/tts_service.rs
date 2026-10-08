@@ -3,8 +3,7 @@ use serde_json::json;
 use std::io::Write;
 
 use crate::audio::supertonic::{
-    get_engine, get_last_audio_opus, get_last_audio_wav, init_engine, set_last_audio_opus,
-    set_last_audio_wav,
+    get_engine, get_last_audio_wav, init_engine, set_last_audio_wav,
 };
 use crate::server::send_json_response;
 
@@ -77,28 +76,19 @@ pub fn handle_tts_synthesize(body: &str, stream: &mut dyn Write) {
             let id = format!("{:x}", md5_hash(&req.text));
             set_last_audio_wav(id.clone(), wav_bytes.clone());
 
-            let (audio_bytes, content_type) =
-                if let Ok(opus_bytes) = crate::audio::opus::encode_wav_to_opus(&wav_bytes) {
-                    set_last_audio_opus(id.clone(), opus_bytes.clone());
-                    (opus_bytes, "audio/ogg; codecs=opus")
-                } else {
-                    (wav_bytes, "audio/wav")
-                };
-
             let resp_header = format!(
                 "HTTP/1.1 200 OK\r\n\
-                 Content-Type: {}\r\n\
+                 Content-Type: audio/wav\r\n\
                  Content-Length: {}\r\n\
                  Connection: close\r\n\
                  Access-Control-Allow-Origin: *\r\n\
                  X-Audio-Id: {}\r\n\
                  Cache-Control: no-cache\r\n\r\n",
-                content_type,
-                audio_bytes.len(),
+                wav_bytes.len(),
                 id
             );
             let _ = stream.write_all(resp_header.as_bytes());
-            let _ = stream.write_all(&audio_bytes);
+            let _ = stream.write_all(&wav_bytes);
         }
         Err(e) => {
             let resp = json!({ "error": format!("Synthesis failed: {e}") }).to_string();
@@ -109,7 +99,6 @@ pub fn handle_tts_synthesize(body: &str, stream: &mut dyn Write) {
 
 pub fn handle_get_tts_audio(full_url: &str, header_str: &str, stream: &mut dyn Write) {
     let mut req_id = None;
-    let mut req_format = None;
 
     if let Some(query) = full_url.split('?').nth(1) {
         for part in query.split('&') {
@@ -117,35 +106,18 @@ pub fn handle_get_tts_audio(full_url: &str, header_str: &str, stream: &mut dyn W
             if let (Some(k), Some(v)) = (kv.next(), kv.next()) {
                 if k == "id" {
                     req_id = Some(v);
-                } else if k == "format" {
-                    req_format = Some(v);
                 }
             }
         }
     }
 
-    let (audio_bytes, content_type) = if req_format == Some("wav") {
-        if let Some(bytes) = get_last_audio_wav(req_id) {
-            (bytes, "audio/wav")
-        } else {
-            send_json_response(stream, 404, "{\"error\":\"Audio not found\"}");
-            return;
-        }
-    } else if let Some(opus) = get_last_audio_opus(req_id) {
-        (opus, "audio/ogg; codecs=opus")
-    } else if let Some(wav) = get_last_audio_wav(req_id) {
-        if let Ok(opus) = crate::audio::opus::encode_wav_to_opus(&wav) {
-            if let Some(id) = req_id {
-                set_last_audio_opus(id.to_string(), opus.clone());
-            }
-            (opus, "audio/ogg; codecs=opus")
-        } else {
-            (wav, "audio/wav")
-        }
+    let audio_bytes = if let Some(bytes) = get_last_audio_wav(req_id) {
+        bytes
     } else {
         send_json_response(stream, 404, "{\"error\":\"Audio not found\"}");
         return;
     };
+    let content_type = "audio/wav";
 
     let total_len = audio_bytes.len() as u64;
     let range_header = header_str.lines().find_map(|line| {

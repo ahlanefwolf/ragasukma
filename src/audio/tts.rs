@@ -75,15 +75,8 @@ impl TextToSpeech {
 
         let mobile_worker_handle = std::thread::spawn(move || {
             while let Ok(item) = mobile_rx.recv() {
-                // 1. Encode to Opus in background worker
-                if let Ok(opus_bytes) = crate::audio::opus::encode_wav_to_opus(&item.chunk_wav) {
-                    crate::audio::supertonic::set_last_audio_opus(item.chunk_id.clone(), opus_bytes);
-                    // Jika Opus sukses ter-encode, langsung buang WAV chunk dari RAM
-                    crate::audio::supertonic::evict_audio_wav(&item.chunk_id);
-                } else {
-                    // Fallback jika sistem tidak memiliki FFmpeg: simpan WAV
-                    crate::audio::supertonic::set_last_audio_wav(item.chunk_id.clone(), item.chunk_wav.clone());
-                }
+                // 1. Simpan audio chunk WAV ke in-memory cache
+                crate::audio::supertonic::set_last_audio_wav(item.chunk_id.clone(), item.chunk_wav.clone());
 
                 // 2. Broadcast chunk immediately to mobile clients over WebSocket
                 let chunk_audio_url = format!("/api/tts/audio?id={}", item.chunk_id);
@@ -160,17 +153,8 @@ impl TextToSpeech {
                         pc_stream.finish();
                     }
 
-                    let audio_id_clone = audio_id.clone();
-                    let bytes_clone = bytes.clone();
-                    std::thread::spawn(move || {
-                        if let Ok(opus_bytes) = crate::audio::opus::encode_wav_to_opus(&bytes_clone) {
-                            crate::audio::supertonic::set_last_audio_opus(audio_id_clone.clone(), opus_bytes);
-                            crate::audio::supertonic::evict_audio_wav(&audio_id_clone);
-                        } else {
-                            // Fallback jika FFmpeg tidak tersedia
-                            crate::audio::supertonic::set_last_audio_wav(audio_id_clone, bytes_clone);
-                        }
-                    });
+                    // Simpan full WAV bytes ke in-memory cache
+                    crate::audio::supertonic::set_last_audio_wav(audio_id.clone(), bytes.clone());
 
                     audio_bytes_opt = Some(bytes);
                     true

@@ -544,29 +544,8 @@ async fn axum_tts_audio_handler(
     use axum::response::IntoResponse;
 
     let req_id = params.get("id").map(|s| s.as_str());
-    let requested_format = params.get("format").map(|s| s.as_str());
 
-    // 1. If WAV explicitly requested, serve raw WAV
-    if requested_format == Some("wav") {
-        if let Some(wav_bytes) = crate::audio::supertonic::get_last_audio_wav(req_id) {
-            return serve_audio_bytes_with_range(wav_bytes, "audio/wav", &headers);
-        }
-    }
-
-    // 2. High-speed, high-efficiency Opus audio (~95% smaller payload)
-    if let Some(opus_bytes) = crate::audio::supertonic::get_last_audio_opus(req_id) {
-        return serve_audio_bytes_with_range(opus_bytes, "audio/ogg; codecs=opus", &headers);
-    }
-
-    // 3. If Opus not cached yet, encode on-the-fly and cache
     if let Some(wav_bytes) = crate::audio::supertonic::get_last_audio_wav(req_id) {
-        if let Ok(opus_bytes) = crate::audio::opus::encode_wav_to_opus(&wav_bytes) {
-            if let Some(id) = req_id {
-                crate::audio::supertonic::set_last_audio_opus(id.to_string(), opus_bytes.clone());
-            }
-            return serve_audio_bytes_with_range(opus_bytes, "audio/ogg; codecs=opus", &headers);
-        }
-        // Fallback to WAV if Opus encoding unavailable
         return serve_audio_bytes_with_range(wav_bytes, "audio/wav", &headers);
     }
 

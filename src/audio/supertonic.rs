@@ -62,8 +62,6 @@ type AudioByteQueue = Mutex<std::collections::VecDeque<(String, Vec<u8>)>>;
 
 static LAST_AUDIO_WAV_LIST: std::sync::LazyLock<AudioByteQueue> =
     std::sync::LazyLock::new(|| Mutex::new(std::collections::VecDeque::new()));
-static LAST_AUDIO_OPUS_LIST: std::sync::LazyLock<AudioByteQueue> =
-    std::sync::LazyLock::new(|| Mutex::new(std::collections::VecDeque::new()));
 static LATEST_AUDIO_ID: Mutex<Option<String>> = Mutex::new(None);
 
 pub fn get_engine() -> Option<&'static SupertonicEngine> {
@@ -504,16 +502,6 @@ pub fn set_last_audio_wav(id: String, bytes: Vec<u8>) {
     }
 }
 
-pub fn set_last_audio_opus(id: String, bytes: Vec<u8>) {
-    if let Ok(mut list) = LAST_AUDIO_OPUS_LIST.lock() {
-        // Keep maximum 3 recent audio items in memory
-        while list.len() >= 3 {
-            list.pop_front();
-        }
-        list.push_back((id, bytes));
-    }
-}
-
 pub fn get_last_audio_wav(req_id: Option<&str>) -> Option<Vec<u8>> {
     let key = if let Some(r_id) = req_id {
         if !r_id.is_empty() {
@@ -536,48 +524,14 @@ pub fn get_last_audio_wav(req_id: Option<&str>) -> Option<Vec<u8>> {
     None
 }
 
-pub fn get_last_audio_opus(req_id: Option<&str>) -> Option<Vec<u8>> {
-    let key = if let Some(r_id) = req_id {
-        if !r_id.is_empty() {
-            Some(r_id.to_string())
-        } else {
-            LATEST_AUDIO_ID.lock().ok().and_then(|g| g.clone())
-        }
-    } else {
-        LATEST_AUDIO_ID.lock().ok().and_then(|g| g.clone())
-    };
-
-    let target_key = key?;
-    if let Ok(list) = LAST_AUDIO_OPUS_LIST.lock() {
-        for (id, bytes) in list.iter().rev() {
-            if id == &target_key {
-                return Some(bytes.clone());
-            }
-        }
-    }
-    None
-}
-
 pub fn clear_all_audio_cache() {
     if let Ok(mut list) = LAST_AUDIO_WAV_LIST.lock() {
         list.clear();
-    }
-    if let Ok(mut list) = LAST_AUDIO_OPUS_LIST.lock() {
-        list.clear();
-    }
-}
-
-pub fn evict_audio_wav(target_id: &str) {
-    if let Ok(mut list) = LAST_AUDIO_WAV_LIST.lock() {
-        list.retain(|(id, _)| id != target_id);
     }
 }
 
 pub fn evict_audio(target_id: &str) {
     if let Ok(mut list) = LAST_AUDIO_WAV_LIST.lock() {
-        list.retain(|(id, _)| id != target_id);
-    }
-    if let Ok(mut list) = LAST_AUDIO_OPUS_LIST.lock() {
         list.retain(|(id, _)| id != target_id);
     }
 }
