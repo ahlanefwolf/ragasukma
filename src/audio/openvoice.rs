@@ -46,7 +46,7 @@ pub fn init_engine() -> Result<OpenVoiceEngine> {
     let available_threads = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4);
-    let intra_threads = available_threads.min(8);
+    let intra_threads = available_threads.min(4);
 
     crate::term_log!(
         "[OpenVoice Engine] Loading ONNX models from {:?} (threads: {})",

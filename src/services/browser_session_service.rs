@@ -393,28 +393,19 @@ pub fn smart_open_or_switch_tab(url: &str, query: Option<&str>, domain_hint: Opt
 
     if let Some(tab) = existing_tab {
         println!(
-            "[Smart Tab Reuse] Found existing open tab (ID: {}, Title: '{}'), activating & navigating without opening a new tab.",
-            tab.id, tab.title
+            "[Smart Tab Freshness] Found existing tab for domain '{}' (ID: {}, Title: '{}'). Closing stale tab to ensure clean DOM state.",
+            d_hint, tab.id, tab.title
         );
         send_browser_command(BrowserCommand {
-            action: "SWITCH_OR_NAVIGATE".to_string(),
-            query: if q_hint.is_empty() {
-                None
-            } else {
-                Some(q_hint.to_string())
-            },
-            domain: if d_hint.is_empty() {
-                None
-            } else {
-                Some(d_hint.to_string())
-            },
-            new_url: Some(url.to_string()),
+            action: "CLOSE_TAB".to_string(),
+            query: Some(tab.id.to_string()),
             ..Default::default()
         });
-    } else {
-        // No matching tab found or extension not yet synced; open new tab via OS
-        crate::assets::open_browser(url);
+        // Small delay to let browser close stale tab cleanly before opening fresh one
+        std::thread::sleep(std::time::Duration::from_millis(150));
     }
+
+    crate::assets::open_browser(url);
 }
 
 pub fn format_open_tabs_for_llm() -> String {

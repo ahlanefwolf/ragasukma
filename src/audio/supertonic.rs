@@ -105,7 +105,7 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
     let available_threads = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4);
-    let intra_threads = available_threads.min(8);
+    let intra_threads = available_threads.min(4);
 
     // 3. ONNX Sessions (multi-threaded with Level3 graph optimization and disabled memory arena)
     let text_enc_sess = Session::builder()
@@ -463,7 +463,6 @@ impl SupertonicEngine {
         } else {
             self.cfg.ae.sample_rate
         };
-        let pause_samples = (0.10 * out_sample_rate as f32) as usize;
 
         // Pre-fetch target speaker embedding once for all subsequent chunks
         let target_se_opt = match (openvoice_opt, ref_voice_opt.as_ref()) {
@@ -472,7 +471,9 @@ impl SupertonicEngine {
         };
 
         for (i, chunk) in chunks.iter().enumerate() {
-            match self.synthesize_chunk(chunk, style, &lang_code, speed) {
+            let (chunk_speed, chunk_pause) = compute_chunk_prosody(chunk, speed, out_sample_rate, i, total_chunks);
+
+            match self.synthesize_chunk(chunk, style, &lang_code, chunk_speed) {
                 Ok(raw_samples) => {
                     if !raw_samples.is_empty() {
                         let (chunk_samples, chunk_rate) = match (openvoice_opt, target_se_opt.as_ref()) {
@@ -492,7 +493,7 @@ impl SupertonicEngine {
                         on_chunk_ready(i, total_chunks, chunk_wav);
 
                         if i > 0 && !all_samples.is_empty() {
-                            all_samples.extend(std::iter::repeat_n(0.0f32, pause_samples));
+                            all_samples.extend(std::iter::repeat_n(0.0f32, chunk_pause));
                         }
                         all_samples.extend(chunk_samples);
                     }
@@ -514,7 +515,159 @@ impl SupertonicEngine {
     }
 }
 
-/// Splits paragraph into natural sentences based on punctuation marks (., !, ?, ;, :)
+/// Blends two voice styles using Magnitude-Preserving Spherical Interpolation (Slerp).
+/// Unlike simple linear interpolation (Lerp) which diminishes latent variance and muffles high frequencies,
+/// geometric Slerp preserves the vector manifold curvature and full acoustic energy.
+#[allow(dead_code)]
+pub fn blend_voice_styles(style_a: &VoiceStyleData, style_b: &VoiceStyleData, ratio_b: f32) -> VoiceStyleData {
+    let t = ratio_b.clamp(0.0, 1.0);
+
+    let slerp_vec = |a: &[f32], b: &[f32], t: f32| -> Vec<f32> {
+        if a.len() != b.len() || a.is_empty() {
+            return a.to_vec();
+        }
+
+        let mut dot = 0.0f32;
+        let mut norm_a_sq = 0.0f32;
+        let mut norm_b_sq = 0.0f32;
+
+        for (&x, &y) in a.iter().zip(b.iter()) {
+            dot += x * y;
+            norm_a_sq += x * x;
+            norm_b_sq += y * y;
+        }
+
+        let norm_a = norm_a_sq.sqrt();
+        let norm_b = norm_b_sq.sqrt();
+
+        if norm_a < 1e-7 || norm_b < 1e-7 {
+            return a.iter().zip(b.iter()).map(|(&x, &y)| (1.0 - t) * x + t * y).collect();
+        }
+
+        // Cosine of angle between vectors
+        let cos_theta = (dot / (norm_a * norm_b)).clamp(-1.0, 1.0);
+        let target_norm = (1.0 - t) * norm_a + t * norm_b;
+
+        // If vectors are nearly collinear, fall back to linear interpolation with norm preservation
+        if cos_theta.abs() > 0.9995 {
+            let mut out: Vec<f32> = a.iter().zip(b.iter()).map(|(&x, &y)| (1.0 - t) * x + t * y).collect();
+            let mut out_norm_sq = 0.0f32;
+            for &val in &out {
+                out_norm_sq += val * val;
+            }
+            let out_norm = out_norm_sq.sqrt();
+            if out_norm > 1e-7 {
+                let scale = target_norm / out_norm;
+                for val in &mut out {
+                    *val *= scale;
+                }
+            }
+            return out;
+        }
+
+        let theta = cos_theta.acos();
+        let sin_theta = theta.sin();
+        let scale_a = ((1.0 - t) * theta).sin() / sin_theta;
+        let scale_b = (t * theta).sin() / sin_theta;
+
+        let mut out = Vec::with_capacity(a.len());
+        for (&x, &y) in a.iter().zip(b.iter()) {
+            out.push(scale_a * x + scale_b * y);
+        }
+
+        // Ensure resulting magnitude matches expected blended target norm
+        let mut res_norm_sq = 0.0f32;
+        for &val in &out {
+            res_norm_sq += val * val;
+        }
+        let res_norm = res_norm_sq.sqrt();
+        if res_norm > 1e-7 {
+            let scale = target_norm / res_norm;
+            for val in &mut out {
+                *val *= scale;
+            }
+        }
+        out
+    };
+
+    let ttl_data = slerp_vec(&style_a.ttl_data, &style_b.ttl_data, t);
+    let dp_data = slerp_vec(&style_a.dp_data, &style_b.dp_data, t);
+
+    VoiceStyleData {
+        ttl_dims: style_a.ttl_dims,
+        ttl_data,
+        dp_dims: style_a.dp_dims,
+        dp_data,
+    }
+}
+
+/// Computes natural, expressive prosody variations (tempo & inter-chunk pause)
+/// analyzing sentence punctuation, ellipsis, word density, and utterance position.
+fn compute_chunk_prosody(
+    chunk: &str,
+    base_speed: f32,
+    out_sample_rate: u32,
+    chunk_idx: usize,
+    total_chunks: usize,
+) -> (f32, usize) {
+    let trimmed = chunk.trim();
+    if trimmed.is_empty() {
+        return (base_speed, (0.08 * out_sample_rate as f32) as usize);
+    }
+
+    let char_count = trimmed.chars().count();
+    let is_first = chunk_idx == 0;
+    let is_last = chunk_idx + 1 >= total_chunks;
+
+    // 1. Position-aware Base Tempo:
+    // Opening phrase speaks with crisp clarity, mid-phrase flows naturally, ending phrase gently slows down.
+    let mut speed_mult = if is_first && total_chunks > 1 {
+        1.01
+    } else if is_last && total_chunks > 1 {
+        0.97
+    } else {
+        1.00
+    };
+
+    // 2. Length & Word Density modulation:
+    // Short exclamation/greeting gets expressive pace; dense long sentence gets slight speedup for fluid delivery.
+    if char_count < 15 {
+        speed_mult *= 0.96; // more deliberate, expressive cadence
+    } else if char_count > 60 {
+        speed_mult *= 1.03; // slight momentum for long sentences
+    }
+
+    // 3. Punctuation & Emotion Parsing:
+    let (punct_mult, pause_secs) = if trimmed.ends_with("...") || trimmed.ends_with('…') {
+        // Hesitation / trailing thought / suspense
+        (0.92, 0.22)
+    } else if trimmed.ends_with("?!") || trimmed.ends_with("!?") {
+        // Shock / excited question
+        (1.08, 0.16)
+    } else if trimmed.ends_with('?') || trimmed.ends_with('？') {
+        // Question intonation
+        (1.04, 0.13)
+    } else if trimmed.ends_with('!') || trimmed.ends_with('！') {
+        // Exclamation / excitement
+        (1.06, 0.14)
+    } else if trimmed.ends_with(',') || trimmed.ends_with('，') || trimmed.ends_with(';') || trimmed.ends_with('；') {
+        // Intra-sentence breathing pause
+        (1.00, 0.07)
+    } else if trimmed.ends_with(':') || trimmed.ends_with('：') {
+        // Colon explanation pause
+        (0.98, 0.12)
+    } else {
+        // Standard period / sentence closure
+        let final_pause = if is_last { 0.05 } else { 0.11 };
+        (1.00, final_pause)
+    };
+
+    let final_speed = (base_speed * speed_mult * punct_mult).clamp(0.5, 2.0);
+    let pause_samples = (pause_secs * out_sample_rate as f32) as usize;
+
+    (final_speed, pause_samples)
+}
+
 pub fn split_into_tts_chunks(text: &str) -> Vec<String> {
     let text = text.trim();
     if text.is_empty() {
@@ -639,14 +792,43 @@ fn clean_lang_code(lang: &str) -> String {
         "tr" => "tr",
         "uk" => "uk",
         "vi" => "vi",
-        "zh" => "zh",
         _ => "id",
     }
     .to_string()
 }
 
+/// Decomposes Hangul syllables (U+AC00..U+D7A3) into Unicode Conjoining Jamo (U+1100..U+11FF)
+/// matching Supertonic 3's unicode indexer expectations.
+fn decompose_hangul(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() * 3);
+    for ch in text.chars() {
+        let code = ch as u32;
+        if (0xAC00..=0xD7A3).contains(&code) {
+            let s_index = code - 0xAC00;
+            let l_index = s_index / 588;
+            let v_index = (s_index % 588) / 28;
+            let t_index = s_index % 28;
+
+            if let Some(l_char) = char::from_u32(0x1100 + l_index) {
+                out.push(l_char);
+            }
+            if let Some(v_char) = char::from_u32(0x1161 + v_index) {
+                out.push(v_char);
+            }
+            if t_index > 0 {
+                if let Some(t_char) = char::from_u32(0x11A7 + t_index) {
+                    out.push(t_char);
+                }
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
 fn preprocess_text(text: &str, lang: &str) -> String {
-    let mut t = text.to_string();
+    let mut t = decompose_hangul(text);
     t = t
         .replace(['–', '‑', '—', '−'], "-")
         .replace(['¯', '_', '~', '^'], " ")
@@ -739,27 +921,13 @@ pub fn samples_to_wav_bytes(samples: &[f32], sample_rate: u32) -> Vec<u8> {
     out.extend_from_slice(b"data");
     out.extend_from_slice(&data_len.to_le_bytes());
 
-    // Peak Normalization (Digital Headroom Scaling):
-    // Raw Supertonic-3 neural model produces conservative peak amplitudes (~0.25 - 0.35).
-    // Find maximum waveform peak and scale linearly to target 0.92 (-0.7 dBFS)
-    // ensures voice is clear, crisp, and free from clipping/distortion on PC and mobile speakers.
-    let mut max_abs: f32 = 0.0;
-    for &sample in samples {
-        let abs = sample.abs();
-        if abs > max_abs {
-            max_abs = abs;
-        }
-    }
-
-    let scale = if max_abs > 0.01 {
-        // Target 0.92 provides safe headroom against inter-sample peaks on audio DAC
-        (0.92 / max_abs).clamp(1.0, 4.0)
-    } else {
-        1.0
-    };
+    // Constant scaling factor across all chunks to prevent volume fluctuation
+    // Supertonic raw waveform peak is typically ~0.30, constant 2.5x gain provides
+    // consistent loudness without dynamic chunk-to-chunk pumping.
+    const CONST_GAIN: f32 = 2.5;
 
     for &sample in samples {
-        let scaled = sample * scale;
+        let scaled = sample * CONST_GAIN;
         let clamped = scaled.clamp(-1.0, 1.0);
         let s_i16 = (clamped * 32767.0) as i16;
         out.extend_from_slice(&s_i16.to_le_bytes());
@@ -771,6 +939,39 @@ pub fn samples_to_wav_bytes(samples: &[f32], sample_rate: u32) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_blend_voice_styles() {
+        let style_a = VoiceStyleData {
+            ttl_dims: [1, 1, 2],
+            ttl_data: vec![1.0, 0.0],
+            dp_dims: [1, 1, 2],
+            dp_data: vec![2.0, 0.0],
+        };
+        let style_b = VoiceStyleData {
+            ttl_dims: [1, 1, 2],
+            ttl_data: vec![0.0, 1.0],
+            dp_dims: [1, 1, 2],
+            dp_data: vec![0.0, 2.0],
+        };
+        let blended = blend_voice_styles(&style_a, &style_b, 0.5);
+        // Slerp for orthogonal vectors at t=0.5 produces cos(45°)=sin(45°) ≈ 0.7071
+        // and preserves original vector magnitudes (norm 1.0 for ttl, 2.0 for dp)
+        assert!((blended.ttl_data[0] - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-4);
+        assert!((blended.ttl_data[1] - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-4);
+        assert!((blended.dp_data[0] - 2.0 * std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-4);
+        assert!((blended.dp_data[1] - 2.0 * std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_hangul_decomposition() {
+        let decomposed = decompose_hangul("안녕하세요");
+        // Each of the 5 Hangul characters should decompose into 2 or 3 Jamo characters
+        assert!(decomposed.chars().count() >= 10);
+        let preprocessed = preprocess_text("안녕하세요", "ko");
+        assert!(preprocessed.starts_with("<ko>"));
+        assert!(preprocessed.ends_with(".</ko>"));
+    }
 
     #[test]
     fn test_supertonic_synthesis() {

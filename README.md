@@ -10,49 +10,70 @@
   [![License](https://img.shields.io/badge/License-Proprietary-F2B5D4?style=flat-square)](https://github.com/ahlanefwolf/ragasukma)
 
   <p align="center">
-    Multilingual desktop AI voice assistant with transparent 3D/2D avatar overlay, in-page browser automation, local music player, and local OpenAI-compatible LLM router.
+    Multilingual desktop AI voice assistant with transparent 3D avatar overlay, zero-shot voice cloning, in-page browser automation, local music player, and local OpenAI-compatible LLM router.
   </p>
 
 </div>
 
 ---
 
-## Features & System Capabilities
+## Key Features & Highlights
 
-### 1. Voice Interaction & 3D Visuals
-- **Transparent 3D VRM Overlay & Spring Bone Physics**:
-  - Native WGPU rendering engine with 1:1 MToon shader and full **Three-VRM Spring Bone Verlet Physics** synchronization (avatar hair & clothing with dynamic colliders, drag force, and gravity).
-  - Facial expression blendshape/morph target synchronization across 8 canonical emotions (*happy*, *shy*, *excited*, *surprised*, *thinking*, *sad*, *angry*, *neutral*) with dynamic auto-blinking.
-- **Unified Audio Engine (Native Supertonic-3 TTS & Chromium STT)**:
-  - **Supertonic-3 Native Rust TTS Runtime (Pure ONNX, Zero Python)**: High-speed voice inference via `ort v2.0.0-rc.13` directly embedded within the Rust binary, offering 10 studio voice profiles (5 Male: M1..M5, 5 Female: F1..F5) with memory preloading, numeric preservation, and streaming 24kHz WAV to web dashboards and mobile clients. 100% free of browser `window.speechSynthesis` limitations.
-  - **Chromium Native Web STT (`webkitSpeechRecognition`)**: High-accuracy speech recognition with unified language synchronization (`id-ID`, `en-US`, `ja-JP`, `ar-SA`, etc.) via a single `lang` property.
-  - **Zero Mic Locks & VAD Barge-in**: Instant audio ducking and barge-in interruption cutting TTS playback the moment the user resumes speaking.
-  - **60 FPS Spectrum Visualizer & VU Meter**: Processed in real-time via the browser Web Audio API.
-- **Strict Single-Tab Ownership & Clean Teardown**:
-  - Total elimination of duplicate audio conflicts: obsolete tabs immediately cut audio, cancel pending requests, and close SSE streams (`forceCloseSSE`).
+### 1. Ultra-Fast Voice Engine & Zero-Shot Voice Cloning
+- **Native Supertonic 3 Text-to-Speech (Pure ONNX)**:
+  - Lightning-fast, on-device neural voice generation running directly on CPU without cloud dependency or Python runtimes.
+  - 10 distinct studio voice presets (5 Male: `M1`–`M5`, 5 Female: `F1`–`F5`) with natural prosody and punctuation-aware breathing pauses.
+  - Comprehensive support across **31 world languages**:
 
-### 2. Browser DOM Automation & Click Engine
-- **Active Tab DOM Ground-of-Truth**: Real-time visual analysis of interactive elements on the active tab for hallucination-free command execution.
-- **In-Page Navigation**:
-  - `browser:open` — Open or switch to a target website tab.
-  - `browser:search` — Search on a target site or search in-page content.
-  - `browser:type` & `browser:enter` — Type text into active forms/inputs and execute Enter.
-  - `browser:click_text` & `browser:click_button` — Locate and click text, links, or buttons.
-  - `browser:switch` & `browser:close` — Active tab management in the browser.
+| Code | Language | Code | Language | Code | Language | Code | Language |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | Indonesian | `en` | English | `ja` | Japanese | `ko` | Korean |
+| `ar` | Arabic | `bg` | Bulgarian | `cs` | Czech | `da` | Danish |
+| `de` | German | `el` | Greek | `es` | Spanish | `et` | Estonian |
+| `fi` | Finnish | `fr` | French | `hi` | Hindi | `hr` | Croatian |
+| `hu` | Hungarian | `it` | Italian | `lt` | Lithuanian | `lv` | Latvian |
+| `nl` | Dutch | `pl` | Polish | `pt` | Portuguese | `ro` | Romanian |
+| `ru` | Russian | `sk` | Slovak | `sl` | Slovenian | `sv` | Swedish |
+| `tr` | Turkish | `uk` | Ukrainian | `vi` | Vietnamese | | |
+- **Zero-Shot Voice Cloning with OpenVoice V2**:
+  - Upload any reference audio sample (`assets/refvoice.*`) from the web dashboard to instantly clone and morph the assistant's voice timbre into your target character.
+  - Seamless automatic fallback to native Supertonic voices whenever no custom reference voice is provided.
+  - Slerp-based voice morphing to blend multiple voice personalities seamlessly.
+- **Natural Conversation & Barge-in Interruption**:
+  - Instant Voice Activity Detection (VAD) that cuts off playback immediately the moment you start speaking, mimicking natural human conversation.
+  - Real-time 60 FPS spectrum visualizer and microphone VU meter.
 
-### 3. Music Player & HiDPI PiP
-- **Automated YouTube Download & Playback**: Automatic background downloading and local playback via `yt-dlp` (`media:play`, `media:pause`, `media:resume`, `media:next`, `media:prev`, `media:stop`).
-- **Retina Picture-in-Picture (PiP)**: Widescreen floating mini-player (680x210 @ 2x HiDPI) powered by a Dedicated Web Worker timer (30 FPS) that continues smooth playback when the browser tab is minimized.
+### 2. Transparent 3D Avatar & Physics
+- **Desktop 3D VRM Companion**:
+  - Lightweight transparent 3D window overlay with MToon cel-shaded rendering.
+  - Full Verlet Spring Bone physics synchronization for realistic hair and clothing movement, gravity, and body colliders.
+- **Emotion & Lip-Sync Synchronization**:
+  - Real-time AIUEO lip-sync matched to speech audio playback.
+  - Dynamic facial expressions and automatic eye-blinking reflecting 8 canonical emotions (*happy*, *shy*, *excited*, *surprised*, *thinking*, *sad*, *angry*, *neutral*).
 
-### 4. OS System Control, Desktop Precision & Utilities
-- **Multiplatform Desktop Precision Click**: Click buttons or text on screen monitors (`desktop:click_text`, `desktop:click_button`, `desktop:click_at`) with native OS accessibility tree integration (UI Automation on Windows, AT-SPI on Linux, System Events on macOS) and automatic visual OCR perception fallbacks for non-native UI canvases.
-- **Application Launcher**: Automatically detect and launch installed desktop applications (`app:open`).
-- **Audio & OS Controls**: System volume control (`os:volume_up`, `os:volume_down`, `os:mute`), screenshots (`os:screenshot`), screen locking (`os:lock`), calculator, terminal, and file manager shortcuts.
-- **Note Management**: Integrated to-do list tracking (`todo:add`, `todo:done`).
+### 3. In-Page Browser DOM Automation
+- **Smart Web Navigation**:
+  - Open, switch, scroll, or close browser tabs automatically.
+  - Locate, read, and click buttons, links, and search bars on active websites based on real-time visual DOM layout.
+  - Automatic web searches, typing, and form completion across websites.
 
-### 5. Antigravity Pool & Local OpenAI Router
-- **Multi-Account OAuth Pooling**: Dual Google OAuth account management with automated quota failover.
-- **OpenAI-Compatible Local Endpoint (`http://127.0.0.1:42128/v1`)**: Drop-in compatibility with Cursor, VS Code, Cline, and third-party developer tools.
+### 4. Built-in Music Player & Retina Picture-in-Picture (PiP)
+- **Local & YouTube Music Playback**:
+  - Automated background streaming and audio caching with full playback controls (play, pause, skip, seek, loop).
+- **Floating HiDPI PiP Player**:
+  - Retina mini-player (680×210 px) that stays visible and runs smoothly even when your browser tab is minimized.
+
+### 5. Desktop OS Controls & Productivity Utilities
+- **Desktop Precision Automation**:
+  - Click UI elements, open installed applications, manage system volume, take screenshots, or lock your computer via voice commands.
+- **Integrated To-Do & Task Management**:
+  - Voice-activated task tracking to add, view, and complete daily reminders.
+
+### 6. Antigravity Pool & Local OpenAI Router
+- **Universal Local API (`http://127.0.0.1:42128/v1`)**:
+  - Drop-in standard OpenAI-compatible API endpoint allowing direct connection with Cursor, VS Code, Cline, and third-party AI tools.
+- **Multi-Account OAuth Pooling**:
+  - Automated account rotation and quota failover for uninterrupted conversation flow.
 
 ---
 
@@ -60,9 +81,9 @@
 
 | Platform | Minimum Requirements |
 | :--- | :--- |
-| **Linux** | Kernel 5.4+, X11 / Wayland (Vulkan/OpenGL enabled), `libasound2` (ALSA/PulseAudio/PipeWire) |
-| **Windows** | Windows 10 (64-bit) 1909+ / Windows 11, DirectX 12 / Vulkan support |
-| **macOS** | macOS 12 Monterey or later, Apple Silicon (M1/M2/M3/M4) with Metal Engine |
+| **Linux** | Kernel 5.4+, X11 / Wayland (Vulkan/OpenGL enabled), ALSA / PulseAudio / PipeWire |
+| **Windows** | Windows 10 (64-bit) 1909+ / Windows 11, DirectX 12 / Vulkan |
+| **macOS** | macOS 12 Monterey or later, Apple Silicon (M1/M2/M3/M4) with Metal |
 
 ---
 
@@ -77,22 +98,9 @@ Download installer binaries from [GitHub Releases](https://github.com/ahlanefwol
 Once launched, the floating 3D avatar appears on your desktop and the web control dashboard opens at `http://127.0.0.1:42128`.
 
 ### 2. Start Conversation
-1. Navigate to the **Main Menu** tab on the dashboard.
+1. Navigate to the **Main Menu** on the dashboard.
 2. Click **Start Conversation (Enable AI)**.
-3. Speak directly into your microphone to converse, play music, or execute system automation commands.
-
----
-
-## Code Quality, Verification & Language Audits
-
-The full codebase pipeline is verified via a single command:
-```bash
-cargo clippy && cargo fmt --check && (cd web && npx eslint . && npx tsc --noEmit && npx knip && npx jscpd .)
-```
-For comprehensive quality guidelines and audit reports, refer to:
-- [Code Quality & Linting Documentation](docs/quality.md)
-- [Backend Rust Language & String Audit (`docs/language_audit/`)](docs/language_audit/README.md)
-- [Frontend Web & Console Audit (`docs/web_audit/`)](docs/web_audit/README.md)
+3. Speak directly into your microphone to chat, trigger browser actions, play music, or clone your favorite voice character!
 
 ---
 

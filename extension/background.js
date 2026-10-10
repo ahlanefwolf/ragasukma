@@ -94,8 +94,13 @@ function handleCommand(cmd) {
 
   if (cmd.action === "CLOSE_TAB") {
     api.tabs.query({}, (tabs) => {
-      const q = (cmd.query || "").toLowerCase();
-      const match = (tabs || []).find(t => (t.url || "").toLowerCase().includes(q) || (t.title || "").toLowerCase().includes(q));
+      const q = (cmd.query || "").trim().toLowerCase();
+      const numId = Number(q);
+      const match = (tabs || []).find(t =>
+        (numId && t.id === numId) ||
+        (t.url || "").toLowerCase().includes(q) ||
+        (t.title || "").toLowerCase().includes(q)
+      );
       if (match?.id) api.tabs.remove(match.id, syncTabs);
     });
     return;

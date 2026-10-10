@@ -1,3 +1,52 @@
+/// Google AI Mode / AI Overview tab/button label keywords across all 31 supported languages
+static GOOGLE_AI_KEYWORDS: &[&str] = &[
+    "ai mode",          // English / Universal
+    "ai overview",      // English / Universal
+    "mode ai",          // Indonesian / French / Spanish / Italian
+    "ringkasan ai",     // Indonesian
+    "ai による概要",    // Japanese
+    "ai モード",        // Japanese
+    "ai 개요",          // Korean
+    "ai 모드",          // Korean
+    "نظرة عامة بالذكاء الاصطناعي", // Arabic
+    "وضع الذكاء الاصطناعي",        // Arabic
+    "преглед с ai",     // Bulgarian
+    "přehled s ai",     // Czech
+    "ai-oversigt",      // Danish
+    "ai-modus",         // Danish / German / Dutch
+    "ai-übersicht",     // German
+    "επισκόπηση ai",    // Greek
+    "vista general creada por ia", // Spanish
+    "modo ia",          // Spanish / Portuguese
+    "visión general de ia",        // Spanish
+    "ai-ülevaade",      // Estonian
+    "ai-yleiskatsaus",  // Finnish
+    "aperçu généré par l'ia",      // French
+    "mode ia",          // French
+    "ai अवलोकन",        // Hindi
+    "ai मोड",           // Hindi
+    "ai pregled",       // Croatian
+    "ai-áttekintés",    // Hungarian
+    "panoramica dell'ia",          // Italian
+    "„ai“ apžvalga",    // Lithuanian
+    "ai kopsavilkums",  // Latvian
+    "ai-overzicht",     // Dutch
+    "przegląd od ai",   // Polish
+    "tryb ai",          // Polish
+    "visão geral criada por ia",   // Portuguese
+    "privire generală generată de ia", // Romanian
+    "обзор с помощью ии",          // Russian
+    "режим ии",         // Russian
+    "prehľad od ai",    // Slovak
+    "pregled z ai",     // Slovenian
+    "ai-översikt",      // Swedish
+    "yapay zeka genel bakışı",     // Turkish
+    "yapay zeka modu",  // Turkish
+    "огляд від ai",     // Ukrainian
+    "tổng quan về ai",  // Vietnamese
+    "chế độ ai",        // Vietnamese
+];
+
 /// Execute browser commands based on canonical action
 pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, String)> {
     match action {
@@ -22,70 +71,85 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
         }
 
         "search" => {
-            let parts: Vec<&str> = payload.split('|').collect();
-            let (site, query) = if parts.len() >= 2 {
-                (parts[0].trim(), parts[1].trim())
+            let query = if let Some((_site, q)) = payload.split_once('|') {
+                q.trim()
             } else {
-                ("", payload.trim())
+                payload.trim()
             };
 
-            if !site.is_empty() {
-                let domain = if site.contains('.') {
-                    site.to_string()
-                } else {
-                    format!("{site}.com")
-                };
-                let site_url = if site.starts_with("http://") || site.starts_with("https://") {
-                    site.to_string()
-                } else {
-                    format!("https://www.{domain}")
-                };
-
-                let tabs = crate::services::browser_session_service::get_browser_tabs();
-                let matching_tab = tabs.iter().find(|t| {
-                    let t_url = t.url.to_lowercase();
-                    let t_title = t.title.to_lowercase();
-                    t_url.contains(&site.to_lowercase()) || t_title.contains(&site.to_lowercase())
-                });
-
-                if let Some(tab) = matching_tab {
-                    println!(
-                        "[Universal In-Page Search] Switching to active tab '{}' (ID: {}) and searching '{}'",
-                        tab.title, tab.id, query
-                    );
-                    crate::services::browser_session_service::send_browser_command(
-                        crate::services::browser_session_service::BrowserCommand {
-                            action: "SWITCH_OR_NAVIGATE".to_string(),
-                            query: Some(query.to_string()),
-                            domain: Some(domain),
-                            ..Default::default()
-                        },
-                    );
-                } else {
-                    crate::services::browser_session_service::smart_open_or_switch_tab(
-                        &site_url,
-                        Some(query),
-                        Some(&domain),
-                    );
-                }
-
-                Some((
-                    format!("Search on {site}: {query}"),
-                    format!("Searching '{query}' on {site}"),
-                ))
-            } else {
-                crate::services::browser_session_service::send_browser_command(
-                    crate::services::browser_session_service::BrowserCommand {
-                        action: "IN_PAGE_SEARCH".to_string(),
-                        query: Some(query.to_string()),
-                        ..Default::default()
-                    },
-                );
-                Some((
-                    format!("Search on Web Page: {query}"),
-                    format!("Searching '{query}' on active page"),
-                ))
+            if query.is_empty() {
+                return None;
             }
+
+            // Encode query properly for standard Google Search URL
+            let encoded_query: String = form_urlencoded::byte_serialize(query.as_bytes()).collect();
+            let google_url = format!("https://www.google.com/search?q={encoded_query}");
+
+            crate::services::browser_session_service::smart_open_or_switch_tab(
+                &google_url,
+                Some(query),
+                Some("google.com"),
+            );
+
+            // Reactive fast-polling worker: clicks AI Mode the instant the element appears in DOM snapshot
+            std::thread::spawn(|| {
+                use std::time::{Duration, Instant};
+
+                let start = Instant::now();
+                let max_timeout = Duration::from_secs(4);
+
+                while start.elapsed() < max_timeout {
+                    if let Some(snap) = crate::services::browser_session_service::get_latest_snapshot() {
+                        let snap_url = snap.url.to_lowercase();
+                        // Verify we are on Google search results page
+                        if snap_url.contains("google.") && snap_url.contains("search") {
+                            // 1. Search in buttons
+                            let matching_button = snap.buttons.iter().find(|b| {
+                                let label = b.text.as_deref().unwrap_or("").to_lowercase();
+                                let aria = b.aria_label.as_deref().unwrap_or("").to_lowercase();
+                                GOOGLE_AI_KEYWORDS.iter().any(|k| label.contains(k) || aria.contains(k))
+                            });
+
+                            // 2. Search in interactive texts / links
+                            let matching_text = snap.texts.iter().find(|t| {
+                                let label = t.to_lowercase();
+                                GOOGLE_AI_KEYWORDS.iter().any(|k| label.contains(k))
+                            });
+
+                            if let Some(btn) = matching_button {
+                                let sel = btn
+                                    .selector
+                                    .clone()
+                                    .or_else(|| btn.text.clone())
+                                    .unwrap_or_else(|| "Mode AI".to_string());
+                                crate::services::browser_session_service::send_browser_command(
+                                    crate::services::browser_session_service::BrowserCommand {
+                                        action: "CLICK_BUTTON".to_string(),
+                                        selector: Some(sel),
+                                        ..Default::default()
+                                    },
+                                );
+                                return;
+                            } else if let Some(txt) = matching_text {
+                                crate::services::browser_session_service::send_browser_command(
+                                    crate::services::browser_session_service::BrowserCommand {
+                                        action: "CLICK_TEXT".to_string(),
+                                        selector: Some(txt.clone()),
+                                        ..Default::default()
+                                    },
+                                );
+                                return;
+                            }
+                        }
+                    }
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+            });
+
+            Some((
+                format!("Google Search: {query}"),
+                format!("Searching '{query}' on Google"),
+            ))
         }
 
         "click_text" => {

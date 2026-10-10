@@ -38,7 +38,6 @@ pub fn resolve_language_info(lang: &str) -> (&'static str, &'static str) {
         "tr" => ("tr", "Turkish (Türkçe)"),
         "uk" => ("uk", "Ukrainian (Українська)"),
         "vi" => ("vi", "Vietnamese (Tiếng Việt)"),
-        "zh" => ("zh", "Chinese (中文)"),
         _ => ("id", "Indonesian (Bahasa Indonesia)"),
     }
 }
@@ -143,8 +142,7 @@ GLOBAL UTILITY ACTION CATALOG:
 | Web Recipe | [CMD:recipe:train|url|goal] | '*excited* Training! [CMD:recipe:train|https://www.youtube.com|search music]' |
 | Web Recipe | [CMD:recipe:run|recipe_id] | '*happy* Running! [CMD:recipe:run|tokopedia_search]' |
 | Web Browser | [CMD:browser:open|url] | '*happy* Opening! [CMD:browser:open|youtube.com]' |
-| Web Browser | [CMD:browser:search|query] | '*excited* Searching! [CMD:browser:search|latest news]' |
-| Web Browser | [CMD:browser:search|site|query] | '*excited* Searching YouTube! [CMD:browser:search|youtube.com|lofi beats]' |
+| Web Browser | [CMD:browser:search|query] | '*excited* Searching Google! [CMD:browser:search|latest news today]' |
 | Web Browser | [CMD:browser:scroll|pixels] | '*happy* Scrolled! [CMD:browser:scroll|400]' |
 | Web Browser | [CMD:browser:switch|tab_name] | '*happy* Switched! [CMD:browser:switch|YouTube]' |
 | Web Browser | [CMD:browser:close|tab_name] | '*happy* Closed tab! [CMD:browser:close|YouTube]' |
@@ -538,7 +536,6 @@ mod tests {
         assert_eq!(resolve_language_info("ja-JP").0, "ja");
         assert_eq!(resolve_language_info("ko-KR").0, "ko");
         assert_eq!(resolve_language_info("ar-SA").0, "ar");
-        assert_eq!(resolve_language_info("zh-TW").0, "zh");
         assert_eq!(resolve_language_info("pt-PT").0, "pt");
         assert_eq!(resolve_language_info("pt-BR").0, "pt");
         // Bare ISO-639-1 codes
@@ -573,7 +570,6 @@ mod tests {
         assert_eq!(resolve_language_info("tr").0, "tr");
         assert_eq!(resolve_language_info("uk").0, "uk");
         assert_eq!(resolve_language_info("vi").0, "vi");
-        assert_eq!(resolve_language_info("zh").0, "zh");
         // Ambiguous / unknown → fallback to Indonesian
         assert_eq!(resolve_language_info("").0, "id");
         assert_eq!(resolve_language_info("hindi").0, "id"); // not a code → fallback
