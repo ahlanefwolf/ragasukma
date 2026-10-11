@@ -110,19 +110,28 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
 
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
-        let binary_candidate = q_clean.to_lowercase().replace(' ', "-");
-        let cmd_test = format!("command -v {binary_candidate} >/dev/null 2>&1");
-        if std::process::Command::new("sh")
-            .args(["-c", &cmd_test])
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
-        {
-            if launch_linux_command(&binary_candidate).is_ok() {
-                return Some((
-                    format!("Open {q_clean}"),
-                    "Successfully launched application from system".to_string(),
-                ));
+        // Try multiple binary candidates: "g4-music", "g4music", or literal
+        let cand_dash = q_clean.to_lowercase().replace(' ', "-");
+        let cand_nospace = q_clean.to_lowercase().replace([' ', '-', '_'], "");
+        let cand_literal = q_clean.to_lowercase();
+
+        let mut checked = std::collections::HashSet::new();
+        for binary_candidate in [cand_dash, cand_nospace, cand_literal] {
+            if !binary_candidate.is_empty() && checked.insert(binary_candidate.clone()) {
+                let cmd_test = format!("command -v {binary_candidate} >/dev/null 2>&1");
+                if std::process::Command::new("sh")
+                    .args(["-c", &cmd_test])
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false)
+                {
+                    if launch_linux_command(&binary_candidate).is_ok() {
+                        return Some((
+                            format!("Open {q_clean}"),
+                            "Successfully launched application from system".to_string(),
+                        ));
+                    }
+                }
             }
         }
     }
@@ -130,8 +139,27 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
     None
 }
 
+fn normalize_alnum(s: &str) -> String {
+    s.chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect::<String>()
+        .to_lowercase()
+}
+
+fn extract_exec_binary(exec: &str) -> &str {
+    let trimmed = exec.trim();
+    let first = trimmed.split_whitespace().next().unwrap_or(trimmed);
+    let bin = first.rsplit('/').next().unwrap_or(first);
+    bin.trim_matches(|c: char| c == '"' || c == '\'')
+}
+
+fn extract_desktop_id_base(id: &str) -> &str {
+    let clean = id.trim_end_matches(".desktop");
+    clean.rsplit('.').next().unwrap_or(clean)
+}
+
 /// Search installed applications using a 4-tier hierarchy:
-/// 1. Exact match (name / desktop_id / generic_name)
+/// 1. Exact match (name / desktop_id / generic_name / exec binary / normalized alphanumeric)
 /// 2. Substring & StartsWith match
 /// 3. Generic category alias (terminal -> foot, browser -> chrome, editor -> zed)
 /// 4. Fuzzy Levenshtein similarity (>= 70%)
@@ -152,14 +180,21 @@ pub fn find_target_app<'a>(
         vec![raw]
     };
 
-    // Priority 1: Exact match (case-insensitive)
+    // Priority 1: Exact match & Normalized alphanumeric match
     for q in &candidates {
+        let q_norm = normalize_alnum(q);
         for app in apps {
+            let exec_bin = extract_exec_binary(&app.exec);
+            let id_base = app.desktop_id.as_deref().map(extract_desktop_id_base);
+
+            // Exact literal check (case-insensitive)
             if app.name.eq_ignore_ascii_case(q)
                 || app
                     .desktop_id
                     .as_deref()
                     .is_some_and(|id| id.eq_ignore_ascii_case(q))
+                || id_base.is_some_and(|b| b.eq_ignore_ascii_case(q))
+                || exec_bin.eq_ignore_ascii_case(q)
                 || app
                     .generic_name
                     .as_deref()
@@ -167,24 +202,58 @@ pub fn find_target_app<'a>(
             {
                 return Some(app);
             }
+
+            // Normalized alphanumeric match (e.g. "G4 music" -> "g4music" matches exec "g4music" or desktop_id "com.github.neithern.g4music.desktop")
+            if !q_norm.is_empty() {
+                if normalize_alnum(&app.name) == q_norm
+                    || normalize_alnum(exec_bin) == q_norm
+                    || id_base.map(normalize_alnum).as_deref() == Some(&q_norm)
+                    || app.desktop_id.as_deref().map(normalize_alnum).as_deref() == Some(&q_norm)
+                {
+                    return Some(app);
+                }
+            }
         }
     }
 
     // Priority 2: Substring & StartsWith match
     for q in &candidates {
         let q_lower = q.to_lowercase();
+        let q_norm = normalize_alnum(q);
+
         for app in apps {
             let name_lower = app.name.to_lowercase();
             let gen_lower = app.generic_name.as_deref().unwrap_or("").to_lowercase();
             let id_lower = app.desktop_id.as_deref().unwrap_or("").to_lowercase();
+            let exec_bin_lower = extract_exec_binary(&app.exec).to_lowercase();
+            let id_base_lower = app.desktop_id.as_deref().map(extract_desktop_id_base).unwrap_or("").to_lowercase();
 
             if name_lower.starts_with(&q_lower)
                 || name_lower.contains(&q_lower)
                 || (!gen_lower.is_empty() && gen_lower.contains(&q_lower))
                 || (!id_lower.is_empty() && id_lower.contains(&q_lower))
+                || (!exec_bin_lower.is_empty() && exec_bin_lower.contains(&q_lower))
+                || (!id_base_lower.is_empty() && id_base_lower.contains(&q_lower))
                 || q_lower.contains(&name_lower)
+                || (!exec_bin_lower.is_empty() && q_lower.contains(&exec_bin_lower))
+                || (!id_base_lower.is_empty() && q_lower.contains(&id_base_lower))
             {
                 return Some(app);
+            }
+
+            // Also check normalized alnum contains (e.g. "g4music" within "comgithubneitherng4musicdesktop")
+            if q_norm.len() >= 3 {
+                let id_norm = normalize_alnum(&id_lower);
+                let exec_norm = normalize_alnum(&exec_bin_lower);
+                let name_norm = normalize_alnum(&name_lower);
+
+                if id_norm.contains(&q_norm)
+                    || exec_norm.contains(&q_norm)
+                    || name_norm.contains(&q_norm)
+                    || q_norm.contains(&exec_norm) && !exec_norm.is_empty()
+                {
+                    return Some(app);
+                }
             }
         }
     }
@@ -205,16 +274,19 @@ pub fn find_target_app<'a>(
 
     for q in &candidates {
         for app in apps {
+            let exec_bin = extract_exec_binary(&app.exec);
             let sim_name = crate::engine::perception::string_similarity(q, &app.name);
+            let sim_exec = crate::engine::perception::string_similarity(q, exec_bin);
             let sim_gen = app
                 .generic_name
                 .as_deref()
                 .map_or(0.0, |g| crate::engine::perception::string_similarity(q, g));
             let sim_id = app.desktop_id.as_deref().map_or(0.0, |id| {
-                crate::engine::perception::string_similarity(q, id)
+                let base = extract_desktop_id_base(id);
+                crate::engine::perception::string_similarity(q, base)
             });
 
-            let max_score = sim_name.max(sim_gen).max(sim_id);
+            let max_score = sim_name.max(sim_exec).max(sim_gen).max(sim_id);
             if max_score >= 0.70 && max_score > best_sim {
                 best_sim = max_score;
                 best_app = Some(app);
@@ -469,6 +541,16 @@ mod tests {
                 desktop_id: Some("dev.zed.Zed".to_string()),
                 desktop_path: None,
             },
+            InstalledApp {
+                name: "Gapless".to_string(),
+                exec: "g4music %U".to_string(),
+                icon: Some("com.github.neithern.g4music".to_string()),
+                comment: Some("Play your music elegantly".to_string()),
+                generic_name: Some("Music Player".to_string()),
+                keywords: vec!["music".to_string(), "player".to_string()],
+                desktop_id: Some("com.github.neithern.g4music.desktop".to_string()),
+                desktop_path: None,
+            },
         ];
 
         // 1. Exact Name
@@ -493,7 +575,21 @@ mod tests {
             "Google Chrome"
         );
 
-        // 5. Fuzzy typo
+        // 5. Gapless / G4Music matching across space and binary
+        assert_eq!(
+            find_target_app("G4 music", &apps).unwrap().name,
+            "Gapless"
+        );
+        assert_eq!(
+            find_target_app("g4music", &apps).unwrap().name,
+            "Gapless"
+        );
+        assert_eq!(
+            find_target_app("g4-music", &apps).unwrap().name,
+            "Gapless"
+        );
+
+        // 6. Fuzzy typo
         assert_eq!(find_target_app("termnl", &apps).unwrap().name, "Foot");
         assert_eq!(find_target_app("zedd", &apps).unwrap().name, "Zed");
     }

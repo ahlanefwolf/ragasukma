@@ -74,10 +74,22 @@ pub fn handle_skill_execution(
                     }
                 }
             } else {
-                crate::term_err!(
-                    "[SKILL FAILED]: Identifier '{}' not found in skill-command.md",
-                    id
-                );
+                if id.starts_with("app:") || id.starts_with("os:") {
+                    crate::term_err!(
+                        "[ACTION FAILED]: Application/command target for '{}' not found or could not be launched",
+                        id
+                    );
+                } else if id.contains(':') {
+                    crate::term_err!(
+                        "[ACTION FAILED]: Action '{}' execution returned failure or target not found",
+                        id
+                    );
+                } else {
+                    crate::term_err!(
+                        "[SKILL FAILED]: Identifier '{}' not found in skill-command.md",
+                        id
+                    );
+                }
                 TrayState::emit_event(
                     "assistant:skill",
                     serde_json::json!({
