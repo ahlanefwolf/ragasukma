@@ -320,6 +320,38 @@ impl AntigravityProvider {
         Ok(res)
     }
 
+    pub fn get_dynamic_available_models(&mut self) -> Result<Vec<super::types::ModelQuotaInfo>> {
+        let client = self.client.clone();
+        let total = self.accounts.len();
+        if total == 0 {
+            bail!("No accounts available");
+        }
+
+        let mut last_err = None;
+        for i in 0..total {
+            let account = &mut self.accounts[i];
+            if !account.is_active {
+                continue;
+            }
+            match super::quota::fetch_account_quota(&client, account) {
+                Ok(quota_res) => {
+                    let _ = self.save_accounts();
+                    if !quota_res.models.is_empty() {
+                        return Ok(quota_res.models);
+                    }
+                }
+                Err(e) => {
+                    last_err = Some(e);
+                }
+            }
+        }
+
+        if let Some(e) = last_err {
+            bail!("Failed to fetch models from any account: {e}");
+        }
+        bail!("No models returned from active accounts")
+    }
+
     fn select_available_account_index(&self) -> Option<usize> {
         let total = self.accounts.len();
         if total == 0 {

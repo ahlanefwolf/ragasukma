@@ -8,7 +8,6 @@ export * from './logsService';
 export * from './assetsService';
 export * from './eventsService';
 export * from './antigravityService';
-export * from './antigravityModels';
 export * from './remoteService';
 export * from './recipeService';
 export * from './historyService';

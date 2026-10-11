@@ -1,6 +1,6 @@
-import { Component, For, createEffect } from 'solid-js';
+import { Component, For, createEffect, createSignal, onMount } from 'solid-js';
 import { Brain, UserCheck, Cpu } from 'lucide-solid';
-import { ANTIGRAVITY_PRESET_MODELS } from '../../services';
+import { antigravityService } from '../../services';
 
 interface PersonaAiSectionProps {
   assistantName: string;
@@ -27,6 +27,26 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
   let genderSelectRef: HTMLSelectElement | undefined;
   let roleSelectRef: HTMLSelectElement | undefined;
   let modelSelectRef: HTMLSelectElement | undefined;
+
+  const [availableModels, setAvailableModels] = createSignal<Array<{ id: string; label: string }>>(
+    props.llmModel ? [{ id: props.llmModel, label: props.llmModel }] : []
+  );
+
+  onMount(async () => {
+    try {
+      const dynamic = await antigravityService.getDynamicModels();
+      if (dynamic.length > 0) {
+        setAvailableModels(
+          dynamic.map((m) => ({
+            id: `ag/${m.model_id}`,
+            label: `ag/${m.model_id} (${m.display_name})`,
+          }))
+        );
+      }
+    } catch {
+      // fallback to presets
+    }
+  });
 
   createEffect(() => {
     if (genderSelectRef && props.assistantGender) {
@@ -191,9 +211,9 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
                 onChange={(e) => props.setLlmModel(e.currentTarget.value)}
                 class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text font-medium outline-none focus:border-theme-cyan transition-colors"
               >
-                {ANTIGRAVITY_PRESET_MODELS.map((m) => (
+                {availableModels().map((m) => (
                   <option value={m.id}>
-                    {m.id}
+                    {m.label}
                   </option>
                 ))}
               </select>

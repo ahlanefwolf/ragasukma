@@ -25,3 +25,25 @@ pub const ANTIGRAVITY_SCOPES: &[&str] = &[
 
 /// Default thinking signature fallback for Gemini 3+ / Antigravity thinking models (valid Base64)
 pub const DEFAULT_THINKING_AG_SIGNATURE: &str = "dGhvdWdodF9zaWduYXR1cmU=";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_antigravity_constants_validity() {
+        assert!(ANTIGRAVITY_CLIENT_ID.contains(".apps.googleusercontent.com"));
+        assert!(ANTIGRAVITY_CLIENT_SECRET.starts_with("GOCSPX-"));
+        assert!(ANTIGRAVITY_AUTH_URL.starts_with("https://accounts.google.com"));
+        assert!(ANTIGRAVITY_TOKEN_URL.starts_with("https://oauth2.googleapis.com"));
+        assert!(ANTIGRAVITY_BASE_URL.starts_with("https://daily-cloudcode-pa.googleapis.com"));
+        assert!(ANTIGRAVITY_FETCH_MODELS_URL.contains("fetchAvailableModels"));
+        assert!(ANTIGRAVITY_QUOTA_SUMMARY_URL.contains("retrieveUserQuotaSummary"));
+        assert!(ANTIGRAVITY_SCOPES.len() >= 5);
+        assert!(ANTIGRAVITY_USER_AGENT.contains("antigravity/ide/"));
+
+        // Verify base64 signature format
+        assert!(!DEFAULT_THINKING_AG_SIGNATURE.is_empty());
+        assert!(DEFAULT_THINKING_AG_SIGNATURE.chars().all(|c| c.is_alphanumeric() || c == '+' || c == '/' || c == '='));
+    }
+}

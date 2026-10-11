@@ -86,26 +86,24 @@ pub fn handle_v1_options(stream: &mut dyn Write) {
 
 pub fn handle_v1_models(stream: &mut dyn Write) {
     let now = current_ts();
-    let model_names = vec![
-        "ag/claude-3-5-sonnet",
-        "ag/claude-3-7-sonnet",
-        "ag/claude-sonnet-4-6",
-        "ag/claude-opus-4-6-thinking",
-        "ag/gemini-3.8-flash-high",
-        "ag/gemini-3.8-pro-high",
-        "ag/gemini-3.7-flash-high",
-        "ag/gemini-3.5-flash-high",
-        "ag/gemini-2.5-pro",
-        "ag/gemini-2.5-flash",
-        "ag/gpt-4o",
-        "ag/gpt-4o-mini",
-        "ag/gpt-oss-120b-medium",
-    ];
+    let mut provider = AntigravityProvider::new();
+
+    let mut model_names = match provider.get_dynamic_available_models() {
+        Ok(dynamic_models) => dynamic_models
+            .into_iter()
+            .map(|m| format!("ag/{}", m.model_id))
+            .collect::<Vec<String>>(),
+        Err(_) => Vec::new(),
+    };
+
+    if model_names.is_empty() {
+        model_names.push("ag/gemini-3.8-flash-high".to_string());
+    }
 
     let data = model_names
         .into_iter()
         .map(|name| ModelItem {
-            id: name.to_string(),
+            id: name,
             object: "model".to_string(),
             created: now,
             owned_by: "antigravity".to_string(),

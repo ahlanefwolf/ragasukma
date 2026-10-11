@@ -10,7 +10,6 @@ import { api, AntigravityAccount, AntigravityQuotaResponse } from '../api';
 import { AntigravityStats } from './antigravity/AntigravityStats';
 import { AntigravityAccountCard } from './antigravity/AntigravityAccountCard';
 import { AntigravityAddModal } from './antigravity/AntigravityAddModal';
-import { AntigravityModelCatalog } from './antigravity/AntigravityModelCatalog';
 
 interface AntigravityTabProps {
   showToast: (msg: string) => void;
@@ -78,15 +77,30 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
   onMount(() => {
     loadAccounts();
 
+    const triggerRefresh = (email?: string) => {
+      props.showToast(`Google OAuth login successful! ${email ? `(${email}) ` : ''}Account added to pool.`);
+      loadAccounts(true);
+    };
+
+    // Realtime push notification from server via WebSocket/SSE event stream
+    const unsubscribeActions = api.subscribeActions((act) => {
+      if (act.action === 'antigravity:oauth_success') {
+        triggerRefresh(act.payload);
+      }
+    });
+
     const handleMessage = (e: MessageEvent) => {
       if (e.data?.type === 'ANTIGRAVITY_OAUTH_SUCCESS') {
-        props.showToast('Google OAuth login successful! Account added to pool.');
-        loadAccounts(true);
+        triggerRefresh();
       }
     };
 
     window.addEventListener('message', handleMessage);
-    onCleanup(() => window.removeEventListener('message', handleMessage));
+
+    onCleanup(() => {
+      unsubscribeActions();
+      window.removeEventListener('message', handleMessage);
+    });
   });
 
   const handleOAuthLogin = async () => {
@@ -358,12 +372,6 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
           <span class="text-theme-text/70 font-mono">Any string (not required)</span>
         </div>
       </div>
-
-      {/* Model Catalog & Copy Helper */}
-      <AntigravityModelCatalog
-        copiedModelId={copiedModelId()}
-        onCopyModel={copyToClipboard}
-      />
 
       {/* Manual Account Modal */}
       <AntigravityAddModal

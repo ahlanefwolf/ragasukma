@@ -234,3 +234,22 @@ pub fn ensure_project_id(
     account.project_id = Some(fallback_pid.clone());
     Ok(fallback_pid)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_auth_url_structure() {
+        let redirect_uri = "http://localhost:42128/api/llm/antigravity/oauth/callback";
+        let state = "test_state_123";
+        let url = build_auth_url(redirect_uri, state);
+
+        assert!(url.starts_with(ANTIGRAVITY_AUTH_URL));
+        assert!(url.contains(&format!("client_id={}", ANTIGRAVITY_CLIENT_ID)));
+        assert!(url.contains("state=test_state_123"));
+        assert!(url.contains("response_type=code"));
+        assert!(url.contains("access_type=offline"));
+        assert!(url.contains("prompt=consent"));
+    }
+}

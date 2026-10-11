@@ -95,13 +95,14 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
     {
       id: 'browser',
       icon: Globe,
-      title: 'Browser Navigation & Tabs (Chromium)',
+      title: 'Browser Navigation & Web Search (Google / Chromium)',
       category: 'web',
-      description: 'Open websites, switch active tabs, and search keywords directly in webpages via Ground of Truth (active_tab_browser.json).',
+      description: 'Open websites, switch active tabs, and perform web searches directly with AI reading via Ground of Truth (active_tab_browser.json).',
       examples: [
-        '"Open YouTube tab" / "Open GitHub"',
-        '"Switch to YouTube tab" / "Close Google tab"',
-        '"Search Rust tutorial video on YouTube"'
+        '"Search weather in Tokyo"',
+        '"Search latest AI news on Google"',
+        '"Open YouTube" / "Switch to GitHub tab"',
+        '"Close Google tab"'
       ],
       badgeColor: 'text-theme-cyan bg-theme-cyan/15 border-theme-cyan/30'
     },

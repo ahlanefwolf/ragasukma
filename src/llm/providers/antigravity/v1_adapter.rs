@@ -135,52 +135,10 @@ pub fn resolve_call_signature(call_id: &str) -> Option<String> {
 
 pub fn resolve_model_alias(input: &str) -> String {
     let clean = input.strip_prefix("ag/").unwrap_or(input).trim();
-    let lower = clean.to_lowercase();
-
-    const EXACT_MODELS: &[&str] = &[
-        "gemini-3.8-flash-high",
-        "gemini-3.8-flash-medium",
-        "gemini-3.8-flash-low",
-        "gemini-3.8-pro-high",
-        "gemini-3.7-flash-high",
-        "gemini-3.7-flash-medium",
-        "gemini-3.7-flash-low",
-        "gemini-3.6-flash-high",
-        "gemini-3.6-flash-medium",
-        "gemini-3.6-flash-low",
-        "gemini-3.5-flash-high",
-        "gemini-3.5-flash-low",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-pro-agent",
-        "claude-sonnet-4-6",
-        "claude-opus-4-6-thinking",
-        "gpt-oss-120b-medium",
-        "gemini-3.1-flash-image",
-    ];
-    for m in EXACT_MODELS {
-        if lower == *m {
-            return (*m).to_string();
-        }
+    if clean.is_empty() {
+        return "gemini-3.8-flash-high".to_string();
     }
-
-    if lower.contains("opus") || lower.contains("3-7") || lower.contains("3.7") {
-        "claude-opus-4-6-thinking".to_string()
-    } else if lower.contains("sonnet")
-        || lower.contains("claude")
-        || lower.contains("3-5")
-        || lower.contains("3.5")
-    {
-        "claude-sonnet-4-6".to_string()
-    } else if lower.contains("gpt-4") || lower.contains("gpt-o") {
-        "gemini-3.8-flash-high".to_string()
-    } else if lower.contains("pro") {
-        "gemini-2.5-pro".to_string()
-    } else if lower.contains("flash") {
-        "gemini-3.8-flash-high".to_string()
-    } else {
-        "claude-sonnet-4-6".to_string()
-    }
+    clean.to_string()
 }
 
 fn sanitize_schema_recursive(val: &mut serde_json::Value) {

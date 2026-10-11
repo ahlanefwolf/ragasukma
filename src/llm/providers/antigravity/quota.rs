@@ -94,36 +94,8 @@ pub fn fetch_account_quota(
         }
     }
 
-    // Sort models_quota to put priority models first
-    let priority_order = [
-        "gemini-3.8-flash-high",
-        "gemini-3.8-flash-medium",
-        "gemini-3.8-flash-low",
-        "gemini-3.7-flash-high",
-        "gemini-3.7-flash-medium",
-        "gemini-3.7-flash-low",
-        "gemini-3.6-flash-high",
-        "gemini-3.6-flash-medium",
-        "gemini-3.6-flash-low",
-        "gemini-3.5-flash-high",
-        "gemini-3.5-flash-low",
-        "gemini-pro-agent",
-        "claude-sonnet-4-6",
-        "claude-opus-4-6-thinking",
-        "gpt-oss-120b-medium",
-        "gemini-3.1-flash-image",
-    ];
-
-    models_quota.sort_by(|a, b| {
-        let pos_a = priority_order.iter().position(|&m| m == a.model_id);
-        let pos_b = priority_order.iter().position(|&m| m == b.model_id);
-        match (pos_a, pos_b) {
-            (Some(pa), Some(pb)) => pa.cmp(&pb),
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => a.model_id.cmp(&b.model_id),
-        }
-    });
+    // Sort models_quota alphabetically by display_name
+    models_quota.sort_by(|a, b| a.display_name.cmp(&b.display_name));
 
     // 2. Fetch weekly quota summary
     let mut weekly_quota = Vec::new();

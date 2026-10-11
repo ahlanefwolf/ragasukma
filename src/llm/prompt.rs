@@ -38,7 +38,7 @@ pub fn resolve_language_info(lang: &str) -> (&'static str, &'static str) {
         "tr" => ("tr", "Turkish (Türkçe)"),
         "uk" => ("uk", "Ukrainian (Українська)"),
         "vi" => ("vi", "Vietnamese (Tiếng Việt)"),
-        _ => ("id", "Indonesian (Bahasa Indonesia)"),
+        _ => ("en", "English"),
     }
 }
 
@@ -152,7 +152,7 @@ GLOBAL UTILITY ACTION CATALOG:
 | Web Element | [CMD:browser:enter] | '*excited* Enter pressed! [CMD:browser:enter]' |
 | Desktop/Window | [CMD:desktop:focus|app_name] | '*happy* Switching! [CMD:desktop:focus|Spotify]' |
 | Desktop/Screen | [CMD:desktop:click_button|label] | MANDATORY when user says 'button on screen/desktop'. '*happy* Clicked! [CMD:desktop:click_button|Save]' |
-| Desktop/Screen | [CMD:desktop:click_text|text] | MANDATORY when user says 'text/tulisan on screen/desktop/di layar'. Match exactly! '*happy* Clicking! [CMD:desktop:click_text|Setting]' |
+| Desktop/Screen | [CMD:desktop:click_text|text] | MANDATORY when user says 'text on screen/desktop'. Match exactly! '*happy* Clicking! [CMD:desktop:click_text|Setting]' |
 | Desktop/Screen | [CMD:desktop:click_at|x|y] | '*happy* Clicking coords! [CMD:desktop:click_at|1829|15]' |
 | Desktop/Screen | [CMD:desktop:type|text] | '*excited* Typed! [CMD:desktop:type|cargo build]' |
 | Desktop/Screen | [CMD:desktop:key|key_name] | '*excited* Key pressed! [CMD:desktop:key|enter]' |
@@ -499,12 +499,12 @@ pub fn build_system_prompt_indexed(user_input: Option<&str>) -> String {
 TEXT-TO-SPEECH (TTS) SPOKEN FORMAT RULES:
 1. Natural Spoken Speech & Punctuation Rhythm:
    - Use natural, friendly, conversational phrasing that sounds effortless and pleasant when spoken aloud.
-   - ALWAYS spell out numbers, years, percentages, measurements, and currency phonetically in words matching the spoken language (e.g. In English: write 'twenty thirty' or 'two thousand thirty' instead of '2030', 'five dollars' instead of '$5', 'one hundred fifty-five centimeters' instead of '155 cm', 'thirty-five percent' instead of '35%'; In Indonesian: write 'dua ribu tiga puluh' instead of '2030', 'lima ribu rupiah' instead of 'Rp5.000', 'seratus lima puluh lima sentimeter' instead of '155 cm', 'tiga puluh lima persen' instead of '35%'). This ensures crystal clear TTS pronunciation without stumbling or spelling digit-by-digit!
+   - ALWAYS spell out numbers, years, percentages, measurements, and currency phonetically in words matching the spoken language (e.g. Write out words like 'twenty thirty' instead of '2030', 'five dollars' instead of '$5', 'one hundred fifty-five centimeters' instead of '155 cm', 'thirty-five percent' instead of '35%'). This ensures crystal clear TTS pronunciation without stumbling or spelling digit-by-digit!
    - ALWAYS punctuate naturally with periods ('.') and commas (',') every 6 to 12 words to maintain a smooth spoken rhythm and clear breathing pauses. Never write giant run-on clauses without commas.
    - NEVER use ellipsis / consecutive dots ('...'). Use standard commas (',') or periods ('.').
    - NEVER write fake laughter sounds like 'ehehe', 'hehehe', 'ehe', or awkward fillers like 'um...', 'uh...'.
    - NEVER use markdown formatting like bold/italic (**text**), bullet points (- or *), numbered lists (1. 2.), or headers (#). Do not produce lists; speak fluently in conversational sentences.
-   - NEVER write stage directions, physical actions, emotional roleplay, or descriptive narration in parentheses or brackets in ANY language (e.g. NEVER write actions like (tersenyum), (smiles), (laughs), (微笑む), or ANY action in parentheses). Speak ONLY direct spoken dialogue.
+   - NEVER write stage directions, physical actions, emotional roleplay, or descriptive narration in parentheses or brackets in ANY language (e.g. NEVER write actions like (smiles), (laughs), (winks), or ANY action in parentheses). Speak ONLY direct spoken dialogue.
    - NEVER repeat pleasantries or conversational loops at the end of sentences (e.g. 'Is there anything else I can help with?', 'What would you like to do next?', 'Can I help you with anything?'). Just answer warmly without forcing a question back.
 2. 3D Avatar Emotion Tag (CRITICAL — STRICT SINGLE CANONICAL EMOTION):
    - Every response MUST start with EXACTLY ONE canonical English emotion tag at the very beginning (index 0):
@@ -570,9 +570,9 @@ mod tests {
         assert_eq!(resolve_language_info("tr").0, "tr");
         assert_eq!(resolve_language_info("uk").0, "uk");
         assert_eq!(resolve_language_info("vi").0, "vi");
-        // Ambiguous / unknown → fallback to Indonesian
-        assert_eq!(resolve_language_info("").0, "id");
-        assert_eq!(resolve_language_info("hindi").0, "id"); // not a code → fallback
+        // Ambiguous / unknown → fallback to English (universal)
+        assert_eq!(resolve_language_info("").0, "en");
+        assert_eq!(resolve_language_info("hindi").0, "en"); // not a code → fallback
         assert_eq!(resolve_language_info("xx").0, "id");
     }
 

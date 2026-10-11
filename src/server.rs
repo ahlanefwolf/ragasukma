@@ -349,6 +349,7 @@ pub fn handle_api_route<W: Write>(
         ("POST", "/api/logs/clear") => handle_clear_logs(&mut stream),
 
         // LLM Providers - Antigravity
+        ("GET", "/api/llm/antigravity/models") => handle_get_antigravity_models(&mut stream),
         ("GET", "/api/llm/antigravity/accounts") => handle_get_antigravity_accounts(&mut stream),
         ("POST", "/api/llm/antigravity/accounts") => {
             handle_post_antigravity_account(body_str, &mut stream)
@@ -746,22 +747,33 @@ async fn handle_axum_fallback(
     };
 
     let body_str = String::from_utf8_lossy(&body_bytes).to_string();
-    let mut virtual_stream = VirtualHttpStream::new();
 
-    handle_api_route(
-        &method,
-        &url,
-        &full_url,
-        &header_str,
-        &body_str,
-        &body_bytes,
-        &mut virtual_stream,
-        shared,
-    );
-    virtual_stream.parse_buffer_if_needed();
+    let response_result = tokio::task::spawn_blocking(move || {
+        let mut virtual_stream = VirtualHttpStream::new();
+        handle_api_route(
+            &method,
+            &url,
+            &full_url,
+            &header_str,
+            &body_str,
+            &body_bytes,
+            &mut virtual_stream,
+            shared,
+        );
+        virtual_stream.parse_buffer_if_needed();
+        virtual_stream.response
+    })
+    .await;
 
-    let mut builder = axum::response::Response::builder().status(virtual_stream.response.status);
-    for (k, v) in virtual_stream.response.headers {
+    let res = match response_result {
+        Ok(r) => r,
+        Err(_) => {
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response();
+        }
+    };
+
+    let mut builder = axum::response::Response::builder().status(res.status);
+    for (k, v) in res.headers {
         let k_trim = k.trim();
         let v_trim = v.trim();
         if !k_trim.eq_ignore_ascii_case("connection")
@@ -772,7 +784,7 @@ async fn handle_axum_fallback(
     }
 
     builder
-        .body(axum::body::Body::from(virtual_stream.response.body))
+        .body(axum::body::Body::from(res.body))
         .unwrap_or_else(|_| (axum::http::StatusCode::INTERNAL_SERVER_ERROR).into_response())
 }
 

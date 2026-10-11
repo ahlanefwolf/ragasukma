@@ -137,4 +137,19 @@ export const antigravityService = {
       };
     }
   },
+
+  async getDynamicModels(): Promise<Array<{ model_id: string; display_name: string; remaining_percentage: number }>> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/llm/antigravity/models`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'success' && Array.isArray(data.models)) {
+          return data.models;
+        }
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
 };

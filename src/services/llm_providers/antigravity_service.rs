@@ -103,8 +103,10 @@ pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut dyn Write)
     };
 
     let mut provider = AntigravityProvider::new();
+    crate::term_log!("[Antigravity OAuth] Received code from Google, exchanging token with redirect_uri: {}", OAUTH_REDIRECT_URI);
     match provider.add_oauth_account(&auth_code, OAUTH_REDIRECT_URI) {
         Ok(id) => {
+            crate::term_log!("[Antigravity OAuth] Successfully connected account: {}", id);
             let email = provider
                 .accounts
                 .iter()
@@ -112,63 +114,45 @@ pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut dyn Write)
                 .and_then(|a| a.email.clone())
                 .unwrap_or_else(|| id.clone());
 
+            // Instantly notify web dashboard & client via realtime SSE/WebSocket event stream
+            crate::app_state::push_client_action("antigravity:oauth_success", Some(&email));
+
             let html = format!(
                 r#"<!DOCTYPE html>
 <html>
 <head>
-  <title>Google Antigravity Login Succeeded</title>
+  <title>Login Success</title>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {{
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #090d16;
-      color: #f1f5f9;
+      font-family: system-ui, sans-serif;
+      background: #111;
+      color: #eee;
       display: flex;
       align-items: center;
       justify-content: center;
       height: 100vh;
       margin: 0;
     }}
-    .card {{
+    .box {{
       text-align: center;
-      padding: 40px 32px;
-      background: #111827;
-      border-radius: 28px;
-      border: 1px solid #06b6d4;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 20px rgba(6,182,212,0.2);
-      max-width: 420px;
-      width: 90%;
+      padding: 24px;
     }}
-    .btn {{
-      display: inline-block;
-      margin-top: 24px;
-      padding: 12px 28px;
-      background: #06b6d4;
-      color: #090d16;
-      font-weight: bold;
-      border-radius: 14px;
-      text-decoration: none;
-      transition: all 0.2s;
-    }}
-    .btn:hover {{
-      background: #22d3ee;
-      transform: scale(1.02);
+    button {{
+      margin-top: 16px;
+      padding: 8px 16px;
+      cursor: pointer;
     }}
   </style>
 </head>
 <body>
-  <div class="card">
-    <div style="font-size: 48px; margin-bottom: 12px;"></div>
-    <h2 style="margin: 0 0 8px 0; color: #38bdf8;">Antigravity Login Successful!</h2>
-    <p style="color: #94a3b8; font-size: 14px; margin: 0 0 16px 0;">Account <b>{}</b> is now connected to Ragasukma LLM pool.</p>
-    <a class="btn" href="http://localhost:42128">Back to Dashboard</a>
+  <div class="box">
+    <p>Login success: <b>{}</b></p>
+    <button onclick="window.close()">Tutup</button>
   </div>
   <script>
-    if (window.opener) {{
-      window.opener.postMessage({{ type: 'ANTIGRAVITY_OAUTH_SUCCESS' }}, '*');
-      setTimeout(() => window.close(), 1200);
-    }}
+    try {{ window.close(); }} catch (e) {{}}
+    setTimeout(() => {{ try {{ window.close(); }} catch (e) {{}} }}, 300);
   </script>
 </body>
 </html>"#,
@@ -177,6 +161,7 @@ pub fn handle_antigravity_oauth_callback(full_url: &str, stream: &mut dyn Write)
             send_html_response(stream, 200, &html);
         }
         Err(e) => {
+            crate::term_err!("[Antigravity OAuth Error] Failed to connect account: {}", e);
             let html = format!(
                 r#"<!DOCTYPE html>
 <html>
@@ -433,7 +418,27 @@ pub fn handle_get_antigravity_account_quota(body: &str, full_url: &str, stream: 
                 "models": [],
                 "weekly": []
             });
-            send_json_response(stream, 200, &err_json.to_string());
+            send_json_response(stream, 400, &err_json.to_string());
+        }
+    }
+}
+
+pub fn handle_get_antigravity_models(stream: &mut dyn Write) {
+    let mut provider = AntigravityProvider::new();
+    match provider.get_dynamic_available_models() {
+        Ok(models) => {
+            let json = serde_json::json!({
+                "status": "success",
+                "models": models
+            });
+            send_json_response(stream, 200, &json.to_string());
+        }
+        Err(e) => {
+            let json = serde_json::json!({
+                "status": "error",
+                "error": e.to_string()
+            });
+            send_json_response(stream, 500, &json.to_string());
         }
     }
 }
