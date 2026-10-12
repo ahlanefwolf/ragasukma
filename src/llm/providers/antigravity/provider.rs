@@ -89,6 +89,7 @@ impl AntigravityProvider {
                         project_id: None,
                         tier_id: None,
                         rate_limited_until: 0,
+                        model_rate_limits: std::collections::HashMap::new(),
                         consecutive_errors: 0,
                         is_active: true,
                     });
@@ -137,6 +138,7 @@ impl AntigravityProvider {
                             project_id,
                             tier_id: None,
                             rate_limited_until: 0,
+                            model_rate_limits: std::collections::HashMap::new(),
                             consecutive_errors: 0,
                             is_active: true,
                         });
@@ -235,6 +237,7 @@ impl AntigravityProvider {
             project_id,
             tier_id: None,
             rate_limited_until: 0,
+            model_rate_limits: std::collections::HashMap::new(),
             consecutive_errors: 0,
             is_active: true,
         };
@@ -288,6 +291,7 @@ impl AntigravityProvider {
             let _ = refresh_account_token(&client, account)?;
             let _ = ensure_project_id(&client, account);
             account.rate_limited_until = 0;
+            account.model_rate_limits.clear();
             let pid = account.project_id.clone().unwrap_or_default();
             let _ = self.save_accounts();
             Ok(pid)
@@ -352,7 +356,7 @@ impl AntigravityProvider {
         bail!("No models returned from active accounts")
     }
 
-    fn select_available_account_index(&self) -> Option<usize> {
+    fn select_available_account_index(&self, model: Option<&str>) -> Option<usize> {
         let total = self.accounts.len();
         if total == 0 {
             return None;
@@ -362,7 +366,7 @@ impl AntigravityProvider {
         for i in 0..total {
             let idx = (self.current_index + i) % total;
             let acc = &self.accounts[idx];
-            if acc.is_active && acc.rate_limited_until <= now {
+            if acc.is_active && !acc.is_rate_limited_for_model(model, now) {
                 return Some(idx);
             }
         }
@@ -389,18 +393,19 @@ impl AntigravityProvider {
         let now = current_timestamp_secs();
 
         while attempts < total_accounts {
-            let acc_idx = match self.select_available_account_index() {
+            let acc_idx = match self.select_available_account_index(Some(model)) {
                 Some(idx) => idx,
                 None => {
                     let min_wait = self
                         .accounts
                         .iter()
-                        .filter(|a| a.is_active && a.rate_limited_until > now)
-                        .map(|a| a.rate_limited_until - now)
+                        .filter(|a| a.is_active)
+                        .filter_map(|a| a.min_rate_limit_wait(Some(model), now))
                         .min()
                         .unwrap_or(60);
                     bail!(
-                        "All Antigravity accounts are rate-limited or inactive. Please wait {} seconds.",
+                        "All Antigravity accounts are rate-limited or inactive for model '{}'. Please wait {} seconds.",
+                        model,
                         min_wait
                     );
                 }
@@ -461,11 +466,12 @@ impl AntigravityProvider {
 
                     if is_rate_limit {
                         let cooldown = 15 * 60;
-                        self.accounts[acc_idx].rate_limited_until =
-                            current_timestamp_secs() + cooldown;
+                        let now = current_timestamp_secs();
+                        self.accounts[acc_idx].set_rate_limit_for_model(Some(model), cooldown, now);
                         crate::term_err!(
-                            "[Antigravity] Account {} hit 429 quota limit. Rotating to next account...",
-                            self.accounts[acc_idx].id
+                            "[Antigravity] Account {} hit 429 quota limit for model '{}'. Rotating to next account...",
+                            self.accounts[acc_idx].id,
+                            model
                         );
                         let _ = self.save_accounts();
                         continue;
@@ -682,18 +688,19 @@ impl AntigravityProvider {
         let now = current_timestamp_secs();
 
         while attempts < total_accounts {
-            let acc_idx = match self.select_available_account_index() {
+            let acc_idx = match self.select_available_account_index(Some(&req.model)) {
                 Some(idx) => idx,
                 None => {
                     let min_wait = self
                         .accounts
                         .iter()
-                        .filter(|a| a.is_active && a.rate_limited_until > now)
-                        .map(|a| a.rate_limited_until - now)
+                        .filter(|a| a.is_active)
+                        .filter_map(|a| a.min_rate_limit_wait(Some(&req.model), now))
                         .min()
                         .unwrap_or(60);
                     bail!(
-                        "All Antigravity accounts are rate-limited or inactive. Please wait {} seconds.",
+                        "All Antigravity accounts are rate-limited or inactive for model '{}'. Please wait {} seconds.",
+                        req.model,
                         min_wait
                     );
                 }
@@ -752,11 +759,12 @@ impl AntigravityProvider {
 
                     if is_rate_limit {
                         let cooldown = 15 * 60;
-                        self.accounts[acc_idx].rate_limited_until =
-                            current_timestamp_secs() + cooldown;
+                        let now = current_timestamp_secs();
+                        self.accounts[acc_idx].set_rate_limit_for_model(Some(&req.model), cooldown, now);
                         crate::term_err!(
-                            "[Antigravity] Account {} hit 429 quota limit. Rotating to next account...",
-                            self.accounts[acc_idx].id
+                            "[Antigravity] Account {} hit 429 quota limit for model '{}'. Rotating to next account...",
+                            self.accounts[acc_idx].id,
+                            req.model
                         );
                         let _ = self.save_accounts();
                         continue;

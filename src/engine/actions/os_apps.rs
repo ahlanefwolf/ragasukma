@@ -54,7 +54,7 @@ fn execute_by_catalog_name(catalog_name: &str) -> Option<(String, String)> {
     None
 }
 
-/// Eksekusi launcher aplikasi OS which terinstal
+/// Application launcher for installed OS applications
 /// Format: `app:open|<name>`
 pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
     let app_query = payload.trim();
@@ -63,9 +63,42 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
     }
 
     let installed_apps = get_installed_applications();
+    let target_app = find_target_app(app_query, &installed_apps);
+
+    // Context-Aware App Switcher: If a matching window is already running, switch focus to it
+    let snapshot = crate::engine::actions::desktop::load_snapshot()
+        .or_else(|| crate::engine::window_scanner::scan_active_window_sync().ok());
+
+    if let Some(snap) = snapshot {
+        let mut all_windows = snap.windows.clone();
+        if all_windows.is_empty() && (!snap.app_name.is_empty() || !snap.window_title.is_empty()) {
+            all_windows.push(crate::engine::window_scanner::WindowItem {
+                id: 0,
+                app_name: snap.app_name.clone(),
+                title: snap.window_title.clone(),
+                active: true,
+                window_id: snap.window_id.clone(),
+            });
+        }
+
+        if let Some(matching_win) = find_matching_window(app_query, target_app, &all_windows) {
+            if try_focus_window(matching_win) {
+                let display_name = target_app.map(|a| a.name.as_str()).unwrap_or(app_query);
+                crate::term_log!(
+                    "[App Switcher] Switched focus to existing window '{}' (app: '{}')",
+                    matching_win.title,
+                    matching_win.app_name
+                );
+                return Some((
+                    format!("Focus {display_name}"),
+                    format!("Switched focus to existing '{display_name}' window"),
+                ));
+            }
+        }
+    }
 
     // 1. Search application based on matching hierarchy (Exact -> Contains -> Aliases -> Fuzzy)
-    if let Some(target_app) = find_target_app(app_query, &installed_apps) {
+    if let Some(target_app) = target_app {
         if launch_app(target_app).is_ok() {
             return Some((
                 format!("Open {}", target_app.name),
@@ -307,7 +340,143 @@ pub fn find_target_app<'a>(
     None
 }
 
-/// Peluncur aplikasi multiplatform, multidistro, multi-DE, and multi-WM
+/// Find an already opened window that corresponds to the requested application query or target app.
+pub fn find_matching_window<'a>(
+    app_query: &str,
+    target_app: Option<&crate::engine::app_scanner::InstalledApp>,
+    windows: &'a [crate::engine::window_scanner::WindowItem],
+) -> Option<&'a crate::engine::window_scanner::WindowItem> {
+    if windows.is_empty() {
+        return None;
+    }
+
+    let mut candidates: Vec<&str> = Vec::new();
+    if let Some(app) = target_app {
+        candidates.push(&app.name);
+        let exec_bin = extract_exec_binary(&app.exec);
+        if !exec_bin.is_empty() {
+            candidates.push(exec_bin);
+        }
+        if let Some(ref id) = app.desktop_id {
+            candidates.push(id);
+            let base = extract_desktop_id_base(id);
+            if !base.is_empty() {
+                candidates.push(base);
+            }
+        }
+        if let Some(ref generic_name) = app.generic_name {
+            candidates.push(generic_name);
+        }
+    }
+
+    let clean_query = app_query.split('(').next().unwrap_or(app_query).trim();
+    if !clean_query.is_empty() && !candidates.contains(&clean_query) {
+        candidates.push(clean_query);
+    }
+
+    // Priority 1: Exact or Normalized alphanumeric match on app_name or title
+    for cand in &candidates {
+        let cand_trim = cand.trim();
+        if cand_trim.is_empty() {
+            continue;
+        }
+        let cand_norm = normalize_alnum(cand_trim);
+
+        for w in windows {
+            let app_clean = w.app_name.trim_end_matches(".exe");
+            let app_norm = normalize_alnum(app_clean);
+            let title_norm = normalize_alnum(&w.title);
+
+            if app_clean.eq_ignore_ascii_case(cand_trim)
+                || w.title.eq_ignore_ascii_case(cand_trim)
+                || (!cand_norm.is_empty() && app_norm == cand_norm)
+                || (!cand_norm.is_empty() && title_norm == cand_norm)
+            {
+                return Some(w);
+            }
+        }
+    }
+
+    // Priority 2: Substring / Contains match
+    for cand in &candidates {
+        let cand_trim = cand.trim();
+        if cand_trim.is_empty() {
+            continue;
+        }
+        let cand_lower = cand_trim.to_lowercase();
+        let cand_norm = normalize_alnum(cand_trim);
+
+        for w in windows {
+            let app_clean = w.app_name.trim_end_matches(".exe");
+            let app_lower = app_clean.to_lowercase();
+            let title_lower = w.title.to_lowercase();
+            let app_norm = normalize_alnum(app_clean);
+            let title_norm = normalize_alnum(&w.title);
+
+            if app_lower.contains(&cand_lower)
+                || title_lower.contains(&cand_lower)
+                || (!app_lower.is_empty() && cand_lower.contains(&app_lower))
+            {
+                return Some(w);
+            }
+
+            if cand_norm.len() >= 3 {
+                if (!app_norm.is_empty() && (app_norm.contains(&cand_norm) || cand_norm.contains(&app_norm)))
+                    || (!title_norm.is_empty() && title_norm.contains(&cand_norm))
+                {
+                    return Some(w);
+                }
+            }
+        }
+    }
+
+    // Priority 3: Fuzzy similarity match (threshold >= 0.70)
+    let mut best_win = None;
+    let mut best_sim = 0.0f32;
+    for cand in &candidates {
+        let cand_trim = cand.trim();
+        if cand_trim.is_empty() {
+            continue;
+        }
+        for w in windows {
+            let app_clean = w.app_name.trim_end_matches(".exe");
+            let sim_app = crate::engine::perception::string_similarity(cand_trim, app_clean);
+            let sim_title = crate::engine::perception::string_similarity(cand_trim, &w.title);
+            let max_score = sim_app.max(sim_title);
+            if max_score >= 0.70 && max_score > best_sim {
+                best_sim = max_score;
+                best_win = Some(w);
+            }
+        }
+    }
+
+    best_win
+}
+
+fn try_focus_window(w: &crate::engine::window_scanner::WindowItem) -> bool {
+    // 1. Try native platform window handle / container identifier
+    if !w.window_id.is_empty() && (w.window_id.starts_with("sway:") || w.window_id.starts_with("win:")) {
+        if crate::engine::actions::desktop::focus_window(&w.window_id) {
+            return true;
+        }
+    }
+    // 2. Try window title
+    if !w.title.is_empty() && crate::engine::actions::desktop::focus_window(&w.title) {
+        return true;
+    }
+    // 3. Try app name
+    let app_clean = w.app_name.trim_end_matches(".exe");
+    if !app_clean.is_empty() && crate::engine::actions::desktop::focus_window(app_clean) {
+        return true;
+    }
+    // 4. Try window_id as general target
+    if !w.window_id.is_empty() && crate::engine::actions::desktop::focus_window(&w.window_id) {
+        return true;
+    }
+    false
+}
+
+/// Multiplatform application launcher (multi-distro, multi-DE, and multi-WM)
 pub fn launch_app(app: &crate::engine::app_scanner::InstalledApp) -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
     {
@@ -592,5 +761,58 @@ mod tests {
         // 6. Fuzzy typo
         assert_eq!(find_target_app("termnl", &apps).unwrap().name, "Foot");
         assert_eq!(find_target_app("zedd", &apps).unwrap().name, "Zed");
+    }
+
+    #[test]
+    fn test_find_matching_window_open_vs_focus() {
+        use crate::engine::window_scanner::WindowItem;
+
+        let windows = vec![
+            WindowItem {
+                id: 1,
+                app_name: "dev.zed.Zed".to_string(),
+                title: "ai-voice — src/main.rs".to_string(),
+                active: true,
+                window_id: "sway:101".to_string(),
+            },
+            WindowItem {
+                id: 2,
+                app_name: "google-chrome".to_string(),
+                title: "GitHub - Mozilla Firefox / Google Chrome".to_string(),
+                active: false,
+                window_id: "sway:102".to_string(),
+            },
+            WindowItem {
+                id: 3,
+                app_name: "com.github.neithern.g4music".to_string(),
+                title: "Gapless Music Player".to_string(),
+                active: false,
+                window_id: "sway:103".to_string(),
+            },
+        ];
+
+        // 1. Direct query matching open window app_name / title
+        let match_zed = find_matching_window("zed", None, &windows);
+        assert!(match_zed.is_some());
+        assert_eq!(match_zed.unwrap().window_id, "sway:101");
+
+        // 2. Matching with resolved InstalledApp (e.g. G4 music -> Gapless -> open window)
+        let g4_app = InstalledApp {
+            name: "Gapless".to_string(),
+            exec: "g4music %U".to_string(),
+            icon: None,
+            comment: None,
+            generic_name: Some("Music Player".to_string()),
+            keywords: vec!["music".to_string()],
+            desktop_id: Some("com.github.neithern.g4music.desktop".to_string()),
+            desktop_path: None,
+        };
+        let match_g4 = find_matching_window("G4 music", Some(&g4_app), &windows);
+        assert!(match_g4.is_some());
+        assert_eq!(match_g4.unwrap().window_id, "sway:103");
+
+        // 3. Query for an app that has no open window returns None
+        let match_none = find_matching_window("calculator", None, &windows);
+        assert!(match_none.is_none());
     }
 }

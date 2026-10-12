@@ -10,7 +10,8 @@
     "activeTab",
     "scripting",
     "tabs",
-    "alarms"
+    "alarms",
+    "clipboardRead"
   ],
   "host_permissions": [
     "<all_urls>",

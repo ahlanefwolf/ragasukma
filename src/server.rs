@@ -267,6 +267,10 @@ pub fn handle_api_route<W: Write>(
             let (resp_body, _) = handle_post_browser_snapshot(body_str);
             send_json_response(&mut stream, 200, &resp_body);
         }
+        ("POST", "/api/browser/copied_text") => {
+            let (resp_body, _) = handle_post_browser_copied_text(body_str);
+            send_json_response(&mut stream, 200, &resp_body);
+        }
         ("POST", "/api/browser/tabs") => {
             let (resp_body, _) = handle_post_browser_tabs(body_str);
             send_json_response(&mut stream, 200, &resp_body);

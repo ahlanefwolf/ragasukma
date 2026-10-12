@@ -107,6 +107,7 @@ pub fn complete_oauth_flow(
         project_id: None,
         tier_id: None,
         rate_limited_until: 0,
+        model_rate_limits: std::collections::HashMap::new(),
         consecutive_errors: 0,
         is_active: true,
     };

@@ -202,3 +202,81 @@ pub fn press_key(key_name: &str) -> bool {
         false
     }
 }
+
+/// Reads current text content from the system clipboard across Linux, Windows, and macOS.
+pub fn read_clipboard_text() -> Option<String> {
+    #[cfg(target_os = "linux")]
+    {
+        // 1. Wayland clipboard (wl-paste)
+        if let Ok(output) = std::process::Command::new("wl-paste")
+            .arg("--no-newline")
+            .output()
+        {
+            if output.status.success() {
+                let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !text.is_empty() {
+                    return Some(text);
+                }
+            }
+        }
+        // 2. X11 clipboard via xclip
+        if let Ok(output) = std::process::Command::new("xclip")
+            .args(["-selection", "clipboard", "-o"])
+            .output()
+        {
+            if output.status.success() {
+                let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !text.is_empty() {
+                    return Some(text);
+                }
+            }
+        }
+        // 3. X11 clipboard via xsel
+        if let Ok(output) = std::process::Command::new("xsel")
+            .args(["--clipboard", "--output"])
+            .output()
+        {
+            if output.status.success() {
+                let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !text.is_empty() {
+                    return Some(text);
+                }
+            }
+        }
+        None
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(output) = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", "Get-Clipboard"])
+            .output()
+        {
+            if output.status.success() {
+                let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !text.is_empty() {
+                    return Some(text);
+                }
+            }
+        }
+        None
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(output) = std::process::Command::new("pbpaste").output() {
+            if output.status.success() {
+                let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !text.is_empty() {
+                    return Some(text);
+                }
+            }
+        }
+        None
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        None
+    }
+}

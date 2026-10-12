@@ -6,7 +6,7 @@ use crate::engine::window_scanner::ActiveWindowSnapshot;
 use std::fs;
 
 pub use click::{click_at_coordinates, click_desktop_button, find_target_button};
-pub use input::{press_key, type_text};
+pub use input::{press_key, read_clipboard_text, type_text};
 pub use window::{close_window, focus_window, maximize_window, minimize_window};
 
 pub fn execute_desktop_action(action: &str, payload: &str) -> Option<(String, String)> {

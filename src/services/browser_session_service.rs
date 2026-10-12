@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Condvar, Mutex};
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserTabInfo {
@@ -38,7 +38,7 @@ pub struct BrowserCommand {
     pub scroll_y: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DomElementInfo {
     pub tag: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -94,6 +94,9 @@ pub static LAST_ACTIVE_SNAPSHOT: Mutex<Option<BrowserDomSnapshot>> = Mutex::new(
 pub static GLOBAL_BROWSER_TABS: Mutex<Vec<BrowserTabInfo>> = Mutex::new(Vec::new());
 pub static PENDING_BROWSER_COMMANDS: Mutex<VecDeque<BrowserCommand>> = Mutex::new(VecDeque::new());
 static SESSION_WORKER_TX: Mutex<Option<SyncSender<BrowserSessionEvent>>> = Mutex::new(None);
+static SNAPSHOT_CONDVAR: Condvar = Condvar::new();
+static LATEST_COPIED_TEXT: Mutex<Option<String>> = Mutex::new(None);
+static COPIED_TEXT_CONDVAR: Condvar = Condvar::new();
 
 /// Initializes dedicated background worker thread to synchronize `active_tab_browser.json`
 pub fn init_browser_session_worker() {
@@ -184,6 +187,7 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                 if let Ok(mut lock) = LAST_ACTIVE_SNAPSHOT.lock() {
                     *lock = Some(snap.clone());
                 }
+                SNAPSHOT_CONDVAR.notify_all();
                 if let Ok(mut lock) = GLOBAL_BROWSER_TABS.lock() {
                     *lock = snap.tabs.clone();
                 }
@@ -273,6 +277,7 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                 if let Ok(mut lock) = LAST_ACTIVE_SNAPSHOT.lock() {
                     *lock = Some(snap.clone());
                 }
+                SNAPSHOT_CONDVAR.notify_all();
 
                 write_snapshot_to_disk(&snap);
                 current_snapshot = Some(snap);
@@ -332,6 +337,7 @@ pub fn save_browser_snapshot(snapshot: BrowserDomSnapshot) -> Result<String, Str
     if let Ok(mut lock) = LAST_ACTIVE_SNAPSHOT.lock() {
         *lock = Some(snapshot);
     }
+    SNAPSHOT_CONDVAR.notify_all();
     Ok(file_path.to_string_lossy().to_string())
 }
 
@@ -558,5 +564,81 @@ pub fn handle_get_next_browser_command() -> (String, &'static str) {
         }
     } else {
         (r#"{"has_command":false}"#.to_string(), "application/json")
+    }
+}
+
+pub fn reset_copied_text() {
+    if let Ok(mut lock) = LATEST_COPIED_TEXT.lock() {
+        *lock = None;
+    }
+}
+
+pub fn notify_copied_text(text: String) {
+    if let Ok(mut lock) = LATEST_COPIED_TEXT.lock() {
+        *lock = Some(text);
+        COPIED_TEXT_CONDVAR.notify_all();
+    }
+}
+
+pub fn wait_for_copied_text(timeout: Duration) -> Option<String> {
+    let lock = LATEST_COPIED_TEXT.lock().ok()?;
+    let (mut new_lock, _) = COPIED_TEXT_CONDVAR
+        .wait_timeout_while(lock, timeout, |val| val.is_none())
+        .ok()?;
+    new_lock.take()
+}
+
+pub fn wait_for_snapshot_matching<F>(timeout: Duration, mut predicate: F) -> Option<BrowserDomSnapshot>
+where
+    F: FnMut(&BrowserDomSnapshot) -> bool,
+{
+    let start = Instant::now();
+    let mut lock = LAST_ACTIVE_SNAPSHOT.lock().ok()?;
+
+    while start.elapsed() < timeout {
+        if let Some(ref snap) = *lock {
+            if predicate(snap) {
+                return Some(snap.clone());
+            }
+        }
+        let remaining = timeout.saturating_sub(start.elapsed());
+        if remaining.is_zero() {
+            break;
+        }
+        let (new_lock, timeout_res) = SNAPSHOT_CONDVAR.wait_timeout(lock, remaining).ok()?;
+        lock = new_lock;
+        if timeout_res.timed_out() {
+            if let Some(ref snap) = *lock {
+                if predicate(snap) {
+                    return Some(snap.clone());
+                }
+            }
+            break;
+        }
+    }
+    None
+}
+
+pub fn handle_post_browser_copied_text(body: &str) -> (String, &'static str) {
+    #[derive(Deserialize)]
+    struct CopiedTextPayload {
+        text: String,
+        #[serde(default)]
+        #[allow(dead_code)]
+        url: String,
+    }
+
+    match serde_json::from_str::<CopiedTextPayload>(body) {
+        Ok(payload) => {
+            notify_copied_text(payload.text);
+            (r#"{"status":"ok"}"#.to_string(), "application/json")
+        }
+        Err(e) => (
+            format!(
+                r#"{{"status":"error","message":"Invalid copied text JSON: {}"}}"#,
+                e
+            ),
+            "application/json",
+        ),
     }
 }

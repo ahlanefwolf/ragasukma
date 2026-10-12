@@ -573,7 +573,7 @@ mod tests {
         // Ambiguous / unknown → fallback to English (universal)
         assert_eq!(resolve_language_info("").0, "en");
         assert_eq!(resolve_language_info("hindi").0, "en"); // not a code → fallback
-        assert_eq!(resolve_language_info("xx").0, "id");
+        assert_eq!(resolve_language_info("xx").0, "en");
     }
 
     #[test]

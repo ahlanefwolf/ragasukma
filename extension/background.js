@@ -164,11 +164,24 @@ if (api?.alarms) {
 
 // Message Relay
 api?.runtime?.onMessage?.addListener((message, sender, sendResponse) => {
+  if (message?.type === "TEXT_COPIED") {
+    fetch(`${API_BASE}/api/browser/copied_text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: message.text || "",
+        url: message.url || ""
+      }),
+      keepalive: true
+    }).then(() => sendResponse?.({ status: "ok" })).catch(() => {});
+    return true;
+  }
+
   if (message?.type === "DOM_SNAPSHOT") {
     const sid = sender?.tab?.id || activeTabId;
     const payload = {
       ...message.data,
-      is_loading: Boolean(sender?.tab?.status === "loading"),
+      is_loading: Boolean(sender?.tab?.status === "loading" || message.data?.is_loading),
       tabs: tabListCache.map(t => ({ ...t, active: t.id === sid }))
     };
     fetch(`${API_BASE}/api/browser/snapshot`, {

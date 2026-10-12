@@ -156,6 +156,10 @@
       if (str.length >= 10 && str.length <= 150 && !texts.includes(str)) texts.push(str);
     }
 
+    const isGenerating = Boolean(
+      document.querySelector("[role='progressbar'], [aria-busy='true'], progress")
+    );
+
     return {
       url: window.location.href,
       domain: window.location.hostname,
@@ -164,7 +168,8 @@
       buttons,
       inputs,
       texts,
-      text_summary: texts.join("\n\n")
+      text_summary: extractAiOverviewText() || texts.join("\n\n"),
+      is_loading: isGenerating || document.readyState !== "complete"
     };
   }
 
@@ -208,8 +213,90 @@
     }
   }
 
+  let lastClickedBtn = null;
+
+  // --- Google AI Overview Text Extractor ---
+  function extractCleanTextNodes(node) {
+    if (!node) return "";
+    const ignoredTags = ["BUTTON", "SCRIPT", "STYLE", "SVG", "NOSCRIPT", "ASIDE", "IMG"];
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      if (ignoredTags.includes(node.tagName)) return "";
+      if (node.getAttribute?.("role") === "button" || node.getAttribute?.("role") === "progressbar") return "";
+      if (node.getAttribute?.("data-ignore-copy") !== null) return "";
+      if (node.getAttribute?.("popover") !== null) return "";
+      const style = window.getComputedStyle?.(node);
+      if (style && (style.display === "none" || style.visibility === "hidden")) return "";
+
+      let text = "";
+      for (const child of node.childNodes) {
+        text += extractCleanTextNodes(child);
+      }
+      if (["DIV", "P", "LI", "UL", "OL", "H1", "H2", "H3", "H4"].includes(node.tagName)) {
+        text += "\n";
+      }
+      return text;
+    } else if (node.nodeType === Node.TEXT_NODE) {
+      const val = node.nodeValue?.trim();
+      return val ? val + " " : "";
+    }
+    return "";
+  }
+
+  function extractAiOverviewText() {
+    const containers = document.querySelectorAll(
+      'div[data-container-id="main-col"], div[data-sfc-root="ep"][data-processed="true"], div.mZJni[data-container-id="main-col"]'
+    );
+    for (const container of containers) {
+      const extracted = extractCleanTextNodes(container)
+        .split("\n")
+        .map(l => l.trim())
+        .filter(l => l.length > 0)
+        .join("\n\n");
+      if (extracted.length > 30) {
+        return extracted;
+      }
+    }
+    return "";
+  }
+
+  async function inspectAndSendCopiedText() {
+    try {
+      if (navigator.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim().length > 0) {
+          api?.runtime?.sendMessage({
+            type: "TEXT_COPIED",
+            text: text.trim(),
+            url: window.location.href,
+          });
+          return;
+        }
+      }
+    } catch (_) {}
+
+    const sel = window.getSelection?.()?.toString();
+    if (sel && sel.trim().length > 0) {
+      api?.runtime?.sendMessage({
+        type: "TEXT_COPIED",
+        text: sel.trim(),
+        url: window.location.href,
+      });
+      return;
+    }
+
+    const domText = extractAiOverviewText();
+    if (domText && domText.length > 0) {
+      api?.runtime?.sendMessage({
+        type: "TEXT_COPIED",
+        text: domText,
+        url: window.location.href,
+      });
+    }
+  }
+
   function clickElement(target) {
     if (!target) return;
+    lastClickedBtn = target;
     ensureElementInView(target);
     target.focus?.();
     const opts = { bubbles: true, cancelable: true, composed: true, view: window };
@@ -217,6 +304,17 @@
     target.dispatchEvent(new MouseEvent("mouseup", opts));
     target.click();
     setTimeout(sendSnapshot, 200);
+
+    const isCopyBtn = Boolean(
+      target.getAttribute?.("data-sfc-cp") !== null ||
+      target.closest?.("[data-sfc-cp]") ||
+      /copy|salin|copier|kopieren/i.test(target.getAttribute?.("aria-label") || target.innerText || "")
+    );
+    if (isCopyBtn) {
+      setTimeout(inspectAndSendCopiedText, 150);
+      setTimeout(inspectAndSendCopiedText, 500);
+      setTimeout(inspectAndSendCopiedText, 1200);
+    }
   }
 
   function isWritable(el) {
@@ -336,15 +434,59 @@
     }
   });
 
+  let lastAiSentUrl = "";
+  let lastAiSentTextHash = "";
+
+  function checkAndAutoSendAiOverview() {
+    if (!window.location.href.includes("udm=50") && !window.location.href.includes("google.")) return;
+    const aiText = extractAiOverviewText();
+    if (aiText && aiText.length > 30) {
+      // Simple text hash to detect when DOM content actually changed even if URL is identical/similar
+      const currentHash = `${window.location.href}::${aiText.slice(0, 80)}::${aiText.length}`;
+      if (currentHash !== lastAiSentTextHash) {
+        lastAiSentTextHash = currentHash;
+        lastAiSentUrl = window.location.href;
+        api?.runtime?.sendMessage({
+          type: "TEXT_COPIED",
+          text: aiText,
+          url: window.location.href,
+        });
+      }
+    }
+  }
+
   // Init & SPA Reactive Observers
   sendSnapshot();
-  window.addEventListener("focus", sendSnapshot, { passive: true });
+  checkAndAutoSendAiOverview();
+  window.addEventListener("focus", () => {
+    sendSnapshot();
+    checkAndAutoSendAiOverview();
+  }, { passive: true });
+
+  // Reactive listener for native copy events
+  document.addEventListener("copy", (e) => {
+    try {
+      const clipData = e.clipboardData?.getData?.("text/plain");
+      if (clipData && clipData.trim().length > 0) {
+        api?.runtime?.sendMessage({
+          type: "TEXT_COPIED",
+          text: clipData.trim(),
+          url: window.location.href,
+        });
+        return;
+      }
+    } catch (_) {}
+    setTimeout(inspectAndSendCopiedText, 80);
+  }, true);
 
   // Detect DOM mutations in SPAs with debouncing (500ms)
   let domTimer = null;
   const observer = new MutationObserver(() => {
     clearTimeout(domTimer);
-    domTimer = setTimeout(sendSnapshot, 500);
+    domTimer = setTimeout(() => {
+      sendSnapshot();
+      checkAndAutoSendAiOverview();
+    }, 500);
   });
   if (document.body) {
     observer.observe(document.body, { childList: true, subtree: true });

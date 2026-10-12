@@ -38,10 +38,57 @@ pub struct AntigravityAccount {
     pub tier_id: Option<String>,
     #[serde(default, alias = "rateLimitedUntil")]
     pub rate_limited_until: u64,
+    #[serde(default, alias = "modelRateLimits")]
+    pub model_rate_limits: std::collections::HashMap<String, u64>,
     #[serde(default, alias = "consecutiveErrors")]
     pub consecutive_errors: u32,
     #[serde(default = "default_true", alias = "isActive", alias = "enabled")]
     pub is_active: bool,
+}
+
+impl AntigravityAccount {
+    pub fn is_rate_limited_for_model(&self, model: Option<&str>, now: u64) -> bool {
+        if self.rate_limited_until > now {
+            return true;
+        }
+        if let Some(m) = model {
+            let clean_m = m.trim().trim_start_matches("ag/");
+            if let Some(&until) = self.model_rate_limits.get(clean_m) {
+                if until > now {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn set_rate_limit_for_model(&mut self, model: Option<&str>, cooldown_secs: u64, now: u64) {
+        let until = now + cooldown_secs;
+        if let Some(m) = model {
+            let clean_m = m.trim().trim_start_matches("ag/");
+            if !clean_m.is_empty() {
+                self.model_rate_limits.insert(clean_m.to_string(), until);
+                return;
+            }
+        }
+        self.rate_limited_until = until;
+    }
+
+    pub fn min_rate_limit_wait(&self, model: Option<&str>, now: u64) -> Option<u64> {
+        let mut waits = Vec::new();
+        if self.rate_limited_until > now {
+            waits.push(self.rate_limited_until - now);
+        }
+        if let Some(m) = model {
+            let clean_m = m.trim().trim_start_matches("ag/");
+            if let Some(&until) = self.model_rate_limits.get(clean_m) {
+                if until > now {
+                    waits.push(until - now);
+                }
+            }
+        }
+        waits.into_iter().min()
+    }
 }
 
 fn default_account_id() -> String {
@@ -94,4 +141,51 @@ pub struct AntigravityQuotaResponse {
     pub weekly: Vec<ModelQuotaInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_per_model_rate_limiting_isolation() {
+        let mut account = AntigravityAccount {
+            id: "test-acc".to_string(),
+            email: None,
+            refresh_token: "token".to_string(),
+            access_token: None,
+            expires_at: 0,
+            project_id: None,
+            tier_id: None,
+            rate_limited_until: 0,
+            model_rate_limits: HashMap::new(),
+            consecutive_errors: 0,
+            is_active: true,
+        };
+
+        let now = 1000;
+        // Initially no model is rate limited
+        assert!(!account.is_rate_limited_for_model(Some("gemini-3.8-flash-high"), now));
+        assert!(!account.is_rate_limited_for_model(Some("claude-3-7-sonnet"), now));
+
+        // Rate limit claude-3-7-sonnet for 60 seconds (with ag/ prefix)
+        account.set_rate_limit_for_model(Some("ag/claude-3-7-sonnet"), 60, now);
+
+        // claude-3-7-sonnet is rate limited (with or without prefix)
+        assert!(account.is_rate_limited_for_model(Some("claude-3-7-sonnet"), now + 10));
+        assert!(account.is_rate_limited_for_model(Some("ag/claude-3-7-sonnet"), now + 10));
+
+        // other models on the same account are NOT rate limited
+        assert!(!account.is_rate_limited_for_model(Some("gemini-3.8-flash-high"), now + 10));
+        assert!(!account.is_rate_limited_for_model(Some("ag/gemini-3.8-flash-high"), now + 10));
+
+        // After cooldown expires, claude-3-7-sonnet is available again
+        assert!(!account.is_rate_limited_for_model(Some("claude-3-7-sonnet"), now + 61));
+
+        // Global account rate limit affects all models
+        account.set_rate_limit_for_model(None, 30, now);
+        assert!(account.is_rate_limited_for_model(Some("gemini-3.8-flash-high"), now + 10));
+        assert!(account.is_rate_limited_for_model(Some("claude-3-7-sonnet"), now + 10));
+    }
 }
