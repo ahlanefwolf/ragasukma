@@ -29,7 +29,7 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
         <div class="px-4 py-2.5 bg-theme-card border-b border-theme-border flex items-center justify-between shrink-0 select-none">
           <div class="flex items-center gap-2 font-mono">
             <Terminal size={15} class="text-theme-cyan" />
-            <h3 class="text-xs font-bold text-theme-text uppercase tracking-wider">
+            <h3 class="text-theme-text uppercase tracking-wider">
               Live Console Logs
             </h3>
             <span class="text-[10px] px-1.5 py-0.2 bg-theme-surface text-theme-cyan border border-theme-border font-bold">
@@ -58,7 +58,7 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
             <button
               type="button"
               onClick={props.onClose}
-              class="p-1.5 text-theme-muted hover:text-rose-500 active:scale-90 transition-colors"
+              class="p-1.5 text-theme-muted hover:text-gi-status-danger active:scale-90 transition-colors"
               title="Close"
             >
               <X size={16} />

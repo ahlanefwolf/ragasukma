@@ -68,12 +68,12 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
         >
           {/* Header */}
           <div class="flex items-center justify-between p-4 sm:p-5 border-b border-theme-border bg-theme-bg shrink-0">
-            <div class="flex items-center gap-3">
-              <div class="p-2.5 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30">
+            <div class="flex items-start gap-3">
+              <div class="p-2.5 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30 mt-0.5">
                 <Layers size={20} />
               </div>
               <div>
-                <h3 class="text-sm sm:text-base font-bold text-theme-text font-heading flex items-center gap-2 m-0 leading-tight">
+                <h3 class="text-theme-text font-heading flex items-center gap-2 m-0 leading-tight">
                   <span>System Applications (OS)</span>
                   <span class="text-xs font-mono px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan font-bold">
                     {apps().length} Detected

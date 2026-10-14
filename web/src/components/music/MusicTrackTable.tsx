@@ -48,7 +48,7 @@ export const MusicTrackTable: Component<MusicTrackTableProps> = (props) => {
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h3 class="text-sm font-bold text-theme-text">Library Playlist</h3>
+              <h3 class="text-theme-text">Library Playlist</h3>
               <Show when={props.library().length > 0}>
                 <span class="px-2 py-0.5 text-xs font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
                   {props.library().length} Tracks
@@ -72,7 +72,7 @@ export const MusicTrackTable: Component<MusicTrackTableProps> = (props) => {
                   when={copiedDir()}
                   fallback={<Copy size={11} class="shrink-0 opacity-70" />}
                 >
-                  <Check size={11} class="shrink-0 text-emerald-400" />
+                  <Check size={11} class="shrink-0 text-gi-status-success" />
                 </Show>
               </div>
             </Show>

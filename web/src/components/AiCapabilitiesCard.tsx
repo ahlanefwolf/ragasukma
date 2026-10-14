@@ -90,7 +90,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
         '"Click Save button on desktop"',
         '"Close window" / "Maximize window"'
       ],
-      badgeColor: 'text-[#29483A] bg-[#29483A]/15 border-[#29483A]/30'
+      badgeColor: 'text-gi-status-info bg-gi-status-info/15 border-gi-status-info/30'
     },
     {
       id: 'browser',
@@ -118,7 +118,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
         '"Type tech news then press enter"',
         '"Scroll down"'
       ],
-      badgeColor: 'text-[#29483A] bg-[#29483A]/12 border-[#29483A]/30'
+      badgeColor: 'text-gi-status-info bg-gi-status-info/15 border-gi-status-info/30'
     },
     {
       id: 'recipe',
@@ -145,7 +145,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
         '"Pause music" / "Resume music"',
         '"Next track" / "Stop music"'
       ],
-      badgeColor: 'text-[#B08A4A] bg-[#B08A4A]/15 border-[#B08A4A]/30'
+      badgeColor: 'text-gi-primary bg-gi-primary/15 border-gi-primary/30'
     },
     {
       id: 'system',
@@ -159,7 +159,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
         '"Open calculator" / "Open File Manager"',
         '"Increase volume" / "Mute audio"'
       ],
-      badgeColor: 'text-[#876447] bg-[#876447]/15 border-[#876447]/30'
+      badgeColor: 'text-gi-status-warning bg-gi-status-warning/15 border-gi-status-warning/30'
     },
     {
       id: 'todo',
@@ -172,7 +172,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
         '"Add buy groceries to my to-do list"',
         '"Meeting at 9 AM is done"'
       ],
-      badgeColor: 'text-[#634936] bg-[#634936]/15 border-[#634936]/30'
+      badgeColor: 'text-gi-status-success bg-gi-status-success/15 border-gi-status-success/30'
     }
   ];
 
@@ -186,12 +186,12 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
     <div class="p-5 bg-theme-surface border border-theme-border shadow-sm space-y-4">
       {/* Header Card */}
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-          <div class="p-2.5 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30">
+        <div class="flex items-start gap-3">
+          <div class="p-2.5 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30 mt-0.5">
             <Wand2 size={18} />
           </div>
           <div>
-            <h3 class="text-sm sm:text-base font-bold text-theme-text flex items-center gap-2">
+            <h3 class="text-theme-text flex items-center gap-2">
               AI Capabilities & Voice Command Guide
               <span class="text-xs font-mono px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan font-bold">
                 {capabilities.length} Features
@@ -220,7 +220,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
             class="px-3 py-1.5 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
             title="Install Browser Extension (.ZIP)"
           >
-            <Puzzle size={14} class="text-[#B08A4A]" />
+            <Puzzle size={14} class="text-gi-primary" />
             <span>Install Extension (.ZIP)</span>
           </button>
 
@@ -313,28 +313,28 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                           <IconComponent size={16} />
                         </span>
                         <div class="flex flex-col">
-                          <h4 class="text-sm font-bold text-theme-text">
+                          <h4 class="text-theme-text">
                             {cap.title}
                           </h4>
                           {cap.id === 'vision' && (
                             <span class={`text-[10px] font-mono font-semibold mt-0.5 flex items-center gap-1 ${
-                              getClientOs() === 'linux' ? 'text-amber-500' : 'text-[#29483A]'
+                              getClientOs() === 'linux' ? 'text-gi-status-warning' : 'text-theme-cyan'
                             }`}>
                               {getClientOs() === 'windows' && (
                                 <>
-                                  <Check size={11} class="text-[#29483A]" />
+                                  <Check size={11} class="text-theme-cyan" />
                                   Windows 10/11: Built-in Native OCR Active
                                 </>
                               )}
                               {getClientOs() === 'macos' && (
                                 <>
-                                  <Check size={11} class="text-[#29483A]" />
+                                  <Check size={11} class="text-theme-cyan" />
                                   macOS: Built-in Apple Vision OCR Active
                                 </>
                               )}
                               {getClientOs() === 'linux' && (
                                 <>
-                                  <AlertTriangle size={11} class="text-amber-500" />
+                                  <AlertTriangle size={11} class="text-gi-status-warning" />
                                   Linux: Requires Tesseract OCR
                                 </>
                               )}
@@ -347,8 +347,8 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                             </span>
                           )}
                           {cap.category === 'web' && (
-                            <span class="text-[10px] font-mono text-[#876447] font-semibold mt-0.5 flex items-center gap-1">
-                              <Puzzle size={11} class="text-[#B08A4A]" />
+                            <span class="text-[10px] font-mono text-theme-muted font-semibold mt-0.5 flex items-center gap-1">
+                              <Puzzle size={11} class="text-gi-primary" />
                               Requires Extension (.zip)
                             </span>
                           )}
@@ -360,8 +360,8 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                     </p>
 
                     {cap.id === 'vision' && getClientOs() === 'linux' && (
-                      <div class="mt-2.5 p-3 bg-amber-500/10 border border-amber-500/30 text-xs space-y-2">
-                        <div class="flex items-center gap-1.5 font-bold text-amber-500">
+                      <div class="mt-2.5 p-3 bg-gi-status-warning/10 border border-gi-status-warning/30 text-xs space-y-2">
+                        <div class="flex items-center gap-1.5 font-bold text-gi-status-warning">
                           <AlertTriangle size={14} class="shrink-0" />
                           <span>Notice: Linux Requires Tesseract OCR Package</span>
                         </div>
@@ -379,8 +379,8 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                             >
                               {copiedTesseractCmd() ? (
                                 <>
-                                  <Check size={11} class="text-[#29483A]" />
-                                  <span class="text-[#29483A]">Copied</span>
+                                  <Check size={11} class="text-theme-cyan" />
+                                  <span class="text-theme-cyan">Copied</span>
                                 </>
                               ) : (
                                 <>
@@ -398,8 +398,8 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                     )}
 
                     {cap.id === 'vision' && getClientOs() !== 'linux' && (
-                      <div class="mt-2 p-2 bg-[#29483A]/10 border border-[#29483A]/25 text-[11px] text-theme-text/80 flex items-center gap-1.5">
-                        <Check size={13} class="text-[#29483A] shrink-0" />
+                      <div class="mt-2 p-2 bg-theme-cyan/15 border border-theme-cyan/30 text-[11px] text-theme-text/90 flex items-center gap-1.5">
+                        <Check size={13} class="text-theme-cyan shrink-0" />
                         <span>
                           {getClientOs() === 'macos'
                             ? 'Native Apple Vision OCR (Neural Engine) is active with zero background RAM footprint.'
@@ -428,9 +428,9 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                       <button
                         type="button"
                         onClick={() => props.onOpenExtensionModal?.()}
-                        class="w-full mt-2.5 py-2 px-3 bg-theme-card hover:bg-[#876447] hover:text-[#FAF7F2] text-[#876447] hover:border-[#876447] border border-[#B08A4A]/40 flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-sm cursor-pointer"
+                        class="w-full mt-2.5 py-2 px-3 bg-theme-card hover:bg-theme-surface text-theme-muted hover:text-theme-cyan hover:border-theme-cyan/50 border border-theme-border flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-sm cursor-pointer"
                       >
-                        <Puzzle size={14} class="text-[#B08A4A]" />
+                        <Puzzle size={14} class="text-gi-primary" />
                         <span>How to Install Extension (.ZIP)</span>
                       </button>
                     )}
@@ -439,7 +439,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                       <button
                         type="button"
                         onClick={() => props.onOpenAppsModal?.()}
-                        class="w-full mt-2.5 py-2 px-3 bg-theme-card hover:bg-[#29483A] hover:text-[#FAF7F2] text-theme-cyan border border-theme-cyan/40 flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-sm cursor-pointer"
+                        class="w-full mt-2.5 py-2 px-3 bg-theme-card hover:bg-theme-surface text-theme-cyan hover:border-theme-cyan/60 border border-theme-cyan/40 flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-sm cursor-pointer"
                       >
                         <Layers size={14} />
                         <span>Open Detected OS Applications</span>

@@ -180,7 +180,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
         <div class="space-y-1">
           <div class="flex items-center gap-2.5">
             <Radio class="text-theme-cyan" size={24} />
-            <h2 class="text-xl font-heading tracking-tight text-theme-text font-bold">
+            <h2 class="font-heading tracking-tight text-theme-text">
               Mobile Remote & Cloudflared Tunnel
             </h2>
           </div>
@@ -248,7 +248,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
                 tunnelStatus() === 'running'
                   ? 'bg-theme-cyan shadow-[0_0_10px_var(--cyan)] animate-pulse'
                   : tunnelStatus() === 'starting'
-                  ? 'bg-yellow-400 animate-bounce'
+                  ? 'bg-gi-status-warning animate-bounce'
                   : 'bg-theme-text/30'
               }`}
             />
@@ -279,7 +279,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
                     alt="Scan QR Mobile Remote"
                     class="w-48 h-48 block select-none"
                   />
-                  <span class="text-[10px] text-gray-700 font-mono font-bold mt-1 uppercase tracking-wider">
+                  <span class="text-[10px] text-gi-surface font-mono font-bold mt-1 uppercase tracking-wider">
                     Scan via Phone Camera
                   </span>
                 </div>

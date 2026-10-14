@@ -15,25 +15,25 @@ export const MobileTopBar: Component<MobileTopBarProps> = (props) => {
         return {
           icon: Volume2,
           label: 'speaking',
-          textColor: 'text-rose-500',
+          textColor: 'text-gi-status-danger',
         };
       case 'listening':
         return {
           icon: Mic,
           label: 'listening',
-          textColor: 'text-sky-500',
+          textColor: 'text-gi-status-info',
         };
       case 'thinking':
         return {
           icon: Brain,
           label: 'thinking',
-          textColor: 'text-amber-500',
+          textColor: 'text-gi-status-warning',
         };
       default:
         return {
           icon: Sparkles,
           label: 'standby',
-          textColor: 'text-theme-cyan',
+          textColor: 'text-gi-primary',
         };
     }
   };
@@ -41,28 +41,28 @@ export const MobileTopBar: Component<MobileTopBarProps> = (props) => {
   const getPingBadge = () => {
     if (props.pingMs === undefined || props.pingMs === null) {
       return {
-        color: 'text-zinc-500',
-        dotColor: 'bg-zinc-500',
+        color: 'text-gi-text-muted',
+        dotColor: 'bg-gi-text-muted',
         label: '-- ms',
       };
     }
     if (props.pingMs < 100) {
       return {
-        color: 'text-emerald-400',
-        dotColor: 'bg-emerald-400',
+        color: 'text-gi-status-success',
+        dotColor: 'bg-gi-status-success',
         label: `${props.pingMs}ms`,
       };
     }
     if (props.pingMs < 300) {
       return {
-        color: 'text-amber-400',
-        dotColor: 'bg-amber-400',
+        color: 'text-gi-status-warning',
+        dotColor: 'bg-gi-status-warning',
         label: `${props.pingMs}ms`,
       };
     }
     return {
-      color: 'text-rose-500',
-      dotColor: 'bg-rose-500',
+      color: 'text-gi-status-danger',
+      dotColor: 'bg-gi-status-danger',
       label: `${props.pingMs}ms`,
     };
   };
@@ -102,7 +102,7 @@ export const MobileTopBar: Component<MobileTopBarProps> = (props) => {
         <button
           type="button"
           onClick={props.onOpenSettings}
-          class="p-2 text-theme-cyan hover:opacity-80 active:scale-90 transition-transform drop-shadow-[0_0_8px_rgba(89,107,69,0.35)] flex items-center justify-center cursor-pointer"
+          class="p-2 text-gi-primary hover:text-gi-primary-hover active:scale-90 transition-transform drop-shadow-[0_0_8px_rgba(229,184,92,0.35)] flex items-center justify-center cursor-pointer"
           title="Settings"
         >
           <Settings size={24} class="stroke-[2.2]" />

@@ -167,7 +167,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
               skill-command.md
             </span>
           </div>
-          <h2 class="text-2xl sm:text-3xl font-heading tracking-tight text-theme-text mt-2">
+          <h2 class="font-heading tracking-tight text-theme-text mt-2">
             Custom Skills & Automation
           </h2>
           <p class="text-xs sm:text-sm text-theme-text/70 mt-1 max-w-xl">
@@ -178,7 +178,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
 
       {/* Skills List Container */}
       <div class="space-y-3">
-        <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2 tracking-wide">
+        <h3 class="text-theme-cyan flex items-center gap-2 tracking-wide">
           <Terminal size={18} />
           Custom Automation / Skills ({skills().length})
         </h3>
@@ -308,7 +308,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
 
       {/* Add New Custom Automation Form */}
       <form onSubmit={handleAddSkill} class="p-5 bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-bold text-theme-rose flex items-center gap-2 tracking-wide">
+        <h3 class="text-theme-rose flex items-center gap-2 tracking-wide">
           <Plus size={18} />
           Add Custom Automation Script
         </h3>

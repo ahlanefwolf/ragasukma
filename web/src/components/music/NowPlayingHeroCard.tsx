@@ -107,7 +107,7 @@ export const NowPlayingHeroCard: Component = () => {
                     </span>
                   </Show>
                 </div>
-                <h3 class="text-base sm:text-lg font-bold text-theme-text truncate hover:text-theme-cyan transition-colors">
+                <h3 class="text-theme-text truncate hover:text-theme-cyan transition-colors">
                   {globalStatus().current_track!.title}
                 </h3>
                 <p class="text-xs text-theme-text/60 truncate mt-0.5 font-medium">
@@ -165,10 +165,10 @@ export const NowPlayingHeroCard: Component = () => {
               >
                 <div class="w-full h-1.5 bg-theme-border/60 relative">
                   <div
-                    class="h-full bg-gradient-to-r from-theme-cyan via-theme-rose to-theme-cyan transition-all duration-150 relative shadow-[0_0_8px_rgba(89,107,69,0.5)]"
+                    class="h-full bg-gradient-to-r from-theme-cyan via-theme-rose to-theme-cyan transition-all duration-150 relative shadow-[0_0_8px_rgba(229,184,92,0.5)]"
                     style={{ width: `${progressPercent()}%` }}
                   >
-                    <span class="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-2.5 h-2.5 rounded-full bg-white shadow-[0_0_6px_#fff] group-hover:scale-125 transition-transform" />
+                    <span class="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-2.5 h-2.5 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)] group-hover:scale-125 transition-transform" />
                   </div>
                 </div>
                 <input

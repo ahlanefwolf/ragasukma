@@ -265,7 +265,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h2 class="text-xl sm:text-2xl font-heading tracking-wide">
+              <h2 class="font-heading tracking-wide">
                 Automation Recipes
               </h2>
               <span class="text-xs font-mono px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan font-bold">
@@ -291,7 +291,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
 
           <button
             onClick={handleOpenNewRecipe}
-            class="px-4 py-2 text-xs font-bold bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card border border-theme-cyan flex items-center gap-2 transition-all shadow-md cursor-pointer anime-shadow-green"
+            class="px-4 py-2 text-xs font-bold bg-theme-cyan hover:bg-theme-cyan/85 text-theme-card border border-theme-cyan flex items-center gap-2 transition-all shadow-md cursor-pointer anime-shadow-green"
           >
             <Plus size={15} />
             <span>Create Recipe</span>
@@ -339,7 +339,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
                         </div>
                         <div>
                           <div class="flex items-center gap-2 flex-wrap">
-                            <h3 class="text-base font-bold text-theme-text font-heading">
+                            <h3 class="text-theme-text font-heading">
                               {recipe.name}
                             </h3>
                             <span class="text-xs font-mono px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan">
@@ -357,7 +357,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
                             <span>Initial URL: <strong class="text-theme-cyan truncate max-w-[200px] sm:max-w-xs inline-block align-bottom">{recipe.initial_action?.url}</strong></span>
                             <Show when={(recipe.required_params || []).length > 0}>
                               <span>•</span>
-                              <span>Params: <strong class="text-[#B08A4A]">{(recipe.required_params || []).join(', ')}</strong></span>
+                              <span>Params: <strong class="text-theme-rose">{(recipe.required_params || []).join(', ')}</strong></span>
                             </Show>
                           </div>
                         </div>
@@ -368,7 +368,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
                         <button
                           onClick={() => handleTriggerRun(recipe)}
                           disabled={isRunning()}
-                          class="px-3.5 py-1.5 text-xs font-bold bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card border border-theme-cyan flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                          class="px-3.5 py-1.5 text-xs font-bold bg-theme-cyan hover:bg-theme-cyan/85 text-theme-card border border-theme-cyan flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                           title="Run recipe now"
                         >
                           <Play size={13} class={isRunning() ? 'animate-spin' : 'fill-current'} />
@@ -404,8 +404,8 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
                     {/* Step Details Drawer */}
                     <Show when={isExpanded()}>
                       <div class="p-4 border-t border-theme-border bg-theme-surface space-y-3">
-                        <h4 class="text-xs font-mono uppercase tracking-wider text-theme-text/60 font-bold flex items-center gap-1.5">
-                          <Layers size={13} class="text-theme-cyan" />
+                        <h4 class="font-mono uppercase tracking-wider text-theme-text/80 flex items-center gap-1.5">
+                          <Layers size={14} class="text-theme-cyan" />
                           <span>Step Execution Sequence ({recipe.steps?.length || 0} steps)</span>
                         </h4>
 
@@ -462,7 +462,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
             <div class="flex items-center justify-between pb-3 border-b border-theme-border">
               <div class="flex items-center gap-2">
                 <Play size={16} class="text-theme-cyan fill-current" />
-                <h3 class="font-bold text-base text-theme-text font-heading">
+                <h3 class="text-theme-text font-heading">
                   Run: {targetRecipeToRun()!.name}
                 </h3>
               </div>
@@ -515,7 +515,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
                     executeRun(target.recipe_id, paramInputs());
                   }
                 }}
-                class="px-4 py-2 text-xs font-bold bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card border border-theme-cyan flex items-center gap-1.5 cursor-pointer anime-shadow-green"
+                class="px-4 py-2 text-xs font-bold bg-theme-cyan hover:bg-theme-cyan/85 text-theme-card border border-theme-cyan flex items-center gap-1.5 cursor-pointer anime-shadow-green"
               >
                 <Play size={13} class="fill-current" />
                 <span>Execute Recipe</span>
@@ -533,7 +533,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
             <div class="p-4 border-b border-theme-border flex items-center justify-between bg-theme-bg">
               <div class="flex items-center gap-2">
                 <Workflow size={18} class="text-theme-cyan" />
-                <h3 class="font-bold text-base text-theme-text font-heading">
+                <h3 class="text-theme-text font-heading">
                   {editingRecipeId() ? `Edit Recipe: ${editingRecipeId()}` : 'Create New Automation Recipe'}
                 </h3>
               </div>
@@ -756,7 +756,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
               <button
                 type="button"
                 onClick={handleSaveRecipeForm}
-                class="px-4 py-2 text-xs font-bold bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card border border-theme-cyan flex items-center gap-1.5 cursor-pointer anime-shadow-green transition-all"
+                class="px-4 py-2 text-xs font-bold bg-theme-cyan hover:bg-theme-cyan/85 text-theme-card border border-theme-cyan flex items-center gap-1.5 cursor-pointer anime-shadow-green transition-all"
               >
                 <Check size={14} />
                 <span>Save Recipe</span>

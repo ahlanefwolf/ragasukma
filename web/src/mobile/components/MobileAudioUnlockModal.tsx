@@ -16,7 +16,7 @@ export const MobileAudioUnlockModal: Component<MobileAudioUnlockModalProps> = (p
           </div>
 
           <div class="space-y-1">
-            <h2 class="text-base font-heading font-bold text-theme-text">
+            <h2 class="font-heading text-theme-text">
               Connect Phone Audio
             </h2>
             <p class="text-xs text-theme-text/60 leading-relaxed">

@@ -166,7 +166,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
               music-player
             </span>
           </div>
-          <h2 class="text-2xl sm:text-3xl font-heading tracking-tight text-theme-text mt-2">
+          <h2 class="font-heading tracking-tight text-theme-text mt-2">
             Music Player
           </h2>
           <p class="text-xs sm:text-sm text-theme-text/70 mt-1 max-w-xl">

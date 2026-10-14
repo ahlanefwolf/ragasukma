@@ -1,9 +1,9 @@
 import { Component, createSignal, Show, For } from 'solid-js';
-import { 
-  Menu as MenuIcon, 
-  Zap, 
+import {
+  Menu as MenuIcon,
+  Zap,
   Music,
-  Sliders, 
+  Sliders,
   Settings as SettingsIcon,
   Terminal,
   X,
@@ -60,9 +60,9 @@ export const Sidebar: Component<SidebarProps> = (props) => {
               <BrandLogo size={40} />
             </div>
             <div>
-              <h1 class="text-2xl font-heading tracking-tight text-theme-text leading-none">
-                Ragasukma
-              </h1>
+              <span class="font-heading text-lg font-semibold tracking-wide text-theme-text leading-none block">
+                RAGASUKMA
+              </span>
             </div>
           </div>
 
@@ -81,12 +81,12 @@ export const Sidebar: Component<SidebarProps> = (props) => {
         {/* Live Overlay Status Pill */}
         <div class="mb-5 p-3.5 bg-theme-card border border-theme-border flex items-center justify-between shadow-sm">
           <div class="flex items-center gap-2.5">
-            <span 
+            <span
               class={`w-2.5 h-2.5 ${
-                props.overlayConnected 
-                  ? 'bg-theme-cyan shadow-[0_0_8px_var(--cyan)] animate-pulse' 
+                props.overlayConnected
+                  ? 'bg-theme-cyan shadow-[0_0_8px_var(--cyan)] animate-pulse'
                   : 'bg-theme-rose'
-              }`} 
+              }`}
             />
             <span class="text-xs font-semibold text-theme-text tracking-wide">
               {props.overlayConnected ? 'Avatar Active' : 'Offline'}
@@ -134,9 +134,9 @@ export const Sidebar: Component<SidebarProps> = (props) => {
                 <Bot size={18} class={isProviderActive() ? 'stroke-[2.5] text-theme-cyan' : 'stroke-[2]'} />
                 <span class="tracking-wide">Provider LLM</span>
               </div>
-              <ChevronDown 
-                size={16} 
-                class={`transition-transform duration-200 ${providerMenuOpen() ? 'rotate-180 text-theme-cyan' : 'text-theme-text/50'}`} 
+              <ChevronDown
+                size={16}
+                class={`transition-transform duration-200 ${providerMenuOpen() ? 'rotate-180 text-theme-cyan' : 'text-theme-text/50'}`}
               />
             </button>
 
@@ -188,7 +188,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
 
       {/* Mobile Drawer Backdrop */}
       <Show when={props.isMobileOpen}>
-        <div 
+        <div
           class="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 md:hidden animate-fade-in"
           onClick={props.onCloseMobile}
         />

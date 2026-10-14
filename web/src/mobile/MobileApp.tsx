@@ -1125,7 +1125,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
 
   const formatMessageStyle = (msg: string, level: string) => {
     if (level === 'error' || msg.includes('[ERROR]') || msg.includes('FAIL')) {
-      return 'text-red-400 font-semibold';
+      return 'text-gi-status-danger font-semibold';
     }
     if (msg.includes('[User]')) {
       return 'text-theme-cyan font-bold';

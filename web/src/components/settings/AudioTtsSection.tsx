@@ -394,7 +394,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
     <div class="space-y-5 animate-in fade-in duration-200">
       {/* 3. Audio & Speech-to-Text (STT Google Chrome) */}
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2">
+        <h3 class="text-theme-cyan flex items-center gap-2">
           <Mic size={18} />
           3. Microphone & Spoken Language (Chrome STT + Supertonic)
         </h3>
@@ -498,7 +498,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
               onClick={toggleMicMeter}
               class={`px-3 py-1.5 text-xs font-semibold border transition-all flex items-center gap-1.5 ${
                 isMicTesting()
-                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 animate-pulse'
+                  ? 'bg-gi-status-danger/20 text-gi-status-danger border-gi-status-danger/50 animate-pulse'
                   : 'bg-theme-surface text-theme-cyan border-theme-cyan/40 hover:bg-theme-cyan/10'
               }`}
             >
@@ -513,17 +513,17 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
               <div
                 class={`h-full transition-all duration-75 ${
                   currentMicLevel() >= Math.round((props.vadThreshold || 0.15) * 100)
-                    ? 'bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.6)]'
-                    : 'bg-emerald-500/60'
+                    ? 'bg-gradient-to-r from-gi-status-success via-gi-status-warning to-gi-status-danger shadow-[0_0_12px_rgba(224,83,69,0.6)]'
+                    : 'bg-gi-status-success/60'
                 }`}
                 style={{ width: `${currentMicLevel()}%` }}
               ></div>
 
               <div
-                class="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10 shadow-[0_0_8px_#fbbf24]"
+                class="absolute top-0 bottom-0 w-0.5 bg-gi-primary z-10 shadow-[0_0_8px_rgba(229,184,92,0.6)]"
                 style={{ left: `${Math.round((props.vadThreshold || 0.15) * 100)}%` }}
               >
-                <div class="absolute -top-1 -left-1.5 w-3.5 h-3.5 bg-amber-400 rotate-45 border border-black shadow-sm"></div>
+                <div class="absolute -top-1 -left-1.5 w-3.5 h-3.5 bg-gi-primary rotate-45 border border-black shadow-sm"></div>
               </div>
 
               <div class="absolute inset-0 flex items-center justify-between px-3 text-[11px] font-mono pointer-events-none">
@@ -533,8 +533,8 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 <span
                   class={`font-bold transition-colors ${
                     currentMicLevel() >= Math.round((props.vadThreshold || 0.15) * 100) && isMicTesting()
-                      ? 'text-rose-300 drop-shadow-md'
-                      : 'text-amber-300/80'
+                      ? 'text-gi-status-danger drop-shadow-md'
+                      : 'text-gi-status-warning/80'
                   }`}
                 >
                   {currentMicLevel() >= Math.round((props.vadThreshold || 0.15) * 100) && isMicTesting()
@@ -553,7 +553,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 step="0.01"
                 value={props.vadThreshold || 0.15}
                 onInput={(e) => props.setVadThreshold(parseFloat(e.currentTarget.value))}
-                class="flex-1 accent-amber-400 cursor-pointer h-1.5 bg-theme-border rounded-none"
+                class="flex-1 accent-gi-primary cursor-pointer h-1.5 bg-theme-border rounded-none"
               />
               <span class="text-[11px] font-mono text-theme-text/50">Strict (50%)</span>
             </div>
@@ -585,7 +585,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
       {/* 4. Text-to-Speech (Supertonic-3 Neural TTS ONNX Runtime) */}
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
         <div class="flex items-center justify-between flex-wrap gap-2">
-          <h3 class="text-base sm:text-lg font-bold text-theme-rose flex items-center gap-2">
+          <h3 class="text-theme-rose flex items-center gap-2">
             <Volume2 size={18} />
             4. Assistant Voice (Supertonic-3 Neural TTS Native Rust)
           </h3>
@@ -717,7 +717,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             onClick={handleTestVoice}
             class={`w-full sm:w-auto px-4 py-2 text-xs font-semibold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
               isPlayingTest()
-                ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 hover:bg-rose-500/30 animate-pulse'
+                ? 'bg-gi-status-danger/20 text-gi-status-danger border-gi-status-danger/40 hover:bg-gi-status-danger/30 animate-pulse'
                 : 'bg-theme-rose text-white border-theme-rose hover:opacity-90'
             }`}
           >
@@ -788,7 +788,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                   type="button"
                   onClick={handleDeleteRefVoice}
                   title="Remove reference voice (fallback to native Supertonic)"
-                  class="p-1.5 text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20 transition-all cursor-pointer"
+                  class="p-1.5 text-xs font-semibold bg-gi-status-danger/10 text-gi-status-danger border border-gi-status-danger/30 hover:bg-gi-status-danger/20 transition-all cursor-pointer"
                 >
                   <Trash2 size={14} />
                 </button>

@@ -76,13 +76,13 @@ fn fs_overlay(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (aa_bg_close > 0.001) {
         let bg_col = select(
-            vec3<f32>(0.831, 0.784, 0.686), // Default: Warm Earth Tan (#D4C8AF)
-            vec3<f32>(0.75, 0.22, 0.22),     // Hover: Vibrant Terracotta Red (#C03838)
+            vec3<f32>(0.094, 0.114, 0.149), // Default: bg-surface (#181D26)
+            vec3<f32>(0.878, 0.325, 0.271), // Hover: status-danger (#E05345)
             hover_close
         );
         let icon_col = select(
-            vec3<f32>(0.106, 0.176, 0.141), // Default: Deep Forest Green (#1B2D24)
-            vec3<f32>(1.0, 1.0, 1.0),       // Hover: Solid White
+            vec3<f32>(0.624, 0.655, 0.722), // Default: text-secondary (#9FA7B8)
+            vec3<f32>(0.929, 0.918, 0.882), // Hover: text-primary Warm White (#EDEAE1)
             hover_close
         );
         let final_rgb = mix(bg_col, icon_col, aa_icon_close);
@@ -101,13 +101,13 @@ fn fs_overlay(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (aa_bg_max > 0.001) {
         let bg_col = select(
-            vec3<f32>(0.831, 0.784, 0.686), // Default: Warm Earth Tan (#D4C8AF)
-            vec3<f32>(0.29, 0.42, 0.24),     // Hover: Moss Accent Green (#4A6B3E)
+            vec3<f32>(0.094, 0.114, 0.149), // Default: bg-surface (#181D26)
+            vec3<f32>(0.133, 0.161, 0.212), // Hover: bg-elevated (#222936)
             hover_max
         );
         let icon_col = select(
-            vec3<f32>(0.106, 0.176, 0.141), // Default: Deep Forest Green (#1B2D24)
-            vec3<f32>(1.0, 1.0, 1.0),       // Hover: Solid White
+            vec3<f32>(0.624, 0.655, 0.722), // Default: text-secondary (#9FA7B8)
+            vec3<f32>(0.898, 0.722, 0.361), // Hover: primary Wish Gold (#E5B85C)
             hover_max
         );
         let final_rgb = mix(bg_col, icon_col, aa_icon_max);
@@ -124,26 +124,26 @@ fn fs_overlay(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (aa_bg_min > 0.001) {
         let bg_col = select(
-            vec3<f32>(0.831, 0.784, 0.686), // Default: Warm Earth Tan (#D4C8AF)
-            vec3<f32>(0.29, 0.42, 0.24),     // Hover: Moss Accent Green (#4A6B3E)
+            vec3<f32>(0.094, 0.114, 0.149), // Default: bg-surface (#181D26)
+            vec3<f32>(0.133, 0.161, 0.212), // Hover: bg-elevated (#222936)
             hover_min
         );
         let icon_col = select(
-            vec3<f32>(0.106, 0.176, 0.141), // Default: Deep Forest Green (#1B2D24)
-            vec3<f32>(1.0, 1.0, 1.0),       // Hover: Solid White
+            vec3<f32>(0.624, 0.655, 0.722), // Default: text-secondary (#9FA7B8)
+            vec3<f32>(0.898, 0.722, 0.361), // Hover: primary Wish Gold (#E5B85C)
             hover_min
         );
         let final_rgb = mix(bg_col, icon_col, aa_icon_min);
         return vec4<f32>(final_rgb, aa_bg_min);
     }
 
-    // ── 4. Window Frame Border (Moss Accent #596B45) ──
+    // ── 4. Window Frame Border (border-gold #9E8046) ──
     let border_thickness = 1.5;
     let min_dist_edge = min(min(pixel_pos.x, w - pixel_pos.x), min(pixel_pos.y, h - pixel_pos.y));
     let border_aa = smoothstep(border_thickness + 0.5, border_thickness - 0.5, min_dist_edge);
     if (border_aa > 0.01) {
-        let moss_col = vec3<f32>(0.349, 0.420, 0.271); // Moss Accent (#596B45)
-        return vec4<f32>(moss_col, 0.85 * border_aa);
+        let gold_border_col = vec3<f32>(0.620, 0.502, 0.275); // border-gold (#9E8046)
+        return vec4<f32>(gold_border_col, 0.90 * border_aa);
     }
 
     discard;

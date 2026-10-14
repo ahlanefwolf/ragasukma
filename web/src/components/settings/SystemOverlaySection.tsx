@@ -10,7 +10,7 @@ export const SystemOverlaySection: Component<SystemOverlaySectionProps> = (props
   return (
     <div class="space-y-5 animate-in fade-in duration-200">
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2">
+        <h3 class="text-theme-cyan flex items-center gap-2">
           <Monitor size={18} />
           Desktop Overlay & Window Preferences
         </h3>

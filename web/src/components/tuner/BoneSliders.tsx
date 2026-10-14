@@ -45,7 +45,7 @@ export const BoneSliders: Component<BoneSlidersProps> = (props) => {
               <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-3 shadow-lg">
                 <div class="flex items-center justify-between border-b border-theme-border/50 pb-2.5">
                   <div>
-                    <h4 class="font-bold text-sm text-theme-text">
+                    <h4 class="text-theme-text">
                       {BONE_LABELS[boneName] || boneName}
                     </h4>
                     <span class="text-xs font-mono text-theme-text/40">

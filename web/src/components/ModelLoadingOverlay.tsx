@@ -45,7 +45,7 @@ export const ModelLoadingOverlay: Component<ModelLoadingOverlayProps> = (props) 
         </div>
 
         {/* Title */}
-        <h2 class="text-base sm:text-lg font-bold text-theme-text mb-1 tracking-wide font-mono">
+        <h2 class="text-theme-text mb-1 tracking-wide font-mono">
           <Show
             when={!isError()}
             fallback="MODEL INITIALIZATION FAILED"
@@ -78,7 +78,7 @@ export const ModelLoadingOverlay: Component<ModelLoadingOverlayProps> = (props) 
               class="h-full bg-theme-cyan transition-all duration-300 ease-out relative"
               style={{ width: `${percent()}%` }}
             >
-              <div class="absolute inset-0 bg-[#F5F0E6]/25 animate-pulse" />
+              <div class="absolute inset-0 bg-gi-text-primary/25 animate-pulse" />
             </div>
           </div>
 
@@ -103,7 +103,7 @@ export const ModelLoadingOverlay: Component<ModelLoadingOverlayProps> = (props) 
         <Show when={isError()}>
           <button
             onClick={() => props.onRetry()}
-            class="px-5 py-2.5 bg-theme-rose hover:bg-theme-rose/90 text-[#F5F0E6] font-bold text-xs tracking-wider uppercase flex items-center gap-2 border border-theme-rose transition-all shadow-md active:scale-95 cursor-pointer"
+            class="px-5 py-2.5 bg-theme-rose hover:bg-theme-rose/90 text-theme-card font-bold text-xs tracking-wider uppercase flex items-center gap-2 border border-theme-rose transition-all shadow-md active:scale-95 cursor-pointer"
           >
             <RefreshCw class="w-4 h-4" />
             Retry Download

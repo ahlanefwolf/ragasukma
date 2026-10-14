@@ -53,12 +53,12 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
         >
           {/* Modal Header */}
           <div class="flex items-center justify-between p-4 sm:p-5 border-b border-theme-border bg-theme-bg shrink-0">
-            <div class="flex items-center gap-3">
-              <div class="p-2.5 bg-theme-cyan/20 text-[#29483A] border border-theme-cyan/40">
+            <div class="flex items-start gap-3">
+              <div class="p-2.5 bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 mt-0.5">
                 <Puzzle size={20} />
               </div>
               <div>
-                <h3 class="text-base sm:text-lg font-bold text-theme-text flex items-center gap-2 m-0 leading-tight">
+                <h3 class="text-theme-text flex items-center gap-2 m-0 leading-tight">
                   Install Browser Extension (.ZIP)
                   <span class="text-[10px] font-mono font-bold px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan">
                     Cross-Platform
@@ -108,7 +108,7 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
                 <button
                   type="button"
                   onClick={openFileManager}
-                  class="p-2 bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card border border-theme-cyan font-bold flex items-center justify-center transition-all shadow-sm cursor-pointer active:scale-95"
+                  class="p-2 bg-theme-cyan hover:bg-theme-cyan/85 text-theme-card border border-theme-cyan font-bold flex items-center justify-center transition-all shadow-sm cursor-pointer active:scale-95"
                   title="Open folder in OS File Manager"
                   aria-label="Open folder in OS File Manager"
                 >
@@ -121,7 +121,7 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
             <div class="p-4 sm:p-5 bg-theme-bg border border-theme-border hover:border-theme-cyan/50 transition-all flex flex-col justify-between gap-4 shadow-sm">
               <div class="space-y-3.5">
                 <div class="pb-2 border-b border-theme-border/70 flex items-center justify-between">
-                  <span class="px-2.5 py-1 text-xs font-bold uppercase bg-theme-cyan/20 text-[#29483A] border border-theme-cyan/40 tracking-wide font-mono">
+                  <span class="px-2.5 py-1 text-xs font-bold uppercase bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 tracking-wide font-mono">
                     Installation for Chrome / Brave / Edge
                   </span>
                   <span class="text-[11px] font-mono text-theme-cyan font-semibold">1-Step Unpack</span>
@@ -129,21 +129,21 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
 
                 <div class="space-y-2.5 text-theme-text/85 leading-relaxed text-xs sm:text-sm">
                   <div class="flex items-start gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-[#29483A] font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
+                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
                       1
                     </span>
                     <span>Extract <code class="px-1.5 py-0.5 bg-theme-card border border-theme-border font-mono text-xs font-bold text-theme-cyan">ragasukma-companion.zip</code> to a folder of your choice (e.g. the <code>extension</code> folder).</span>
                   </div>
 
                   <div class="flex items-start gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-[#29483A] font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
+                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
                       2
                     </span>
                     <span>Open a new tab and navigate to <code class="px-1.5 py-0.5 bg-theme-card border border-theme-border font-mono text-xs font-bold text-theme-cyan">chrome://extensions</code> in Chromium, then toggle on <strong>Developer mode</strong> in the top-right corner.</span>
                   </div>
 
                   <div class="flex items-start gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-[#29483A] font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
+                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
                       3
                     </span>
                     <div>
@@ -161,7 +161,7 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
                     window.open("chrome://extensions", "_blank");
                     props.showToast("chrome://extensions URL copied! If it did not open automatically, paste it in a new tab.");
                   }}
-                  class="w-full py-2.5 px-3 bg-theme-cyan/15 hover:bg-theme-cyan text-[#29483A] hover:text-theme-card border border-theme-cyan/30 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                  class="w-full py-2.5 px-3 bg-theme-cyan/15 hover:bg-theme-cyan text-theme-text hover:text-theme-card border border-theme-cyan/30 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
                 >
                   <Globe size={14} />
                   <span>Open chrome://extensions Page</span>

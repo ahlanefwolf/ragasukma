@@ -9,57 +9,32 @@ export const BrandLogo: Component<{ size?: number; class?: string }> = (props) =
       width={s}
       height={s}
       class={props.class || ''}
+      fill="none"
+      aria-label="Crystal Fairy Taurus Logo"
     >
-      {/* Base Squircle */}
-      <rect x="16" y="16" width="480" height="480" rx="116" fill="#FAF7F2" />
+      {/* ── 1. WISH GOLD (var(--gi-primary)): Crystal Horns & Crown Diamond ── */}
+      <g fill="var(--gi-primary)">
+        {/* Left Crystal Horn (Solid, Bold, Perfectly Mirrored) */}
+        <polygon points="64,80 168,128 224,192 128,154" />
 
-      {/* Headset Headband Arc */}
-      <path
-        d="M 86 250 A 170 170 0 0 1 426 250"
-        fill="none"
-        stroke="#29483A"
-        stroke-width="28"
-        stroke-linecap="round"
-      />
+        {/* Right Crystal Horn (Solid, Bold, Perfectly Mirrored: 512 - x) */}
+        <polygon points="448,80 344,128 288,192 384,154" />
 
-      {/* Earcups */}
-      <rect x="56" y="192" width="60" height="116" rx="30" fill="#596B45" />
-      <rect x="396" y="192" width="60" height="116" rx="30" fill="#596B45" />
+        {/* Crown Crystal Primogem Shard */}
+        <polygon points="256,120 286,176 256,224 226,176" />
+      </g>
 
-      {/* Boom Microphone */}
-      <path
-        d="M 86 280 C 86 375, 145 395, 204 375"
-        fill="none"
-        stroke="#29483A"
-        stroke-width="14"
-        stroke-linecap="round"
-      />
-      <rect x="208" y="362" width="28" height="22" rx="11" fill="#B08A4A" />
+      {/* ── 2. WARM WHITE (var(--gi-text-primary)): Crystal Wings & Sprite Body ── */}
+      <g fill="var(--gi-text-primary)">
+        {/* Left Crystal Wing (Mirrored: 228, 56, 148, 224) */}
+        <polygon points="228,230 56,204 148,300 224,272" />
 
-      {/* Smiling Eyes */}
-      <path
-        d="M 170 236 Q 194 204, 218 236"
-        fill="none"
-        stroke="#29483A"
-        stroke-width="16"
-        stroke-linecap="round"
-      />
-      <path
-        d="M 294 236 Q 318 204, 342 236"
-        fill="none"
-        stroke="#29483A"
-        stroke-width="16"
-        stroke-linecap="round"
-      />
+        {/* Right Crystal Wing (Mirrored: 284, 456, 364, 288) */}
+        <polygon points="284,230 456,204 364,300 288,272" />
 
-      {/* Blush Pills */}
-      <rect x="144" y="262" width="42" height="16" rx="8" fill="#B08A4A" />
-      <rect x="326" y="262" width="42" height="16" rx="8" fill="#B08A4A" />
-
-      {/* Voice Soundwave Mouth */}
-      <rect x="226" y="290" width="12" height="34" rx="6" fill="#B08A4A" />
-      <rect x="250" y="278" width="12" height="58" rx="6" fill="#596B45" />
-      <rect x="274" y="290" width="12" height="34" rx="6" fill="#B08A4A" />
+        {/* Central Fairy Crystal Core / Body */}
+        <polygon points="256,240 296,328 256,440 216,328" />
+      </g>
     </svg>
   );
 };

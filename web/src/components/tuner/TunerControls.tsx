@@ -45,7 +45,7 @@ export const TunerControls: Component<TunerControlsProps> = (props) => {
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h2 class="text-xl sm:text-2xl font-heading tracking-tight text-theme-text leading-none">
+              <h2 class="font-heading tracking-tight text-theme-text leading-none">
                 Pose & Motion Tuner
               </h2>
               <span class="px-2 py-0.5 text-xs font-mono font-bold bg-theme-bg text-theme-cyan border border-theme-border">

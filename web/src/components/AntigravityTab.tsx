@@ -209,13 +209,13 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
     <div class="space-y-6 animate-fade-in text-theme-text select-text">
       {/* Header Banner */}
       <div class="bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg p-5 sm:p-6 border border-theme-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
-        <div class="flex items-center gap-4">
-          <div class="w-14 h-14 bg-theme-rose/15 border border-theme-rose/40 flex items-center justify-center text-theme-rose shrink-0 shadow-sm">
+        <div class="flex items-start gap-4">
+          <div class="w-14 h-14 bg-theme-rose/15 border border-theme-rose/40 flex items-center justify-center text-theme-rose shrink-0 shadow-sm mt-0.5">
             <Rocket size={28} />
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h2 class="text-xl font-heading tracking-tight text-theme-text">
+              <h2 class="font-heading tracking-tight text-theme-text">
                 Antigravity Pool
               </h2>
               <span class="text-xs font-mono px-2 py-0.5 bg-theme-rose/20 text-theme-rose border border-theme-rose/30 font-bold uppercase">
@@ -270,7 +270,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
       {/* Account List Section */}
       <div class="space-y-3">
         <div class="flex items-center justify-between px-1">
-          <h3 class="text-sm font-bold text-theme-text flex items-center gap-2">
+          <h3 class="text-theme-text flex items-center gap-2">
             <ShieldCheck size={16} class="text-theme-cyan" />
             Antigravity Accounts Pool
           </h3>

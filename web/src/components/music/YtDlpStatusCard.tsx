@@ -30,7 +30,7 @@ export const YtDlpStatusCard: Component<YtDlpStatusCardProps> = (props) => {
   return (
     <div class="border border-theme-border bg-theme-surface overflow-hidden">
       <div class="px-4 py-3 border-b border-theme-border flex items-center justify-between">
-        <h3 class="text-sm font-bold text-theme-text/80">Status yt-dlp</h3>
+        <h3 class="text-theme-text/80">Status yt-dlp</h3>
         <Show when={!props.checking()}>
           <button
             onClick={props.onRefresh}
@@ -52,7 +52,7 @@ export const YtDlpStatusCard: Component<YtDlpStatusCardProps> = (props) => {
 
         <Show when={!props.checking() && props.info()?.available}>
           <div class="flex items-center gap-2">
-            <span class="px-3 py-1 text-xs font-bold bg-theme-cyan/20 text-[#29483A] border border-theme-cyan/40">
+            <span class="px-3 py-1 text-xs font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40">
               ✓ yt-dlp v{props.info()!.version}
             </span>
             <span class="text-xs text-theme-text/70">Ready to use</span>
@@ -61,7 +61,7 @@ export const YtDlpStatusCard: Component<YtDlpStatusCardProps> = (props) => {
 
         <Show when={!props.checking() && !props.info()?.available}>
           <div class="space-y-3">
-            <div class="flex items-center gap-2 text-xs text-[#A84B4B]">
+            <div class="flex items-center gap-2 text-xs text-gi-status-danger">
               <AlertCircle size={14} />
               <span class="font-semibold">yt-dlp not found.</span>
             </div>
@@ -69,7 +69,7 @@ export const YtDlpStatusCard: Component<YtDlpStatusCardProps> = (props) => {
             <button
               onClick={props.onInstall}
               disabled={props.installing()}
-              class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-theme-cyan/20 hover:bg-theme-cyan/30 border border-theme-cyan/40 text-[#29483A] font-semibold text-sm transition-all disabled:opacity-50"
+              class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-theme-cyan/20 hover:bg-theme-cyan/30 border border-theme-cyan/40 text-theme-cyan font-semibold text-sm transition-all disabled:opacity-50"
             >
               <Show when={props.installing()} fallback={<Download size={16} />}>
                 <Loader size={16} class="animate-spin" />
@@ -80,8 +80,8 @@ export const YtDlpStatusCard: Component<YtDlpStatusCardProps> = (props) => {
               <p
                 class={`text-xs px-3 py-2 border font-medium ${
                   props.installMsg()!.toLowerCase().includes('failed')
-                    ? 'bg-[#A84B4B]/10 border-[#A84B4B]/30 text-[#A84B4B]'
-                    : 'bg-theme-cyan/15 border-theme-cyan/35 text-[#29483A]'
+                    ? 'bg-gi-status-danger/10 border-gi-status-danger/30 text-gi-status-danger'
+                    : 'bg-theme-cyan/15 border-theme-cyan/35 text-theme-cyan'
                 }`}
               >
                 {props.installMsg()}

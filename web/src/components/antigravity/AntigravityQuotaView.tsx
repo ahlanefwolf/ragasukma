@@ -48,15 +48,15 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
     }
     if (pct >= 20) {
       return {
-        bar: 'bg-theme-rose shadow-[0_0_8px_rgba(176,138,74,0.35)]',
+        bar: 'bg-theme-rose shadow-[0_0_8px_rgba(224,159,62,0.35)]',
         badge: 'bg-theme-rose/15 text-theme-rose border border-theme-rose/40',
         text: 'text-theme-rose',
       };
     }
     return {
-      bar: 'bg-[#A84B4B] shadow-[0_0_8px_rgba(168,75,75,0.35)]',
-      badge: 'bg-[#A84B4B]/15 text-[#A84B4B] border border-[#A84B4B]/40',
-      text: 'text-[#A84B4B]',
+      bar: 'bg-gi-status-danger shadow-[0_0_8px_rgba(224,83,69,0.35)]',
+      badge: 'bg-gi-status-danger/15 text-gi-status-danger border border-gi-status-danger/40',
+      text: 'text-gi-status-danger',
     };
   };
 
@@ -95,14 +95,14 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
 
       {/* Error State */}
       <Show when={!props.isLoading && props.quotaData?.status === 'error' && (!props.quotaData?.models || props.quotaData?.models.length === 0)}>
-        <div class="p-3.5 bg-rose-500/10 border border-rose-500/30 text-xs text-rose-400 flex items-center justify-between gap-3">
+        <div class="p-3.5 bg-gi-status-danger/10 border border-gi-status-danger/30 text-xs text-gi-status-danger flex items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <AlertTriangle size={16} class="shrink-0" />
             <span>{props.quotaData?.error || 'Failed to read account quota.'}</span>
           </div>
           <button
             onClick={() => props.onRefresh(props.accountId)}
-            class="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold shrink-0 transition-colors"
+            class="px-2.5 py-1 bg-gi-status-danger/20 hover:bg-gi-status-danger/30 text-gi-status-danger text-xs font-bold shrink-0 transition-colors"
           >
             Retry
           </button>
@@ -114,8 +114,8 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
         {/* Weekly Quota Cards */}
         <Show when={props.quotaData?.weekly && props.quotaData.weekly.length > 0}>
           <div class="space-y-1.5">
-            <h3 class="text-sm font-bold text-theme-text/80 flex items-center gap-1.5">
-              <Clock size={14} class="text-amber-400" />
+            <h3 class="text-theme-text/80 flex items-center gap-1.5">
+              <Clock size={14} class="text-gi-status-warning" />
               <span>Weekly Quota (Weekly Cap)</span>
             </h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -153,7 +153,7 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
         {/* Per-Model Quota Breakdown */}
         <Show when={props.quotaData?.models && props.quotaData.models.length > 0}>
           <div class="space-y-1.5 pt-1">
-            <h3 class="text-sm font-bold text-theme-text/80 flex items-center gap-1.5">
+            <h3 class="text-theme-text/80 flex items-center gap-1.5">
               <Zap size={14} class="text-theme-cyan" />
               <span>Model Quota (5-Hour Window)</span>
             </h3>
@@ -190,7 +190,7 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
                             class="text-theme-text/40 group-hover:text-theme-cyan transition-colors shrink-0"
                           >
                             <Show when={isCopied()} fallback={<Copy size={12} />}>
-                              <Check size={12} class="text-emerald-400" />
+                              <Check size={12} class="text-gi-status-success" />
                             </Show>
                           </button>
                         </div>

@@ -114,62 +114,62 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         discard;
     }
 
-    // 3. Three.js MToon Shading Formulation (1:1 @pixiv/three-vrm)
-    // Key Light Direction yang lembut dari depan kamera (sedikit miring ke atas-kanan)
-    let light_dir = normalize(vec3<f32>(0.2, 0.6, 1.0));
+    // 3. Three.js MToon Lighting Formulation (1:1 @pixiv/three-vrm)
+    let view_dir = normalize(camera.camera_pos - in.world_pos);
     let n = normalize(in.world_normal);
+
+    // Directional Key Light: Posisi miring dari kanan atas kamera agar kontur 3D dan cel-shading nyata terlihat
+    var cam_right = vec3<f32>(view_dir.z, 0.0, -view_dir.x);
+    let len_cr = length(cam_right);
+    if (len_cr > 0.0001) {
+        cam_right = cam_right / len_cr;
+    } else {
+        cam_right = vec3<f32>(1.0, 0.0, 0.0);
+    }
+    let cam_up = cross(view_dir, cam_right);
+    let light_dir = normalize(cam_right * 0.35 + cam_up * 0.45 + view_dir * 0.7);
+
     let dotNL = clamp(dot(n, light_dir), -1.0, 1.0);
 
-    // MToon Toony Step
+    // MToon Toony Step (dengan transisi halus agar cel-shading anime cantik & tidak tajam bergerigi)
     let toony_min = -1.0 + material.shading_toony;
     let toony_max = 1.0 - material.shading_toony;
     let raw_shading = dotNL + material.shading_shift;
-    let shading = clamp((raw_shading - toony_min) / max(toony_max - toony_min, 0.0001), 0.0, 1.0);
+    let shading = smoothstep(toony_min, max(toony_max, toony_min + 0.1), raw_shading);
 
-    // Shade Color (Sample Shade Texture & Shade Color Factor)
+    // Shade Color: Sample shade texture dan kalikan dengan shade_color_factor
     var shade_color: vec3<f32>;
     if (material.has_shade_tex == 1u) {
         let shade_sample = textureSample(t_shade, s_diffuse, in.uv).rgb;
-        shade_color = shade_sample * material.shade_color_factor.rgb * material.base_color_factor.rgb;
+        shade_color = shade_sample * material.shade_color_factor.rgb;
     } else {
         shade_color = lit_color * material.shade_color_factor.rgb;
     }
 
-    // Interpolasi halus antara Shade dan Lit
+    // Three.js MToon Cel-Shading Diffuse:
     var final_rgb = mix(shade_color, lit_color, shading);
 
     // 4. Three.js MToon MatCap (Spherical UV reflection) & Parametric Rim Lighting
-    let view_dir = normalize(camera.camera_pos - in.world_pos);
-
     // 4a. MatCap
     var matcap_rgb = vec3<f32>(0.0);
     if (material.has_matcap == 1u) {
-        var x = vec3<f32>(view_dir.z, 0.0, -view_dir.x);
-        let len_x = length(x);
-        if (len_x > 0.0001) {
-            x = x / len_x;
-        } else {
-            x = vec3<f32>(1.0, 0.0, 0.0);
-        }
-        let y = cross(view_dir, x);
         let sphere_uv = vec2<f32>(
-            0.5 + 0.5 * dot(x, n),
-            0.5 - 0.5 * dot(y, n)
+            0.5 + 0.5 * dot(cam_right, n),
+            0.5 - 0.5 * dot(cam_up, n)
         );
         let matcap_sample = textureSample(t_matcap, s_diffuse, sphere_uv).rgb;
         matcap_rgb = material.matcap_factor.rgb * matcap_sample;
     }
 
-    // 4b. Parametric Rim Lighting (Fresnel anime highlight pada siluet model)
+    // 4b. Parametric Rim Lighting (Three.js 1:1: pow(1.0 - dot(V, N) + lift, fresnelPower))
     let v_dot_n = clamp(dot(view_dir, n), 0.0, 1.0);
     let rim_fresnel = pow(clamp(1.0 - v_dot_n, 0.0, 1.0), 4.5);
-    let rim_dir_factor = clamp(dotNL * 0.5 + 0.5, 0.0, 1.0);
-    let rim_light = lit_color * (rim_fresnel * rim_dir_factor * 0.65);
+    let rim_light = lit_color * (rim_fresnel * 0.25);
 
     // Gabungkan Shading + Rim + MatCap
     final_rgb = final_rgb + rim_light + matcap_rgb;
 
-    // 5. Emissive Texture (Warna Asli Rambut & Glow VRoid)
+    // 5. Emissive Texture (Glow & Highlight Asli Model)
     if (material.has_emissive == 1u) {
         let em_sample = textureSample(t_emissive, s_diffuse, in.uv).rgb;
         let em_color = em_sample * material.emissive_factor.rgb;

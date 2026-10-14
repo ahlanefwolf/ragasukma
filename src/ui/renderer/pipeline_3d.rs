@@ -546,6 +546,8 @@ pub fn load_vrm_model_to_gpu(
                 || mat.emissive_factor[1] > 0.001
                 || mat.emissive_factor[2] > 0.001);
 
+        // Unified MToon Standard Shading Parameters
+        // Gunakan parameter shading shift, toony factor, dan shade color asli dari model
         let mat_uniform = MaterialUniform {
             base_color_factor: mat.base_color_factor,
             shade_color_factor: [

@@ -333,7 +333,7 @@ const App: Component = () => {
                     ✕
                   </div>
                   <div class="space-y-2">
-                    <h3 class="text-lg font-bold text-theme-text">
+                    <h3 class="text-theme-text">
                       {deadReason() === 'shutdown' ? 'Ragasukma Application Closed' : 'Tab Deactivated'}
                     </h3>
                     <p class="text-sm text-theme-text/70 leading-relaxed">

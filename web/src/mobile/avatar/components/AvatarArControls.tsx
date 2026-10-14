@@ -31,12 +31,12 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
   const qualityColor = () => {
     switch (props.quality) {
       case 'sd':
-        return 'text-amber-400 hover:text-amber-300';
+        return 'text-gi-status-warning hover:opacity-85';
       case 'ultra':
-        return 'text-pink-400 hover:text-pink-300';
+        return 'text-gi-primary hover:text-gi-primary-hover';
       case 'hd':
       default:
-        return 'text-cyan-400 hover:text-cyan-300';
+        return 'text-gi-status-info hover:opacity-85';
     }
   };
 
@@ -64,7 +64,7 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
               onClick={props.onLockAvatar}
               class={`p-2 transition-all duration-200 active:scale-80 drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer ${
                 props.hasFoundSurface
-                  ? 'text-theme-cyan hover:text-cyan-300 scale-105'
+                  ? 'text-gi-primary hover:text-gi-primary-hover scale-105'
                   : 'text-white/25 cursor-not-allowed'
               }`}
               aria-label="Lock Avatar"
@@ -76,7 +76,7 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
           <button
             type="button"
             onClick={props.onUnlockAvatar}
-            class="p-2 text-amber-300 hover:text-amber-200 active:scale-80 transition-all drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer"
+            class="p-2 text-gi-status-warning hover:opacity-85 active:scale-80 transition-all drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer"
             aria-label="Unlock Avatar"
           >
             <Unlock size={24} class="stroke-[2.2]" />
@@ -98,7 +98,7 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
           type="button"
           onClick={props.onCycleFps}
           class={`p-2 font-mono text-[11px] font-bold tracking-wider active:scale-85 transition-transform drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer ${
-            props.fpsLimit === 30 ? 'text-emerald-400 hover:text-emerald-300' : props.fpsLimit === 60 ? 'text-cyan-400 hover:text-cyan-300' : 'text-purple-400 hover:text-purple-300'
+            props.fpsLimit === 30 ? 'text-gi-status-success hover:opacity-85' : props.fpsLimit === 60 ? 'text-gi-primary hover:text-gi-primary-hover' : 'text-gi-status-info hover:opacity-85'
           }`}
           title={`AR FPS Limit: ${props.fpsLimit === 0 ? 'Max' : `${props.fpsLimit} FPS`}`}
         >

@@ -64,10 +64,10 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
             }}
           >
             <div
-              class="h-full bg-gradient-to-r from-theme-cyan via-theme-rose to-theme-cyan transition-all duration-150 relative shadow-[0_0_8px_rgba(89,107,69,0.5)]"
+              class="h-full bg-gradient-to-r from-theme-cyan via-theme-rose to-theme-cyan transition-all duration-150 relative shadow-[0_0_8px_rgba(229,184,92,0.5)]"
               style={{ width: `${progressPercent()}%` }}
             >
-              <span class="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-2 h-2 rounded-full bg-white shadow-[0_0_6px_#fff]" />
+              <span class="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-2 h-2 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]" />
             </div>
           </div>
 

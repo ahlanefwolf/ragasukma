@@ -231,22 +231,25 @@ impl VrmModelData {
             let name = mat.name().unwrap_or("Material").to_string();
             let name_lower = name.to_lowercase();
 
-            let category = if name_lower.contains("hair") {
+            let category = if name_lower.contains("hair") || name_lower.contains("hairpin") {
                 MaterialCategory::Hair
+            } else if name_lower.contains("eye") || name_lower.contains("iris") || name_lower.contains("brow") {
+                MaterialCategory::Eyes
+            } else if name_lower.contains("body3")
+                || name_lower.contains("accesory")
+                || name_lower.contains("accessory")
+                || name_lower.contains("dress")
+                || name_lower.contains("cloth")
+                || name_lower.contains("shoes")
+                || name_lower.contains("sleeves")
+                || name_lower.contains("element")
+            {
+                MaterialCategory::Outfit
             } else if name_lower.contains("face")
                 || name_lower.contains("body")
                 || name_lower.contains("skin")
             {
                 MaterialCategory::Skin
-            } else if name_lower.contains("eye") || name_lower.contains("iris") {
-                MaterialCategory::Eyes
-            } else if name_lower.contains("cloth")
-                || name_lower.contains("tops")
-                || name_lower.contains("bottoms")
-                || name_lower.contains("shoes")
-                || name_lower.contains("onepiece")
-            {
-                MaterialCategory::Outfit
             } else {
                 MaterialCategory::General
             };
@@ -282,7 +285,7 @@ impl VrmModelData {
                 None
             };
 
-            // MToon Parsing from raw JSON
+            // MToon Parsing from raw JSON (supporting both VRM 0.X and VRM 1.0)
             let mut shade_texture = None;
             let mut shade_color_factor = [1.0, 1.0, 1.0];
             let mut matcap_texture = None;
@@ -290,6 +293,7 @@ impl VrmModelData {
             let mut shading_shift = -0.2;
             let mut shading_toony = 0.85;
 
+            // 1. Try parsing VRMC_materials_mtoon (VRM 1.0)
             if let Some(mat_json) = json_materials.and_then(|arr| arr.get(mat_idx)) {
                 if let Some(mtoon_json) = mat_json
                     .get("extensions")
@@ -346,6 +350,57 @@ impl VrmModelData {
                         if let Some(tex) = document.textures().nth(mt_idx as usize) {
                             matcap_texture =
                                 extract_image_rgba(tex.source(), &buffers, &mut image_cache);
+                        }
+                    }
+                }
+            }
+
+            // 2. Fallback to VRM 0.X (extensions.VRM.materialProperties)
+            if let Some(vrm_0) = gltf_json
+                .as_ref()
+                .and_then(|j| j.get("extensions"))
+                .and_then(|e| e.get("VRM"))
+            {
+                if let Some(mat_props) = vrm_0.get("materialProperties").and_then(|p| p.as_array()) {
+                    // Match by material name or by index
+                    let prop_opt = mat_props.iter().find(|p| {
+                        p.get("name").and_then(|n| n.as_str()) == Some(&name)
+                    }).or_else(|| mat_props.get(mat_idx));
+
+                    if let Some(prop) = prop_opt {
+                        let fprops = prop.get("floatProperties");
+                        let vprops = prop.get("vectorProperties");
+                        let tprops = prop.get("textureProperties");
+
+                        if let Some(sc) = vprops.and_then(|v| v.get("_ShadeColor")).and_then(|a| a.as_array()) {
+                            if sc.len() >= 3 {
+                                shade_color_factor = [
+                                    sc[0].as_f64().unwrap_or(1.0) as f32,
+                                    sc[1].as_f64().unwrap_or(1.0) as f32,
+                                    sc[2].as_f64().unwrap_or(1.0) as f32,
+                                ];
+                            }
+                        }
+
+                        // VRM 0.X to VRM 1.0 MToon formula conversion:
+                        // shadingShift = -_ShadeShift + (1.0 - _ShadeToony) * _ShadingGradeRate
+                        // Three.js VRM0 parser converts:
+                        // shift = -_ShadeShift, toony = _ShadeToony
+                        let s_shift = fprops.and_then(|f| f.get("_ShadeShift")).and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                        let s_toony = fprops.and_then(|f| f.get("_ShadeToony")).and_then(|v| v.as_f64()).unwrap_or(0.9) as f32;
+                        shading_shift = -s_shift;
+                        shading_toony = s_toony;
+
+                        if let Some(st_idx) = tprops.and_then(|t| t.get("_ShadeTexture")).and_then(|i| i.as_u64()) {
+                            if let Some(tex) = document.textures().nth(st_idx as usize) {
+                                shade_texture = extract_image_rgba(tex.source(), &buffers, &mut image_cache);
+                            }
+                        }
+
+                        if let Some(mt_idx) = tprops.and_then(|t| t.get("_SphereAdd")).and_then(|i| i.as_u64()) {
+                            if let Some(tex) = document.textures().nth(mt_idx as usize) {
+                                matcap_texture = extract_image_rgba(tex.source(), &buffers, &mut image_cache);
+                            }
                         }
                     }
                 }

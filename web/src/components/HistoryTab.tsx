@@ -120,7 +120,7 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h2 class="text-xl sm:text-2xl font-heading tracking-wide">
+              <h2 class="font-heading tracking-wide">
                 Chat History
               </h2>
               <span class="text-xs font-mono px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan font-bold">
@@ -225,7 +225,7 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
         <div class="md:col-span-3 bg-theme-surface border border-theme-border p-4 space-y-4 min-h-[400px]">
           <div class="flex items-center justify-between pb-3 border-b border-theme-border">
             <div class="flex items-center gap-2">
-              <h3 class="text-base font-bold text-theme-text font-heading">
+              <h3 class="text-theme-text font-heading">
                 {selectedDate() ? `Conversation on ${selectedDate()}` : 'Select a date'}
               </h3>
               <Show when={currentHistory()}>

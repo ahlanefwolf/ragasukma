@@ -35,7 +35,7 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
     <div class="space-y-5 animate-in fade-in duration-200">
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-5">
         <div class="flex items-center justify-between">
-          <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2">
+          <h3 class="text-theme-cyan flex items-center gap-2">
             <User size={18} />
             Avatar & Model Assets (VRM / 2D)
           </h3>
@@ -109,7 +109,7 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
               <span class={`inline-flex items-center gap-2 px-4 py-2.5 font-bold text-xs transition-all ${
                 props.isUploadingVrm
                   ? 'bg-theme-border text-theme-text/50 cursor-not-allowed'
-                  : 'bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card shadow anime-shadow-green cursor-pointer'
+                  : 'bg-theme-cyan hover:bg-theme-cyan/85 text-theme-card shadow anime-shadow-green cursor-pointer'
               }`}>
                 <Upload size={14} />
                 <span>{props.isUploadingVrm ? 'Uploading & Loading...' : 'Select VRM File (.vrm / .glb)'}</span>
@@ -176,7 +176,7 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
                 <span class={`inline-flex w-full items-center justify-center gap-2 px-4 py-2 font-bold text-xs transition-all ${
                   props.isUploadingAvatar
                     ? 'bg-theme-border text-theme-text/50 cursor-not-allowed'
-                    : 'bg-theme-rose hover:bg-[#997539] text-theme-card shadow cursor-pointer'
+                    : 'bg-theme-rose hover:bg-theme-rose/85 text-theme-card shadow cursor-pointer'
                 }`}>
                   <Upload size={14} />
                   <span>{props.isUploadingAvatar ? 'Uploading...' : `Upload PNG/JPG for '${props.selectedAvatarSlot}'`}</span>

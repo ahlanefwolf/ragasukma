@@ -291,7 +291,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
               </span>
             </div>
 
-            <h2 class="text-xl sm:text-2xl font-heading text-theme-text mt-2">
+            <h2 class="font-heading text-theme-text mt-2">
               Voice Assistant Overlay
             </h2>
           </div>
@@ -312,7 +312,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
               title="Open Chat History Logs"
               class="px-3.5 py-2 text-xs font-semibold bg-theme-bg hover:bg-theme-card text-theme-text hover:text-theme-cyan border border-theme-border flex items-center gap-2 transition-all cursor-pointer"
             >
-              <MessageSquare size={14} class="text-[#B08A4A]" />
+              <MessageSquare size={14} class="text-gi-primary" />
               <span class="hidden sm:inline">Chat History</span>
             </button>
 
@@ -383,7 +383,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2.5">
             <Mic size={20} class="text-theme-cyan" />
-            <h3 class="text-base sm:text-lg font-bold text-theme-text">Realtime Spectrum & Audio Monitor</h3>
+            <h3 class="text-theme-text">Realtime Spectrum & Audio Monitor</h3>
           </div>
 
           <div class="flex items-center gap-2">
@@ -413,11 +413,11 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                   micMuted()
                     ? 'var(--border)'
                     : height > 75
-                    ? '#B08A4A'
+                    ? 'var(--gi-status-warning)'
                     : height > 35
-                    ? '#596B45'
-                    : '#876447',
-                'box-shadow': !micMuted() && height > 35 ? '0 0 8px rgba(89, 107, 69, 0.4)' : 'none',
+                    ? 'var(--gi-primary)'
+                    : 'var(--gi-border-gold)',
+                'box-shadow': !micMuted() && height > 35 ? '0 0 8px rgba(229, 184, 92, 0.45)' : 'none',
                 opacity: micMuted() ? '0.3' : '0.95',
               }}
             />
@@ -434,10 +434,10 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                 width: micMuted() ? '0%' : `${micLevel()}%`,
                 'background-color':
                   micLevel() > 80
-                    ? '#B08A4A'
+                    ? 'var(--gi-status-warning)'
                     : micLevel() > 15
-                    ? '#596B45'
-                    : '#876447',
+                    ? 'var(--gi-primary)'
+                    : 'var(--gi-border-gold)',
               }}
             >
               {micLevel() > 15 && !micMuted() && `${micLevel()}%`}
@@ -485,7 +485,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                   {updateInfo()!.hasUpdate ? <Download size={20} /> : <RefreshCw size={20} />}
                 </span>
                 <div>
-                  <h3 class="text-lg font-bold text-theme-text tracking-wide m-0 leading-tight">
+                  <h3 class="text-theme-text tracking-wide m-0 leading-tight">
                     {updateInfo()!.hasUpdate ? 'Update Available!' : 'System Up-to-Date'}
                   </h3>
                   <div class="flex items-center gap-2 text-xs text-theme-text/70 mt-0.5">
@@ -506,12 +506,12 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             {/* Release Notes / Changelog */}
             <div class="p-5 overflow-y-auto space-y-4 flex-1 text-sm text-theme-text/90">
               <div class="p-3.5 bg-theme-bg border border-theme-border">
-                <h4 class="text-xs font-mono uppercase tracking-wider text-theme-cyan mb-1 font-bold">Release Title</h4>
+                <h4 class="font-mono uppercase tracking-wider text-theme-cyan mb-1">Release Title</h4>
                 <p class="font-bold text-base text-theme-text">{updateInfo()!.releaseName}</p>
               </div>
 
               <div>
-                <h4 class="text-xs font-mono uppercase tracking-wider text-theme-text/70 mb-2 font-bold">Release Notes & Features</h4>
+                <h4 class="font-mono uppercase tracking-wider text-theme-text/70 mb-2">Release Notes & Features</h4>
                 <div class="p-3.5 bg-theme-bg border border-theme-border text-xs font-mono text-theme-text/90 whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto custom-scrollbar">
                   {updateInfo()!.releaseNotes}
                 </div>

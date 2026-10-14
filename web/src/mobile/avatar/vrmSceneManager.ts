@@ -137,15 +137,15 @@ export class VrmSceneManager {
       TWO: THREE.TOUCH.DOLLY_PAN,
     };
 
-    // Lighting Setup Standar MToon / VRM (1:1 Identik Bersih dengan Native UI):
-    // 1. Ambient Light yang cukup terang agar base color MToon merata di seluruh sudut
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.3);
+    // Lighting Setup Standar MToon / VRM (1:1 Identik dengan shader.wgsl di Native UI):
+    // 1. Ambient Light yang seimbang agar tone warna tidak pudar/over-exposed
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     this.scene.add(ambientLight);
 
     // 2. Main Key Light dipasang langsung sebagai anak kamera (Camera Child Light)
-    // Dengan begitu arah cahaya 100% terkunci dari depan kamera ke model tanpa pernah bergeser sudutnya!
-    const light = new THREE.DirectionalLight(0xffffff, 0.9);
-    light.position.set(0.0, 0.2, 1.0);
+    // Sudut cahaya miring dari kanan atas kamera [0.35, 0.45, 0.7] persis seperti di shader.wgsl!
+    const light = new THREE.DirectionalLight(0xffffff, 0.95);
+    light.position.set(0.35, 0.45, 0.7);
     this.camera.add(light);
     this.scene.add(this.camera);
 
@@ -180,8 +180,9 @@ export class VrmSceneManager {
         // VRM 0.X compatibility: Rotate VRM0 models 180 degrees so they face the camera (+Z)
         VRMUtils.rotateVRM0(vrm);
 
-        // Matikan total shading gelap / belang MToon pada seluruh avatar (1:1 Identik Bersih dengan Native UI):
-        // Di Native UI, shade_color_factor = 1.0 dan shading_shift = -1.0 sehingga wajah 100% mulus anime tanpa bayangan kotor
+        // Setup Material MToon (1:1 Identik dengan pipeline WGPU di Native UI):
+        // Mempertahankan parameter material asli (shade texture, shade color, toony factor)
+        // dan mengaktifkan Rim Lighting lembut tanpa merusak / mematikan shading 3D.
         const maxAnisotropy = this.renderer ? this.renderer.capabilities.getMaxAnisotropy() : 1;
 
         vrm.scene.traverse((obj) => {
@@ -195,35 +196,7 @@ export class VrmSceneManager {
             for (const mat of materials) {
               if (!mat) continue;
 
-              // 1. Samakan warna shade dengan warna dasar (100% putih / bersih)
-              if ('shadeColorFactor' in mat && (mat as any).shadeColorFactor) {
-                (mat as any).shadeColorFactor.set(1.0, 1.0, 1.0);
-              }
-
-              // 2. Samakan tekstur bayangan dengan tekstur diffuse utama
-              if ('shadeMultiplyTexture' in mat && 'map' in mat) {
-                (mat as any).shadeMultiplyTexture = (mat as any).map || null;
-              }
-
-              // 3. Dorong batas shading keluar (-1.0 = 100% full lit tanpa cel-shading cutoff kotor)
-              if ('shadingShiftFactor' in mat) {
-                (mat as any).shadingShiftFactor = -1.0;
-              }
-
-              if ('shadingToonyFactor' in mat) {
-                (mat as any).shadingToonyFactor = 0.0;
-              }
-
-              // 4. Samakan pencahayaan ambient di segala sudut normal
-              if ('giEqualizationFactor' in mat) {
-                (mat as any).giEqualizationFactor = 1.0;
-              }
-
-              if ('lightColorAttenuationFactor' in mat) {
-                (mat as any).lightColorAttenuationFactor = 0.0;
-              }
-
-              // 5. Parametric Rim Lighting Halus (1:1 Identik dengan shader.wgsl di @ui: fresnel power 4.5, intensitas lembut)
+              // 1. Parametric Rim Lighting Halus (1:1 dengan shader.wgsl)
               if ('rimFactor' in mat && (mat as any).rimFactor) {
                 (mat as any).rimFactor.set(0.25, 0.25, 0.25);
               }
@@ -240,7 +213,7 @@ export class VrmSceneManager {
                 (mat as any).rimLightingMixFactor = 1.0;
               }
 
-              // 6. Anisotropy filtering untuk ketajaman tekstur saat zoom
+              // 2. Anisotropy filtering untuk ketajaman tekstur saat zoom
               if ('map' in mat && (mat as any).map) {
                 const tex = (mat as any).map as THREE.Texture;
                 tex.anisotropy = Math.min(maxAnisotropy, 4);

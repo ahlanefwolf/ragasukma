@@ -122,7 +122,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
 
   const formatMessageStyle = (msg: string, level: string) => {
     if (level === 'error' || msg.includes('[ERROR]') || msg.includes('[STT Error]') || msg.includes('FAIL')) {
-      return 'text-[#A84B4B] font-semibold';
+      return 'text-gi-status-danger font-semibold';
     }
     if (msg.includes('[User]')) {
       return 'text-theme-cyan font-medium';
@@ -137,7 +137,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
       return 'text-theme-cyan';
     }
     if (msg.includes('[PAUSED]') || msg.includes('[FINISHED]')) {
-      return 'text-[#B08A4A]';
+      return 'text-theme-rose';
     }
     return 'text-theme-text/90';
   };
@@ -154,7 +154,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <h2 class="text-xl sm:text-2xl font-heading tracking-tight text-theme-text leading-none">
+                <h2 class="font-heading tracking-tight text-theme-text leading-none">
                   Live Console & System Logs
                 </h2>
                 <span class="text-xs px-2 py-0.5 font-mono font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
@@ -218,8 +218,8 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
                 onClick={() => setLevelFilter('error')}
                 class={`px-2.5 py-1 text-xs font-semibold transition-all ${
                   levelFilter() === 'error'
-                    ? 'bg-[#A84B4B] text-white font-bold shadow'
-                    : 'text-[#A84B4B] hover:text-[#8B3A3A]'
+                    ? 'bg-gi-status-danger text-white font-bold shadow'
+                    : 'text-gi-status-danger hover:opacity-80'
                 }`}
               >
                 Error
@@ -263,7 +263,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
             {/* Clear Logs */}
             <button
               onClick={handleClearLogs}
-              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-theme-card hover:bg-[#A84B4B]/20 text-[#A84B4B] border border-[#A84B4B]/30 transition-all"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-theme-card hover:bg-gi-status-danger/20 text-gi-status-danger border border-gi-status-danger/30 transition-all"
             >
               <Trash2 size={13} />
               <span>Clear</span>
@@ -314,7 +314,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
                   <span
                     class={`text-xs uppercase font-bold px-1.5 py-0.5 select-none shrink-0 ${
                       entry.level === 'error'
-                        ? 'bg-[#A84B4B]/20 text-[#A84B4B] border border-[#A84B4B]/40'
+                        ? 'bg-gi-status-danger/20 text-gi-status-danger border border-gi-status-danger/40'
                         : 'bg-theme-cyan/10 text-theme-cyan'
                     }`}
                   >

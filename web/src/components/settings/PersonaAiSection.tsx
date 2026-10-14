@@ -70,7 +70,7 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
     <div class="space-y-5 animate-in fade-in duration-200">
       {/* 1. Persona & Identity */}
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
-        <h3 class="text-base sm:text-lg font-bold text-theme-cyan flex items-center gap-2">
+        <h3 class="text-theme-cyan flex items-center gap-2">
           <UserCheck size={18} />
           1. Persona & Assistant Identity
         </h3>
@@ -140,7 +140,7 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
       {/* 2. AI Brain (LLM Provider) */}
       <div class="p-4 sm:p-5 bg-theme-surface border border-theme-border space-y-4">
         <div class="flex items-center justify-between flex-wrap gap-2">
-          <h3 class="text-base sm:text-lg font-bold text-theme-rose flex items-center gap-2">
+          <h3 class="text-theme-rose flex items-center gap-2">
             <Brain size={18} />
             2. AI Brain (LLM Provider)
           </h3>

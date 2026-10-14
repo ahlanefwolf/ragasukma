@@ -30,7 +30,7 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
             <div class="flex items-center gap-2.5">
               <Settings2 size={22} class="text-theme-cyan stroke-[2.2]" />
               <div>
-                <h3 class="text-sm font-bold text-theme-text font-heading leading-tight">
+                <h3 class="text-theme-text font-heading leading-tight">
                   Companion Settings
                 </h3>
                 <p class="text-[11px] text-theme-muted font-mono">

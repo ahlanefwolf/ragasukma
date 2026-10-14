@@ -12,7 +12,7 @@ export const CameraGuide: Component = () => {
   return (
     <div class="bg-theme-bg p-3 border border-theme-border space-y-2">
       <div class="flex items-center justify-between">
-        <h3 class="text-sm font-bold text-theme-cyan flex items-center gap-1.5">
+        <h3 class="text-theme-cyan flex items-center gap-1.5">
           <Compass size={14} />
           Avatar Navigation Guide
         </h3>

@@ -15,7 +15,7 @@ export const MusicDownloadCard: Component<MusicDownloadCardProps> = (props) => {
     <Show when={props.available}>
       <div class="border border-theme-border bg-theme-surface overflow-hidden">
         <div class="px-4 py-3 border-b border-theme-border">
-          <h3 class="text-sm font-bold text-theme-text/80">Search & Download</h3>
+          <h3 class="text-theme-text/80">Search & Download</h3>
         </div>
         <div class="p-4 space-y-3">
           <div class="flex gap-2">
@@ -57,8 +57,8 @@ export const MusicDownloadCard: Component<MusicDownloadCardProps> = (props) => {
             <div
               class={`flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold border ${
                 props.downloadResult()!.success
-                  ? 'bg-theme-cyan/15 border-theme-cyan/35 text-[#29483A]'
-                  : 'bg-[#A84B4B]/10 border-[#A84B4B]/30 text-[#A84B4B]'
+                  ? 'bg-theme-cyan/15 border-theme-cyan/35 text-theme-cyan'
+                  : 'bg-gi-status-danger/10 border-gi-status-danger/30 text-gi-status-danger'
               }`}
             >
               <Show

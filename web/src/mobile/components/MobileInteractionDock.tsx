@@ -125,8 +125,8 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
           style={{ "border-radius": "9999px" }}
           class={`w-14 h-14 border flex items-center justify-center transition-all shadow-md active:scale-90 select-none ${
             props.isListening
-              ? 'bg-rose-500 text-white border-rose-300 animate-pulse shadow-lg scale-105'
-              : 'bg-theme-cyan text-theme-bg border-theme-cyan hover:opacity-90 shadow-lg'
+              ? 'bg-gi-status-danger text-white border-gi-status-danger animate-pulse shadow-lg scale-105'
+              : 'bg-gi-primary text-gi-primary-foreground border-gi-primary hover:bg-gi-primary-hover shadow-lg'
           }`}
           title={props.isListening ? 'Stop Listening' : 'Push to Talk (PTT)'}
         >

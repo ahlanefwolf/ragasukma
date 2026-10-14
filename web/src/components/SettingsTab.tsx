@@ -203,7 +203,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           <span class="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
             System & Engine Preferences
           </span>
-          <h2 class="text-2xl sm:text-3xl font-heading tracking-tight text-theme-text mt-2">
+          <h2 class="font-heading tracking-tight text-theme-text mt-2">
             System Settings
           </h2>
           <p class="text-xs sm:text-sm text-theme-text/70 mt-1 max-w-xl">
@@ -214,7 +214,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
         <button
           type="submit"
           disabled={isSaving()}
-          class="w-full sm:w-auto px-6 py-3 font-bold text-sm bg-theme-cyan hover:bg-[#4a5a3a] text-theme-card shadow-md anime-shadow-green flex items-center justify-center gap-2 transition-all shrink-0"
+          class="w-full sm:w-auto px-6 py-3 font-bold text-sm bg-theme-cyan hover:bg-theme-cyan/85 text-theme-card shadow-md anime-shadow-green flex items-center justify-center gap-2 transition-all shrink-0"
         >
           <Save size={16} />
           <span>{isSaving() ? 'Saving...' : 'Save All'}</span>

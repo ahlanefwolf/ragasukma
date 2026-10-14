@@ -59,29 +59,29 @@ export const getStatusBadge = (state: AvatarState) => {
       return {
         icon: Volume2,
         label: 'Speaking',
-        color: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
-        glow: 'drop-shadow-[0_0_20px_rgba(236,72,153,0.45)]',
+        color: 'bg-gi-status-danger/20 text-gi-status-danger border-gi-status-danger/30',
+        glow: 'drop-shadow-[0_0_20px_rgba(224,83,69,0.45)]',
       };
     case 'listening':
       return {
         icon: Mic,
         label: 'Listening',
-        color: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
-        glow: 'drop-shadow-[0_0_20px_rgba(14,165,233,0.45)]',
+        color: 'bg-gi-status-info/20 text-gi-status-info border-gi-status-info/30',
+        glow: 'drop-shadow-[0_0_20px_rgba(62,153,224,0.45)]',
       };
     case 'thinking':
       return {
         icon: Brain,
         label: 'Thinking',
-        color: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-        glow: 'drop-shadow-[0_0_20px_rgba(245,158,11,0.45)]',
+        color: 'bg-gi-status-warning/20 text-gi-status-warning border-gi-status-warning/30',
+        glow: 'drop-shadow-[0_0_20px_rgba(224,159,62,0.45)]',
       };
     default:
       return {
         icon: Sparkles,
         label: 'Standby',
-        color: 'bg-theme-cyan/20 text-theme-cyan border-theme-cyan/30',
-        glow: 'drop-shadow-[0_0_12px_rgba(34,211,238,0.25)]',
+        color: 'bg-gi-primary/20 text-gi-primary border-gi-primary/30',
+        glow: 'drop-shadow-[0_0_12px_rgba(229,184,92,0.35)]',
       };
   }
 };

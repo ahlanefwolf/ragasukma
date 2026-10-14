@@ -54,7 +54,7 @@ export const MobileFloatingMusic: Component<MobileFloatingMusicProps> = (props) 
           <button
             type="button"
             onClick={props.onStop}
-            class="p-2 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-muted hover:text-rose-500 transition-colors active:scale-95 shadow-sm"
+            class="p-2 bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-muted hover:text-gi-status-danger transition-colors active:scale-95 shadow-sm"
             title="Stop Music"
           >
             <Square size={13} />

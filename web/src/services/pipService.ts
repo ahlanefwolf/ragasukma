@@ -12,6 +12,20 @@ import {
   onPlayStateChange,
 } from '../playerStore';
 
+const GI_THEME = {
+  canvas: '#0F1218',
+  surface: '#181D26',
+  surfaceElevated: '#222936',
+  borderSubtle: '#333C4D',
+  borderGold: '#9E8046',
+  textPrimary: '#EDEAE1',
+  textSecondary: '#9FA7B8',
+  textMuted: '#5F6675',
+  primary: '#E5B85C',
+  primaryHover: '#F3CE7A',
+  danger: '#E05345',
+} as const;
+
 class PipManager {
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
@@ -183,11 +197,11 @@ class PipManager {
     // ── 1. BACKGROUND & AMBIENT GLOW ──
     ctx.clearRect(0, 0, w, h);
 
-    // Warm Cream / Light Earth Tone Base Gradient
+    // Genshin Deep Canvas Gradient
     const bgGrad = ctx.createLinearGradient(0, 0, w, h);
-    bgGrad.addColorStop(0, '#FAF7F2');
-    bgGrad.addColorStop(0.5, '#F5F0E6');
-    bgGrad.addColorStop(1, '#EBE4D5');
+    bgGrad.addColorStop(0, GI_THEME.canvas);
+    bgGrad.addColorStop(0.5, GI_THEME.surface);
+    bgGrad.addColorStop(1, GI_THEME.surfaceElevated);
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
@@ -205,15 +219,15 @@ class PipManager {
       ctx.restore();
     } else {
       const orb = ctx.createRadialGradient(90, h / 2, 10, 90, h / 2, 160);
-      orb.addColorStop(0, 'rgba(89, 107, 69, 0.15)');
-      orb.addColorStop(1, 'rgba(89, 107, 69, 0)');
+      orb.addColorStop(0, 'rgba(229, 184, 92, 0.25)');
+      orb.addColorStop(1, 'rgba(15, 18, 24, 0)');
       ctx.fillStyle = orb;
       ctx.fillRect(0, 0, w, h);
     }
 
     // Crisp Window Frame Border
     ctx.save();
-    ctx.strokeStyle = '#BDB094';
+    ctx.strokeStyle = GI_THEME.borderSubtle;
     ctx.lineWidth = 1;
     ctx.strokeRect(6, 6, w - 12, h - 12);
     ctx.restore();
@@ -225,11 +239,11 @@ class PipManager {
 
     // Drop shadow behind cover
     ctx.save();
-    ctx.shadowColor = 'rgba(41, 72, 58, 0.15)';
+    ctx.shadowColor = 'rgba(15, 18, 24, 0.4)';
     ctx.shadowBlur = 12;
     ctx.shadowOffsetX = 2;
     ctx.shadowOffsetY = 4;
-    ctx.fillStyle = '#D8CEB5';
+    ctx.fillStyle = GI_THEME.surfaceElevated;
     ctx.fillRect(coverX, coverY, coverSize, coverSize);
     ctx.restore();
 
@@ -243,12 +257,12 @@ class PipManager {
       ctx.drawImage(this.currentCoverImage, coverX, coverY, coverSize, coverSize);
     } else {
       const cardGrad = ctx.createLinearGradient(coverX, coverY, coverX + coverSize, coverY + coverSize);
-      cardGrad.addColorStop(0, '#EBE4D5');
-      cardGrad.addColorStop(1, '#D8CEB5');
+      cardGrad.addColorStop(0, GI_THEME.surface);
+      cardGrad.addColorStop(1, GI_THEME.surfaceElevated);
       ctx.fillStyle = cardGrad;
       ctx.fillRect(coverX, coverY, coverSize, coverSize);
 
-      ctx.fillStyle = '#596B45';
+      ctx.fillStyle = GI_THEME.primary;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
@@ -267,7 +281,7 @@ class PipManager {
       ctx.fill();
       ctx.restore();
 
-      ctx.fillStyle = '#634936';
+      ctx.fillStyle = GI_THEME.textPrimary;
       ctx.font = '600 12px "Plus Jakarta Sans", sans-serif';
       ctx.fillText('Ragasukma', coverX + coverSize / 2, coverY + coverSize / 2 + 24);
     }
@@ -285,9 +299,9 @@ class PipManager {
       const eqH = 26;
       const eqX = coverX + coverSize - eqW - 6;
       const eqY = coverY + coverSize - eqH - 6;
-      ctx.fillStyle = 'rgba(245, 240, 230, 0.92)';
+      ctx.fillStyle = 'rgba(15, 18, 24, 0.88)';
       ctx.fillRect(eqX, eqY, eqW, eqH);
-      ctx.strokeStyle = '#BDB094';
+      ctx.strokeStyle = GI_THEME.borderGold;
       ctx.lineWidth = 1;
       ctx.strokeRect(eqX, eqY, eqW, eqH);
 
@@ -296,15 +310,15 @@ class PipManager {
         const barH = 4 + Math.abs(Math.sin(now * 5 + i * 1.3)) * 14;
         const bX = eqX + 6 + i * 9;
         const bY = eqY + eqH - 5 - barH;
-        ctx.fillStyle = i % 2 === 0 ? '#596B45' : '#B08A4A';
+        ctx.fillStyle = i % 2 === 0 ? GI_THEME.primary : GI_THEME.borderGold;
         ctx.fillRect(bX, bY, 4, barH);
       }
     }
     ctx.restore();
 
-    // Crisp Border Stroke on Cover
+    // Crisp Border Stroke on Cover (Gold Ornaments)
     ctx.save();
-    ctx.strokeStyle = isPlaying ? '#596B45' : '#BDB094';
+    ctx.strokeStyle = isPlaying ? GI_THEME.primary : GI_THEME.borderSubtle;
     ctx.lineWidth = 1;
     ctx.strokeRect(coverX, coverY, coverSize, coverSize);
     ctx.restore();
@@ -327,20 +341,20 @@ class PipManager {
     const badgeW = badgePaddingX + dotSize + dotGap + Math.ceil(textMetrics.width) + badgePaddingX;
 
     // Badge Card Background & Clean Border
-    ctx.fillStyle = isPlaying ? 'rgba(89, 107, 69, 0.12)' : 'rgba(176, 138, 74, 0.12)';
+    ctx.fillStyle = isPlaying ? 'rgba(229, 184, 92, 0.18)' : 'rgba(224, 83, 69, 0.18)';
     ctx.fillRect(contentX, badgeY, badgeW, badgeH);
-    ctx.strokeStyle = isPlaying ? '#596B45' : '#B08A4A';
+    ctx.strokeStyle = isPlaying ? GI_THEME.primary : GI_THEME.danger;
     ctx.lineWidth = 1;
     ctx.strokeRect(contentX, badgeY, badgeW, badgeH);
 
     // Indicator Dot (Centered Vertically)
     const dotX = contentX + badgePaddingX;
     const dotY = Math.round(badgeY + (badgeH - dotSize) / 2);
-    ctx.fillStyle = isPlaying ? '#596B45' : '#B08A4A';
+    ctx.fillStyle = isPlaying ? GI_THEME.primary : GI_THEME.danger;
     ctx.fillRect(dotX, dotY, dotSize, dotSize);
 
     // Status Text (Crisp Math Baseline)
-    ctx.fillStyle = isPlaying ? '#29483A' : '#634936';
+    ctx.fillStyle = isPlaying ? GI_THEME.textPrimary : GI_THEME.danger;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText(statusText, dotX + dotSize + dotGap, Math.round(badgeY + badgeH / 2) + 0.5);
@@ -349,7 +363,7 @@ class PipManager {
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     ctx.font = '600 11px "JetBrains Mono", monospace';
-    ctx.fillStyle = 'rgba(41, 72, 58, 0.5)';
+    ctx.fillStyle = GI_THEME.textSecondary;
     ctx.fillText('RAGASUKMA • PIP', contentX + contentW, Math.round(badgeY + badgeH / 2));
     ctx.restore();
 
@@ -357,10 +371,10 @@ class PipManager {
     const title = track?.title || 'Ragasukma Music Player';
     const artist = track?.uploader || 'YouTube Desktop Audio Stream';
 
-    // Title
+    // Title (Lora style heading)
     ctx.save();
-    ctx.fillStyle = '#29483A';
-    ctx.font = 'bold 18px "Plus Jakarta Sans", sans-serif';
+    ctx.fillStyle = GI_THEME.textPrimary;
+    ctx.font = '600 20px "Lora", "Plus Jakarta Sans", serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
 
@@ -369,7 +383,7 @@ class PipManager {
     ctx.fillText(cleanTitle, contentX, 72);
 
     // Artist
-    ctx.fillStyle = '#876447';
+    ctx.fillStyle = GI_THEME.textSecondary;
     ctx.font = '600 13px "Plus Jakarta Sans", sans-serif';
     const maxArtistLen = 44;
     const cleanArtist = artist.length > maxArtistLen ? artist.substring(0, maxArtistLen - 2) + '...' : artist;
@@ -387,18 +401,18 @@ class PipManager {
 
     // Background Bar
     ctx.save();
-    ctx.fillStyle = '#D8CEB5';
+    ctx.fillStyle = GI_THEME.surface;
     ctx.fillRect(barX, barY, barW, barH);
-    ctx.strokeStyle = '#BDB094';
+    ctx.strokeStyle = GI_THEME.borderSubtle;
     ctx.lineWidth = 1;
     ctx.strokeRect(barX, barY, barW, barH);
 
-    // Filled Gradient Bar
+    // Filled Gradient Bar (Wish Gold / Primary)
     if (pct > 0) {
       const progGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-      progGrad.addColorStop(0, '#596B45');
-      progGrad.addColorStop(0.5, '#876447');
-      progGrad.addColorStop(1, '#B08A4A');
+      progGrad.addColorStop(0, GI_THEME.borderGold);
+      progGrad.addColorStop(0.5, GI_THEME.primary);
+      progGrad.addColorStop(1, GI_THEME.primaryHover);
 
       ctx.fillStyle = progGrad;
       ctx.fillRect(barX, barY, barW * pct, barH);
@@ -406,14 +420,14 @@ class PipManager {
       // Square Knob
       const knopX = barX + barW * pct - 3.5;
       const knopY = barY + barH / 2 - 3.5;
-      ctx.fillStyle = '#29483A';
+      ctx.fillStyle = GI_THEME.textPrimary;
       ctx.fillRect(knopX, knopY, 7, 7);
     }
     ctx.restore();
 
     // Time Indicators
     ctx.save();
-    ctx.fillStyle = '#634936';
+    ctx.fillStyle = GI_THEME.textSecondary;
     ctx.font = '600 12px "JetBrains Mono", monospace';
     ctx.textBaseline = 'top';
 
@@ -429,7 +443,7 @@ class PipManager {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'bottom';
     ctx.font = '500 11px "Plus Jakarta Sans", sans-serif';
-    ctx.fillStyle = 'rgba(41, 72, 58, 0.45)';
+    ctx.fillStyle = GI_THEME.textMuted;
     ctx.fillText('Press Space / Use OS Media Controls to Play & Pause', contentX, h - 18);
     ctx.restore();
 

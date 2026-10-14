@@ -73,10 +73,10 @@ export class WebXRArManager {
     const group = new THREE.Group();
     group.visible = false;
 
-    // 1. Cincin Luar (Outer Ring)
+    // 1. Cincin Luar (Outer Ring - Wish Gold)
     const ringGeo = new THREE.RingGeometry(0.12, 0.145, 48);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x22d3ee,
+      color: 0xe5b85c,
       opacity: 0.85,
       transparent: true,
       side: THREE.DoubleSide,
@@ -85,10 +85,10 @@ export class WebXRArManager {
     const ringMesh = new THREE.Mesh(ringGeo, ringMat);
     group.add(ringMesh);
 
-    // 2. Inner ambient ring
+    // 2. Inner ambient ring (Border Gold)
     const innerRingGeo = new THREE.RingGeometry(0.045, 0.055, 32);
     const innerRingMat = new THREE.MeshBasicMaterial({
-      color: 0x06b6d4,
+      color: 0x9e8046,
       opacity: 0.45,
       transparent: true,
       side: THREE.DoubleSide,
@@ -97,10 +97,10 @@ export class WebXRArManager {
     const innerRingMesh = new THREE.Mesh(innerRingGeo, innerRingMat);
     group.add(innerRingMesh);
 
-    // 3. Center focal dot
+    // 3. Center focal dot (Light Gold)
     const dotGeo = new THREE.CircleGeometry(0.018, 24);
     const dotMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
+      color: 0xf3ce7a,
       opacity: 0.95,
       transparent: true,
       side: THREE.DoubleSide,
