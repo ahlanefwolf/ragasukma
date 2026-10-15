@@ -25,6 +25,9 @@ pub struct Renderer {
     pub config: wgpu::SurfaceConfiguration,
     pub size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
+    render_pipeline_double_sided: wgpu::RenderPipeline,
+    render_pipeline_transparent: wgpu::RenderPipeline,
+    render_pipeline_transparent_double_sided: wgpu::RenderPipeline,
 
     msaa_texture: wgpu::Texture,
     msaa_texture_view: wgpu::TextureView,
@@ -42,6 +45,8 @@ pub struct Renderer {
     model_data: Option<Box<VrmModelData>>,
     gpu_primitives: Vec<GpuPrimitive>,
     gpu_materials: Vec<GpuMaterial>,
+    opaque_primitive_indices: Vec<usize>,
+    transparent_primitive_indices: Vec<usize>,
 
     // Referensi bounding box model
     model_min_y: f32,
@@ -189,6 +194,9 @@ impl Renderer {
             config,
             size,
             render_pipeline: pipeline_3d.render_pipeline,
+            render_pipeline_double_sided: pipeline_3d.render_pipeline_double_sided,
+            render_pipeline_transparent: pipeline_3d.render_pipeline_transparent,
+            render_pipeline_transparent_double_sided: pipeline_3d.render_pipeline_transparent_double_sided,
             msaa_texture,
             msaa_texture_view,
             depth_texture,
@@ -204,6 +212,8 @@ impl Renderer {
             model_data: None,
             gpu_primitives: Vec::new(),
             gpu_materials: Vec::new(),
+            opaque_primitive_indices: Vec::new(),
+            transparent_primitive_indices: Vec::new(),
             model_min_y: 0.0,
             model_max_y: 1.6,
             model_max_extent_x: 0.7,
@@ -356,6 +366,8 @@ impl Renderer {
         }
         self.gpu_primitives.clear();
         self.gpu_materials.clear();
+        self.opaque_primitive_indices.clear();
+        self.transparent_primitive_indices.clear();
 
         let loaded = pipeline_3d::load_vrm_model_to_gpu(
             &self.device,
@@ -369,6 +381,8 @@ impl Renderer {
         self.model_max_extent_x = loaded.max_extent_x;
         self.gpu_materials = loaded.gpu_materials;
         self.gpu_primitives = loaded.gpu_primitives;
+        self.opaque_primitive_indices = loaded.opaque_primitive_indices;
+        self.transparent_primitive_indices = loaded.transparent_primitive_indices;
         self.model_data = Some(loaded.model);
     }
 
@@ -546,11 +560,48 @@ impl Renderer {
                     render_pass.draw(0..3, 0..1);
                 }
             } else {
-                render_pass.set_pipeline(&self.render_pipeline);
                 render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
                 render_pass.set_bind_group(1, &self.bone_bind_group, &[]);
 
-                for prim in &self.gpu_primitives {
+                // Pass 1: Render Opaque primitives with depth writing enabled (sorted by render queue)
+                let mut current_pipeline: Option<*const wgpu::RenderPipeline> = None;
+                for &prim_idx in &self.opaque_primitive_indices {
+                    let prim = &self.gpu_primitives[prim_idx];
+                    let target_pipeline = if prim.double_sided {
+                        &self.render_pipeline_double_sided
+                    } else {
+                        &self.render_pipeline
+                    };
+                    let target_ptr = target_pipeline as *const _;
+                    if current_pipeline != Some(target_ptr) {
+                        render_pass.set_pipeline(target_pipeline);
+                        current_pipeline = Some(target_ptr);
+                    }
+                    if let Some(mat) = self.gpu_materials.get(prim.material_index) {
+                        render_pass.set_bind_group(2, &mat.bind_group, &[]);
+                        render_pass.set_vertex_buffer(0, prim.vertex_buffer.slice(..));
+                        render_pass.set_index_buffer(
+                            prim.index_buffer.slice(..),
+                            wgpu::IndexFormat::Uint32,
+                        );
+                        render_pass.draw_indexed(0..prim.index_count, 0, 0..1);
+                    }
+                }
+
+                // Pass 2: Render Transparent primitives with depth writing disabled (sorted by render queue)
+                let mut current_trans_pipeline: Option<*const wgpu::RenderPipeline> = None;
+                for &prim_idx in &self.transparent_primitive_indices {
+                    let prim = &self.gpu_primitives[prim_idx];
+                    let target_pipeline = if prim.double_sided {
+                        &self.render_pipeline_transparent_double_sided
+                    } else {
+                        &self.render_pipeline_transparent
+                    };
+                    let target_ptr = target_pipeline as *const _;
+                    if current_trans_pipeline != Some(target_ptr) {
+                        render_pass.set_pipeline(target_pipeline);
+                        current_trans_pipeline = Some(target_ptr);
+                    }
                     if let Some(mat) = self.gpu_materials.get(prim.material_index) {
                         render_pass.set_bind_group(2, &mat.bind_group, &[]);
                         render_pass.set_vertex_buffer(0, prim.vertex_buffer.slice(..));

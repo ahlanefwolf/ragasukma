@@ -194,10 +194,12 @@ async fn handle_ws_socket(socket: WebSocket, shared: Arc<Mutex<ServerSharedState
             // 4. Model Status Broadcast
             let current_model_status = crate::services::model_manager_service::get_model_status();
             let status_sig = format!(
-                "{}:{}:{:.1}",
+                "{}:{}:{:.1}:{}:{:?}",
                 current_model_status.status,
                 current_model_status.downloaded_bytes,
-                current_model_status.percent
+                current_model_status.percent,
+                current_model_status.message,
+                current_model_status.model_name
             );
             if status_sig != ws_last_model_status_msg {
                 ws_last_model_status_msg = status_sig;

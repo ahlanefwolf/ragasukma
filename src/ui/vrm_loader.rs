@@ -28,6 +28,7 @@ pub struct MeshPrimitiveData {
     pub node_index: usize,
     pub mesh_index: usize,
     pub morph_targets: Vec<MorphTargetData>,
+    pub last_target_weights: Vec<f32>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -67,7 +68,10 @@ pub struct MaterialData {
     pub shading_toony: f32,
     pub alpha_cutoff: f32,
     pub double_sided: bool,
+    pub is_unlit: bool,
     pub category: MaterialCategory,
+    pub is_transparent: bool,
+    pub render_queue: i32,
 }
 
 #[derive(Clone, Debug)]
@@ -256,9 +260,17 @@ impl VrmModelData {
 
             let pbr = mat.pbr_metallic_roughness();
             let mut base_color_factor = pbr.base_color_factor();
-            let double_sided = mat.double_sided();
+            let mut double_sided = mat.double_sided();
+            let mut is_blend = matches!(mat.alpha_mode(), gltf::material::AlphaMode::Blend);
+            let mut render_queue: i32 = if is_blend { 3000 } else { 2000 };
 
-            let alpha_cutoff = match mat.alpha_mode() {
+            let is_unlit = json_materials
+                .and_then(|arr| arr.get(mat_idx))
+                .and_then(|m| m.get("extensions"))
+                .and_then(|e| e.get("KHR_materials_unlit"))
+                .is_some();
+
+            let mut alpha_cutoff = match mat.alpha_mode() {
                 gltf::material::AlphaMode::Opaque => 0.0,
                 gltf::material::AlphaMode::Mask => mat.alpha_cutoff().unwrap_or(0.5),
                 gltf::material::AlphaMode::Blend => 0.005,
@@ -271,9 +283,11 @@ impl VrmModelData {
                 None
             };
 
-            // If a material has no base texture and base_color_factor alpha is 0.0,
-            // fallback alpha to 1.0 so untextured geometry is not discarded by alpha cutoff
-            if base_color_texture.is_none() && base_color_factor[3] <= 0.001 {
+            // For OPAQUE materials, glTF 2.0 spec mandates that alpha is ignored and treated as 1.0.
+            // For BLEND/MASK materials, preserve the original base_color_factor alpha so that
+            // intentionally transparent helper quads (e.g. eye_touming / eye_bantou with alpha 0.0)
+            // stay completely transparent and are not rendered as solid white occluders.
+            if matches!(mat.alpha_mode(), gltf::material::AlphaMode::Opaque) {
                 base_color_factor[3] = 1.0;
             }
 
@@ -299,6 +313,17 @@ impl VrmModelData {
                     .get("extensions")
                     .and_then(|e| e.get("VRMC_materials_mtoon"))
                 {
+                    if let Some(cm) = mtoon_json.get("cullMode").and_then(|v| v.as_str()) {
+                        if cm.eq_ignore_ascii_case("off") {
+                            double_sided = true;
+                        }
+                    }
+                    if let Some(q_offset) = mtoon_json
+                        .get("renderQueueOffsetNumber")
+                        .and_then(|v| v.as_i64())
+                    {
+                        render_queue += q_offset as i32;
+                    }
                     if let Some(sc) = mtoon_json
                         .get("shadeColorFactor")
                         .and_then(|v| v.as_array())
@@ -368,9 +393,95 @@ impl VrmModelData {
                     }).or_else(|| mat_props.get(mat_idx));
 
                     if let Some(prop) = prop_opt {
+                        if let Some(rq) = prop.get("renderQueue").and_then(|v| v.as_i64()) {
+                            if rq > 0 {
+                                render_queue = rq as i32;
+                            }
+                        }
                         let fprops = prop.get("floatProperties");
                         let vprops = prop.get("vectorProperties");
                         let tprops = prop.get("textureProperties");
+
+                        // VRM 0.X _CullMode (0 = Off/DoubleSided, 1 = Front, 2 = Back)
+                        if let Some(cm) = fprops.and_then(|f| f.get("_CullMode")).and_then(|v| v.as_f64()) {
+                            if (cm as i32) == 0 {
+                                double_sided = true;
+                            }
+                        }
+
+                        // VRM 0.X blend mode mapping:
+                        // UniVRM 0.X exporter often bugs and marks ALL glTF materials as 'alphaMode: BLEND'.
+                        // The actual authoritative blend mode is stored in floatProperties._BlendMode:
+                        // 0 = Opaque, 1 = Cutout (AlphaTest), 2 = Transparent, 3 = TransparentWithZWrite
+                        let blend_mode = fprops
+                            .and_then(|f| f.get("_BlendMode"))
+                            .and_then(|v| v.as_f64())
+                            .map(|b| b as i32);
+
+                        if let Some(bm) = blend_mode {
+                            match bm {
+                                0 => {
+                                    is_blend = false;
+                                    alpha_cutoff = 0.0;
+                                    base_color_factor[3] = 1.0;
+                                    if render_queue <= 0 {
+                                        render_queue = 2000;
+                                    }
+                                }
+                                1 => {
+                                    is_blend = false;
+                                    let cutoff = fprops
+                                        .and_then(|f| f.get("_Cutoff"))
+                                        .and_then(|v| v.as_f64())
+                                        .unwrap_or(0.5) as f32;
+                                    alpha_cutoff = cutoff;
+                                    if render_queue <= 0 {
+                                        render_queue = 2450;
+                                    }
+                                }
+                                2 => {
+                                    is_blend = true;
+                                    alpha_cutoff = 0.005;
+                                    if render_queue <= 0 {
+                                        render_queue = 3000;
+                                    }
+                                }
+                                3 => {
+                                    is_blend = true;
+                                    alpha_cutoff = 0.005;
+                                    if render_queue <= 0 {
+                                        render_queue = 2500;
+                                    }
+                                }
+                                _ => {}
+                            }
+                        } else if render_queue < 2450 {
+                            is_blend = false;
+                            alpha_cutoff = 0.0;
+                            base_color_factor[3] = 1.0;
+                        } else if render_queue < 2500 {
+                            is_blend = false;
+                            let cutoff = fprops
+                                .and_then(|f| f.get("_Cutoff"))
+                                .and_then(|v| v.as_f64())
+                                .unwrap_or(0.5) as f32;
+                            alpha_cutoff = cutoff;
+                        } else {
+                            is_blend = true;
+                            alpha_cutoff = 0.005;
+                        }
+
+                        if let Some(col) = vprops.and_then(|v| v.get("_Color")).and_then(|a| a.as_array()) {
+                            if col.len() >= 4 {
+                                let c_alpha = col[3].as_f64().unwrap_or(1.0) as f32;
+                                base_color_factor = [
+                                    col[0].as_f64().unwrap_or(1.0) as f32,
+                                    col[1].as_f64().unwrap_or(1.0) as f32,
+                                    col[2].as_f64().unwrap_or(1.0) as f32,
+                                    if !is_blend { 1.0 } else { c_alpha },
+                                ];
+                            }
+                        }
 
                         if let Some(sc) = vprops.and_then(|v| v.get("_ShadeColor")).and_then(|a| a.as_array()) {
                             if sc.len() >= 3 {
@@ -406,13 +517,21 @@ impl VrmModelData {
                 }
             }
 
+            let is_transparent = if is_vrm_0 {
+                is_blend && render_queue >= 2500
+            } else {
+                is_blend || render_queue >= 2500
+            };
+
             println!(
-                "   [Material] '{}' -> BaseTex: {}, ShadeTex: {}, EmissiveTex: {}, MatcapTex: {}",
+                "   [Material] '{}' -> BaseTex: {}, ShadeTex: {}, EmissiveTex: {}, MatcapTex: {}, Queue: {}, Transparent: {}",
                 name,
                 base_color_texture.is_some(),
                 shade_texture.is_some(),
                 emissive_texture.is_some(),
-                matcap_texture.is_some()
+                matcap_texture.is_some(),
+                render_queue,
+                is_transparent
             );
 
             materials.push(MaterialData {
@@ -429,7 +548,10 @@ impl VrmModelData {
                 shading_toony,
                 alpha_cutoff,
                 double_sided,
+                is_unlit,
                 category,
+                is_transparent,
+                render_queue,
             });
         }
 
@@ -606,16 +728,67 @@ impl VrmModelData {
                             }
                         }
 
-                        let base_vertices = vertices.clone();
+                        // Compact vertices per primitive:
+                        // Multi-material meshes from Blender / glTF often share a giant vertex buffer
+                        // (e.g. 24,000+ vertices) across 16+ primitives.
+                        // Compacting down to only the vertices indexed by this primitive saves up to 90%+
+                        // of GPU vertex memory and vertex shader work while preserving 100% of UVs, normals,
+                        // textures, and skin weights!
+                        let (compact_vertices, compact_indices, compact_morph_targets) = {
+                            let mut old_to_new = vec![u32::MAX; vertices.len()];
+                            let mut used_old_indices = Vec::new();
+                            let mut compact_vertices = Vec::new();
+                            let mut compact_indices = Vec::with_capacity(indices.len());
+
+                            for &old_idx in &indices {
+                                let old_usize = old_idx as usize;
+                                if old_usize < vertices.len() {
+                                    let mut new_idx = old_to_new[old_usize];
+                                    if new_idx == u32::MAX {
+                                        new_idx = compact_vertices.len() as u32;
+                                        old_to_new[old_usize] = new_idx;
+                                        compact_vertices.push(vertices[old_usize]);
+                                        used_old_indices.push(old_usize);
+                                    }
+                                    compact_indices.push(new_idx);
+                                }
+                            }
+
+                            // Remap morph target displacements to match compact_vertices 1:1
+                            let mut compact_morph_targets = Vec::with_capacity(morph_targets.len());
+                            for mt in &morph_targets {
+                                let mut new_disps = Vec::with_capacity(used_old_indices.len());
+                                for &old_usize in &used_old_indices {
+                                    let disp = mt
+                                        .position_displacements
+                                        .get(old_usize)
+                                        .copied()
+                                        .unwrap_or([0.0, 0.0, 0.0]);
+                                    new_disps.push(disp);
+                                }
+                                compact_morph_targets.push(MorphTargetData {
+                                    position_displacements: new_disps,
+                                });
+                            }
+
+                            if compact_vertices.is_empty() {
+                                (vertices, indices, morph_targets)
+                            } else {
+                                (compact_vertices, compact_indices, compact_morph_targets)
+                            }
+                        };
+
+                        let base_vertices = compact_vertices.clone();
 
                         primitives.push(MeshPrimitiveData {
                             base_vertices,
-                            vertices,
-                            indices,
+                            vertices: compact_vertices,
+                            indices: compact_indices,
                             material_index: prim.material().index(),
                             node_index: node.index,
                             mesh_index: mesh_idx,
-                            morph_targets,
+                            morph_targets: compact_morph_targets,
+                            last_target_weights: Vec::new(),
                         });
                     }
                 }
@@ -690,6 +863,95 @@ impl VrmModelData {
                         }
                         prim.base_vertices = prim.vertices.clone();
                     }
+                }
+            }
+        }
+
+        // Joint Compaction & Optimization:
+        // Exporters (like Blender Saturday06 VRM exporter) often export all armature bones into
+        // the skin joints list (> 1000 joints), but only a subset are actually weighted to mesh vertices.
+        // GPU uniform buffers have a standard hardware limit of 1024 bone matrices (64KB).
+        // If primary skin joints > 1024, or to optimize bone matrix calculations, compact the skin
+        // to only joints referenced by vertices with non-zero weights.
+        if let Some(primary_skin) = skins.first_mut() {
+            let max_joint_in_prims = primitives
+                .iter()
+                .flat_map(|p| &p.vertices)
+                .flat_map(|v| v.joints)
+                .max()
+                .unwrap_or(0) as usize;
+
+            if primary_skin.joints.len() > 1024 || max_joint_in_prims >= 1024 {
+                let mut used_joint_indices = std::collections::BTreeSet::new();
+                for prim in &primitives {
+                    for v in &prim.vertices {
+                        if v.weights[0] > 0.0001 {
+                            used_joint_indices.insert(v.joints[0] as usize);
+                        }
+                        if v.weights[1] > 0.0001 {
+                            used_joint_indices.insert(v.joints[1] as usize);
+                        }
+                        if v.weights[2] > 0.0001 {
+                            used_joint_indices.insert(v.joints[2] as usize);
+                        }
+                        if v.weights[3] > 0.0001 {
+                            used_joint_indices.insert(v.joints[3] as usize);
+                        }
+                    }
+                }
+
+                // Ensure root joint 0 is preserved
+                used_joint_indices.insert(0);
+
+                let mut new_joints = Vec::with_capacity(used_joint_indices.len());
+                let mut new_inv_mats = Vec::with_capacity(used_joint_indices.len());
+                let mut old_to_new = HashMap::with_capacity(used_joint_indices.len());
+
+                for &old_idx in &used_joint_indices {
+                    if old_idx < primary_skin.joints.len() {
+                        let new_idx = new_joints.len() as u32;
+                        new_joints.push(primary_skin.joints[old_idx]);
+                        let inv_mat = primary_skin
+                            .inverse_bind_matrices
+                            .get(old_idx)
+                            .copied()
+                            .unwrap_or(Mat4::IDENTITY);
+                        new_inv_mats.push(inv_mat);
+                        old_to_new.insert(old_idx as u32, new_idx);
+                    }
+                }
+
+                println!(
+                    "   [Skin Optimization] Compacted skin joints from {} down to {} active joints",
+                    primary_skin.joints.len(),
+                    new_joints.len()
+                );
+
+                primary_skin.joints = new_joints;
+                primary_skin.inverse_bind_matrices = new_inv_mats;
+
+                for prim in &mut primitives {
+                    for v in &mut prim.vertices {
+                        v.joints[0] = old_to_new.get(&v.joints[0]).copied().unwrap_or(0);
+                        v.joints[1] = old_to_new.get(&v.joints[1]).copied().unwrap_or(0);
+                        v.joints[2] = old_to_new.get(&v.joints[2]).copied().unwrap_or(0);
+                        v.joints[3] = old_to_new.get(&v.joints[3]).copied().unwrap_or(0);
+
+                        // Safety clamp for extreme edge cases (> 1024 active bones)
+                        if v.joints[0] >= 1024 {
+                            v.joints[0] = 0;
+                        }
+                        if v.joints[1] >= 1024 {
+                            v.joints[1] = 0;
+                        }
+                        if v.joints[2] >= 1024 {
+                            v.joints[2] = 0;
+                        }
+                        if v.joints[3] >= 1024 {
+                            v.joints[3] = 0;
+                        }
+                    }
+                    prim.base_vertices = prim.vertices.clone();
                 }
             }
         }

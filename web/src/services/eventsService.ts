@@ -20,6 +20,7 @@ export interface ModelDownloadStatus {
   percent: number;
   speed_mbps: number;
   message: string;
+  model_name?: string;
 }
 
 export interface ClientAction {

@@ -28,20 +28,21 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
   let roleSelectRef: HTMLSelectElement | undefined;
   let modelSelectRef: HTMLSelectElement | undefined;
 
-  const [availableModels, setAvailableModels] = createSignal<Array<{ id: string; label: string }>>(
-    props.llmModel ? [{ id: props.llmModel, label: props.llmModel }] : []
-  );
+  const [availableModels, setAvailableModels] = createSignal<Array<{ id: string; label: string }>>([]);
 
   onMount(async () => {
     try {
       const dynamic = await antigravityService.getDynamicModels();
-      if (dynamic.length > 0) {
-        setAvailableModels(
-          dynamic.map((m) => ({
-            id: `ag/${m.model_id}`,
-            label: `ag/${m.model_id} (${m.display_name})`,
-          }))
-        );
+      if (dynamic && dynamic.length > 0) {
+        const list = dynamic.map((m) => ({
+          id: `ag/${m.model_id}`,
+          label: `ag/${m.model_id} (${m.display_name})`,
+        }));
+        const current = props.llmModel;
+        if (current && !list.some((m) => m.id === current)) {
+          list.unshift({ id: current, label: `${current} (Current)` });
+        }
+        setAvailableModels(list);
       }
     } catch {
       // fallback to presets
@@ -61,9 +62,21 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
   });
 
   createEffect(() => {
-    if (modelSelectRef && props.llmModel) {
-      modelSelectRef.value = props.llmModel;
+    const current = props.llmModel;
+    const models = availableModels();
+    if (!current) return;
+
+    if (models.length > 0 && !models.some((m) => m.id === current)) {
+      setAvailableModels((prev) => [{ id: current, label: `${current} (Current)` }, ...prev]);
+    } else if (models.length === 0) {
+      setAvailableModels([{ id: current, label: current }]);
     }
+
+    queueMicrotask(() => {
+      if (modelSelectRef && current) {
+        modelSelectRef.value = current;
+      }
+    });
   });
 
   return (
@@ -211,11 +224,13 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
                 onChange={(e) => props.setLlmModel(e.currentTarget.value)}
                 class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text font-medium outline-none focus:border-theme-cyan transition-colors"
               >
-                {availableModels().map((m) => (
-                  <option value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
+                <For each={availableModels()}>
+                  {(m) => (
+                    <option value={m.id} selected={m.id === props.llmModel}>
+                      {m.label}
+                    </option>
+                  )}
+                </For>
               </select>
             </div>
           </div>

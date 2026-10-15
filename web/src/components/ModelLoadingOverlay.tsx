@@ -1,6 +1,6 @@
 import { Component, Show } from 'solid-js';
 import { ModelDownloadStatus } from '../services/eventsService';
-import { Download, AlertCircle, RefreshCw, Cpu } from 'lucide-solid';
+import { Download, AlertCircle, RefreshCw, Cpu, Layers } from 'lucide-solid';
 
 interface ModelLoadingOverlayProps {
   modelStatus: ModelDownloadStatus | null;
@@ -15,6 +15,52 @@ export const ModelLoadingOverlay: Component<ModelLoadingOverlayProps> = (props) 
   const totalMb = () => ((props.modelStatus?.total_bytes || 0) / (1024 * 1024)).toFixed(1);
   const speed = () => (props.modelStatus?.speed_mbps || 0).toFixed(2);
 
+  const modelName = () => {
+    if (props.modelStatus?.model_name) {
+      return props.modelStatus.model_name;
+    }
+    const msg = props.modelStatus?.message || '';
+    if (/openvoice/i.test(msg)) {
+      return 'OpenVoice-V2';
+    }
+    if (/supertonic/i.test(msg)) {
+      return 'Supertonic-3';
+    }
+    return '';
+  };
+
+  const title = () => {
+    if (isError()) return 'MODEL INITIALIZATION FAILED';
+    const name = modelName();
+    if (isExtracting()) {
+      return name ? `EXTRACTING ${name.toUpperCase()} MODEL` : 'EXTRACTING NEURAL MODEL';
+    }
+    return name ? `PREPARING ${name.toUpperCase()}` : 'PREPARING VOICE SYNTHESIS';
+  };
+
+  const description = () => {
+    if (isError()) {
+      return props.modelStatus?.message || 'Failed to download AI voice neural weights.';
+    }
+    const name = modelName();
+    if (isExtracting()) {
+      if (/openvoice/i.test(name)) {
+        return 'Unpacking OpenVoice-V2 tone converter and speaker encoder profiles. Please wait...';
+      }
+      if (/supertonic/i.test(name)) {
+        return 'Unpacking Supertonic-3 ONNX model files and studio voice profiles. Please wait...';
+      }
+      return 'Unpacking ONNX model files and studio voice profiles. Please wait...';
+    }
+    if (/openvoice/i.test(name)) {
+      return 'Downloading OpenVoice-V2 neural weights for zero-shot tone conversion and voice cloning.';
+    }
+    if (/supertonic/i.test(name)) {
+      return 'Downloading Supertonic-3 ONNX neural weights for high-fidelity speech synthesis.';
+    }
+    return 'Downloading AI voice neural weights for high-fidelity speech synthesis.';
+  };
+
   return (
     <div class="fixed inset-0 z-[99999] bg-theme-bg/85 backdrop-blur-md flex items-center justify-center p-4 select-none animate-fade-in">
       <div class="w-full max-w-md bg-theme-surface border border-theme-border shadow-2xl p-6 sm:p-8 flex flex-col items-center text-center relative overflow-hidden text-theme-text">
@@ -23,7 +69,7 @@ export const ModelLoadingOverlay: Component<ModelLoadingOverlayProps> = (props) 
         <div class="absolute -bottom-12 -right-12 w-32 h-32 bg-theme-rose/15 blur-3xl rounded-full pointer-events-none" />
 
         {/* Icon Header */}
-        <div class="relative mb-4">
+        <div class="relative mb-3">
           <Show
             when={!isError()}
             fallback={
@@ -44,31 +90,22 @@ export const ModelLoadingOverlay: Component<ModelLoadingOverlayProps> = (props) 
           </Show>
         </div>
 
+        {/* Dynamic Model Badge */}
+        <Show when={!isError() && modelName()}>
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 mb-2.5 text-[11px] font-mono tracking-wider uppercase bg-theme-cyan/10 border border-theme-cyan/30 text-theme-cyan rounded-full">
+            <Layers class="w-3 h-3 animate-pulse" />
+            <span>Target: {modelName()}</span>
+          </div>
+        </Show>
+
         {/* Title */}
-        <h2 class="text-theme-text mb-1 tracking-wide font-mono">
-          <Show
-            when={!isError()}
-            fallback="MODEL INITIALIZATION FAILED"
-          >
-            <Show when={isExtracting()} fallback="PREPARING VOICE SYNTHESIS">
-              EXTRACTING SUPERTONIC-3 MODEL
-            </Show>
-          </Show>
+        <h2 class="text-theme-text mb-1 tracking-wide font-mono font-bold">
+          {title()}
         </h2>
 
         {/* Description */}
         <p class="text-xs text-theme-text/80 mb-6 max-w-sm leading-relaxed">
-          <Show
-            when={!isError()}
-            fallback={props.modelStatus?.message || 'Failed to download Supertonic-3 neural weights.'}
-          >
-            <Show
-              when={isExtracting()}
-              fallback="Downloading Supertonic-3 ONNX neural weights for high-fidelity speech synthesis."
-            >
-              Unpacking ONNX model files and studio voice profiles. Please wait...
-            </Show>
-          </Show>
+          {description()}
         </p>
 
         {/* Progress Bar (Visible if not error) */}

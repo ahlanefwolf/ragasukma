@@ -40,7 +40,7 @@ struct MaterialUniform {
     has_emissive: u32,
     has_matcap: u32,
     has_shade_tex: u32,
-    _pad0: u32,
+    is_unlit: u32,
     _pad1: u32,
 }
 
@@ -107,11 +107,28 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // 1. Sample Base Color
     let base_sample = textureSample(t_base, s_diffuse, in.uv);
     let lit_color = base_sample.rgb * material.base_color_factor.rgb;
-    let alpha = base_sample.a * material.base_color_factor.a;
 
-    // 2. Alpha Cutoff
-    if (alpha < material.alpha_cutoff) {
-        discard;
+    // glTF 2.0 Spec (Section 3.8.3.1):
+    // "OPAQUE - The alpha value is ignored and the rendered output is fully opaque."
+    // "MASK - The rendered output is either fully opaque or fully transparent depending on the alpha value and the specified alphaCutoff value."
+    // "BLEND - The rendered output is combined with the background using the standard alpha blending equation."
+    var alpha = base_sample.a * material.base_color_factor.a;
+
+    if (material.alpha_cutoff <= 0.0) {
+        // Material OPAQUE: Strictly ignore alpha channel and render 100% solid.
+        // This ensures game/anime models where alpha channel is used as a specular/lightmap mask
+        // never have their face, eyebrows, or skin unintentionally discarded!
+        alpha = 1.0;
+    } else {
+        // Material MASK / CUTOUT / BLEND: Discard transparent pixels below the cutoff threshold
+        if (alpha < material.alpha_cutoff) {
+            discard;
+        }
+    }
+
+    // glTF KHR_materials_unlit Fast Path: Render pure diffuse without shading, specular, or rim
+    if (material.is_unlit == 1u) {
+        return vec4<f32>(lit_color, alpha);
     }
 
     // 3. Three.js MToon Lighting Formulation (1:1 @pixiv/three-vrm)

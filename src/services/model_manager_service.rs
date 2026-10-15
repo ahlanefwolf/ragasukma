@@ -21,6 +21,8 @@ pub struct ModelDownloadStatus {
     pub percent: f32,
     pub speed_mbps: f32,
     pub message: String,
+    #[serde(default)]
+    pub model_name: Option<String>,
 }
 
 impl Default for ModelDownloadStatus {
@@ -32,6 +34,7 @@ impl Default for ModelDownloadStatus {
             percent: 100.0,
             speed_mbps: 0.0,
             message: "Model is ready".to_string(),
+            model_name: None,
         }
     }
 }
@@ -87,6 +90,7 @@ pub fn ensure_model_ready_background() {
             percent: 100.0,
             speed_mbps: 0.0,
             message: "Model already installed".to_string(),
+            model_name: None,
         });
         crate::audio::supertonic::init_engine_background();
         return;
@@ -108,6 +112,7 @@ pub fn ensure_model_ready_background() {
                     percent: 0.0,
                     speed_mbps: 0.0,
                     message: format!("Download failed: {err}"),
+                    model_name: None,
                 });
             } else {
                 update_model_status(ModelDownloadStatus {
@@ -117,6 +122,7 @@ pub fn ensure_model_ready_background() {
                     percent: 100.0,
                     speed_mbps: 0.0,
                     message: "Model ready".to_string(),
+                    model_name: None,
                 });
                 crate::audio::supertonic::init_engine_background();
             }
@@ -175,6 +181,7 @@ fn download_and_extract_item(
         percent: 0.0,
         speed_mbps: 0.0,
         message: format!("Connecting to download {model_name}..."),
+        model_name: Some(model_name.to_string()),
     });
 
     let client = reqwest::blocking::Client::builder()
@@ -226,6 +233,7 @@ fn download_and_extract_item(
                     downloaded_bytes as f32 / (1024.0 * 1024.0),
                     total_bytes as f32 / (1024.0 * 1024.0)
                 ),
+                model_name: Some(model_name.to_string()),
             });
             last_update_time = Instant::now();
         }
@@ -246,6 +254,7 @@ fn download_and_extract_item(
         percent: 100.0,
         speed_mbps: 0.0,
         message: format!("Extracting {model_name} files..."),
+        model_name: Some(model_name.to_string()),
     });
 
     extract_zip(zip_path, extract_to_dir)?;

@@ -87,7 +87,7 @@ interface AudioTtsSectionProps {
 
 export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
   const [isPlayingTest, setIsPlayingTest] = createSignal(false);
-  const [testText, setTestText] = createSignal('Hello! I am your AI assistant Ragasukma.');
+  const [testText, setTestText] = createSignal('');
   const [genderFilter, setGenderFilter] = createSignal<'all' | 'female' | 'male'>('all');
 
   // 🎙️ Reference Voice (OpenVoice V2 Tone Converter) State
@@ -346,10 +346,10 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: testText(),
+          text: testText().trim() || 'Hello! I am your AI assistant Ragasukma.',
           voice,
-          lang,
           speed,
+          lang,
         }),
       });
 
@@ -709,7 +709,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             type="text"
             value={testText()}
             onInput={(e) => setTestText(e.currentTarget.value)}
-            placeholder="Write a test sentence..."
+            placeholder="Write a test sentence... (e.g. Hello! I am your AI assistant.)"
             class="w-full sm:flex-1 bg-theme-bg border border-theme-border px-3 py-2 text-sm text-theme-text outline-none focus:border-theme-rose transition-colors"
           />
           <button

@@ -10,7 +10,7 @@
   "lang": "en",
   "tts_voice_name": "F5",
   "tts_speed": 1.0,
-  "avatar_type": "2d",
+  "avatar_type": "vrm",
   "always_on_top": true,
   "voice_interruption": false,
   "vad_threshold": 0.15,

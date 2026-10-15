@@ -29,8 +29,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
 
   // AI LLM Provider
   const [llmProvider, setLlmProvider] = createSignal('custom');
-  const [llmBaseUrl, setLlmBaseUrl] = createSignal('http://localhost:20128/v1');
-  const [llmModel, setLlmModel] = createSignal('ag/claude-sonnet-4-6');
+  const [llmBaseUrl, setLlmBaseUrl] = createSignal('');
+  const [llmModel, setLlmModel] = createSignal('');
   const [llmApiKey, setLlmApiKey] = createSignal('');
 
   // Audio & STT
@@ -95,23 +95,23 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
     if (cfg) {
       if (cfg.assistant_name !== undefined) setAssistantName(cfg.assistant_name);
       if (cfg.user_callsign !== undefined) setUserCallsign(cfg.user_callsign);
-      if (cfg.assistant_gender) setAssistantGender(cfg.assistant_gender);
-      if (cfg.personality_role) setPersonalityRole(cfg.personality_role);
+      if (cfg.assistant_gender !== undefined) setAssistantGender(cfg.assistant_gender);
+      if (cfg.personality_role !== undefined) setPersonalityRole(cfg.personality_role);
 
-      if (cfg.llm_provider) setLlmProvider(cfg.llm_provider);
+      if (cfg.llm_provider !== undefined) setLlmProvider(cfg.llm_provider);
       if (cfg.llm_base_url !== undefined) setLlmBaseUrl(cfg.llm_base_url);
-      if (cfg.llm_model) setLlmModel(cfg.llm_model);
+      if (cfg.llm_model !== undefined) setLlmModel(cfg.llm_model);
       if (cfg.llm_api_key !== undefined) setLlmApiKey(cfg.llm_api_key);
 
       if (cfg.voice_interruption !== undefined) setVoiceInterruption(cfg.voice_interruption);
       if (cfg.vad_threshold !== undefined) setVadThreshold(cfg.vad_threshold);
       if (cfg.vad_noise_suppression !== undefined) setVadNoiseSuppression(cfg.vad_noise_suppression);
 
-      setLang(cfg.lang || 'id');
-      if (cfg.tts_voice_name) setTtsVoiceName(cfg.tts_voice_name);
+      if (cfg.lang !== undefined) setLang(cfg.lang);
+      if (cfg.tts_voice_name !== undefined) setTtsVoiceName(cfg.tts_voice_name);
       if (cfg.tts_speed !== undefined) setTtsSpeed(cfg.tts_speed);
 
-      if (cfg.avatar_type) setAvatarType(cfg.avatar_type);
+      if (cfg.avatar_type !== undefined) setAvatarType(cfg.avatar_type);
       if (cfg.always_on_top !== undefined) setAlwaysOnTop(cfg.always_on_top);
     }
     if (isComponentMounted) {

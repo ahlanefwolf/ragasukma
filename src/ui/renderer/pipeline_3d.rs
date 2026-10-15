@@ -10,6 +10,9 @@ use glam::Mat4;
 
 pub struct Pipeline3dComponents {
     pub render_pipeline: wgpu::RenderPipeline,
+    pub render_pipeline_double_sided: wgpu::RenderPipeline,
+    pub render_pipeline_transparent: wgpu::RenderPipeline,
+    pub render_pipeline_transparent_double_sided: wgpu::RenderPipeline,
     pub camera_buffer: wgpu::Buffer,
     pub camera_bind_group: wgpu::BindGroup,
     pub bone_buffer: wgpu::Buffer,
@@ -131,76 +134,83 @@ pub fn create_3d_pipeline(
         push_constant_ranges: &[],
     });
 
-    let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("MToon Anime Pipeline"),
-        layout: Some(&render_pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vs_main",
-            buffers: &[wgpu::VertexBufferLayout {
-                array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-                step_mode: wgpu::VertexStepMode::Vertex,
-                attributes: &[
-                    wgpu::VertexAttribute {
-                        offset: 0,
-                        shader_location: 0,
-                        format: wgpu::VertexFormat::Float32x3,
-                    },
-                    wgpu::VertexAttribute {
-                        offset: 12,
-                        shader_location: 1,
-                        format: wgpu::VertexFormat::Float32x3,
-                    },
-                    wgpu::VertexAttribute {
-                        offset: 24,
-                        shader_location: 2,
-                        format: wgpu::VertexFormat::Float32x2,
-                    },
-                    wgpu::VertexAttribute {
-                        offset: 32,
-                        shader_location: 3,
-                        format: wgpu::VertexFormat::Uint32x4,
-                    },
-                    wgpu::VertexAttribute {
-                        offset: 48,
-                        shader_location: 4,
-                        format: wgpu::VertexFormat::Float32x4,
-                    },
-                ],
-            }],
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: "fs_main",
-            targets: &[Some(wgpu::ColorTargetState {
-                format: config.format,
-                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-        }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            strip_index_format: None,
-            front_face: wgpu::FrontFace::Ccw,
-            cull_mode: None,
-            unclipped_depth: false,
-            polygon_mode: wgpu::PolygonMode::Fill,
-            conservative: false,
-        },
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: wgpu::TextureFormat::Depth32Float,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
-        multisample: wgpu::MultisampleState {
-            count: 4,
-            mask: !0,
-            alpha_to_coverage_enabled: false,
-        },
-        multiview: None,
-    });
+    let build_pipeline = |cull_mode: Option<wgpu::Face>, depth_write_enabled: bool, label: &'static str| -> wgpu::RenderPipeline {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(label),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &[
+                        wgpu::VertexAttribute {
+                            offset: 0,
+                            shader_location: 0,
+                            format: wgpu::VertexFormat::Float32x3,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: 12,
+                            shader_location: 1,
+                            format: wgpu::VertexFormat::Float32x3,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: 24,
+                            shader_location: 2,
+                            format: wgpu::VertexFormat::Float32x2,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: 32,
+                            shader_location: 3,
+                            format: wgpu::VertexFormat::Uint32x4,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: 48,
+                            shader_location: 4,
+                            format: wgpu::VertexFormat::Float32x4,
+                        },
+                    ],
+                }],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode,
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 4,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        })
+    };
+
+    let render_pipeline = build_pipeline(Some(wgpu::Face::Back), true, "MToon Anime Pipeline");
+    let render_pipeline_double_sided = build_pipeline(None, true, "MToon Anime Pipeline (Double-Sided)");
+    let render_pipeline_transparent = build_pipeline(Some(wgpu::Face::Back), false, "MToon Anime Transparent Pipeline");
+    let render_pipeline_transparent_double_sided = build_pipeline(None, false, "MToon Anime Transparent Pipeline (Double-Sided)");
 
     let initial_camera = CameraUniform {
         view_proj: Mat4::IDENTITY.to_cols_array_2d(),
@@ -240,6 +250,9 @@ pub fn create_3d_pipeline(
 
     Pipeline3dComponents {
         render_pipeline,
+        render_pipeline_double_sided,
+        render_pipeline_transparent,
+        render_pipeline_transparent_double_sided,
         camera_buffer,
         camera_bind_group,
         bone_buffer,
@@ -396,6 +409,8 @@ pub fn create_texture_from_rgba(
 pub struct LoadedVrmGpu {
     pub gpu_materials: Vec<GpuMaterial>,
     pub gpu_primitives: Vec<GpuPrimitive>,
+    pub opaque_primitive_indices: Vec<usize>,
+    pub transparent_primitive_indices: Vec<usize>,
     pub min_y: f32,
     pub max_y: f32,
     pub max_extent_x: f32,
@@ -574,7 +589,7 @@ pub fn load_vrm_model_to_gpu(
             has_emissive: if is_emissive_active { 1 } else { 0 },
             has_matcap: if has_matcap_tex { 1 } else { 0 },
             has_shade_tex: if has_shade_tex { 1 } else { 0 },
-            _pad0: 0,
+            is_unlit: if mat.is_unlit { 1 } else { 0 },
             _pad1: 0,
         };
 
@@ -650,13 +665,31 @@ pub fn load_vrm_model_to_gpu(
         prim.indices.clear();
         prim.indices.shrink_to_fit();
 
+        let mat_opt = prim.material_index.and_then(|idx| model.materials.get(idx));
+        let is_transparent = mat_opt.map(|m| m.is_transparent).unwrap_or(false);
+        let double_sided = mat_opt.map(|m| m.double_sided).unwrap_or(false);
+        let render_queue = mat_opt.map(|m| m.render_queue).unwrap_or(2000);
+
         gpu_primitives.push(GpuPrimitive {
             vertex_buffer,
             index_buffer,
             index_count,
             material_index: prim.material_index.unwrap_or(0),
+            is_transparent,
+            double_sided,
+            render_queue,
         });
     }
+
+    let mut opaque_primitive_indices: Vec<usize> = (0..gpu_primitives.len())
+        .filter(|&i| !gpu_primitives[i].is_transparent)
+        .collect();
+    opaque_primitive_indices.sort_by_key(|&i| (gpu_primitives[i].render_queue, i));
+
+    let mut transparent_primitive_indices: Vec<usize> = (0..gpu_primitives.len())
+        .filter(|&i| gpu_primitives[i].is_transparent)
+        .collect();
+    transparent_primitive_indices.sort_by_key(|&i| (gpu_primitives[i].render_queue, i));
 
     model.materials.clear();
     model.materials.shrink_to_fit();
@@ -664,6 +697,8 @@ pub fn load_vrm_model_to_gpu(
     LoadedVrmGpu {
         gpu_materials,
         gpu_primitives,
+        opaque_primitive_indices,
+        transparent_primitive_indices,
         min_y: model_min_y,
         max_y: model_max_y,
         max_extent_x: model_max_extent_x,

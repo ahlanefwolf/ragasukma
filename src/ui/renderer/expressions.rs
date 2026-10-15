@@ -137,22 +137,41 @@ pub fn resolve_emotion_layers<'a>(
 }
 
 const CANONICAL_EMOTIONS: &[(&str, &str)] = &[
-    ("*happy*", "happy"),
+    // Primary: Canonical Square Bracket format
     ("[happy]", "happy"),
-    ("*shy*", "shy"),
     ("[shy]", "shy"),
-    ("*excited*", "excited"),
     ("[excited]", "excited"),
-    ("*surprised*", "surprised"),
     ("[surprised]", "surprised"),
-    ("*thinking*", "thinking"),
     ("[thinking]", "thinking"),
-    ("*sad*", "sad"),
     ("[sad]", "sad"),
-    ("*angry*", "angry"),
     ("[angry]", "angry"),
-    ("*neutral*", "neutral"),
     ("[neutral]", "neutral"),
+    // Secondary: Asterisks format (backward compatibility)
+    ("*happy*", "happy"),
+    ("*shy*", "shy"),
+    ("*excited*", "excited"),
+    ("*surprised*", "surprised"),
+    ("*thinking*", "thinking"),
+    ("*sad*", "sad"),
+    ("*angry*", "angry"),
+    ("*neutral*", "neutral"),
+    // Intelligent Fallbacks: Map common anime roleplay slip-ups
+    ("[blush]", "shy"),
+    ("[blushes]", "shy"),
+    ("*blush*", "shy"),
+    ("*blushes*", "shy"),
+    ("[pout]", "angry"),
+    ("[pouts]", "angry"),
+    ("*pout*", "angry"),
+    ("*pouts*", "angry"),
+    ("[huff]", "angry"),
+    ("[huffs]", "angry"),
+    ("*huff*", "angry"),
+    ("*huffs*", "angry"),
+    ("[sigh]", "sad"),
+    ("[sighs]", "sad"),
+    ("*sigh*", "sad"),
+    ("*sighs*", "sad"),
 ];
 
 /// Ekstrak emotion from tag eksplisit standar AI (*happy*, *shy*, *excited*, *surprised*, *thinking*, *sad*, *angry*, *neutral*, dll.)
@@ -287,12 +306,6 @@ pub fn update_facial_expressions_and_lip_sync(
             continue;
         }
 
-        let vert_count = prim.vertices.len().min(prim.base_vertices.len());
-        // Always reset to position dasar (base_vertices)
-        for i in 0..vert_count {
-            prim.vertices[i].position = prim.base_vertices[i].position;
-        }
-
         // Accumulate total weights per target_index so morphs do not stack beyond safe limits (anti-jaw distortion)
         let mut target_weights = vec![0.0f32; prim.morph_targets.len()];
         for &(expr_data, expr_weight) in &active_weights {
@@ -311,6 +324,26 @@ pub fn update_facial_expressions_and_lip_sync(
                     target_weights[target_idx] += expr_weight * bind.weight;
                 }
             }
+        }
+
+        // Dirty-checking: Skip expensive CPU vertex reset loop and GPU write_buffer
+        // if weights have not meaningfully changed since last applied frame.
+        let is_dirty = prim.last_target_weights.len() != target_weights.len()
+            || prim
+                .last_target_weights
+                .iter()
+                .zip(target_weights.iter())
+                .any(|(a, b)| (a - b).abs() > 0.0005);
+
+        if !is_dirty {
+            continue;
+        }
+        prim.last_target_weights = target_weights.clone();
+
+        let vert_count = prim.vertices.len().min(prim.base_vertices.len());
+        // Reset to position dasar (base_vertices)
+        for i in 0..vert_count {
+            prim.vertices[i].position = prim.base_vertices[i].position;
         }
 
         // Apply morph target with aesthetic limit clamping (max 0.85) to avoid over-stretching

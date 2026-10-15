@@ -84,7 +84,7 @@ export class VrmSceneManager {
     this.renderer = new THREE.WebGLRenderer({
       alpha: true,
       antialias: false,
-      powerPreference: 'default',
+      powerPreference: 'high-performance',
       stencil: false,
       depth: true,
     });
@@ -138,15 +138,14 @@ export class VrmSceneManager {
     };
 
     // Lighting Setup Standar MToon / VRM (1:1 Identik dengan shader.wgsl di Native UI):
-    // 1. Ambient Light yang seimbang agar tone warna tidak pudar/over-exposed
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-    this.scene.add(ambientLight);
-
-    // 2. Main Key Light dipasang langsung sebagai anak kamera (Camera Child Light)
-    // Sudut cahaya miring dari kanan atas kamera [0.35, 0.45, 0.7] persis seperti di shader.wgsl!
-    const light = new THREE.DirectionalLight(0xffffff, 0.95);
+    // Key light miring [0.35, 0.45, 0.7] dipasang sebagai anak kamera dengan intensitas Math.PI
+    // agar hasil directDiffuse (irradiance * BRDF_Lambert / PI) tepat 1.0 (unit intensity).
+    // Tanpa ambient light agar bayangan anime cel-shading murni mengikuti shade_color dari model dan 100% konsisten dengan desktop UI.
+    const light = new THREE.DirectionalLight(0xffffff, Math.PI);
     light.position.set(0.35, 0.45, 0.7);
+    light.target.position.set(0, 0, 0);
     this.camera.add(light);
+    this.camera.add(light.target);
     this.scene.add(this.camera);
 
     this.clock = new THREE.Clock();
@@ -181,8 +180,8 @@ export class VrmSceneManager {
         VRMUtils.rotateVRM0(vrm);
 
         // Setup Material MToon (1:1 Identik dengan pipeline WGPU di Native UI):
-        // Mempertahankan parameter material asli (shade texture, shade color, toony factor)
-        // dan mengaktifkan Rim Lighting lembut tanpa merusak / mematikan shading 3D.
+        // Mempertahankan parameter material asli (shade texture, shade color, toony factor),
+        // mematikan total outline (inverted hull), dan mengaktifkan Rim Lighting lembut persis seperti shader.wgsl.
         const maxAnisotropy = this.renderer ? this.renderer.capabilities.getMaxAnisotropy() : 1;
 
         vrm.scene.traverse((obj) => {
@@ -192,25 +191,69 @@ export class VrmSceneManager {
             mesh.castShadow = false;
             mesh.receiveShadow = false;
 
+            // 1. Matikan dan hilangkan outline sepenuhnya (1:1 dengan shader.wgsl di Desktop / Native UI)
+            if (Array.isArray(mesh.material)) {
+              const nonOutlineMaterials = mesh.material.filter(
+                (m) => !(m as any).isOutline && !m.name?.includes('(Outline)')
+              );
+              const outlineMaterials = mesh.material.filter(
+                (m) => (m as any).isOutline || m.name?.includes('(Outline)')
+              );
+
+              for (const outMat of outlineMaterials) {
+                outMat.visible = false;
+                if ('outlineWidthMode' in outMat) {
+                  (outMat as any).outlineWidthMode = 'none';
+                }
+                if ('outlineWidthFactor' in outMat) {
+                  (outMat as any).outlineWidthFactor = 0.0;
+                }
+              }
+
+              // Jika hanya ada 1 material permukaan asli dan 1 material outline yang dibuat three-vrm,
+              // kembalikan mesh.material ke single surface material dan bersihkan geometry groups
+              if (nonOutlineMaterials.length === 1 && mesh.material.length > 1) {
+                mesh.material = nonOutlineMaterials[0];
+                if (mesh.geometry.groups.length > 0) {
+                  mesh.geometry.clearGroups();
+                }
+              }
+            }
+
             const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            const isFullyTransparent =
+              materials.length > 0 && materials.every((m) => m && (m as THREE.Material).transparent);
+            if (isFullyTransparent) {
+              mesh.renderOrder = 25;
+            }
+
             for (const mat of materials) {
               if (!mat) continue;
 
-              // 1. Parametric Rim Lighting Halus (1:1 dengan shader.wgsl)
-              if ('rimFactor' in mat && (mat as any).rimFactor) {
-                (mat as any).rimFactor.set(0.25, 0.25, 0.25);
+              // Pastikan properti outline pada material utama juga dinonaktifkan
+              if ((mat as any).isOutline || mat.name?.includes('(Outline)')) {
+                mat.visible = false;
+              }
+              if ('outlineWidthMode' in mat) {
+                (mat as any).outlineWidthMode = 'none';
+              }
+              if ('outlineWidthFactor' in mat) {
+                (mat as any).outlineWidthFactor = 0.0;
               }
 
-              if ('parametricRimFresnelPowerFactor' in mat) {
-                (mat as any).parametricRimFresnelPowerFactor = 4.5;
-              }
-
-              if ('parametricRimLiftFactor' in mat) {
-                (mat as any).parametricRimLiftFactor = 0.0;
-              }
-
-              if ('rimLightingMixFactor' in mat) {
-                (mat as any).rimLightingMixFactor = 1.0;
+              // Hanya untuk material yang transparan / blend:
+              // Pastikan depthWrite = false agar tidak melubangi geometri di belakangnya.
+              if (mat.transparent) {
+                mat.depthWrite = false;
+                mat.depthTest = true;
+                if (mat.alphaTest === 0) {
+                  mat.alphaTest = 0.001;
+                }
+                // Jika material blend memiliki opacity 0 (helper quad seperti eye_touming),
+                // sembunyikan agar tidak membuang draw call dan tidak menutupi bola mata
+                if (mat.opacity <= 0.001) {
+                  mat.visible = false;
+                }
               }
 
               // 2. Anisotropy filtering untuk ketajaman tekstur saat zoom
@@ -355,15 +398,13 @@ export class VrmSceneManager {
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     switch (quality) {
       case 'sd':
-        // SD: 1.0x native resolution (sangat hemat baterai / GPU entri level)
+        // SD: 1.0x (mode hemat daya / low-end)
         return Math.min(dpr, 1.0);
       case 'ultra':
-        // Ultra / 4K Crisp: Full Native Screen DPI (hingga 3.0x di layar OLED flagship)
-        return Math.min(dpr, 3.0);
       case 'hd':
       default:
-        // HD: 1.5x balanced (tajam tanpa membebani GPU & baterai)
-        return Math.min(dpr, 1.5);
+        // Real Native Screen Pixel Ratio (1:1 ketajaman asli layar tanpa dipotong/dikurangi)
+        return dpr;
     }
   }
 

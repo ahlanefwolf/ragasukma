@@ -27,7 +27,7 @@ pub struct MaterialUniform {
     pub has_emissive: u32,
     pub has_matcap: u32,
     pub has_shade_tex: u32,
-    pub _pad0: u32,
+    pub is_unlit: u32,
     pub _pad1: u32,
 }
 
@@ -59,6 +59,9 @@ pub struct GpuPrimitive {
     pub index_buffer: wgpu::Buffer,
     pub index_count: u32,
     pub material_index: usize,
+    pub is_transparent: bool,
+    pub double_sided: bool,
+    pub render_queue: i32,
 }
 
 pub struct GpuMaterial {

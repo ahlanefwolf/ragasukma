@@ -168,12 +168,18 @@ static RE_BOLD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\*\*([^\*\n]+?)\*\*").expect("valid bold regex")
 });
 
+static RE_BRACKET_EMOTE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\[(?:happy|shy|excited|surprised|thinking|sad|angry|neutral|blush(?:es)?|pout(?:s)?|huff(?:s)?|sigh(?:s)?)\]")
+        .expect("valid bracket emote regex")
+});
+
 static RE_SINGLE_STAR_EMOTE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\*[^\*\n]{1,60}\*").expect("valid single star emote regex")
 });
 
 /// Clean AI text: strip action tags ([CMD:...], [SKILL:...]), XML tool-call blocks,
-/// bold markdown asterisks (**bold** -> bold), single-asterisk emotion tags, and backticks.
+/// bold markdown asterisks (**bold** -> bold), bracket emotion tags ([happy], [shy]),
+/// single-asterisk emotion tags (*...*), and backticks.
 pub fn clean_ai_text(text: &str) -> String {
     // 1. Strip any XML tool-call blocks Claude may have emitted
     let text = RE_XML_TOOL_CALL.replace_all(text, "");
@@ -181,10 +187,13 @@ pub fn clean_ai_text(text: &str) -> String {
     // 2. Strip [CMD:...] / [SKILL:...] tags
     let text = RE_SKILL.replace_all(&text, "");
 
-    // 3. Normalize markdown bold: `**text**` -> `text`
+    // 3. Strip canonical bracket emotion tags e.g. [happy], [shy]
+    let text = RE_BRACKET_EMOTE.replace_all(&text, " ");
+
+    // 4. Normalize markdown bold: `**text**` -> `text`
     let text = RE_BOLD.replace_all(&text, "$1");
 
-    // 4. Buang tag bintang tunggal emotion (*malu-malu*, *happy*, dsb.)
+    // 5. Buang tag bintang tunggal emotion (*malu-malu*, *happy*, dsb.)
     let text = RE_SINGLE_STAR_EMOTE.replace_all(&text, " ");
 
     // 5. Buang backtick (`` ` ``) and header markdown (`#`)
@@ -251,5 +260,12 @@ mod tests {
         let raw = "*happy* Siap! [CMD:desktop:click_text|Save] *tersenyum manis*";
         let cleaned = clean_ai_text(raw);
         assert_eq!(cleaned, "Siap!");
+    }
+
+    #[test]
+    fn test_clean_ai_text_strips_bracket_emotes() {
+        let raw = "[happy] Halo! [CMD:media:play|music] [shy] Selamat datang kembali.";
+        let cleaned = clean_ai_text(raw);
+        assert_eq!(cleaned, "Halo! Selamat datang kembali.");
     }
 }

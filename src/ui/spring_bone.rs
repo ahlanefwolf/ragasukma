@@ -1,5 +1,6 @@
 use glam::{Mat4, Quat, Vec3};
 use serde_json::Value;
+use std::collections::VecDeque;
 
 use super::vrm_loader::{NodeData, VrmModelData};
 
@@ -31,6 +32,7 @@ pub struct SpringJoint {
 pub struct SpringBoneManager {
     pub colliders: Vec<SpringCollider>,
     pub joints: Vec<SpringJoint>,
+    pub cached_collider_spheres: Vec<Option<(Vec3, f32)>>,
 }
 
 impl SpringBoneManager {
@@ -121,6 +123,9 @@ impl SpringBoneManager {
 
                 if let Some(joint_arr) = spring.get("joints").and_then(|v| v.as_array()) {
                     for i in 0..joint_arr.len().saturating_sub(1) {
+                        if joints.len() >= 1024 {
+                            break;
+                        }
                         let j_cur = &joint_arr[i];
                         let j_next = &joint_arr[i + 1];
 
@@ -198,7 +203,11 @@ impl SpringBoneManager {
         if joints.is_empty() {
             None
         } else {
-            Some(Self { colliders, joints })
+            Some(Self {
+                colliders,
+                joints,
+                cached_collider_spheres: Vec::new(),
+            })
         }
     }
 
@@ -291,15 +300,20 @@ impl SpringBoneManager {
 
                 if let Some(root_bones) = bg.get("bones").and_then(|v| v.as_array()) {
                     for root_bone in root_bones {
+                        if joints.len() >= 1024 {
+                            break;
+                        }
                         if let Some(root_node_idx) = root_bone.as_u64().map(|v| v as usize) {
-                            // Traverse recursive down the bone chain to build joints
-                            let mut stack = vec![root_node_idx];
-                            while let Some(parent_idx) = stack.pop() {
-                                if parent_idx >= nodes.len() {
+                            // BFS queue ensures parent bones are always ordered before their children
+                            let mut queue = VecDeque::new();
+                            queue.push_back(root_node_idx);
+
+                            while let Some(parent_idx) = queue.pop_front() {
+                                if parent_idx >= nodes.len() || joints.len() >= 1024 {
                                     continue;
                                 }
                                 for &child_idx in &nodes[parent_idx].children {
-                                    if child_idx >= nodes.len() {
+                                    if child_idx >= nodes.len() || joints.len() >= 1024 {
                                         continue;
                                     }
                                     let child_node = &nodes[child_idx];
@@ -328,7 +342,7 @@ impl SpringBoneManager {
                                         collider_indices: spring_colliders.clone(),
                                     });
 
-                                    stack.push(child_idx);
+                                    queue.push_back(child_idx);
                                 }
                             }
                         }
@@ -340,22 +354,25 @@ impl SpringBoneManager {
         if joints.is_empty() {
             None
         } else {
-            Some(Self { colliders, joints })
+            Some(Self {
+                colliders,
+                joints,
+                cached_collider_spheres: Vec::new(),
+            })
         }
     }
 
     pub fn update(&mut self, delta_seconds: f32, model: &VrmModelData, globals: &mut [Mat4]) {
         let dt = delta_seconds.clamp(0.001, 0.05);
 
-        // Precompute position bola collider in world space
-        let mut collider_spheres: Vec<Option<(Vec3, f32)>> =
-            Vec::with_capacity(self.colliders.len());
+        // Precompute position bola collider in world space without per-frame allocations
+        self.cached_collider_spheres.clear();
         for c in &self.colliders {
             if c.node_idx < globals.len() {
                 let center = globals[c.node_idx].transform_point3(c.offset);
-                collider_spheres.push(Some((center, c.radius)));
+                self.cached_collider_spheres.push(Some((center, c.radius)));
             } else {
-                collider_spheres.push(None);
+                self.cached_collider_spheres.push(None);
             }
         }
 
@@ -408,7 +425,9 @@ impl SpringBoneManager {
 
             // 3. Collision Resolution (Prevents hair/skirt clipping through head/chest colliders)
             for &c_idx in &joint.collider_indices {
-                if let Some(Some((sphere_center, sphere_radius))) = collider_spheres.get(c_idx) {
+                if let Some(Some((sphere_center, sphere_radius))) =
+                    self.cached_collider_spheres.get(c_idx)
+                {
                     let r_sum = sphere_radius + joint.hit_radius;
                     let diff = next_tail - *sphere_center;
                     let d = diff.length();
@@ -448,31 +467,21 @@ impl SpringBoneManager {
                 let new_global = parent_mat * current_local;
                 globals[joint.node_idx] = new_global;
 
-                // Update entire child hierarchy of this bone so subsequent hair chain follows
-                update_children_transforms(joint.node_idx, new_global, model, globals);
+                // Propagate updated transform directly to immediate children (O(1) per joint).
+                // Because joints are ordered in topological BFS order, child joints in the spring bone
+                // array will receive this new parent transform sequentially on their own turn.
+                for &child_idx in &node.children {
+                    if child_idx < model.nodes.len() {
+                        let child_node = &model.nodes[child_idx];
+                        let child_local = Mat4::from_scale_rotation_translation(
+                            child_node.initial_scale,
+                            child_node.initial_rotation,
+                            child_node.initial_translation,
+                        );
+                        globals[child_idx] = new_global * child_local;
+                    }
+                }
             }
-        }
-    }
-}
-
-fn update_children_transforms(
-    parent_idx: usize,
-    parent_global: Mat4,
-    model: &VrmModelData,
-    globals: &mut [Mat4],
-) {
-    let node = &model.nodes[parent_idx];
-    for &child_idx in &node.children {
-        if child_idx < model.nodes.len() {
-            let child_node = &model.nodes[child_idx];
-            let child_local = Mat4::from_scale_rotation_translation(
-                child_node.initial_scale,
-                child_node.initial_rotation,
-                child_node.initial_translation,
-            );
-            let child_global = parent_global * child_local;
-            globals[child_idx] = child_global;
-            update_children_transforms(child_idx, child_global, model, globals);
         }
     }
 }
@@ -537,6 +546,25 @@ mod tests {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn test_load_and_pose_char_vrm() {
+        use crate::ui::vrm_loader::VrmModelData;
+        let model = VrmModelData::load_from_file("assets/char.vrm").unwrap();
+        assert!(!model.primitives.is_empty());
+        assert!(!model.skins.is_empty());
+
+        let mut globals = vec![Mat4::IDENTITY; model.nodes.len()];
+        if let Some(sb_mutex) = &model.spring_bone_manager {
+            let mut sb = sb_mutex.lock().unwrap();
+            for _ in 0..10 {
+                sb.update(0.016, &model, &mut globals);
+            }
+            for (j_idx, j) in sb.joints.iter().enumerate() {
+                assert!(!j.current_tail.is_nan(), "Joint {} current_tail is NaN", j_idx);
             }
         }
     }
