@@ -35,6 +35,8 @@ serde_json = "1.0"
 rodio = { version = "0.19", default-features = false, features = ["symphonia-mp3", "symphonia-wav", "symphonia-isomp4", "symphonia-vorbis", "symphonia-aac", "symphonia-flac"] }
 form_urlencoded = "1.2"
 regex = "1.10"
+sha2 = "0.10"
+base64 = "0.22"
 ort = { version = "2.0.0-rc.13", features = ["download-binaries", "copy-dylibs"] }
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
 

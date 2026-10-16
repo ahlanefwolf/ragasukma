@@ -125,7 +125,7 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
                   return (
                     <div class="p-3 bg-theme-card border border-theme-border space-y-2 shadow-sm">
                       <div class="flex items-center justify-between gap-2">
-                        <span class="text-xs font-bold text-theme-text truncate">{item.display_name}</span>
+                        <span class="text-xs font-mono font-bold text-theme-cyan truncate">{item.model_id}</span>
                         <span class={`text-xs font-mono font-bold px-2 py-0.5 border ${colors.badge}`}>
                           {item.remaining_percentage}% Available
                         </span>
@@ -167,32 +167,28 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
                   return (
                     <div class="p-3 bg-theme-card/90 border border-theme-border/80 space-y-2 hover:border-theme-cyan/40 transition-all flex flex-col justify-between shadow-sm group">
                       <div class="space-y-1.5">
-                        <div class="flex items-center justify-between gap-1.5">
-                          <span class="text-xs font-bold text-theme-text truncate select-text" title={item.display_name}>
-                            {item.display_name}
-                          </span>
-                          <span class={`text-xs font-mono font-bold px-1.5 py-0.5 border shrink-0 ${colors.badge}`}>
-                            {item.remaining_percentage}%
-                          </span>
-                        </div>
-
                         {/* Click to Copy Model ID */}
                         <div
                           onClick={() => props.onCopyModel(fullModelId(), `Model ID ${fullModelId()}`)}
-                          class="flex items-center justify-between gap-1.5 px-2 py-1 bg-theme-bg/80 border border-theme-border/60 hover:border-theme-cyan/50 cursor-pointer transition-colors"
-                          title="Click to copy Model ID with ag/* prefix"
+                          class="flex items-center justify-between gap-1.5 px-2 py-1.5 bg-theme-bg/80 border border-theme-border/60 hover:border-theme-cyan/50 cursor-pointer transition-colors"
+                          title="Click to copy Model ID"
                         >
-                          <code class="text-xs font-mono text-theme-cyan truncate font-semibold select-all">
+                          <code class="text-xs font-mono text-theme-cyan truncate font-bold select-all">
                             {fullModelId()}
                           </code>
-                          <button
-                            type="button"
-                            class="text-theme-text/40 group-hover:text-theme-cyan transition-colors shrink-0"
-                          >
-                            <Show when={isCopied()} fallback={<Copy size={12} />}>
-                              <Check size={12} class="text-gi-status-success" />
-                            </Show>
-                          </button>
+                          <div class="flex items-center gap-1.5 shrink-0">
+                            <span class={`text-xs font-mono font-bold px-1.5 py-0.5 border ${colors.badge}`}>
+                              {item.remaining_percentage}%
+                            </span>
+                            <button
+                              type="button"
+                              class="text-theme-text/40 group-hover:text-theme-cyan transition-colors"
+                            >
+                              <Show when={isCopied()} fallback={<Copy size={12} />}>
+                                <Check size={12} class="text-gi-status-success" />
+                              </Show>
+                            </button>
+                          </div>
                         </div>
                       </div>
 

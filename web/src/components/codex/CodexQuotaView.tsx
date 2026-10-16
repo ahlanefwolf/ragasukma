@@ -1,0 +1,191 @@
+import { Component, For, Show } from 'solid-js';
+import { Gauge, RefreshCw, AlertTriangle, Clock, Copy, Check, Sparkles } from 'lucide-solid';
+import { CodexQuotaResponse, CodexQuotaWindow } from '../../api';
+
+interface CodexQuotaViewProps {
+  accountId: string;
+  quotaData?: CodexQuotaResponse;
+  isLoading: boolean;
+  copiedModelId: string | null;
+  onRefresh: (id: string) => void;
+  onCopyModel: (id: string, label?: string) => void;
+}
+
+const CODEX_MODELS = [
+  'cx/gpt-6.1-sol',
+  'cx/gpt-6-astra',
+  'cx/gpt-6-sol',
+  'cx/gpt-6-luna',
+  'cx/gpt-5.6-sol',
+  'cx/gpt-5.6-terra',
+  'cx/gpt-5.6-luna',
+  'cx/gpt-daybreak-blue-latest',
+  'cx/codex-auto-review',
+];
+
+export const CodexQuotaView: Component<CodexQuotaViewProps> = (props) => {
+  const formatResetTime = (isoString?: string): string => {
+    if (!isoString) return '';
+    try {
+      const resetDate = new Date(isoString);
+      const now = new Date();
+      const diffMs = resetDate.getTime() - now.getTime();
+      if (diffMs <= 0) return 'Reset completed';
+
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const remainingMins = diffMins % 60;
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffDays > 0) {
+        const remainingHours = diffHours % 24;
+        return `Resets in ${diffDays}d ${remainingHours}h`;
+      }
+      if (diffHours > 0) {
+        return `Resets in ${diffHours}h ${remainingMins}m`;
+      }
+      return `Resets in ${diffMins}m`;
+    } catch {
+      return isoString;
+    }
+  };
+
+  const getQuotaColor = (remainingPct: number) => {
+    if (remainingPct >= 50) {
+      return {
+        bar: 'bg-theme-cyan shadow-[0_0_8px_rgba(89,107,69,0.35)]',
+        badge: 'bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/40',
+      };
+    }
+    if (remainingPct >= 20) {
+      return {
+        bar: 'bg-theme-rose shadow-[0_0_8px_rgba(224,159,62,0.35)]',
+        badge: 'bg-theme-rose/15 text-theme-rose border border-theme-rose/40',
+      };
+    }
+    return {
+      bar: 'bg-gi-status-danger shadow-[0_0_8px_rgba(224,83,69,0.35)]',
+      badge: 'bg-gi-status-danger/15 text-gi-status-danger border border-gi-status-danger/40',
+    };
+  };
+
+  const renderQuotaCard = (title: string, windowData?: CodexQuotaWindow) => {
+    if (!windowData) return null;
+    const colors = getQuotaColor(windowData.remaining);
+    return (
+      <div class="p-3 bg-theme-card border border-theme-border space-y-2 shadow-sm">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-bold text-theme-text truncate">{title}</span>
+          <span class={`text-xs font-mono font-bold px-2 py-0.5 border ${colors.badge}`}>
+            {Math.round(windowData.remaining)}% Available
+          </span>
+        </div>
+        <div class="w-full h-1.5 bg-theme-bg overflow-hidden border border-theme-border/40">
+          <div
+            class={`h-full transition-all duration-500 ${colors.bar}`}
+            style={{ width: `${Math.max(2, Math.min(100, windowData.remaining))}%` }}
+          />
+        </div>
+        <Show when={windowData.reset_at}>
+          <div class="text-xs text-theme-text/50 font-mono flex items-center gap-1">
+            <Clock size={11} class="text-theme-cyan shrink-0" />
+            <span>{formatResetTime(windowData.reset_at)}</span>
+          </div>
+        </Show>
+      </div>
+    );
+  };
+
+  return (
+    <div class="px-4 pb-4 pt-3 border-t border-theme-border/60 bg-theme-bg/60 space-y-3 animate-fade-in">
+      {/* Panel Header */}
+      <div class="flex items-center justify-between gap-2 flex-wrap pb-1">
+        <div class="flex items-center gap-2">
+          <Gauge size={15} class="text-theme-cyan" />
+          <span class="text-xs font-bold text-theme-text">OpenAI Codex Usage Status</span>
+          <Show when={props.quotaData?.plan}>
+            <span class="text-xs font-mono px-2 py-0.5 bg-theme-cyan/10 text-theme-cyan border border-theme-cyan/20 font-bold uppercase">
+              {props.quotaData?.plan}
+            </span>
+          </Show>
+          <Show when={props.quotaData?.reset_credits !== undefined && props.quotaData?.reset_credits !== null}>
+            <span class="text-xs font-mono px-2 py-0.5 bg-theme-rose/10 text-theme-rose border border-theme-rose/20 font-bold">
+              {props.quotaData?.reset_credits} Reset Credits
+            </span>
+          </Show>
+        </div>
+
+        <button
+          onClick={() => props.onRefresh(props.accountId)}
+          disabled={props.isLoading}
+          class="px-2.5 py-1 bg-theme-card border border-theme-border text-theme-text/70 hover:text-theme-cyan hover:border-theme-cyan text-xs font-medium transition-all flex items-center gap-1.5"
+          title="Refresh live quota data"
+        >
+          <RefreshCw size={12} class={props.isLoading ? 'animate-spin text-theme-cyan' : ''} />
+          <span>{props.isLoading ? 'Loading...' : 'Refresh Quota'}</span>
+        </button>
+      </div>
+
+      {/* Loading Indicator */}
+      <Show when={props.isLoading && !props.quotaData}>
+        <div class="p-6 text-center bg-theme-card/50 border border-theme-border flex items-center justify-center gap-3">
+          <RefreshCw size={16} class="animate-spin text-theme-cyan" />
+          <span class="text-xs text-theme-text/60">Fetching usage from OpenAI WHAM API...</span>
+        </div>
+      </Show>
+
+      {/* Error State */}
+      <Show when={!props.isLoading && props.quotaData?.status === 'error'}>
+        <div class="p-3.5 bg-gi-status-danger/10 border border-gi-status-danger/30 text-xs text-gi-status-danger flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <AlertTriangle size={16} class="shrink-0" />
+            <span>{props.quotaData?.error || 'Failed to read account usage.'}</span>
+          </div>
+          <button
+            onClick={() => props.onRefresh(props.accountId)}
+            class="px-2.5 py-1 bg-gi-status-danger/20 hover:bg-gi-status-danger/30 text-gi-status-danger text-xs font-bold shrink-0 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </Show>
+
+      {/* Quota Windows */}
+      <Show when={props.quotaData && (props.quotaData.session_quota || props.quotaData.weekly_quota)}>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {renderQuotaCard('Session Window', props.quotaData?.session_quota)}
+          {renderQuotaCard('Weekly Window', props.quotaData?.weekly_quota)}
+        </div>
+      </Show>
+
+      {/* Codex Models Grid */}
+      <div class="space-y-1.5 pt-1">
+        <h3 class="text-theme-text/80 flex items-center gap-1.5">
+          <Sparkles size={14} class="text-theme-cyan" />
+          <span>Available Codex Models (Click to copy ID)</span>
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          <For each={CODEX_MODELS}>
+            {(modelId) => {
+              const isCopied = () => props.copiedModelId === modelId;
+              return (
+                <div
+                  onClick={() => props.onCopyModel(modelId, `Model ID ${modelId}`)}
+                  class="p-2.5 bg-theme-card/90 border border-theme-border/80 hover:border-theme-cyan/50 cursor-pointer transition-all flex items-center justify-between gap-2 shadow-sm group"
+                  title="Click to copy Model ID"
+                >
+                  <code class="text-xs font-mono font-bold text-theme-cyan truncate select-all">{modelId}</code>
+                  <button type="button" class="text-theme-text/40 group-hover:text-theme-cyan transition-colors shrink-0">
+                    <Show when={isCopied()} fallback={<Copy size={13} />}>
+                      <Check size={13} class="text-gi-status-success" />
+                    </Show>
+                  </button>
+                </div>
+              );
+            }}
+          </For>
+        </div>
+      </div>
+    </div>
+  );
+};

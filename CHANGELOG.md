@@ -30,9 +30,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Multiplatform precision desktop clicking with native accessibility tree integration and OCR fallback.
   - Voice-controlled application launcher, volume management, screenshots, and lock screen commands.
   - Integrated to-do list manager with voice task tracking.
-- **Antigravity Pool & Local OpenAI API Router (`:42128/v1`)**:
-  - Multi-account OAuth pooling with automatic failover.
-  - Standard OpenAI-compatible local endpoints (`/v1/chat/completions`) for drop-in use with Cursor, VS Code, and Cline.
+- **Antigravity & OpenAI Codex Multi-Provider Pool & Local Router (`:42128/v1`)**:
+  - Multi-account OAuth pooling for both Google Antigravity (`ag/`) and OpenAI Codex (`cx/`) with automatic quota failover.
+  - Native 1-click browser OAuth login flow eliminating error-prone manual token inputs.
+  - Standard OpenAI-compatible local endpoints (`/v1/chat/completions` & `/v1/models`) for drop-in use with Cursor, Zed, VS Code, and Cline.
+  - Reactive in-memory synchronization: account additions, deletions, toggles, and token refreshes take effect instantly without restarting.
+  - Clean `model_id`-centric quota inspection and model dropdowns, removing duplicate or confusing display labels.
 - **Memory & Resource Efficiency**:
   - Disabled memory pattern cache on ONNX models and enabled safe OS working-set trimming (`malloc_trim`).
   - Thread safety and resource-friendly CPU budgeting preventing OOM issues alongside heavy apps like OBS.

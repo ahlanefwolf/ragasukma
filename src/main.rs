@@ -1,5 +1,5 @@
 // Prevents console window on Windows (runs silently in background)
-#![windows_subsystem = "windows"]
+#![cfg_attr(not(test), windows_subsystem = "windows")]
 #![allow(clippy::collapsible_if)]
 
 #[global_allocator]

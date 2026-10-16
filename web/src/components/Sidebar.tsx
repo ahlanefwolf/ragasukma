@@ -10,6 +10,7 @@ import {
   Palette,
   Bot,
   Rocket,
+  Code2,
   ChevronDown,
   Radio,
   Workflow,
@@ -156,7 +157,24 @@ export const Sidebar: Component<SidebarProps> = (props) => {
                     <span>Antigravity</span>
                   </div>
                   <span class="text-[10px] font-mono px-1.5 py-0.5 bg-theme-rose/20 text-theme-rose border border-theme-rose/40 uppercase font-bold">
-                    OAuth
+                    ag
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => handleSelectTab('provider-codex')}
+                  class={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-all border ${
+                    props.activeTab === 'provider-codex'
+                      ? 'bg-emerald-500/15 text-emerald-400 font-bold border-emerald-500/40'
+                      : 'bg-transparent border-transparent text-theme-text/70 hover:bg-theme-card hover:text-theme-text hover:border-theme-border'
+                  }`}
+                >
+                  <div class="flex items-center gap-2.5">
+                    <Code2 size={15} class={props.activeTab === 'provider-codex' ? 'text-emerald-400' : 'text-theme-text/60'} />
+                    <span>OpenAI Codex</span>
+                  </div>
+                  <span class="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase font-bold">
+                    cx
                   </span>
                 </button>
               </div>

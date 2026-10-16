@@ -256,6 +256,12 @@ impl AntigravityProvider {
             .retain(|a| a.id != id_or_email && a.email.as_deref().unwrap_or("") != id_or_email);
         if self.accounts.len() != initial_len {
             let _ = self.save_accounts();
+            // Sinkronkan juga ke semua kandidat lokasi file akun lain agar tidak ter-restore dari candidate path lain
+            if let Ok(json) = serde_json::to_string_pretty(&self.accounts) {
+                for path in crate::assets::find_all_file_candidates("antigravity_accounts.json") {
+                    let _ = std::fs::write(path, &json);
+                }
+            }
             true
         } else {
             false

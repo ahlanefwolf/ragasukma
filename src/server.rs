@@ -383,6 +383,37 @@ pub fn handle_api_route<W: Write>(
             handle_post_antigravity_oauth_exchange(body_str, &mut stream);
         }
 
+        // LLM Providers - Codex (OpenAI)
+        ("GET", "/api/llm/codex/models") => handle_get_codex_models(&mut stream),
+        ("GET", "/api/llm/codex/accounts") => handle_get_codex_accounts(&mut stream),
+        ("POST", "/api/llm/codex/accounts") => {
+            handle_post_codex_account(body_str, &mut stream)
+        }
+        ("POST", "/api/llm/codex/accounts/delete") => {
+            handle_delete_codex_account(body_str, &mut stream)
+        }
+        ("POST", "/api/llm/codex/accounts/refresh") => {
+            handle_refresh_codex_account(body_str, &mut stream)
+        }
+        ("POST", "/api/llm/codex/accounts/toggle") => {
+            handle_toggle_codex_account(body_str, &mut stream)
+        }
+        ("POST", "/api/llm/codex/accounts/quota") => {
+            handle_get_codex_account_quota(body_str, full_url, &mut stream)
+        }
+        ("GET", path) if path.starts_with("/api/llm/codex/accounts/quota") => {
+            handle_get_codex_account_quota(body_str, full_url, &mut stream);
+        }
+        ("GET", path) if path.starts_with("/api/llm/codex/oauth/url") => {
+            handle_get_codex_auth_url(full_url, &mut stream);
+        }
+        ("GET", path) if path.starts_with("/api/llm/codex/oauth/callback") => {
+            handle_codex_oauth_callback(full_url, &mut stream);
+        }
+        ("POST", "/api/llm/codex/oauth/exchange") => {
+            handle_post_codex_oauth_exchange(body_str, &mut stream);
+        }
+
         // Menu Service
         ("POST", "/api/cmd") => handle_menu_cmd(body_str, &mut stream, &shared),
         ("GET", "/api/state") => handle_get_state(&mut stream, &shared),
@@ -821,6 +852,9 @@ pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
             };
 
             let cors = tower_http::cors::CorsLayer::permissive();
+
+            // Start background callback listener for OpenAI Codex OAuth (port 1455)
+            crate::services::llm_providers::codex_service::ensure_port_1455_listener();
 
             let app = axum::Router::new()
                 .route("/api/ws", axum::routing::get(crate::services::events_service::axum_ws_handler))

@@ -10,6 +10,7 @@ import { TunerTab } from './components/tuner/TunerTab';
 import { LogsTab } from './components/LogsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { AntigravityTab } from './components/AntigravityTab';
+import { CodexTab } from './components/CodexTab';
 import { RemoteTab } from './components/RemoteTab';
 import { MobileClientView } from './components/MobileClientView';
 import { BottomPlayer } from './components/BottomPlayer';
@@ -41,6 +42,8 @@ const TAB_HASH_ALIASES: Record<string, string> = {
   '#remote': 'remote',
   '#provider-antigravity': 'provider-antigravity',
   '#antigravity': 'provider-antigravity',
+  '#provider-codex': 'provider-codex',
+  '#codex': 'provider-codex',
 };
 
 const getInitialTabFromHash = (): string => {
@@ -430,10 +433,13 @@ const App: Component = () => {
                   <RemoteTab showToast={showToast} />
                 </Show>
                 <div class={activeTab() === 'settings' ? 'block' : 'hidden'}>
-                  <SettingsTab showToast={showToast} />
+                  <SettingsTab showToast={showToast} isActive={activeTab() === 'settings'} />
                 </div>
                 <Show when={activeTab() === 'provider-antigravity'}>
                   <AntigravityTab showToast={showToast} />
+                </Show>
+                <Show when={activeTab() === 'provider-codex'}>
+                  <CodexTab showToast={showToast} />
                 </Show>
               </div>
 

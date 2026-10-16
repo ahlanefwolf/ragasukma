@@ -1,4 +1,6 @@
 use crate::llm::providers::antigravity::AntigravityProvider;
+use crate::llm::providers::codex::CodexProvider;
+use crate::llm::providers::codex::constants::CODEX_DEFAULT_MODELS;
 use crate::llm::v1_engine::{V1ChatRequest, V1StreamEvent, V1ToolCall};
 use crate::server::send_json_response;
 use serde::{Deserialize, Serialize};
@@ -100,7 +102,7 @@ pub fn handle_v1_models(stream: &mut dyn Write) {
         model_names.push("ag/gemini-3.8-flash-high".to_string());
     }
 
-    let data = model_names
+    let mut data = model_names
         .into_iter()
         .map(|name| ModelItem {
             id: name,
@@ -108,7 +110,17 @@ pub fn handle_v1_models(stream: &mut dyn Write) {
             created: now,
             owned_by: "antigravity".to_string(),
         })
-        .collect();
+        .collect::<Vec<ModelItem>>();
+
+    // Append OpenAI Codex models (cx/ prefix)
+    for (model_id, _) in CODEX_DEFAULT_MODELS {
+        data.push(ModelItem {
+            id: format!("cx/{}", model_id),
+            object: "model".to_string(),
+            created: now,
+            owned_by: "codex".to_string(),
+        });
+    }
 
     let resp = ModelListResponse {
         object: "list".to_string(),
@@ -140,7 +152,7 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut dyn Write) {
     let cmpl_id = format!("chatcmpl-{}", current_ts());
     let now = current_ts();
 
-    let mut provider = AntigravityProvider::new();
+    let is_codex = model.starts_with("cx/") || model.to_lowercase().contains("codex");
 
     if is_stream {
         let resp_header = "HTTP/1.1 200 OK\r\n\
@@ -177,74 +189,105 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut dyn Write) {
         let model_clone = model.clone();
         let mut final_finish_reason = "stop".to_string();
 
-        let stream_result = provider.chat_stream_v1(&req, |event| {
-            match event {
-                V1StreamEvent::ContentDelta(delta_text) => {
-                    let chunk = StreamChunk {
-                        id: cmpl_id_clone.clone(),
-                        object: "chat.completion.chunk".to_string(),
-                        created: now,
-                        model: model_clone.clone(),
-                        choices: vec![StreamChoice {
-                            index: 0,
-                            delta: serde_json::json!({ "content": delta_text }),
-                            finish_reason: None,
-                        }],
-                    };
-                    if let Ok(json) = serde_json::to_string(&chunk) {
-                        let msg = format!("data: {}\n\n", json);
-                        let _ = stream.write_all(msg.as_bytes());
-                        let _ = stream.flush();
-                    }
-                }
-                V1StreamEvent::ToolCallDelta {
-                    index,
-                    id,
-                    name,
-                    arguments,
-                } => {
-                    let mut tc_json = serde_json::json!({
-                        "index": index,
-                        "type": "function",
-                        "function": {
-                            "arguments": arguments
+        let stream_result = if is_codex {
+            let mut codex_provider = CodexProvider::new();
+            codex_provider.chat_stream_v1(&req, |event| {
+                match event {
+                    V1StreamEvent::ContentDelta(delta_text) => {
+                        let chunk = StreamChunk {
+                            id: cmpl_id_clone.clone(),
+                            object: "chat.completion.chunk".to_string(),
+                            created: now,
+                            model: model_clone.clone(),
+                            choices: vec![StreamChoice {
+                                index: 0,
+                                delta: serde_json::json!({ "content": delta_text }),
+                                finish_reason: None,
+                            }],
+                        };
+                        if let Ok(json) = serde_json::to_string(&chunk) {
+                            let msg = format!("data: {}\n\n", json);
+                            let _ = stream.write_all(msg.as_bytes());
+                            let _ = stream.flush();
                         }
-                    });
-                    if let Some(ref call_id) = id {
-                        tc_json["id"] = serde_json::json!(call_id);
                     }
-                    if let Some(ref fn_name) = name {
-                        tc_json["function"]["name"] = serde_json::json!(fn_name);
+                    V1StreamEvent::Finish { finish_reason } => {
+                        final_finish_reason = finish_reason;
                     }
+                    _ => {}
+                }
+                Ok(())
+            })
+        } else {
+            let mut provider = AntigravityProvider::new();
+            provider.chat_stream_v1(&req, |event| {
+                match event {
+                    V1StreamEvent::ContentDelta(delta_text) => {
+                        let chunk = StreamChunk {
+                            id: cmpl_id_clone.clone(),
+                            object: "chat.completion.chunk".to_string(),
+                            created: now,
+                            model: model_clone.clone(),
+                            choices: vec![StreamChoice {
+                                index: 0,
+                                delta: serde_json::json!({ "content": delta_text }),
+                                finish_reason: None,
+                            }],
+                        };
+                        if let Ok(json) = serde_json::to_string(&chunk) {
+                            let msg = format!("data: {}\n\n", json);
+                            let _ = stream.write_all(msg.as_bytes());
+                            let _ = stream.flush();
+                        }
+                    }
+                    V1StreamEvent::ToolCallDelta {
+                        index,
+                        id,
+                        name,
+                        arguments,
+                    } => {
+                        let mut tc_json = serde_json::json!({
+                            "index": index,
+                            "type": "function",
+                            "function": {
+                                "arguments": arguments
+                            }
+                        });
+                        if let Some(ref call_id) = id {
+                            tc_json["id"] = serde_json::json!(call_id);
+                        }
+                        if let Some(ref fn_name) = name {
+                            tc_json["function"]["name"] = serde_json::json!(fn_name);
+                        }
 
-                    let chunk = StreamChunk {
-                        id: cmpl_id_clone.clone(),
-                        object: "chat.completion.chunk".to_string(),
-                        created: now,
-                        model: model_clone.clone(),
-                        choices: vec![StreamChoice {
-                            index: 0,
-                            delta: serde_json::json!({ "tool_calls": [tc_json] }),
-                            finish_reason: None,
-                        }],
-                    };
-                    if let Ok(json) = serde_json::to_string(&chunk) {
-                        let msg = format!("data: {}\n\n", json);
-                        let _ = stream.write_all(msg.as_bytes());
+                        let chunk = StreamChunk {
+                            id: cmpl_id_clone.clone(),
+                            object: "chat.completion.chunk".to_string(),
+                            created: now,
+                            model: model_clone.clone(),
+                            choices: vec![StreamChoice {
+                                index: 0,
+                                delta: serde_json::json!({ "tool_calls": [tc_json] }),
+                                finish_reason: None,
+                            }],
+                        };
+                        if let Ok(json) = serde_json::to_string(&chunk) {
+                            let msg = format!("data: {}\n\n", json);
+                            let _ = stream.write_all(msg.as_bytes());
+                            let _ = stream.flush();
+                        }
+                    }
+                    V1StreamEvent::KeepAlive => {
+                        let _ = stream.write_all(b":\n\n");
                         let _ = stream.flush();
                     }
+                    V1StreamEvent::Finish { finish_reason } => {
+                        final_finish_reason = finish_reason;
+                    }
                 }
-                V1StreamEvent::KeepAlive => {
-                    // Send SSE comment to keep connection alive during thinking phases
-                    let _ = stream.write_all(b":\n\n");
-                    let _ = stream.flush();
-                }
-                V1StreamEvent::Finish { finish_reason } => {
-                    final_finish_reason = finish_reason;
-                }
-            }
-            Ok(())
-        });
+                Ok(())
+            })
+        };
 
         match stream_result {
             Ok(v1_resp) => {
@@ -286,7 +329,15 @@ pub fn handle_v1_chat_completions(body_str: &str, stream: &mut dyn Write) {
         }
     } else {
         // Non-streaming response
-        match provider.chat_stream_v1(&req, |_| Ok(())) {
+        let non_stream_res = if is_codex {
+            let mut codex_provider = CodexProvider::new();
+            codex_provider.chat_stream_v1(&req, |_| Ok(()))
+        } else {
+            let mut provider = AntigravityProvider::new();
+            provider.chat_stream_v1(&req, |_| Ok(()))
+        };
+
+        match non_stream_res {
             Ok(v1_resp) => {
                 let approx_prompt_tokens = req
                     .messages

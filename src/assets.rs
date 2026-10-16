@@ -87,6 +87,47 @@ pub fn find_file_in_candidates(filename: &str) -> PathBuf {
     PathBuf::from(filename)
 }
 
+pub fn find_all_file_candidates(filename: &str) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    candidates.push(get_assets_dir().join(filename));
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.join("assets").join(filename));
+            candidates.push(exe_dir.join(filename));
+            candidates.push(exe_dir.join("../Resources/assets").join(filename));
+            candidates.push(exe_dir.join("../Resources").join(filename));
+        }
+    }
+
+    candidates.push(PathBuf::from(filename));
+    candidates.push(PathBuf::from(format!("assets/{}", filename)));
+    candidates.push(PathBuf::from(format!("../assets/{}", filename)));
+    candidates.push(PathBuf::from(format!("../{}", filename)));
+
+    candidates.push(
+        crate::config::get_app_config_dir()
+            .join("assets")
+            .join(filename),
+    );
+    candidates.push(crate::config::get_app_config_dir().join(filename));
+
+    #[cfg(target_os = "windows")]
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        let appdata_path = PathBuf::from(appdata);
+        candidates.push(appdata_path.join("ragasukma").join("assets").join(filename));
+        candidates.push(appdata_path.join("ragasukma").join(filename));
+    }
+
+    let mut existing = Vec::new();
+    for c in candidates {
+        if c.exists() && !existing.contains(&c) {
+            existing.push(c);
+        }
+    }
+    existing
+}
+
 pub fn get_extension_dir() -> PathBuf {
     let mut candidates = Vec::new();
     if let Ok(cur) = std::env::current_dir() {

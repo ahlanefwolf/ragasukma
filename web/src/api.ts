@@ -8,6 +8,7 @@ import {
   posesService,
   skillsService,
   antigravityService,
+  codexService,
   remoteService,
   recipeService,
   historyService,
@@ -78,6 +79,16 @@ export const api = {
   toggleAntigravityAccount: antigravityService.toggleAccount,
   getAntigravityAccountQuota: antigravityService.getAccountQuota,
 
+  // LLM Providers - OpenAI Codex
+  getCodexAccounts: codexService.getAccounts,
+  getCodexAuthUrl: codexService.getAuthUrl,
+  addCodexAccount: codexService.addAccount,
+  deleteCodexAccount: codexService.deleteAccount,
+  refreshCodexAccount: codexService.refreshAccount,
+  toggleCodexAccount: codexService.toggleAccount,
+  getCodexAccountQuota: codexService.getAccountQuota,
+  getCodexModels: codexService.getModels,
+
   // Remote Tunnel & Text Injection Service
   getTunnelStatus: remoteService.getTunnelStatus,
   checkCloudflared: remoteService.checkCloudflared,
@@ -102,3 +113,6 @@ export const api = {
   subscribeModelStatus: eventsService.subscribeModelStatus,
   triggerModelDownload: eventsService.triggerModelDownload,
 };
+
+export type { AntigravityAccount, AntigravityQuotaResponse } from './services/antigravityService';
+export type { CodexAccount, CodexQuotaResponse, CodexQuotaWindow, CodexModelItem } from './services/codexService';

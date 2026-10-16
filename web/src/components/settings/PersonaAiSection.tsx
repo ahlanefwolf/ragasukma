@@ -1,6 +1,6 @@
-import { Component, For, createEffect, createSignal, onMount } from 'solid-js';
-import { Brain, UserCheck, Cpu } from 'lucide-solid';
-import { antigravityService } from '../../services';
+import { Component, For, createEffect, createSignal } from 'solid-js';
+import { Brain, UserCheck, Cpu, RefreshCw } from 'lucide-solid';
+import { antigravityService, codexService, CodexModelItem } from '../../services';
 
 interface PersonaAiSectionProps {
   assistantName: string;
@@ -21,6 +21,7 @@ interface PersonaAiSectionProps {
   setLlmApiKey: (val: string) => void;
   ttsVoiceName?: string;
   setTtsVoiceName?: (val: string) => void;
+  isActive?: boolean;
 }
 
 export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
@@ -29,23 +30,54 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
   let modelSelectRef: HTMLSelectElement | undefined;
 
   const [availableModels, setAvailableModels] = createSignal<Array<{ id: string; label: string }>>([]);
+  const [isRefreshingModels, setIsRefreshingModels] = createSignal(false);
 
-  onMount(async () => {
+  const refreshDynamicModels = async () => {
+    setIsRefreshingModels(true);
     try {
-      const dynamic = await antigravityService.getDynamicModels();
-      if (dynamic && dynamic.length > 0) {
-        const list = dynamic.map((m) => ({
-          id: `ag/${m.model_id}`,
-          label: `ag/${m.model_id} (${m.display_name})`,
-        }));
-        const current = props.llmModel;
-        if (current && !list.some((m) => m.id === current)) {
-          list.unshift({ id: current, label: `${current} (Current)` });
-        }
-        setAvailableModels(list);
+      const [dynamicAg, codexModels] = await Promise.all([
+        antigravityService.getDynamicModels().catch(() => [] as Array<{ model_id: string; display_name: string }>),
+        codexService.getModels().catch(() => [] as CodexModelItem[])
+      ]);
+
+      const list: Array<{ id: string; label: string }> = [];
+
+      if (dynamicAg && dynamicAg.length > 0) {
+        dynamicAg.forEach((m: { model_id: string }) => {
+          const fullId = `ag/${m.model_id}`;
+          list.push({
+            id: fullId,
+            label: fullId,
+          });
+        });
       }
+
+      if (codexModels && codexModels.length > 0) {
+        codexModels.forEach((m: CodexModelItem) => {
+          list.push({
+            id: m.id,
+            label: m.id,
+          });
+        });
+      }
+
+      const current = props.llmModel;
+      if (current && !list.some((m) => m.id === current)) {
+        list.unshift({ id: current, label: `${current} (Current)` });
+      }
+
+      setAvailableModels(list);
     } catch {
       // fallback to presets
+    } finally {
+      setIsRefreshingModels(false);
+    }
+  };
+
+  createEffect(() => {
+    // Dipanggil otomatis begitu tab dibuka atau isActive menjadi true
+    if (props.isActive) {
+      refreshDynamicModels();
     }
   });
 
@@ -180,7 +212,7 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
               <span>Local (Ragasukma Engine)</span>
             </div>
             <div class="text-xs text-theme-text/60 mt-1 leading-relaxed">
-              System automatically routes requests (powered by Antigravity pool). You can still select your preferred AI model.
+              System automatically routes requests (powered by Antigravity & OpenAI Codex pools). You can still select your preferred AI model.
             </div>
           </button>
 
@@ -218,20 +250,32 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
                   Automatic Internal Routing
                 </span>
               </label>
-              <select
-                ref={modelSelectRef}
-                value={props.llmModel}
-                onChange={(e) => props.setLlmModel(e.currentTarget.value)}
-                class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text font-medium outline-none focus:border-theme-cyan transition-colors"
-              >
-                <For each={availableModels()}>
-                  {(m) => (
-                    <option value={m.id} selected={m.id === props.llmModel}>
-                      {m.label}
-                    </option>
-                  )}
-                </For>
-              </select>
+              <div class="flex items-center gap-2">
+                <select
+                  ref={modelSelectRef}
+                  value={props.llmModel}
+                  onChange={(e) => props.setLlmModel(e.currentTarget.value)}
+                  class="flex-1 bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text font-medium outline-none focus:border-theme-cyan transition-colors"
+                >
+                  <For each={availableModels()}>
+                    {(m) => (
+                      <option value={m.id} selected={m.id === props.llmModel}>
+                        {m.label}
+                      </option>
+                    )}
+                  </For>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => refreshDynamicModels()}
+                  disabled={isRefreshingModels()}
+                  title="Refresh available models"
+                  class="px-3 py-2.5 bg-theme-surface hover:bg-theme-card border border-theme-border text-theme-cyan hover:text-theme-cyan/80 transition-colors flex items-center justify-center shrink-0 disabled:opacity-50"
+                >
+                  <RefreshCw size={15} class={isRefreshingModels() ? 'animate-spin' : ''} />
+                </button>
+              </div>
             </div>
           </div>
         ) : (

@@ -69,11 +69,13 @@
 - **Integrated To-Do & Task Management**:
   - Voice-activated task tracking to add, view, and complete daily reminders.
 
-### 6. Antigravity Pool & Local OpenAI Router
+### 6. Multi-Provider OAuth Routing (Antigravity & OpenAI Codex)
 - **Universal Local API (`http://127.0.0.1:42128/v1`)**:
-  - Drop-in standard OpenAI-compatible API endpoint allowing direct connection with Cursor, VS Code, Cline, and third-party AI tools.
-- **Multi-Account OAuth Pooling**:
-  - Automated account rotation and quota failover for uninterrupted conversation flow.
+  - Drop-in standard OpenAI-compatible API endpoint allowing direct connection with Cursor, Zed, VS Code, Cline, and third-party AI tools.
+- **Multi-Account OAuth Pooling (Antigravity & OpenAI Codex)**:
+  - 1-click seamless browser OAuth integration for Google Antigravity (`ag/`) and OpenAI Codex (`cx/`).
+  - Automated account rotation, token refresh, and quota failover for uninterrupted conversation flow.
+  - Live quota tracking with clean `model_id` display, eliminating redundant labels.
 
 ---
 

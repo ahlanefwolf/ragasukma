@@ -94,8 +94,8 @@ pub fn fetch_account_quota(
         }
     }
 
-    // Sort models_quota alphabetically by display_name
-    models_quota.sort_by(|a, b| a.display_name.cmp(&b.display_name));
+    // Sort models_quota alphabetically by model_id
+    models_quota.sort_by(|a, b| a.model_id.cmp(&b.model_id));
 
     // 2. Fetch weekly quota summary
     let mut weekly_quota = Vec::new();

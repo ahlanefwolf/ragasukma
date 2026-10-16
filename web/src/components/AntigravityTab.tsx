@@ -1,7 +1,6 @@
 import { Component, createSignal, onMount, onCleanup, For, Show } from 'solid-js';
 import { 
   Rocket, 
-  Plus, 
   RefreshCw, 
   ShieldCheck, 
   LogIn
@@ -9,7 +8,6 @@ import {
 import { api, AntigravityAccount, AntigravityQuotaResponse } from '../api';
 import { AntigravityStats } from './antigravity/AntigravityStats';
 import { AntigravityAccountCard } from './antigravity/AntigravityAccountCard';
-import { AntigravityAddModal } from './antigravity/AntigravityAddModal';
 
 interface AntigravityTabProps {
   showToast: (msg: string) => void;
@@ -27,7 +25,6 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
   const [expandedQuota, setExpandedQuota] = createSignal<Record<string, boolean>>({});
 
   // Form State
-  const [showAddModal, setShowAddModal] = createSignal(false);
   const [copiedModelId, setCopiedModelId] = createSignal<string | null>(null);
 
   const copyToClipboard = (text: string, label = 'Text') => {
@@ -219,7 +216,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
                 Antigravity Pool
               </h2>
               <span class="text-xs font-mono px-2 py-0.5 bg-theme-rose/20 text-theme-rose border border-theme-rose/30 font-bold uppercase">
-                Google Multi-OAuth
+                Multi-OAuth
               </span>
             </div>
             <p class="text-xs text-theme-text/60 mt-1 leading-relaxed">
@@ -247,15 +244,6 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
               <RefreshCw size={16} class="animate-spin" />
             </Show>
             <span>Google Login (OAuth)</span>
-          </button>
-
-          <button
-            onClick={() => setShowAddModal(true)}
-            class="whitespace-nowrap shrink-0 p-2.5 sm:px-3 sm:py-2.5 bg-theme-bg border border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan/50 text-xs font-semibold transition-all flex items-center gap-1.5"
-            title="Manual Token Input"
-          >
-            <Plus size={16} />
-            <span class="inline">Manual</span>
           </button>
         </div>
       </div>
@@ -372,13 +360,6 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
           <span class="text-theme-text/70 font-mono">Any string (not required)</span>
         </div>
       </div>
-
-      {/* Manual Account Modal */}
-      <AntigravityAddModal
-        isOpen={showAddModal()}
-        onClose={() => setShowAddModal(false)}
-        onSubmit={handleAddAccountSubmit}
-      />
     </div>
   );
 };

@@ -14,6 +14,7 @@ import { SystemOverlaySection } from './settings/SystemOverlaySection';
 
 interface SettingsTabProps {
   showToast: (msg: string) => void;
+  isActive?: boolean;
 }
 
 type SettingsSubTab = 'persona_ai' | 'audio_tts' | 'avatar_model' | 'system_overlay';
@@ -279,6 +280,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       {/* Sub-Tab Content Sections (Persistent DOM) */}
       <div class={activeSubTab() === 'persona_ai' ? 'block' : 'hidden'}>
         <PersonaAiSection
+          isActive={Boolean(props.isActive && activeSubTab() === 'persona_ai')}
           assistantName={assistantName()}
           setAssistantName={setAssistantName}
           userCallsign={userCallsign()}
