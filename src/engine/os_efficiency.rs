@@ -53,12 +53,13 @@ fn check_and_apply_efficiency() {
 pub fn trim_process_memory() {
     #[cfg(target_os = "windows")]
     {
+        // Tell mimalloc to safely release freed heap pages back to Windows OS
+        // without discarding resident ONNX model weights from physical RAM.
+        unsafe extern "C" {
+            fn mi_collect(force: bool);
+        }
         unsafe {
-            use windows::Win32::System::ProcessStatus::EmptyWorkingSet;
-            use windows::Win32::System::Threading::GetCurrentProcess;
-
-            let handle = GetCurrentProcess();
-            let _ = EmptyWorkingSet(handle);
+            mi_collect(false);
         }
     }
 

@@ -196,13 +196,28 @@ fn get_audio_handle() -> Option<rodio::OutputStreamHandle> {
         .clone()
 }
 
+pub enum VoiceChunk {
+    Pcm { samples: Vec<f32>, sample_rate: u32 },
+    #[allow(dead_code)]
+    Wav(Vec<u8>),
+}
+
 pub struct VoiceStreamSender {
-    sender: std::sync::mpsc::Sender<Option<Vec<u8>>>,
+    sender: std::sync::mpsc::Sender<Option<VoiceChunk>>,
 }
 
 impl VoiceStreamSender {
+    /// Pushes raw PCM samples directly to the audio player without WAV encoding/decoding overhead
+    pub fn push_chunk_pcm(&self, samples: Vec<f32>, sample_rate: u32) {
+        let _ = self.sender.send(Some(VoiceChunk::Pcm {
+            samples,
+            sample_rate,
+        }));
+    }
+
+    #[allow(dead_code)]
     pub fn push_chunk(&self, wav_bytes: Vec<u8>) {
-        let _ = self.sender.send(Some(wav_bytes));
+        let _ = self.sender.send(Some(VoiceChunk::Wav(wav_bytes)));
     }
 
     pub fn finish(&self) {
@@ -211,9 +226,9 @@ impl VoiceStreamSender {
 }
 
 /// Starts an asynchronous, gapless streaming voice session.
-/// Chunks of WAV audio can be pushed sequentially while previous chunks are actively playing.
+/// Chunks of audio can be pushed sequentially while previous chunks are actively playing.
 pub fn start_voice_stream(emotion: String, asst_name: String) -> VoiceStreamSender {
-    let (tx, rx) = std::sync::mpsc::channel::<Option<Vec<u8>>>();
+    let (tx, rx) = std::sync::mpsc::channel::<Option<VoiceChunk>>();
 
     if crate::app_state::is_voice_muted() {
         return VoiceStreamSender { sender: tx };
@@ -231,9 +246,71 @@ pub fn start_voice_stream(emotion: String, asst_name: String) -> VoiceStreamSend
             }
 
             match msg {
-                Some(wav_bytes) => {
-                    // Extract PCM samples & append to lip-sync formant analyzer with clock alignment
-                    if let Some((samples, sr)) = parse_wav_samples(&wav_bytes) {
+                Some(chunk) => {
+                    let (pcm_samples, pcm_rate) = match chunk {
+                        VoiceChunk::Pcm { samples, sample_rate } => {
+                            let sr = sample_rate;
+                            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                if let Some(handle) = get_audio_handle() {
+                                    let source = rodio::buffer::SamplesBuffer::new(1, sr, samples.clone());
+                                    if sink_arc.is_none() {
+                                        if let Ok(new_sink) = rodio::Sink::try_new(&handle) {
+                                            if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
+                                                if let Some(ref m_sink) = *music_lock {
+                                                    m_sink.set_volume(get_music_volume() * 0.25);
+                                                }
+                                            }
+                                            new_sink.append(source);
+                                            let arc = Arc::new(new_sink);
+                                            if let Ok(mut lock) = NATIVE_VOICE_SINK.lock() {
+                                                if let Some(old) = lock.take() {
+                                                    old.stop();
+                                                }
+                                                *lock = Some(Arc::clone(&arc));
+                                            }
+                                            sink_arc = Some(arc);
+                                        }
+                                    } else if let Some(ref sink) = sink_arc {
+                                        sink.append(source);
+                                    }
+                                }
+                            }));
+                            (samples, sr)
+                        }
+                        VoiceChunk::Wav(wav_bytes) => {
+                            let parsed = parse_wav_samples(&wav_bytes);
+                            let (s, sr) = parsed.unwrap_or_else(|| (Vec::new(), 24000));
+                            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                if let Some(handle) = get_audio_handle() {
+                                    if let Ok(decoder) = rodio::Decoder::new(Cursor::new(wav_bytes)) {
+                                        if sink_arc.is_none() {
+                                            if let Ok(new_sink) = rodio::Sink::try_new(&handle) {
+                                                if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
+                                                    if let Some(ref m_sink) = *music_lock {
+                                                        m_sink.set_volume(get_music_volume() * 0.25);
+                                                    }
+                                                }
+                                                new_sink.append(decoder);
+                                                let arc = Arc::new(new_sink);
+                                                if let Ok(mut lock) = NATIVE_VOICE_SINK.lock() {
+                                                    if let Some(old) = lock.take() {
+                                                        old.stop();
+                                                    }
+                                                    *lock = Some(Arc::clone(&arc));
+                                                }
+                                                sink_arc = Some(arc);
+                                            }
+                                        } else if let Some(ref sink) = sink_arc {
+                                            sink.append(decoder);
+                                        }
+                                    }
+                                }
+                            }));
+                            (s, sr)
+                        }
+                    };
+
+                    if !pcm_samples.is_empty() {
                         if let Ok(mut lock) = ACTIVE_VOICE_SPEECH.lock() {
                             if let Some(ref mut speech) = *lock {
                                 let elapsed = speech.start_instant.elapsed().as_secs_f32();
@@ -244,45 +321,16 @@ pub fn start_voice_stream(emotion: String, asst_name: String) -> VoiceStreamSend
                                         ((elapsed - buffered_secs) * speech.sample_rate as f32) as usize;
                                     speech.samples.extend(std::iter::repeat_n(0.0f32, gap_samples));
                                 }
-                                speech.samples.extend(samples);
+                                speech.samples.extend(pcm_samples);
                             } else {
                                 *lock = Some(ActiveVoiceSpeech {
-                                    samples,
-                                    sample_rate: sr,
+                                    samples: pcm_samples,
+                                    sample_rate: pcm_rate,
                                     start_instant: std::time::Instant::now(),
                                 });
                             }
                         }
                     }
-
-                    // Enqueue chunk into rodio sink
-                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        if let Some(handle) = get_audio_handle() {
-                            if let Ok(decoder) = rodio::Decoder::new(Cursor::new(wav_bytes)) {
-                                if sink_arc.is_none() {
-                                    if let Ok(new_sink) = rodio::Sink::try_new(&handle) {
-                                        // Duck background music
-                                        if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
-                                            if let Some(ref m_sink) = *music_lock {
-                                                m_sink.set_volume(get_music_volume() * 0.25);
-                                            }
-                                        }
-                                        new_sink.append(decoder);
-                                        let arc = Arc::new(new_sink);
-                                        if let Ok(mut lock) = NATIVE_VOICE_SINK.lock() {
-                                            if let Some(old) = lock.take() {
-                                                old.stop();
-                                            }
-                                            *lock = Some(Arc::clone(&arc));
-                                        }
-                                        sink_arc = Some(arc);
-                                    }
-                                } else if let Some(ref sink) = sink_arc {
-                                    sink.append(decoder);
-                                }
-                            }
-                        }
-                    }));
 
                     // Trigger Speaking state directly from worker player as soon as chunk 0 starts playing
                     if !is_speaking_triggered {

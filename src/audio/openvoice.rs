@@ -60,6 +60,8 @@ pub fn init_engine() -> Result<OpenVoiceEngine> {
         .map_err(|e| anyhow!("{e}"))?
         .with_intra_threads(intra_threads)
         .map_err(|e| anyhow!("{e}"))?
+        .with_inter_threads(1)
+        .map_err(|e| anyhow!("{e}"))?
         .with_optimization_level(GraphOptimizationLevel::Level3)
         .map_err(|e| anyhow!("{e}"))?
         .with_memory_pattern(false)
@@ -72,6 +74,8 @@ pub fn init_engine() -> Result<OpenVoiceEngine> {
         .with_execution_providers([CPU::default().with_arena_allocator(false).build()])
         .map_err(|e| anyhow!("{e}"))?
         .with_intra_threads(intra_threads)
+        .map_err(|e| anyhow!("{e}"))?
+        .with_inter_threads(1)
         .map_err(|e| anyhow!("{e}"))?
         .with_optimization_level(GraphOptimizationLevel::Level3)
         .map_err(|e| anyhow!("{e}"))?

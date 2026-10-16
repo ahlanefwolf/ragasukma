@@ -113,7 +113,7 @@ impl TextToSpeech {
         // ---------------------------------------------------------------------
         // Worker 1 (Chunk Inference Producer): Generate WAV Chunks via ONNX
         // ---------------------------------------------------------------------
-        let mut on_chunk = |chunk_idx: usize, total_chunks: usize, chunk_wav: Vec<u8>| {
+        let mut on_chunk = |chunk_idx: usize, total_chunks: usize, chunk_samples: Vec<f32>, chunk_rate: u32, chunk_wav: Vec<u8>| {
             // Jika ada interupsi dari user, jangan teruskan chunk ke player/mobile
             if crate::app_state::is_interruption_requested() {
                 return;
@@ -125,9 +125,9 @@ impl TextToSpeech {
                 audio_id.clone()
             };
 
-            // Stream to PC speakers immediately as soon as chunk is synthesized
+            // Stream raw PCM samples directly to PC speakers without WAV decoding latency
             if let Some(ref pc_stream) = native_pc_stream {
-                pc_stream.push_chunk(chunk_wav.clone());
+                pc_stream.push_chunk_pcm(chunk_samples, chunk_rate);
             }
 
             // Push to mobile background worker for async Opus encoding & WebSocket transmission
