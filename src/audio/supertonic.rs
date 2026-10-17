@@ -70,19 +70,22 @@ pub fn get_engine() -> Option<&'static SupertonicEngine> {
 }
 
 pub fn init_engine_background() {
-    std::thread::spawn(|| {
-        match init_engine() {
-            Ok(engine) => {
-                // Background warm-up: run 1 micro-inference so that ONNX graphs,
-                // kernels, Level3 optimizations, and memory arenas are compiled
-                // and cached in RAM before user interaction.
-                let _ = engine.synthesize("Halo", "F4", "id", 1.0);
+    let _ = std::thread::Builder::new()
+        .name("ragasukma-tts-init".to_string())
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            match init_engine() {
+                Ok(engine) => {
+                    // Background warm-up: run 1 micro-inference so that ONNX graphs,
+                    // kernels, Level3 optimizations, and memory arenas are compiled
+                    // and cached in RAM before user interaction.
+                    let _ = engine.synthesize("Halo", "F4", "id", 1.0);
+                }
+                Err(e) => {
+                    crate::term_err!("[Supertonic TTS] Failed to initialize model: {e}");
+                }
             }
-            Err(e) => {
-                crate::term_err!("[Supertonic TTS] Failed to initialize model: {e}");
-            }
-        }
-    });
+        });
 }
 
 pub fn init_engine() -> Result<&'static SupertonicEngine> {
@@ -161,9 +164,10 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
         .commit_from_file(model_dir.join("onnx/duration_predictor.onnx"))
         .map_err(|e| anyhow!("{e}"))?;
 
+    // - vector_estimator: runs 6x in flow-matching loop; non-arena releases scratch tensors after synthesis
     let vec_est_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_execution_providers([CPU::default().with_arena_allocator(true).build()])
+        .with_execution_providers([CPU::default().with_arena_allocator(false).build()])
         .map_err(|e| anyhow!("{e}"))?
         .with_intra_threads(threads_vec_est)
         .map_err(|e| anyhow!("{e}"))?
@@ -171,7 +175,7 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
         .map_err(|e| anyhow!("{e}"))?
         .with_optimization_level(GraphOptimizationLevel::Level3)
         .map_err(|e| anyhow!("{e}"))?
-        .with_memory_pattern(true)
+        .with_memory_pattern(false)
         .map_err(|e| anyhow!("{e}"))?
         .commit_from_file(model_dir.join("onnx/vector_estimator.onnx"))
         .map_err(|e| anyhow!("{e}"))?;
@@ -699,17 +703,146 @@ fn compute_chunk_prosody(
     (final_speed, pause_samples)
 }
 
+/// Intelligently split long sentences (>70 chars or >12 words) into natural linguistic clauses
+/// using commas, semicolons, colons, or natural conjunctions (Indonesian and English).
+/// Ensures both left and right clauses have at least 4 words or 25 characters to preserve prosody.
+pub fn split_long_sentence_into_clauses(sentence: &str) -> Vec<String> {
+    let trimmed = sentence.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+
+    let words: Vec<&str> = trimmed.split_whitespace().collect();
+    // Compact / short sentences remain completely intact
+    if words.len() <= 12 && trimmed.chars().count() <= 70 {
+        return vec![trimmed.to_string()];
+    }
+
+    // Common natural conjunctions for Indonesian and English
+    const CONJUNCTIONS: &[&str] = &[
+        "dan", "tetapi", "tapi", "karena", "sehingga", "serta", "namun",
+        "melainkan", "sedangkan", "agar", "supaya", "biar", "yaitu", "yakni",
+        "and", "but", "because", "so", "which", "although", "whereas", "since", "while",
+    ];
+
+    // Identify candidate split points:
+    // (word_index, is_punct_boundary, split_before_word)
+    let mut candidates: Vec<(usize, bool, bool)> = Vec::new();
+
+    for (idx, word) in words.iter().enumerate() {
+        // Punctuation check at the end of word (comma, semicolon, colon)
+        let ends_with_clause_punct = word.ends_with(',') || word.ends_with('，')
+            || word.ends_with(';') || word.ends_with('；')
+            || word.ends_with(':') || word.ends_with('：');
+
+        if ends_with_clause_punct {
+            candidates.push((idx, true, false));
+        } else {
+            let clean_w = word.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            if idx > 0 && CONJUNCTIONS.contains(&clean_w.as_str()) {
+                candidates.push((idx, false, true));
+            }
+        }
+    }
+
+    let total_words = words.len();
+    let center_word = total_words / 2;
+    let mut best_split: Option<(usize, bool, bool)> = None;
+    let mut best_score = usize::MAX;
+
+    for (w_idx, is_punct, split_before) in candidates {
+        let (left_words_count, right_words_count) = if split_before {
+            (w_idx, total_words - w_idx)
+        } else {
+            (w_idx + 1, total_words - (w_idx + 1))
+        };
+
+        // Safety: both sides must contain at least 4 words
+        if left_words_count < 4 || right_words_count < 4 {
+            continue;
+        }
+
+        let left_part = if split_before {
+            words[..w_idx].join(" ")
+        } else {
+            words[..=w_idx].join(" ")
+        };
+        let right_part = if split_before {
+            words[w_idx..].join(" ")
+        } else {
+            words[(w_idx + 1)..].join(" ")
+        };
+
+        // Safety: both sides must contain at least 25 characters
+        if left_part.chars().count() < 25 || right_part.chars().count() < 25 {
+            continue;
+        }
+
+        // Prioritize punctuation boundaries, and prefer splits closer to the sentence center
+        let dist = (w_idx as isize - center_word as isize).unsigned_abs();
+        let score = if is_punct { dist } else { dist + 2 };
+
+        if score < best_score {
+            best_score = score;
+            best_split = Some((w_idx, is_punct, split_before));
+        }
+    }
+
+    if let Some((split_idx, _is_punct, split_before)) = best_split {
+        let mut left_str = if split_before {
+            words[..split_idx].join(" ")
+        } else {
+            words[..=split_idx].join(" ")
+        };
+
+        let right_str = if split_before {
+            words[split_idx..].join(" ")
+        } else {
+            words[(split_idx + 1)..].join(" ")
+        };
+
+        // If split occurred on a conjunction without prior punctuation,
+        // attach a trailing comma so Supertonic adds a natural 70ms breathing pause
+        let left_trimmed = left_str.trim();
+        if !left_trimmed.ends_with(',') && !left_trimmed.ends_with(';') && !left_trimmed.ends_with(':') {
+            left_str.push(',');
+        }
+
+        let mut result = vec![left_str];
+        result.extend(split_long_sentence_into_clauses(&right_str));
+        result
+    } else {
+        // No suitable splitting point found; retain sentence intact
+        vec![trimmed.to_string()]
+    }
+}
+
 pub fn split_into_tts_chunks(text: &str) -> Vec<String> {
     let text = text.trim();
     if text.is_empty() {
         return Vec::new();
     }
 
+    // Normalize multiple consecutive dots ("...", "..", "…") into a comma pause
+    // so the TTS engine produces a natural breathing pause instead of reading "titik titik"
+    static RE_ELLIPSIS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"\.{2,}|…").unwrap_or_else(|_| regex::Regex::new(r"\.\.").unwrap())
+    });
+    let cleaned = RE_ELLIPSIS.replace_all(text, ", ");
+
+    let chars: Vec<char> = cleaned.chars().collect();
+    let n = chars.len();
     let mut sentences = Vec::new();
     let mut current = String::new();
 
-    for ch in text.chars() {
+    for i in 0..n {
+        let ch = chars[i];
         current.push(ch);
+
+        // Check if '.' is a decimal point between numbers (e.g. "3.14" or "1.5")
+        if ch == '.' && i > 0 && i + 1 < n && chars[i - 1].is_ascii_digit() && chars[i + 1].is_ascii_digit() {
+            continue;
+        }
 
         // Natural sentence endings
         let is_terminal = ch == '.' || ch == '!' || ch == '?' || ch == '\n';
@@ -720,7 +853,9 @@ pub fn split_into_tts_chunks(text: &str) -> Vec<String> {
             let trimmed = current.trim();
             // Ignore single-character dots like middle initials if too short
             if trimmed.len() >= 4 {
-                sentences.push(trimmed.to_string());
+                for clause in split_long_sentence_into_clauses(trimmed) {
+                    sentences.push(clause);
+                }
                 current.clear();
             }
         }
@@ -728,7 +863,9 @@ pub fn split_into_tts_chunks(text: &str) -> Vec<String> {
 
     let remainder = current.trim();
     if !remainder.is_empty() {
-        sentences.push(remainder.to_string());
+        for clause in split_long_sentence_into_clauses(remainder) {
+            sentences.push(clause);
+        }
     }
 
     if sentences.is_empty() && !text.is_empty() {
@@ -860,6 +997,13 @@ fn decompose_hangul(text: &str) -> String {
 
 fn preprocess_text(text: &str, lang: &str) -> String {
     let mut t = decompose_hangul(text);
+
+    // Normalize multiple dots / ellipsis to comma pause so neural TTS does not pronounce "titik titik"
+    static RE_ELLIPSIS_PRE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"\.{2,}|…").unwrap_or_else(|_| regex::Regex::new(r"\.\.").unwrap())
+    });
+    t = RE_ELLIPSIS_PRE.replace_all(&t, ", ").to_string();
+
     t = t
         .replace(['–', '‑', '—', '−'], "-")
         .replace(['¯', '_', '~', '^'], " ")
@@ -1022,9 +1166,21 @@ mod tests {
     fn test_split_into_tts_chunks() {
         let text = "Halo Mas! Hari ini cuacanya panas banget ya. Jangan lupa banyak minum air putih biar tetap segar dan sehat sepanjang hari.";
         let chunks = split_into_tts_chunks(text);
-        assert!(chunks.len() >= 2);
+        assert!(chunks.len() >= 3, "Expected at least 3 chunks, got {}", chunks.len());
         for chunk in &chunks {
             assert!(chunk.chars().count() <= 120);
         }
+
+        // Test English sentence with conjunction splitting
+        let en_text = "Please make sure to back up your critical documents frequently because unexpected hardware issues might occur at any moment.";
+        let en_chunks = split_into_tts_chunks(en_text);
+        assert!(en_chunks.len() >= 2, "Expected English sentence to split into at least 2 clauses");
+        assert!(en_chunks[0].contains("frequently,"));
+
+        // Test short sentence remains intact
+        let short_text = "Halo apa kabar?";
+        let short_chunks = split_into_tts_chunks(short_text);
+        assert_eq!(short_chunks.len(), 1);
+        assert_eq!(short_chunks[0], "Halo apa kabar?");
     }
 }

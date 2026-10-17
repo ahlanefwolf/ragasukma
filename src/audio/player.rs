@@ -236,8 +236,11 @@ pub fn start_voice_stream(emotion: String, asst_name: String) -> VoiceStreamSend
 
     let my_gen = VOICE_PLAYBACK_GEN.fetch_add(1, Ordering::SeqCst) + 1;
 
-    std::thread::spawn(move || {
-        let mut sink_arc: Option<Arc<rodio::Sink>> = None;
+    let _ = std::thread::Builder::new()
+        .name("ragasukma-voice-player".to_string())
+        .stack_size(1024 * 1024)
+        .spawn(move || {
+            let mut sink_arc: Option<Arc<rodio::Sink>> = None;
         let mut is_speaking_triggered = false;
 
         while let Ok(msg) = rx.recv() {
@@ -440,8 +443,11 @@ pub fn play_file(path: impl AsRef<Path>, title: impl Into<String>) {
 
     // Play to PC hardware speakers in a separate thread isolated with catch_unwind
     // so internal rodio format parser bugs never crash the main conversation session thread
-    std::thread::spawn(move || {
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let _ = std::thread::Builder::new()
+        .name("ragasukma-music-player".to_string())
+        .stack_size(1024 * 1024)
+        .spawn(move || {
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // If Phone Only mode is active (voice_muted = true), music only plays on phone, not on PC
             if !crate::app_state::is_voice_muted() && path_buf.exists() {
                 if let Some(handle) = get_audio_handle() {

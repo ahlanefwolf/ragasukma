@@ -1,22 +1,38 @@
 #[cfg(target_os = "linux")]
-use super::{ActiveWindowSnapshot, DesktopElement, WindowItem, current_epoch_ms};
+use super::{current_epoch_ms, ActiveWindowSnapshot, DesktopElement, WindowItem};
 
 #[cfg(target_os = "linux")]
-static ATSPI_CONN: std::sync::Mutex<Option<atspi::connection::AccessibilityConnection>> =
-    std::sync::Mutex::new(None);
+struct AtspiState {
+    conn: Option<atspi::connection::AccessibilityConnection>,
+    last_used: std::time::Instant,
+}
+
+#[cfg(target_os = "linux")]
+static ATSPI_STATE: std::sync::Mutex<Option<AtspiState>> = std::sync::Mutex::new(None);
+
+#[cfg(target_os = "linux")]
+const ATSPI_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
 
 #[cfg(target_os = "linux")]
 async fn get_or_init_atspi_conn() -> Option<atspi::connection::AccessibilityConnection> {
-    if let Ok(lock) = ATSPI_CONN.lock() {
-        if let Some(ref conn) = *lock {
-            return Some(conn.clone());
+    let now = std::time::Instant::now();
+    if let Ok(mut lock) = ATSPI_STATE.lock() {
+        if let Some(ref mut state) = *lock {
+            if let Some(ref conn) = state.conn {
+                state.last_used = now;
+                return Some(conn.clone());
+            }
         }
     }
 
     match atspi::connection::AccessibilityConnection::new().await {
         Ok(conn) => {
-            if let Ok(mut lock) = ATSPI_CONN.lock() {
-                *lock = Some(conn.clone());
+            crate::term_log!("[Desktop Scanner] AT-SPI D-Bus connection opened (lazy-spawned on demand)");
+            if let Ok(mut lock) = ATSPI_STATE.lock() {
+                *lock = Some(AtspiState {
+                    conn: Some(conn.clone()),
+                    last_used: now,
+                });
             }
             Some(conn)
         }
@@ -24,6 +40,20 @@ async fn get_or_init_atspi_conn() -> Option<atspi::connection::AccessibilityConn
             #[cfg(debug_assertions)]
             eprintln!("[Desktop Scanner] AT-SPI D-Bus init error: {_e}");
             None
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn cleanup_idle_atspi_connection() {
+    if let Ok(mut lock) = ATSPI_STATE.lock() {
+        if let Some(ref mut state) = *lock {
+            if state.conn.is_some() && state.last_used.elapsed() >= ATSPI_IDLE_TIMEOUT {
+                crate::term_log!(
+                    "[Desktop Scanner] AT-SPI D-Bus idle >2m. Dropping connection & releasing D-Bus threads."
+                );
+                state.conn = None;
+            }
         }
     }
 }
@@ -178,10 +208,7 @@ pub fn get_focused_window_quick_info_linux() -> Option<(String, String)> {
 }
 
 #[cfg(target_os = "linux")]
-pub async fn scan_active_window_linux() -> Result<ActiveWindowSnapshot, String> {
-    use atspi::proxy::accessible::ObjectRefExt;
-    use atspi::{Role, State};
-
+pub fn scan_window_list_quick_linux() -> Result<ActiveWindowSnapshot, String> {
     let mut snapshot = ActiveWindowSnapshot {
         timestamp: current_epoch_ms(),
         ..Default::default()
@@ -213,13 +240,46 @@ pub async fn scan_active_window_linux() -> Result<ActiveWindowSnapshot, String> 
                 focused_win_id = format!("sway:{}", w.id);
             }
         }
+    } else if let Some((app, title)) = get_focused_window_quick_info_linux() {
+        focused_app = app;
+        focused_title = title.clone();
+        focused_win_id = "linux:focused".to_string();
+        all_windows.push(WindowItem {
+            id: 1,
+            app_name: focused_app.clone(),
+            title,
+            active: true,
+            window_id: focused_win_id.clone(),
+        });
     }
 
     if !focused_app.is_empty() {
-        snapshot.app_name = focused_app.clone();
-        snapshot.window_title = focused_title.clone();
-        snapshot.window_id = focused_win_id.clone();
+        snapshot.app_name = focused_app;
+        snapshot.window_title = focused_title;
+        snapshot.window_id = focused_win_id;
     }
+
+    snapshot.windows = all_windows;
+    if snapshot.app_name.is_empty() {
+        snapshot.text_summary = "No application window is focused".to_string();
+    }
+
+    Ok(snapshot)
+}
+
+#[cfg(target_os = "linux")]
+pub async fn scan_active_window_linux() -> Result<ActiveWindowSnapshot, String> {
+    use atspi::proxy::accessible::ObjectRefExt;
+    use atspi::{Role, State};
+
+    let mut snapshot = scan_window_list_quick_linux()?;
+    let sway_windows = get_sway_windows();
+
+    let mut all_windows = snapshot.windows.clone();
+    let mut window_counter = all_windows.len() + 1;
+
+    let focused_app = snapshot.app_name.clone();
+    let focused_title = snapshot.window_title.clone();
 
     if let Some(conn) = get_or_init_atspi_conn().await {
         let zbus_conn = conn.connection();

@@ -2,9 +2,239 @@ use anyhow::Result;
 
 pub struct TextToSpeech;
 
+#[derive(Debug)]
+pub enum StreamingVoiceMsg {
+    Sentence {
+        text: String,
+        emotion: String,
+    },
+    Finish,
+    Abort,
+}
+
+pub struct StreamingVoiceSession {
+    tx: Option<std::sync::mpsc::Sender<StreamingVoiceMsg>>,
+    worker_handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl StreamingVoiceSession {
+    pub fn push_sentence(&self, text: &str, emotion: &str) {
+        if let Some(ref tx) = self.tx {
+            let _ = tx.send(StreamingVoiceMsg::Sentence {
+                text: text.to_string(),
+                emotion: emotion.to_string(),
+            });
+        }
+    }
+
+    pub fn finish(&mut self) {
+        if let Some(tx) = self.tx.take() {
+            let _ = tx.send(StreamingVoiceMsg::Finish);
+        }
+        if let Some(handle) = self.worker_handle.take() {
+            let _ = handle.join();
+        }
+    }
+
+    pub fn abort(&mut self) {
+        if let Some(tx) = self.tx.take() {
+            let _ = tx.send(StreamingVoiceMsg::Abort);
+        }
+        crate::audio::player::stop_native_voice();
+        if let Some(handle) = self.worker_handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+impl Drop for StreamingVoiceSession {
+    fn drop(&mut self) {
+        self.finish();
+    }
+}
+
 impl TextToSpeech {
     pub fn new() -> Self {
         Self
+    }
+
+    /// Creates an asynchronous, sentence-level streaming TTS session.
+    /// Each sentence is synthesized concurrently while subsequent tokens/sentences are still streaming from LLM.
+    pub fn start_streaming_session(&self, asst_name: &str) -> StreamingVoiceSession {
+        let (tx, rx) = std::sync::mpsc::channel::<StreamingVoiceMsg>();
+        let asst_name = asst_name.to_string();
+
+        let worker_handle = std::thread::Builder::new()
+            .name("ragasukma-tts-stream".to_string())
+            .stack_size(1024 * 1024)
+            .spawn(move || {
+                let cfg = crate::assets::load_config();
+                let voice = if !cfg.tts_voice_name.is_empty() {
+                    cfg.tts_voice_name.clone()
+                } else {
+                    "F5".to_string()
+                };
+                let lang = if !cfg.lang.is_empty() {
+                    cfg.lang.clone()
+                } else {
+                    "id".to_string()
+                };
+                let speed = if cfg.tts_speed > 0.0 {
+                    cfg.tts_speed
+                } else {
+                    1.05
+                };
+
+                let mut native_pc_stream: Option<crate::audio::player::VoiceStreamSender> = None;
+                let mut accumulated_full_text = String::new();
+                let mut first_emotion = String::new();
+                let mut sentence_count = 0usize;
+                let mut total_audio_duration = 0.0f32;
+
+                while let Ok(msg) = rx.recv() {
+                    match msg {
+                        StreamingVoiceMsg::Sentence { text, emotion } => {
+                            if crate::app_state::is_interruption_requested() {
+                                if let Some(ref stream) = native_pc_stream {
+                                    stream.finish();
+                                }
+                                crate::audio::player::stop_native_voice();
+                                break;
+                            }
+
+                            let clean_text = clean_text_for_speech(&text);
+                            if clean_text.trim().is_empty() {
+                                continue;
+                            }
+
+                            if first_emotion.is_empty() {
+                                first_emotion = emotion.clone();
+                            }
+
+                            if !accumulated_full_text.is_empty() {
+                                accumulated_full_text.push(' ');
+                            }
+                            accumulated_full_text.push_str(&clean_text);
+
+                            // Lazily initialize native PC stream upon first spoken sentence
+                            if native_pc_stream.is_none() && !crate::app_state::is_voice_muted() {
+                                native_pc_stream = Some(crate::audio::player::start_voice_stream(
+                                    emotion.clone(),
+                                    asst_name.clone(),
+                                ));
+                            }
+
+                            let engine_opt = crate::audio::supertonic::get_engine()
+                                .or_else(|| crate::audio::supertonic::init_engine().ok());
+
+                            if let Some(engine) = engine_opt {
+                                crate::engine::os_efficiency::notify_active();
+                                let pc_stream_ref = native_pc_stream.as_ref();
+                                let clean_for_closure = clean_text.clone();
+                                let emo_for_closure = emotion.clone();
+                                let voice_for_closure = voice.clone();
+                                let lang_for_closure = lang.clone();
+                                let cur_sent_idx = sentence_count;
+
+                                let synth_res = engine.synthesize_stream(
+                                    &clean_text,
+                                    &voice,
+                                    &lang,
+                                    speed,
+                                    &mut |chunk_idx: usize,
+                                          total_chunks: usize,
+                                          chunk_samples: Vec<f32>,
+                                          chunk_rate: u32,
+                                          chunk_wav: Vec<u8>| {
+                                        if crate::app_state::is_interruption_requested() {
+                                            return;
+                                        }
+
+                                        if let Some(pc_stream) = pc_stream_ref {
+                                            pc_stream.push_chunk_pcm(chunk_samples, chunk_rate);
+                                        }
+
+                                        let chunk_id = format!(
+                                            "{:x}_{}_{}",
+                                            simple_hash_u64(&clean_for_closure),
+                                            cur_sent_idx,
+                                            chunk_idx
+                                        );
+                                        crate::audio::supertonic::set_last_audio_wav(
+                                            chunk_id.clone(),
+                                            chunk_wav.clone(),
+                                        );
+
+                                        let chunk_audio_url = format!("/api/tts/audio?id={}", chunk_id);
+                                        let chunk_dur = wav_duration_secs(&chunk_wav).unwrap_or(0.0);
+
+                                        let chunk_payload = serde_json::json!({
+                                            "text": clean_for_closure,
+                                            "emotion": emo_for_closure,
+                                            "audio_url": Some(chunk_audio_url),
+                                            "duration": chunk_dur,
+                                            "voice": voice_for_closure,
+                                            "lang": lang_for_closure,
+                                            "chunk_index": chunk_idx,
+                                            "total_chunks": total_chunks,
+                                            "is_chunk": true,
+                                            "native_played": !crate::app_state::is_voice_muted()
+                                        })
+                                        .to_string();
+                                        crate::app_state::push_client_action("assistant:speak", Some(&chunk_payload));
+                                    },
+                                );
+
+                                if let Ok(wav_bytes) = synth_res {
+                                    if let Some(dur) = wav_duration_secs(&wav_bytes) {
+                                        total_audio_duration += dur;
+                                    }
+                                }
+                                sentence_count += 1;
+                            }
+                        }
+                        StreamingVoiceMsg::Finish => {
+                            if let Some(pc_stream) = native_pc_stream.take() {
+                                pc_stream.finish();
+                            }
+
+                            if !accumulated_full_text.is_empty() {
+                                crate::app_state::record_last_spoken_text(&accumulated_full_text);
+
+                                let payload = serde_json::json!({
+                                    "text": accumulated_full_text,
+                                    "emotion": if first_emotion.is_empty() { "neutral" } else { &first_emotion },
+                                    "audio_url": None::<String>,
+                                    "duration": if total_audio_duration > 0.0 { Some(total_audio_duration) } else { None },
+                                    "voice": voice,
+                                    "lang": lang,
+                                    "is_chunk": false,
+                                    "native_played": !crate::app_state::is_voice_muted()
+                                })
+                                .to_string();
+                                crate::app_state::push_client_action("assistant:speak", Some(&payload));
+                            }
+                            break;
+                        }
+                        StreamingVoiceMsg::Abort => {
+                            if let Some(pc_stream) = native_pc_stream.take() {
+                                pc_stream.finish();
+                            }
+                            crate::audio::player::stop_native_voice();
+                            break;
+                        }
+                    }
+                }
+
+                // Purge heap caches and return freed OS pages immediately after synthesis session completes
+                crate::engine::os_efficiency::trim_process_memory();
+            })
+            .ok();
+
+        StreamingVoiceSession {
+            tx: Some(tx),
+            worker_handle,
+        }
     }
 
     /// Voice synthesis is processed natively using Supertonic-3 neural model (ONNX Runtime Rust).
@@ -73,7 +303,10 @@ impl TextToSpeech {
         let voice_for_worker = voice.clone();
         let lang_for_worker = lang.clone();
 
-        let mobile_worker_handle = std::thread::spawn(move || {
+        let mobile_worker_handle = std::thread::Builder::new()
+            .name("ragasukma-tts-mobile".to_string())
+            .stack_size(512 * 1024)
+            .spawn(move || {
             while let Ok(item) = mobile_rx.recv() {
                 // 1. Simpan audio chunk WAV ke in-memory cache
                 crate::audio::supertonic::set_last_audio_wav(item.chunk_id.clone(), item.chunk_wav.clone());
@@ -179,7 +412,9 @@ impl TextToSpeech {
         };
 
         // Ensure background mobile worker thread finishes cleanly
-        let _ = mobile_worker_handle.join();
+        if let Ok(handle) = mobile_worker_handle {
+            let _ = handle.join();
+        }
 
         let actual_audio_duration = audio_bytes_opt
             .as_ref()
@@ -215,7 +450,10 @@ impl TextToSpeech {
         let tolerance_buffer = (exact_audio_secs * 0.4).clamp(10.0, 60.0);
         let timeout_limit_secs = (exact_audio_secs + tolerance_buffer).ceil() as u64;
 
-        std::thread::spawn(move || {
+        let _ = std::thread::Builder::new()
+            .name("ragasukma-tts-timeout".to_string())
+            .stack_size(512 * 1024)
+            .spawn(move || {
             let mut last_activity = std::time::Instant::now();
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(400));

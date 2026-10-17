@@ -1,4 +1,6 @@
 use std::collections::HashSet;
+use std::sync::Mutex;
+use std::time::Instant;
 
 /// Resolves any BCP-47 / ISO-639 language tag to a (canonical_code, human_readable_name) pair.
 /// Source of truth for supported languages: SUPPORTED_LANGUAGES in AudioTtsSection.tsx.
@@ -42,7 +44,28 @@ pub fn resolve_language_info(lang: &str) -> (&'static str, &'static str) {
     }
 }
 
+#[allow(dead_code)]
 pub fn load_local_music_summary() -> String {
+    load_local_music_summary_indexed(None)
+}
+
+pub fn load_local_music_summary_indexed(query: Option<&str>) -> String {
+    let q_clean = query.unwrap_or("").trim().to_lowercase();
+    if !q_clean.is_empty() {
+        let is_music_intent = q_clean.contains("music")
+            || q_clean.contains("musik")
+            || q_clean.contains("song")
+            || q_clean.contains("lagu")
+            || q_clean.contains("play")
+            || q_clean.contains("putar")
+            || q_clean.contains("nyanyi")
+            || q_clean.contains("track")
+            || q_clean.contains("audio");
+        if !is_music_intent {
+            return String::new();
+        }
+    }
+
     let music_dir = crate::config::get_music_dir();
     let tracks = crate::engine::ytdlp::list_downloaded(&music_dir);
     if tracks.is_empty() {
@@ -61,7 +84,17 @@ pub fn load_local_music_summary() -> String {
     )
 }
 
+static SKILLS_SUMMARY_CACHE: Mutex<Option<(Instant, String)>> = Mutex::new(None);
+
 pub fn load_skills_summary() -> String {
+    if let Ok(guard) = SKILLS_SUMMARY_CACHE.lock() {
+        if let Some((instant, ref cached)) = *guard {
+            if instant.elapsed().as_secs() < 30 {
+                return cached.clone();
+            }
+        }
+    }
+
     let mut seen_names = HashSet::new();
     let mut lines = Vec::new();
 
@@ -117,7 +150,7 @@ pub fn load_skills_summary() -> String {
         )
     };
 
-    format!(
+    let formatted = format!(
         "\nACTION TAG FORMAT (MANDATORY — NEVER DEVIATE):
 - Use ONLY the bracket format: [CMD:category:action|param] or [SKILL:name].
 - NEVER use XML, invoke, function_call, dots_function_call, tool_call, or JSON to trigger actions.
@@ -179,7 +212,13 @@ REGISTERED CUSTOM SKILLS:
 
 RULE: Action tags [CMD:...] or [SKILL:...] run silently in background — NOT spoken aloud by TTS. For plain conversation, NEVER include command tags.",
         recipes_text, custom_skills_text
-    )
+    );
+
+    if let Ok(mut guard) = SKILLS_SUMMARY_CACHE.lock() {
+        *guard = Some((Instant::now(), formatted.clone()));
+    }
+
+    formatted
 }
 
 pub fn load_todo_summary() -> String {
@@ -193,7 +232,51 @@ pub fn load_todo_summary() -> String {
     String::new()
 }
 
-pub fn load_active_browser_summary_indexed(_query: Option<&str>) -> String {
+/// Universal intent detector across 31 supported languages (technical web terms, universal keywords, actions)
+pub fn is_browser_intent(query: &str) -> bool {
+    let q = query.to_lowercase();
+    let keywords = [
+        "browser", "web", "tab", "page", "halaman", "site", "website", "url", "link",
+        "scroll", "search", "cari", "google", "youtube", "tokopedia", "shopee", "baca",
+        "read", "summarize", "ringkas", "rangkum", "click", "klik", "input", "form",
+        "type", "ketik", "submit", "button", "tombol", "refresh", "close tab", "tutup tab",
+        "buka tab", "switch tab", "pindah tab", "open tab", "internet", "online", "http",
+        "www", ".com", ".id", ".org", ".io", ".net", ".dev",
+    ];
+    keywords.iter().any(|k| q.contains(k))
+}
+
+/// Universal intent detector across 31 supported languages for OS desktop and screen actions
+pub fn is_desktop_intent(query: &str) -> bool {
+    let q = query.to_lowercase();
+    let keywords = [
+        "desktop", "screen", "layar", "window", "jendela", "aplikasi", "application",
+        "app", "focus", "fokus", "buka", "open", "launch", "minimize", "maximize",
+        "close window", "tutup jendela", "click", "klik", "coordinate", "koordinat",
+        "button", "tombol", "text on screen", "teks di layar", "scan", "visual",
+        "type", "ketik", "key", "tombol", "lock", "kunci", "volume", "suara",
+        "screenshot", "tangkap layar", "capture",
+    ];
+    keywords.iter().any(|k| q.contains(k))
+}
+
+pub fn load_active_browser_summary_indexed(query: Option<&str>) -> String {
+    let query_clean = query.unwrap_or("").trim();
+    let is_relevant = !query_clean.is_empty() && is_browser_intent(query_clean);
+
+    if !is_relevant {
+        // Lightweight context: provide minimal active tab indicator to save RAM and tokens
+        if let Some(snapshot) = crate::services::get_latest_snapshot() {
+            if !snapshot.title.is_empty() && !snapshot.domain.is_empty() {
+                return format!(
+                    "\n* Active Browser Tab: \"{}\" ({})\n",
+                    snapshot.title, snapshot.domain
+                );
+            }
+        }
+        return String::new();
+    }
+
     let mut parts = Vec::new();
 
     // 1. List of all currently open tabs
@@ -329,7 +412,23 @@ pub fn load_active_browser_summary_indexed(_query: Option<&str>) -> String {
     parts.join("\n")
 }
 
-pub fn load_active_window_summary_indexed(_query: Option<&str>) -> String {
+pub fn load_active_window_summary_indexed(query: Option<&str>) -> String {
+    let query_clean = query.unwrap_or("").trim();
+    let is_relevant = !query_clean.is_empty() && is_desktop_intent(query_clean);
+
+    if !is_relevant {
+        // Lightweight context: provide minimal active window indicator to save RAM and tokens
+        if let Ok(snapshot) = crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file() {
+            if !snapshot.app_name.is_empty() || !snapshot.window_title.is_empty() {
+                return format!(
+                    "\n* Active Desktop Window: {} ({})\n",
+                    snapshot.app_name, snapshot.window_title
+                );
+            }
+        }
+        return String::new();
+    }
+
     if let Ok(snapshot) = crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file() {
         if snapshot.app_name.is_empty() && snapshot.window_title.is_empty() {
             return String::new();
@@ -427,7 +526,7 @@ pub fn build_system_prompt_indexed(user_input: Option<&str>) -> String {
     let (lang_code, lang_name) = resolve_language_info(&u.lang);
 
     // Living State: Provide holistic computer status context to the LLM
-    let music_prompt = load_local_music_summary();
+    let music_prompt = load_local_music_summary_indexed(user_input);
     let todo_prompt = load_todo_summary();
     let browser_prompt = load_active_browser_summary_indexed(user_input);
     let window_prompt = load_active_window_summary_indexed(user_input);
@@ -520,7 +619,11 @@ TEXT-TO-SPEECH (TTS) SPOKEN FORMAT RULES:
    - CASUAL CHAT / CONFIRMATION: Answer in at most 1-2 concise, warm sentences. NEVER BE LONG-WINDED OR WRITE ESSAYS unless explicitly asked!
 4. Spoken Language:
    - Primary Language: You MUST speak in {lang_name} (language code: '{lang_code}'). Consistently maintain your persona and responses in this language.
-   - Adaptive Exception: If {callsign} explicitly speaks or asks in another language, respond naturally in that language while keeping all other rules intact."
+   - Adaptive Exception: If {callsign} explicitly speaks or asks in another language, respond naturally in that language while keeping all other rules intact.
+5. Dynamic System Context & Action Guardrails (Universal):
+   - System context (active browser tab, window, applications, and media) is dynamically indexed and supplied based on relevant query intent.
+   - For casual greetings and general conversation, focus entirely on concise, warm conversation. NEVER recite or list active windows, tabs, or system applications unprompted unless {callsign} explicitly asks for them.
+   - When asked to interact with a specific web page or desktop window, use the exact matched element labels or coordinates provided in the active context."
     )
 }
 
@@ -585,5 +688,39 @@ mod tests {
         assert!(prompt.contains("[CMD:recipe:run|"));
         assert!(prompt.contains("[CMD:recipe:train|"));
         assert!(prompt.contains("[CMD:desktop:focus|"));
+        assert!(prompt.contains("Dynamic System Context & Action Guardrails (Universal):"));
+    }
+
+    #[test]
+    fn test_intent_detection_keywords() {
+        // Browser intent tests across terms
+        assert!(is_browser_intent("open google.com"));
+        assert!(is_browser_intent("tolong cari resep kue di youtube"));
+        assert!(is_browser_intent("scroll down the page"));
+        assert!(is_browser_intent("ringkas isi halaman web ini"));
+        assert!(!is_browser_intent("halo selamat pagi"));
+        assert!(!is_browser_intent("siapa namamu?"));
+
+        // Desktop intent tests across terms
+        assert!(is_desktop_intent("click the save button on screen"));
+        assert!(is_desktop_intent("fokuskan ke jendela spotify"));
+        assert!(is_desktop_intent("tekan tombol enter di layar"));
+        assert!(is_desktop_intent("minimize active window"));
+        assert!(!is_desktop_intent("halo apa kabar?"));
+        assert!(!is_desktop_intent("ceritakan lelucon lucu"));
+    }
+
+    #[test]
+    fn test_dynamic_indexing_reduces_generic_prompt_size() {
+        let generic_prompt = build_system_prompt_indexed(Some("halo selamat pagi"));
+        let web_prompt = build_system_prompt_indexed(Some("baca halaman web ini"));
+
+        // Generic prompt should not dump full web DOM summary or buttons
+        assert!(!generic_prompt.contains("ACTIVE BROWSER PAGE CONTEXT (GROUND OF TRUTH):"));
+        assert!(!generic_prompt.contains("INSTALLED SYSTEM APPLICATIONS (GROUND OF TRUTH):"));
+
+        // Both prompts must contain base skills and format rules
+        assert!(generic_prompt.contains("ACTION TAG FORMAT"));
+        assert!(web_prompt.contains("ACTION TAG FORMAT"));
     }
 }

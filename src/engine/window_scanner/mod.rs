@@ -221,13 +221,17 @@ pub fn get_focused_window_quick_info() -> Option<(String, String)> {
 }
 
 pub fn start_window_watcher() {
-    std::thread::Builder::new()
+    let _ = std::thread::Builder::new()
         .name("ragasukma-window-watcher".to_string())
+        .stack_size(512 * 1024)
         .spawn(|| {
             let mut last_quick_info: Option<(String, String)> = None;
 
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(1500));
+
+                #[cfg(target_os = "linux")]
+                linux::cleanup_idle_atspi_connection();
 
                 let current_info = get_focused_window_quick_info();
 
@@ -242,7 +246,9 @@ pub fn start_window_watcher() {
                 if window_changed {
                     #[cfg(target_os = "linux")]
                     {
-                        if let Ok(snap) = pollster::block_on(linux::scan_active_window_linux()) {
+                        // Lightweight window list scan: updates active_window_app.json
+                        // without waking up AT-SPI or D-Bus!
+                        if let Ok(snap) = linux::scan_window_list_quick_linux() {
                             let _ = snap.save_to_file();
                         }
                     }

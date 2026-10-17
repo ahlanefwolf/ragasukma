@@ -1,149 +1,23 @@
 use crate::llm::providers::codex::CodexProvider;
-use crate::llm::providers::codex::constants::{
-    CODEX_CLI_VERSION, CODEX_DEFAULT_MODELS, CODEX_MODELS_URL, CODEX_ORIGINATOR,
-};
-use crate::llm::providers::codex::oauth::{
-    build_auth_url, complete_oauth_flow, generate_pkce, store_oauth_state, take_oauth_state,
-};
-use crate::server::send_json_response;
+use crate::llm::providers::codex::oauth::{complete_oauth_flow, take_oauth_state};
+use axum::response::IntoResponse;
 use serde::Deserialize;
-use std::io::{Read, Write};
 
 pub const CODEX_OAUTH_REDIRECT_URI: &str = "http://localhost:1455/auth/callback";
 
-/// Ensure background listener on port 1455 is running to catch OpenAI's callback
-pub fn ensure_port_1455_listener() {
-    static LISTENER_STARTED: std::sync::atomic::AtomicBool =
-        std::sync::atomic::AtomicBool::new(false);
-    if LISTENER_STARTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
-        return;
-    }
-
-    std::thread::spawn(|| {
-        let listener = match std::net::TcpListener::bind("127.0.0.1:1455") {
-            Ok(l) => {
-                crate::term_log!(" [Codex OAuth Callback Listener] Running on http://127.0.0.1:1455/auth/callback");
-                l
-            }
-            Err(e) => {
-                eprintln!("[Codex OAuth] Notice: Could not bind 127.0.0.1:1455: {}", e);
-                LISTENER_STARTED.store(false, std::sync::atomic::Ordering::SeqCst);
-                return;
-            }
-        };
-
-        for mut stream in listener.incoming().flatten() {
-            std::thread::spawn(move || {
-                let mut buffer = [0u8; 4096];
-                let n = stream.read(&mut buffer).unwrap_or(0);
-                let req_str = String::from_utf8_lossy(&buffer[..n]);
-                if let Some(first_line) = req_str.lines().next() {
-                    let parts: Vec<&str> = first_line.split_whitespace().collect();
-                    if parts.len() >= 2 {
-                        let url_path = parts[1];
-                        if url_path.starts_with("/auth/callback") || url_path.starts_with("/callback") {
-                            handle_codex_oauth_callback(url_path, &mut stream);
-                            let _ = stream.flush();
-                            return;
-                        }
-                    }
-                }
-                let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
-            });
-        }
-    });
+#[derive(Deserialize, Default)]
+pub struct CodexOAuthQuery {
+    pub code: Option<String>,
+    pub state: Option<String>,
+    pub error: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct AddCodexAccountPayload {
-    #[serde(alias = "refreshToken", alias = "token")]
-    refresh_token: String,
-    #[serde(default)]
-    email: Option<String>,
-    #[serde(default, alias = "chatgptAccountId", alias = "accountId")]
-    chatgpt_account_id: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct IdPayload {
-    id: String,
-}
-
-#[derive(Deserialize)]
-struct ExchangeCodePayload {
-    code: String,
+/// Core processing of OAuth redirect callback from OpenAI
+pub fn process_codex_oauth_callback(
+    code: Option<String>,
     state: Option<String>,
-    #[serde(default, alias = "codeVerifier")]
-    code_verifier: Option<String>,
-    #[serde(default, alias = "redirectUri")]
-    redirect_uri: Option<String>,
-}
-
-fn send_html_response(stream: &mut dyn Write, status: u16, html: &str) {
-    let reason = match status {
-        200 => "OK",
-        400 => "Bad Request",
-        _ => "Internal Server Error",
-    };
-    let resp = format!(
-        "HTTP/1.1 {status} {reason}\r\n\
-        Content-Type: text/html; charset=utf-8\r\n\
-        Content-Length: {}\r\n\
-        Access-Control-Allow-Origin: *\r\n\
-        Connection: close\r\n\r\n\
-        {}",
-        html.len(),
-        html
-    );
-    let _ = stream.write_all(resp.as_bytes());
-}
-
-pub fn handle_get_codex_auth_url(full_url: &str, stream: &mut dyn Write) {
-    ensure_port_1455_listener();
-
-    let (code_verifier, code_challenge) = generate_pkce();
-    let state = format!(
-        "cx_state_{}_{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs(),
-        std::process::id()
-    );
-
-    store_oauth_state(&state, &code_verifier);
-
-    let auth_url = build_auth_url(CODEX_OAUTH_REDIRECT_URI, &state, &code_challenge);
-
-    if full_url.contains("open=1") {
-        crate::assets::open_browser(&auth_url);
-    }
-
-    let json = serde_json::json!({
-        "status": "success",
-        "auth_url": auth_url,
-        "redirect_uri": CODEX_OAUTH_REDIRECT_URI,
-        "state": state
-    });
-    send_json_response(stream, 200, &json.to_string());
-}
-
-pub fn handle_codex_oauth_callback(full_url: &str, stream: &mut dyn Write) {
-    let query_str = full_url.split('?').nth(1).unwrap_or("");
-    let mut code: Option<String> = None;
-    let mut state: Option<String> = None;
-    let mut error: Option<String> = None;
-
-    for (k, v) in form_urlencoded::parse(query_str.as_bytes()) {
-        if k == "code" {
-            code = Some(v.to_string());
-        } else if k == "state" {
-            state = Some(v.to_string());
-        } else if k == "error" {
-            error = Some(v.to_string());
-        }
-    }
-
+    error: Option<String>,
+) -> (u16, String) {
     if let Some(err_msg) = error {
         let html = format!(
             r#"<!DOCTYPE html>
@@ -159,8 +33,7 @@ pub fn handle_codex_oauth_callback(full_url: &str, stream: &mut dyn Write) {
 </html>"#,
             err_msg
         );
-        send_html_response(stream, 400, &html);
-        return;
+        return (400, html);
     }
 
     let auth_code = match code {
@@ -177,8 +50,7 @@ pub fn handle_codex_oauth_callback(full_url: &str, stream: &mut dyn Write) {
   </div>
 </body>
 </html>"#;
-            send_html_response(stream, 400, html);
-            return;
+            return (400, html.to_string());
         }
     };
 
@@ -199,8 +71,7 @@ pub fn handle_codex_oauth_callback(full_url: &str, stream: &mut dyn Write) {
   </div>
 </body>
 </html>"#;
-        send_html_response(stream, 400, html);
-        return;
+        return (400, html.to_string());
     }
 
     let mut provider = CodexProvider::new();
@@ -266,282 +137,113 @@ pub fn handle_codex_oauth_callback(full_url: &str, stream: &mut dyn Write) {
 </html>"#,
                     email
                 );
-                send_html_response(stream, 200, &html);
+                (200, html)
             }
             Err(e) => {
                 let err_html = format!("<!DOCTYPE html><html><body><h3>Save Error</h3><p>{}</p></body></html>", e);
-                send_html_response(stream, 500, &err_html);
+                (500, err_html)
             }
         },
         Err(e) => {
             let err_html = format!("<!DOCTYPE html><html><body><h3>Exchange Error</h3><p>{}</p></body></html>", e);
-            send_html_response(stream, 500, &err_html);
+            (500, err_html)
         }
     }
 }
 
-pub fn handle_post_codex_oauth_exchange(body_str: &str, stream: &mut dyn Write) {
-    let payload: ExchangeCodePayload = match serde_json::from_str(body_str) {
-        Ok(p) => p,
-        Err(e) => {
-            let err = format!("{{\"status\":\"error\",\"error\":\"Invalid JSON: {}\"}}", e);
-            send_json_response(stream, 400, &err);
-            return;
-        }
-    };
+/// Native Axum route handler for OAuth callback
+pub async fn axum_codex_oauth_callback(
+    axum::extract::Query(params): axum::extract::Query<CodexOAuthQuery>,
+) -> axum::response::Response {
+    let (status, html) = tokio::task::spawn_blocking(move || {
+        process_codex_oauth_callback(params.code, params.state, params.error)
+    })
+    .await
+    .unwrap_or((500, "Internal Server Error".to_string()));
 
-    let redirect_uri = payload
-        .redirect_uri
-        .unwrap_or_else(|| CODEX_OAUTH_REDIRECT_URI.to_string());
+    let status_code = axum::http::StatusCode::from_u16(status)
+        .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
 
-    let verifier = if let Some(v) = payload.code_verifier {
-        v
-    } else if let Some(st) = payload.state.as_deref() {
-        take_oauth_state(st).unwrap_or_default()
-    } else {
-        String::new()
-    };
+    axum::response::Response::builder()
+        .status(status_code)
+        .header("Content-Type", "text/html; charset=utf-8")
+        .header("Access-Control-Allow-Origin", "*")
+        .body(axum::body::Body::from(html))
+        .unwrap_or_else(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response())
+}
 
-    if verifier.is_empty() {
-        let err = "{\"status\":\"error\",\"error\":\"Missing code_verifier or state not found\"}";
-        send_json_response(stream, 400, err);
+/// Ensure background listener on port 1455 is running with Axum on Tokio
+pub fn ensure_port_1455_listener() {
+    static LISTENER_STARTED: std::sync::atomic::AtomicBool =
+        std::sync::atomic::AtomicBool::new(false);
+    if LISTENER_STARTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
         return;
     }
 
-    let mut provider = CodexProvider::new();
-    match complete_oauth_flow(&provider.client, &payload.code, &redirect_uri, &verifier) {
-        Ok(account) => match provider.add_oauth_account(account) {
-            Ok(id) => {
-                crate::app_state::push_client_action("codex:oauth_success", Some(&id));
-                let json = serde_json::json!({
-                    "status": "success",
-                    "id": id
-                });
-                send_json_response(stream, 200, &json.to_string());
+    tokio::spawn(async move {
+        let listener = match tokio::net::TcpListener::bind("127.0.0.1:1455").await {
+            Ok(l) => {
+                crate::term_log!(" [Codex OAuth Callback Listener] Running on http://127.0.0.1:1455/auth/callback");
+                l
             }
             Err(e) => {
-                let err = format!("{{\"status\":\"error\",\"error\":\"{}\"}}", e);
-                send_json_response(stream, 500, &err);
+                eprintln!("[Codex OAuth] Notice: Could not bind 127.0.0.1:1455: {}", e);
+                LISTENER_STARTED.store(false, std::sync::atomic::Ordering::SeqCst);
+                return;
             }
-        },
-        Err(e) => {
-            let err = format!("{{\"status\":\"error\",\"error\":\"{}\"}}", e);
-            send_json_response(stream, 500, &err);
+        };
+
+        let cors = tower_http::cors::CorsLayer::permissive();
+        let app = axum::Router::new()
+            .route("/auth/callback", axum::routing::get(axum_codex_oauth_callback))
+            .route("/callback", axum::routing::get(axum_codex_oauth_callback))
+            .layer(cors);
+
+        if let Err(e) = axum::serve(listener, app).await {
+            eprintln!("[Codex OAuth] Axum listener error on port 1455: {}", e);
+            LISTENER_STARTED.store(false, std::sync::atomic::Ordering::SeqCst);
         }
-    }
+    });
 }
 
-pub fn handle_get_codex_accounts(stream: &mut dyn Write) {
-    let provider = CodexProvider::new();
-    let infos = provider.list_account_infos();
-    let json = serde_json::to_string(&infos).unwrap_or_else(|_| "[]".to_string());
-    send_json_response(stream, 200, &json);
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-pub fn handle_get_codex_models(stream: &mut dyn Write) {
-    let mut provider = CodexProvider::new();
-    let mut live_models: Vec<serde_json::Value> = Vec::new();
-
-    if let Some(acc) = provider.accounts.iter_mut().find(|a| a.is_active) {
-        let _ = crate::llm::providers::codex::oauth::refresh_account_token(&provider.client, acc);
-        if let Some(ref access_token) = acc.access_token {
-            let mut req = provider
-                .client
-                .get(CODEX_MODELS_URL)
-                .header("Authorization", format!("Bearer {access_token}"))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .header("originator", CODEX_ORIGINATOR)
-                .header("User-Agent", format!("codex_cli_rs/{}", CODEX_CLI_VERSION))
-                .header("version", CODEX_CLI_VERSION);
-
-            if let Some(ref act_id) = acc.chatgpt_account_id {
-                req = req.header("ChatGPT-Account-ID", act_id);
-            }
-
-            if let Ok(res) = req.send() {
-                if res.status().is_success() {
-                    if let Ok(val) = res.json::<serde_json::Value>() {
-                        let items = val
-                            .get("models")
-                            .or_else(|| val.get("data"))
-                            .and_then(|v| v.as_array());
-
-                        if let Some(arr) = items {
-                            for item in arr {
-                                let id = item
-                                    .get("id")
-                                    .or_else(|| item.get("slug"))
-                                    .or_else(|| item.get("model"))
-                                    .or_else(|| item.get("name"))
-                                    .and_then(|v| v.as_str());
-
-                                if let Some(m_id) = id {
-                                    let name = item
-                                        .get("display_name")
-                                        .or_else(|| item.get("displayName"))
-                                        .or_else(|| item.get("name"))
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or(m_id);
-
-                                    live_models.push(serde_json::json!({
-                                        "id": format!("cx/{}", m_id),
-                                        "model_id": m_id,
-                                        "display_name": name,
-                                        "provider": "codex"
-                                    }));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    #[test]
+    fn test_process_codex_oauth_callback_error() {
+        let (status, html) = process_codex_oauth_callback(None, None, Some("access_denied".to_string()));
+        assert_eq!(status, 400);
+        assert!(html.contains("OpenAI Authorization Failed"));
+        assert!(html.contains("access_denied"));
     }
 
-    let list = if !live_models.is_empty() {
-        live_models
-    } else {
-        CODEX_DEFAULT_MODELS
-            .iter()
-            .map(|(id, name)| {
-                serde_json::json!({
-                    "id": format!("cx/{}", id),
-                    "model_id": id,
-                    "display_name": name,
-                    "provider": "codex"
-                })
-            })
-            .collect()
-    };
-
-    let json = serde_json::to_string(&list).unwrap_or_else(|_| "[]".to_string());
-    send_json_response(stream, 200, &json);
-}
-
-pub fn handle_post_codex_account(body_str: &str, stream: &mut dyn Write) {
-    let payload: AddCodexAccountPayload = match serde_json::from_str(body_str) {
-        Ok(p) => p,
-        Err(e) => {
-            let err = format!("{{\"status\":\"error\",\"error\":\"Invalid JSON: {}\"}}", e);
-            send_json_response(stream, 400, &err);
-            return;
-        }
-    };
-
-    let mut provider = CodexProvider::new();
-    match provider.add_account(&payload.refresh_token, payload.email, payload.chatgpt_account_id) {
-        Ok(id) => {
-            let json = serde_json::json!({
-                "status": "success",
-                "id": id
-            });
-            send_json_response(stream, 200, &json.to_string());
-        }
-        Err(e) => {
-            let err = format!("{{\"status\":\"error\",\"error\":\"{}\"}}", e);
-            send_json_response(stream, 500, &err);
-        }
-    }
-}
-
-pub fn handle_delete_codex_account(body_str: &str, stream: &mut dyn Write) {
-    let payload: IdPayload = match serde_json::from_str(body_str) {
-        Ok(p) => p,
-        Err(e) => {
-            let err = format!("{{\"status\":\"error\",\"error\":\"Invalid JSON: {}\"}}", e);
-            send_json_response(stream, 400, &err);
-            return;
-        }
-    };
-
-    let mut provider = CodexProvider::new();
-    if provider.remove_account(&payload.id) {
-        send_json_response(stream, 200, "{\"status\":\"success\"}");
-    } else {
-        send_json_response(stream, 404, "{\"status\":\"error\",\"error\":\"Account not found\"}");
-    }
-}
-
-pub fn handle_refresh_codex_account(body_str: &str, stream: &mut dyn Write) {
-    let payload: IdPayload = match serde_json::from_str(body_str) {
-        Ok(p) => p,
-        Err(e) => {
-            let err = format!("{{\"status\":\"error\",\"error\":\"Invalid JSON: {}\"}}", e);
-            send_json_response(stream, 400, &err);
-            return;
-        }
-    };
-
-    let mut provider = CodexProvider::new();
-    match provider.refresh_account_by_id(&payload.id) {
-        Ok(()) => {
-            send_json_response(stream, 200, "{\"status\":\"success\"}");
-        }
-        Err(e) => {
-            let err = format!("{{\"status\":\"error\",\"error\":\"{}\"}}", e);
-            send_json_response(stream, 500, &err);
-        }
-    }
-}
-
-pub fn handle_toggle_codex_account(body_str: &str, stream: &mut dyn Write) {
-    let payload: IdPayload = match serde_json::from_str(body_str) {
-        Ok(p) => p,
-        Err(e) => {
-            let err = format!("{{\"status\":\"error\",\"error\":\"Invalid JSON: {}\"}}", e);
-            send_json_response(stream, 400, &err);
-            return;
-        }
-    };
-
-    let mut provider = CodexProvider::new();
-    match provider.toggle_account_by_id(&payload.id) {
-        Ok(active) => {
-            let json = serde_json::json!({
-                "status": "success",
-                "is_active": active
-            });
-            send_json_response(stream, 200, &json.to_string());
-        }
-        Err(e) => {
-            let err = format!("{{\"status\":\"error\",\"error\":\"{}\"}}", e);
-            send_json_response(stream, 500, &err);
-        }
-    }
-}
-
-pub fn handle_get_codex_account_quota(body_str: &str, full_url: &str, stream: &mut dyn Write) {
-    let mut id = None;
-
-    if let Ok(payload) = serde_json::from_str::<IdPayload>(body_str) {
-        id = Some(payload.id);
-    } else if let Some(query) = full_url.split('?').nth(1) {
-        for (k, v) in form_urlencoded::parse(query.as_bytes()) {
-            if k == "id" {
-                id = Some(v.to_string());
-                break;
-            }
-        }
+    #[test]
+    fn test_process_codex_oauth_callback_missing_code() {
+        let (status, html) = process_codex_oauth_callback(None, None, None);
+        assert_eq!(status, 400);
+        assert!(html.contains("Authorization Code Not Found"));
     }
 
-    let account_id = match id {
-        Some(i) => i,
-        None => {
-            send_json_response(stream, 400, "{\"status\":\"error\",\"error\":\"Missing account id\"}");
-            return;
-        }
-    };
+    #[test]
+    fn test_process_codex_oauth_callback_expired_pkce() {
+        let (status, html) = process_codex_oauth_callback(
+            Some("valid_code".to_string()),
+            Some("expired_or_invalid_state".to_string()),
+            None,
+        );
+        assert_eq!(status, 400);
+        assert!(html.contains("PKCE State Expired"));
+    }
 
-    let mut provider = CodexProvider::new();
-    match provider.get_account_quota(&account_id) {
-        Ok(res) => {
-            let json = serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string());
-            send_json_response(stream, 200, &json);
-        }
-        Err(e) => {
-            let err = format!("{{\"status\":\"error\",\"error\":\"{}\"}}", e);
-            send_json_response(stream, 500, &err);
-        }
+    #[tokio::test]
+    async fn test_axum_codex_oauth_callback_error_query() {
+        let query = CodexOAuthQuery {
+            code: None,
+            state: None,
+            error: Some("test_error".to_string()),
+        };
+        let res = axum_codex_oauth_callback(axum::extract::Query(query)).await;
+        assert_eq!(res.status(), axum::http::StatusCode::BAD_REQUEST);
     }
 }

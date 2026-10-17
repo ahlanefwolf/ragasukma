@@ -111,6 +111,7 @@ pub fn init_browser_session_worker() {
 
     let _ = std::thread::Builder::new()
         .name("ragasukma-browser-worker".to_string())
+        .stack_size(512 * 1024)
         .spawn(move || {
             println!("[Browser Worker] Dedicated BrowserSessionWorker active for active_tab_browser.json");
             browser_worker_loop(rx);

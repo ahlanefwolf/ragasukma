@@ -5,16 +5,21 @@ use std::time::Instant;
 
 use crate::ui::pose_system::{AssistantVisualState, PosesConfig};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AppStatePayload {
+    #[serde(default)]
     pub state: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub emotion: Option<String>,
+    #[serde(default)]
     pub is_running: bool,
+    #[serde(default)]
     pub is_paused: bool,
+    #[serde(default)]
     pub voice_muted: bool,
+    #[serde(default)]
     pub mic_muted: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_session_token: Option<String>,
 }
 
@@ -44,6 +49,27 @@ pub struct ServerSharedState {
     /// Live in-memory pose preview without overwriting poses.json on disk
     pub preview_poses: Option<PosesConfig>,
     pub state_version: u64,
+}
+
+impl Default for ServerSharedState {
+    fn default() -> Self {
+        Self {
+            current_state: AssistantVisualState::Idle,
+            current_emotion: "neutral".to_string(),
+            is_running: false,
+            is_paused: false,
+            is_shutdown: false,
+            voice_muted: false,
+            mic_muted: false,
+            poses_updated: false,
+            config_updated: false,
+            vrm_updated: false,
+            tuning_mode: false,
+            live_tuning_bones: HashMap::new(),
+            preview_poses: None,
+            state_version: 0,
+        }
+    }
 }
 
 pub static GLOBAL_SHARED_STATE: Mutex<Option<Arc<Mutex<ServerSharedState>>>> = Mutex::new(None);

@@ -171,11 +171,11 @@ fn main() -> Result<()> {
     );
     crate::term_log!("====================================================");
 
-    // Expand session thread stack size (16 MB) for safety on AppImage/portable Linux
+    // Expand session thread stack size (2 MB) for optimal RAM efficiency on Linux/Windows/macOS
     // Equipped with auto-recovery loop so internal panics (e.g. audio driver) do not kill the session
     let session_thread = std::thread::Builder::new()
         .name("ragasukma-session".to_string())
-        .stack_size(16 * 1024 * 1024)
+        .stack_size(2 * 1024 * 1024)
         .spawn(move || loop {
             let cfg = config_clone.clone();
             let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

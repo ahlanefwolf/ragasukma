@@ -20,6 +20,7 @@ pub fn ensure_timer_started() {
     TIMER_INIT.get_or_init(|| {
         std::thread::Builder::new()
             .name("os_efficiency_worker".to_string())
+            .stack_size(512 * 1024)
             .spawn(|| {
                 loop {
                     std::thread::sleep(Duration::from_secs(5));
@@ -53,19 +54,27 @@ fn check_and_apply_efficiency() {
 pub fn trim_process_memory() {
     #[cfg(target_os = "windows")]
     {
-        // Tell mimalloc to safely release freed heap pages back to Windows OS
+        // Tell mimalloc to forcefully purge freed heap pages back to Windows OS
         // without discarding resident ONNX model weights from physical RAM.
         unsafe extern "C" {
             fn mi_collect(force: bool);
         }
         unsafe {
-            mi_collect(false);
+            mi_collect(true);
         }
     }
 
     #[cfg(target_os = "linux")]
     {
-        // Tell allocator / libc to release free memory back to OS
+        // Tell mimalloc to forcefully purge freed heap pages back to Linux OS (MADV_DONTNEED / munmap)
+        unsafe extern "C" {
+            fn mi_collect(force: bool);
+        }
+        unsafe {
+            mi_collect(true);
+        }
+
+        // Also tell glibc ptmalloc to release any C-library allocated free memory
         unsafe extern "C" {
             fn malloc_trim(pad: usize) -> i32;
         }

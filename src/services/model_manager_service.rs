@@ -100,8 +100,9 @@ pub fn ensure_model_ready_background() {
         return;
     }
 
-    std::thread::Builder::new()
+    let _ = std::thread::Builder::new()
         .name("model-downloader".to_string())
+        .stack_size(1024 * 1024)
         .spawn(move || {
             if let Err(err) = run_download_and_extract() {
                 crate::term_err!("[Model Manager] Failed to download or extract model: {err}");

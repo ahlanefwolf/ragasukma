@@ -318,21 +318,29 @@ pub fn format_installed_apps_indexed(query: Option<&str>) -> String {
     }
 
     let q_clean = query.unwrap_or("").trim().to_lowercase();
+    if q_clean.is_empty() {
+        return String::new();
+    }
 
-    let matched_apps: Vec<String> = if !q_clean.is_empty() {
-        let matches: Vec<String> = apps
-            .iter()
-            .filter(|a| is_app_mentioned_in_query(a, &q_clean))
-            .map(|a| a.display_label())
-            .collect();
+    let matches: Vec<String> = apps
+        .iter()
+        .filter(|a| is_app_mentioned_in_query(a, &q_clean))
+        .map(|a| a.display_label())
+        .collect();
 
-        if matches.is_empty() {
-            apps.iter().take(30).map(|a| a.display_label()).collect()
-        } else {
-            matches
-        }
+    let matched_apps: Vec<String> = if !matches.is_empty() {
+        matches
     } else {
-        apps.iter().take(30).map(|a| a.display_label()).collect()
+        let is_asking_for_apps = q_clean.contains("app")
+            || q_clean.contains("aplikasi")
+            || q_clean.contains("program")
+            || q_clean.contains("software")
+            || q_clean.contains("installed");
+        if is_asking_for_apps {
+            apps.iter().take(20).map(|a| a.display_label()).collect()
+        } else {
+            return String::new();
+        }
     };
 
     format!(

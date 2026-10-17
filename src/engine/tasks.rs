@@ -34,10 +34,10 @@ pub fn init_background_task_worker() {
     let (tx, rx) = channel::<BackgroundTask>();
     *sender_lock = Some(tx);
 
-    // Dedicated worker thread with 16 MB stack allocation
+    // Dedicated worker thread with 2 MB stack allocation
     let builder = thread::Builder::new()
         .name("ragasukma-task-worker".to_string())
-        .stack_size(16 * 1024 * 1024);
+        .stack_size(2 * 1024 * 1024);
 
     builder
         .spawn(move || {

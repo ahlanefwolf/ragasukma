@@ -191,8 +191,9 @@ pub fn start_vision_worker() {
     let (tx, rx) = std::sync::mpsc::channel::<VisionRequest>();
     *sender_lock = Some(tx);
 
-    std::thread::Builder::new()
+    let _ = std::thread::Builder::new()
         .name("ragasukma-vision-worker".to_string())
+        .stack_size(1024 * 1024)
         .spawn(move || {
             let mut engine = PerceptionEngine::new().unwrap_or(PerceptionEngine {});
 

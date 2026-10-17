@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -28,41 +27,7 @@ pub struct CoreStatePayload {
 
 
 // ---------------------------------------------------------------------------
-// 2. HTTP ACTIONS POLLING (/api/actions/since?last_id=...)
-// ---------------------------------------------------------------------------
-pub fn handle_get_actions_since(full_url: &str, stream: &mut dyn Write) {
-    let last_id = full_url
-        .split('?')
-        .nth(1)
-        .and_then(|q| {
-            q.split('&').find_map(|pair| {
-                let mut kv = pair.split('=');
-                if kv.next()? == "last_id" {
-                    kv.next()?.parse::<u64>().ok()
-                } else {
-                    None
-                }
-            })
-        })
-        .unwrap_or(0);
-
-    let (actions, new_last_id) = if last_id == 0 {
-        // First connection / refresh: only take ID terbaru without sending repeat aksi history old!
-        (Vec::new(), crate::app_state::get_latest_action_id())
-    } else {
-        crate::app_state::get_client_actions_since(last_id)
-    };
-    let resp = serde_json::json!({
-        "actions": actions,
-        "last_id": new_last_id
-    })
-    .to_string();
-
-    crate::server::send_json_response(stream, 200, &resp);
-}
-
-// ---------------------------------------------------------------------------
-// 3. AXUM WEBSOCKET HANDLER (/api/ws)
+// 2. AXUM WEBSOCKET HANDLER (/api/ws)
 // Realtime 60 FPS sub-millisecond Pose Tuner & Interactive bi-directional link
 // ---------------------------------------------------------------------------
 

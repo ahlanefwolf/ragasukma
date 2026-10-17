@@ -225,7 +225,16 @@ pub fn click_desktop_button(label_or_id: &str) -> bool {
     }
 
     // 1. Try searching existing window scanner snapshot (OS Accessibility Tree)
-    if let Some(snap) = super::load_snapshot() {
+    let snap = super::load_snapshot()
+        .filter(|s| !s.buttons.is_empty())
+        .or_else(|| {
+            // Lazy on-demand scan if snapshot has no buttons yet
+            crate::engine::window_scanner::scan_active_window_sync().ok().inspect(|s| {
+                let _ = s.save_to_file();
+            })
+        });
+
+    if let Some(snap) = snap {
         if let Some(btn) = find_target_button(needle, &snap.buttons) {
             if let Some(center) = btn.center {
                 if !snap.app_name.is_empty() {

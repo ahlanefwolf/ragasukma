@@ -106,37 +106,37 @@ fn default_voice() -> String {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserConfig {
-    #[serde(default)]
+    #[serde(default, alias = "assistantName")]
     pub assistant_name: String,
-    #[serde(default)]
+    #[serde(default, alias = "userCallsign")]
     pub user_callsign: String,
-    #[serde(default)]
+    #[serde(default, alias = "personalityRole")]
     pub personality_role: String,
-    #[serde(default)]
+    #[serde(default, alias = "assistantGender")]
     pub assistant_gender: String,
-    #[serde(default)]
+    #[serde(default, alias = "llmProvider")]
     pub llm_provider: String,
-    #[serde(default)]
+    #[serde(default, alias = "llmBaseUrl")]
     pub llm_base_url: String,
-    #[serde(default)]
+    #[serde(default, alias = "llmModel")]
     pub llm_model: String,
-    #[serde(default)]
+    #[serde(default, alias = "llmApiKey")]
     pub llm_api_key: String,
     #[serde(default = "default_lang")]
     pub lang: String,
-    #[serde(default = "default_voice")]
+    #[serde(default = "default_voice", alias = "ttsVoiceName", alias = "voiceName")]
     pub tts_voice_name: String,
-    #[serde(default)]
+    #[serde(default, alias = "ttsSpeed")]
     pub tts_speed: f32,
-    #[serde(default)]
+    #[serde(default, alias = "avatarType")]
     pub avatar_type: String,
-    #[serde(default)]
+    #[serde(default, alias = "alwaysOnTop")]
     pub always_on_top: bool,
-    #[serde(default)]
+    #[serde(default, alias = "voiceInterruption")]
     pub voice_interruption: bool,
-    #[serde(default = "default_vad_threshold")]
+    #[serde(default = "default_vad_threshold", alias = "vadThreshold")]
     pub vad_threshold: f32,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", alias = "vadNoiseSuppression")]
     pub vad_noise_suppression: bool,
 }
 

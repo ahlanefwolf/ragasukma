@@ -25,6 +25,9 @@ pub fn process_llm_response(
     let mut first_token_time = None;
     let mut printed_header = false;
 
+    // Inisialisasi streaming voice session untuk sintesis & playback paralel per kalimat
+    let mut voice_session = tts.start_streaming_session(asst_name);
+
     let result = llm.chat_stream(effective_input, |sentence, emotion| {
         let clean_sentence = sentence.trim().to_string();
         if clean_sentence.is_empty() {
@@ -32,8 +35,12 @@ pub fn process_llm_response(
         }
 
         if crate::app_state::is_interruption_requested() {
+            voice_session.abort();
             return Err(anyhow::anyhow!("Interrupted by user"));
         }
+
+        // Push potongan kalimat langsung ke background TTS worker
+        voice_session.push_sentence(&clean_sentence, emotion);
 
         // Update emotion avatar real-time to renderer 3D
         TrayState::update_with_emotion(
@@ -71,15 +78,30 @@ pub fn process_llm_response(
 
     let full_response_text = match &result {
         Ok(txt) => {
+            // Selesaikan session streaming voice (sinkronisasi kalimat terakhir)
+            voice_session.finish();
+
             let clean = txt.trim();
             if !clean.is_empty() {
                 crate::term_log!("[{}] \"{}\"", asst_name, clean);
-                let emo = detect_emotion(clean);
-                let _ = tts_clone.speak_with_emotion(clean, &emo, asst_name);
             }
+
+            // Once the assistant finishes summarizing Google search results,
+            // clear the transient text_summary so it doesn't linger in DOM memory forever
+            if effective_input.starts_with("Here are the search results for") {
+                if let Some(mut snap) = crate::services::browser_session_service::get_latest_snapshot() {
+                    snap.text_summary.clear();
+                    let _ = crate::services::browser_session_service::save_browser_snapshot(snap);
+                    crate::term_log!("[Browser AI Search] Cleared transient search summary from active DOM context.");
+                }
+            }
+
             txt.clone()
         }
         Err(e) => {
+            // Hentikan antrean audio jika LLM terputus atau gagal
+            voice_session.abort();
+
             let err_str = e.to_string();
             crate::term_err!("[LLM Error]: {err_str}");
 

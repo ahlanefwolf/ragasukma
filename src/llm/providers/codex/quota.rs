@@ -120,7 +120,6 @@ pub fn fetch_account_quota(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::llm::providers::codex::CodexProvider;
 
     #[test]
     fn test_codex_account_quota_live() {
