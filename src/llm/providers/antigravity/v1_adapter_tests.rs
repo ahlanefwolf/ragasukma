@@ -124,7 +124,7 @@ fn test_build_gemini_payload_attaches_thought_signature() {
     let payload = build_gemini_payload(&req, "test-project");
     let contents = payload["request"]["contents"].as_array().unwrap();
 
-    // Model turn must have functionCall with thoughtSignature
+    // Model turn must have functionCall; without cached or provided signature, thoughtSignature is omitted
     let model_turn = contents.iter().find(|c| c["role"] == "model").unwrap();
     let parts = model_turn["parts"].as_array().unwrap();
     let fc_part = parts
@@ -132,9 +132,9 @@ fn test_build_gemini_payload_attaches_thought_signature() {
         .find(|p| p.get("functionCall").is_some())
         .unwrap();
 
-    assert_eq!(
-        fc_part["thoughtSignature"].as_str().unwrap(),
-        DEFAULT_THINKING_AG_SIGNATURE
+    assert!(
+        fc_part.get("thoughtSignature").is_none(),
+        "thoughtSignature must be omitted when no signature is provided or cached to prevent Google API 400 TYPE_BYTES decoding errors"
     );
     assert_eq!(
         fc_part["functionCall"]["name"].as_str().unwrap(),
@@ -231,4 +231,80 @@ fn test_base64_validation_and_sanitizer() {
     // Empty strings
     assert!(!is_valid_base64(""));
     assert_eq!(sanitize_thought_signature(""), None);
+}
+
+#[test]
+fn test_embedded_thought_signature_in_tool_call_id() {
+    let raw_sig = "EuwGCukGAXLI2valid_signature_token==";
+    let base_id = "call_zed_read_file_42";
+    let embedded_id = format!("{base_id}__thought__{raw_sig}");
+
+    // resolve_call_signature should parse and sanitize the signature from embedded id
+    assert_eq!(resolve_call_signature(&embedded_id), Some(raw_sig.to_string()));
+
+    let req = V1ChatRequest {
+        model: "gemini-3.8-flash-high".to_string(),
+        messages: vec![
+            crate::llm::v1_engine::V1Message {
+                role: "user".to_string(),
+                content: Some(serde_json::json!("Read file")),
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+                thought_signature: None,
+            },
+            crate::llm::v1_engine::V1Message {
+                role: "assistant".to_string(),
+                content: None,
+                tool_calls: Some(vec![V1ToolCall {
+                    id: embedded_id.clone(),
+                    call_type: "function".to_string(),
+                    function: V1ToolCallFunction {
+                        name: "read_file".to_string(),
+                        arguments: "{\"path\":\"src/main.rs\"}".to_string(),
+                    },
+                    thought_signature: None,
+                    extra_content: None,
+                    provider_specific_fields: None,
+                }]),
+                tool_call_id: None,
+                name: None,
+                thought_signature: None,
+            },
+            crate::llm::v1_engine::V1Message {
+                role: "tool".to_string(),
+                content: Some(serde_json::json!("file content here")),
+                tool_calls: None,
+                tool_call_id: Some(embedded_id.clone()),
+                name: None,
+                thought_signature: None,
+            },
+        ],
+        temperature: None,
+        max_tokens: None,
+        stream: None,
+        tools: None,
+        tool_choice: None,
+    };
+
+    let payload = build_gemini_payload(&req, "test-project");
+    let contents = payload["request"]["contents"].as_array().unwrap();
+
+    // Verify model turn has clean id in functionCall and embedded signature in thoughtSignature
+    let model_turn = contents.iter().find(|c| c["role"] == "model").unwrap();
+    let fc = &model_turn["parts"][0]["functionCall"];
+    assert_eq!(fc["id"].as_str().unwrap(), base_id);
+    assert_eq!(fc["name"].as_str().unwrap(), "read_file");
+    assert_eq!(
+        model_turn["parts"][0]["thoughtSignature"].as_str().unwrap(),
+        raw_sig
+    );
+
+    // Verify user turn with functionResponse has clean id matching base_id
+    let user_tool_turn = contents.iter().find(|c| {
+        c["role"] == "user" && c["parts"][0].get("functionResponse").is_some()
+    }).unwrap();
+    let fr = &user_tool_turn["parts"][0]["functionResponse"];
+    assert_eq!(fr["id"].as_str().unwrap(), base_id);
+    assert_eq!(fr["name"].as_str().unwrap(), "read_file");
 }

@@ -565,7 +565,7 @@ pub(crate) async fn axum_assets_file(
                 "png" => "image/png",
                 "jpg" | "jpeg" => "image/jpeg",
                 "webp" => "image/webp",
-                "vrm" | "glb" => "model/gltf-binary",
+                "vrm" => "model/gltf-binary",
                 "json" => "application/json",
                 _ => "application/octet-stream",
             };
@@ -582,8 +582,15 @@ pub(crate) async fn axum_assets_file(
     (StatusCode::NOT_FOUND, "404 Asset Not Found").into_response()
 }
 
+#[derive(Deserialize)]
+pub(crate) struct VrmUploadQuery {
+    #[serde(default)]
+    pub(crate) filename: Option<String>,
+}
+
 pub(crate) async fn axum_upload_vrm(
     State(shared): State<Arc<Mutex<ServerSharedState>>>,
+    Query(q): Query<VrmUploadQuery>,
     body: Bytes,
 ) -> impl IntoResponse {
     if body.is_empty() {
@@ -592,6 +599,19 @@ pub(crate) async fn axum_upload_vrm(
             Json(json!({ "error": "Empty file payload" })),
         )
             .into_response();
+    }
+
+    if let Some(ref fname) = q.filename {
+        static RE_VRM_EXT: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+            regex::Regex::new(r"(?i)\.vrm$").expect("valid vrm regex")
+        });
+        if !RE_VRM_EXT.is_match(fname) {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "Invalid format: 3D model strictly requires a .vrm file" })),
+            )
+                .into_response();
+        }
     }
 
     let assets_dir = crate::assets::get_assets_dir();

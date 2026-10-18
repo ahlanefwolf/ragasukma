@@ -466,7 +466,11 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
     for msg in &req.messages {
         if let Some(ref tcs) = msg.tool_calls {
             for tc in tcs {
-                tool_call_names.insert(tc.id.clone(), sanitize_function_name(&tc.function.name));
+                let fn_name = sanitize_function_name(&tc.function.name);
+                tool_call_names.insert(tc.id.clone(), fn_name.clone());
+                if let Some((base, _)) = tc.id.split_once("__thought__") {
+                    tool_call_names.insert(base.to_string(), fn_name);
+                }
             }
         }
     }
@@ -487,12 +491,13 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                     parts.push(serde_json::json!({ "text": text }));
                 }
                 if let Some(ref tcs) = msg.tool_calls {
-                    let mut first_function_call_seen = false;
                     for tc in tcs {
                         let fn_name = sanitize_function_name(&tc.function.name);
                         let args_val: serde_json::Value =
                             serde_json::from_str(&tc.function.arguments)
                                 .unwrap_or_else(|_| serde_json::json!({}));
+
+                        let clean_tc_id = tc.id.split_once("__thought__").map(|(b, _)| b).unwrap_or(&tc.id);
 
                         let direct_sig = tc
                             .thought_signature
@@ -520,18 +525,14 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                             });
 
                         let cached_sig = direct_sig.or_else(|| resolve_call_signature(&tc.id));
-                        let call_sig = cached_sig.or_else(|| {
-                            if !first_function_call_seen {
-                                Some(DEFAULT_THINKING_AG_SIGNATURE.to_string())
-                            } else {
-                                None
-                            }
-                        });
-                        first_function_call_seen = true;
+                        if let Some(ref s) = cached_sig {
+                            store_thought_signature(clean_tc_id, s);
+                        }
+                        let call_sig = cached_sig;
 
                         let mut part = serde_json::json!({
                             "functionCall": {
-                                "id": tc.id,
+                                "id": clean_tc_id,
                                 "name": fn_name,
                                 "args": args_val
                             }
@@ -554,8 +555,10 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
             }
             "tool" => {
                 let tc_id = msg.tool_call_id.as_deref().unwrap_or("");
+                let clean_tc_id = tc_id.split_once("__thought__").map(|(b, _)| b).unwrap_or(tc_id);
                 let fn_name = tool_call_names
                     .get(tc_id)
+                    .or_else(|| tool_call_names.get(clean_tc_id))
                     .cloned()
                     .or_else(|| msg.name.clone().map(|n| sanitize_function_name(&n)))
                     .unwrap_or_else(|| "tool".to_string());
@@ -572,8 +575,8 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                     "name": fn_name,
                     "response": res_obj
                 });
-                if !tc_id.is_empty() {
-                    fr_obj["id"] = serde_json::Value::String(tc_id.to_string());
+                if !clean_tc_id.is_empty() {
+                    fr_obj["id"] = serde_json::Value::String(clean_tc_id.to_string());
                 }
 
                 raw_contents.push(serde_json::json!({
@@ -651,7 +654,6 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                     true
                 });
 
-                let mut first_fc_seen = false;
                 for p in parts.iter_mut() {
                     if let Some(fc) = p.get("functionCall") {
                         let call_id = fc.get("id").and_then(|i| i.as_str()).unwrap_or("");
@@ -667,14 +669,7 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                             None
                         };
 
-                        let call_sig = existing_sig.or(cached_sig).or_else(|| {
-                            if !first_fc_seen {
-                                Some(DEFAULT_THINKING_AG_SIGNATURE.to_string())
-                            } else {
-                                None
-                            }
-                        });
-                        first_fc_seen = true;
+                        let call_sig = existing_sig.or(cached_sig);
 
                         if let Some(sig) = call_sig.as_deref().and_then(sanitize_thought_signature)
                         {
@@ -912,7 +907,7 @@ where
 
                                     let sig = fc_thought_sig
                                         .or(part_thought_sig)
-                                        .or_else(|| pending_thought_signature.take());
+                                        .or_else(|| pending_thought_signature.clone());
 
                                     let name = fc
                                         .get("name")
@@ -923,7 +918,7 @@ where
                                     let args_val = fc.get("args").unwrap_or(&empty_args);
                                     let args_str = serde_json::to_string(args_val)
                                         .unwrap_or_else(|_| "{}".to_string());
-                                    let call_id = fc
+                                    let base_id = fc
                                         .get("id")
                                         .and_then(|i| i.as_str())
                                         .map(|s| s.to_string())
@@ -935,9 +930,18 @@ where
                                             )
                                         });
 
-                                    if let Some(ref s) = sig {
-                                        store_thought_signature(&call_id, s);
-                                    }
+                                    let call_id = if let Some(ref s) = sig {
+                                        if let Some(valid_sig) = sanitize_thought_signature(s) {
+                                            store_thought_signature(&base_id, &valid_sig);
+                                            let embedded_id = format!("{base_id}__thought__{valid_sig}");
+                                            store_thought_signature(&embedded_id, &valid_sig);
+                                            embedded_id
+                                        } else {
+                                            base_id
+                                        }
+                                    } else {
+                                        base_id
+                                    };
 
                                     let tc = V1ToolCall {
                                         id: call_id.clone(),

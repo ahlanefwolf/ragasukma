@@ -104,6 +104,10 @@ fn default_voice() -> String {
     "F4".to_string()
 }
 
+fn default_tts_volume() -> f32 {
+    1.6
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserConfig {
     #[serde(default, alias = "assistantName")]
@@ -128,6 +132,8 @@ pub struct UserConfig {
     pub tts_voice_name: String,
     #[serde(default, alias = "ttsSpeed")]
     pub tts_speed: f32,
+    #[serde(default = "default_tts_volume", alias = "ttsVolume", alias = "voiceVolume")]
+    pub tts_volume: f32,
     #[serde(default, alias = "avatarType")]
     pub avatar_type: String,
     #[serde(default, alias = "alwaysOnTop")]
@@ -154,6 +160,7 @@ impl Default for UserConfig {
             lang: "id".to_string(),
             tts_voice_name: "F4".to_string(),
             tts_speed: 1.05,
+            tts_volume: 1.6,
             avatar_type: "2d".to_string(),
             always_on_top: true,
             voice_interruption: false,
@@ -295,6 +302,7 @@ pub struct AppConfig {
     pub lang: String,
     pub tts_voice_name: String,
     pub tts_speed: f32,
+    pub tts_volume: f32,
     pub assistant_name: String,
     pub assistant_gender: String,
     pub user_callsign: String,
@@ -316,6 +324,7 @@ impl AppConfig {
             lang: u.lang,
             tts_voice_name: u.tts_voice_name,
             tts_speed: u.tts_speed,
+            tts_volume: u.tts_volume,
             assistant_name: u.assistant_name,
             assistant_gender: u.assistant_gender,
             user_callsign: u.user_callsign,

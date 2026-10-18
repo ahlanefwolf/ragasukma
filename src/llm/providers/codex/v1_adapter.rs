@@ -38,13 +38,19 @@ pub fn build_codex_payload_from_messages(
             "input_text"
         };
 
+        let text = if msg.role == "tool" {
+            format!("[TOOL OBSERVATION]:\n{}", msg.content)
+        } else {
+            msg.content.clone()
+        };
+
         input_items.push(json!({
             "type": "message",
             "role": if msg.role == "assistant" { "assistant" } else { "user" },
             "content": [
                 {
                     "type": content_type,
-                    "text": msg.content
+                    "text": text
                 }
             ]
         }));

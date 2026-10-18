@@ -8,6 +8,7 @@ use std::sync::atomic::Ordering;
 static CURRENT_TITLE: Mutex<Option<String>> = Mutex::new(None);
 static CURRENT_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 static CURRENT_MUSIC_VOLUME: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(100);
+static CURRENT_VOICE_VOLUME: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(160);
 
 static AUDIO_HANDLE: OnceLock<Option<rodio::OutputStreamHandle>> = OnceLock::new();
 static NATIVE_MUSIC_SINK: Mutex<Option<rodio::Sink>> = Mutex::new(None);
@@ -258,6 +259,7 @@ pub fn start_voice_stream(emotion: String, asst_name: String) -> VoiceStreamSend
                                     let source = rodio::buffer::SamplesBuffer::new(1, sr, samples.clone());
                                     if sink_arc.is_none() {
                                         if let Ok(new_sink) = rodio::Sink::try_new(&handle) {
+                                            new_sink.set_volume(get_voice_volume());
                                             if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
                                                 if let Some(ref m_sink) = *music_lock {
                                                     m_sink.set_volume(get_music_volume() * 0.25);
@@ -288,6 +290,7 @@ pub fn start_voice_stream(emotion: String, asst_name: String) -> VoiceStreamSend
                                     if let Ok(decoder) = rodio::Decoder::new(Cursor::new(wav_bytes)) {
                                         if sink_arc.is_none() {
                                             if let Ok(new_sink) = rodio::Sink::try_new(&handle) {
+                                                new_sink.set_volume(get_voice_volume());
                                                 if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
                                                     if let Some(ref m_sink) = *music_lock {
                                                         m_sink.set_volume(get_music_volume() * 0.25);
@@ -581,6 +584,25 @@ pub fn get_current_title() -> Option<String> {
     } else {
         None
     }
+}
+
+/// Set internal voice volume (0.0 to 3.0)
+pub fn set_voice_volume(vol: f32) {
+    let clamped = vol.clamp(0.0, 3.0);
+    let int_val = (clamped * 100.0).round() as u32;
+    CURRENT_VOICE_VOLUME.store(int_val, Ordering::SeqCst);
+
+    if let Ok(lock) = NATIVE_VOICE_SINK.lock() {
+        if let Some(ref sink) = *lock {
+            sink.set_volume(clamped);
+        }
+    }
+}
+
+/// Get internal voice volume as float (default 1.6)
+pub fn get_voice_volume() -> f32 {
+    let int_val = CURRENT_VOICE_VOLUME.load(Ordering::SeqCst);
+    (int_val as f32) / 100.0
 }
 
 /// Set internal music volume (0.0 to 1.0 or higher)

@@ -9,7 +9,7 @@ use crate::engine::session::{AppSession, check_and_consume_cmd};
 use crate::tray::{AssistantState, TrayState};
 
 use self::input_listener::{LoopAction, handle_paused_loop, wait_for_user_turn};
-use self::llm_responder::process_llm_response;
+use self::llm_responder::process_llm_response_with_role;
 use self::skill_runner::handle_skill_execution;
 
 impl AppSession {
@@ -97,25 +97,40 @@ impl AppSession {
                 continue;
             }
 
-            let user_transcript = raw_text.clone();
-            let effective_input = user_transcript.clone();
+            let is_system_notice = raw_text.starts_with("[SYSTEM STATUS:")
+                || raw_text.starts_with("[TOOL RESULT:")
+                || raw_text.starts_with("[TOOL OBSERVATION:")
+                || raw_text.starts_with("Here are the search results for");
+
             let asst_name = self.config.assistant_name.clone();
 
-            crate::term_log!("\n[User] You [5.00ms]:");
-            crate::term_log!("   \"{}\"", user_transcript);
+            if is_system_notice {
+                crate::term_log!("\n[System / Tool Event]:");
+                crate::term_log!("   \"{}\"", raw_text);
+            } else {
+                crate::term_log!("\n[User] You [5.00ms]:");
+                crate::term_log!("   \"{}\"", raw_text);
 
-            TrayState::emit_event(
-                "assistant:transcript",
-                serde_json::json!({
-                    "role": "user",
-                    "text": &user_transcript
-                }),
-            );
+                TrayState::emit_event(
+                    "assistant:transcript",
+                    serde_json::json!({
+                        "role": "user",
+                        "text": &raw_text
+                    }),
+                );
+            }
+
+            let msg_role = if is_system_notice { "tool" } else { "user" };
 
             // 5. Inferensi LLM and respons voice Supertonic-3 Neural TTS
             let tts_clone = Arc::clone(&self.tts);
-            let result =
-                process_llm_response(&mut self.llm, &tts_clone, &asst_name, &effective_input);
+            let result = process_llm_response_with_role(
+                &mut self.llm,
+                &tts_clone,
+                &asst_name,
+                msg_role,
+                &raw_text,
+            );
 
             let was_interrupted = crate::app_state::is_interruption_requested();
             crate::app_state::clear_interruption();
@@ -132,7 +147,7 @@ impl AppSession {
                     &tts_clone,
                     &asst_name,
                     full_reply,
-                    &effective_input,
+                    &raw_text,
                 );
             }
 

@@ -215,9 +215,9 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
                         let _ = crate::services::browser_session_service::save_browser_snapshot(snap);
                     }
 
-                    // Trigger natural summarization through the main chat loop by providing the extracted content directly
+                    // Trigger natural summarization through the main chat loop by providing the extracted content directly as a tool observation
                     crate::engine::remote_text::inject_remote_text(format!(
-                        "Here are the search results for '{query_str}':\n\n{trimmed}\n\nPlease provide a clear and concise spoken summary of this information directly to the user. Do NOT call any browser search or open commands."
+                        "[TOOL RESULT: Google Search for '{query_str}']:\n\n{trimmed}\n\nPlease provide a clear, natural, and concise spoken summary of this information directly to the user. Do NOT call any browser search or open commands."
                     ));
                 } else {
                     crate::term_log!("[Browser AI Search] AI summary text was not captured within timeout.");

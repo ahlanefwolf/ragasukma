@@ -522,13 +522,14 @@ impl AntigravityProvider {
 
         let mut contents = Vec::new();
         for msg in messages {
-            let role = match msg.role.as_str() {
-                "assistant" => "model",
-                _ => "user",
+            let (role, text) = match msg.role.as_str() {
+                "assistant" => ("model", msg.content.clone()),
+                "tool" => ("user", format!("[TOOL OBSERVATION]:\n{}", msg.content)),
+                _ => ("user", msg.content.clone()),
             };
             contents.push(serde_json::json!({
                 "role": role,
-                "parts": [{ "text": msg.content }]
+                "parts": [{ "text": text }]
             }));
         }
 
@@ -623,7 +624,8 @@ impl AntigravityProvider {
                                         full_reply.push_str(text);
                                         current_sentence.push_str(text);
 
-                                        let has_skill_tag = current_sentence.contains("[SKILL:");
+                                        let has_skill_tag = current_sentence.contains("[SKILL:")
+                                            || current_sentence.contains("[CMD:");
                                         let has_skill_closed =
                                             has_skill_tag && current_sentence.contains(']');
 
@@ -631,16 +633,28 @@ impl AntigravityProvider {
                                             while let Some(pos) =
                                                 current_sentence.find(['.', '?', '!', '\n'])
                                             {
-                                                if let Some(skill_idx) =
-                                                    current_sentence.find("[SKILL:")
+                                                if let Some(tag_idx) = current_sentence
+                                                    .find("[SKILL:")
+                                                    .or_else(|| current_sentence.find("[CMD:"))
                                                 {
-                                                    if pos > skill_idx {
+                                                    if pos > tag_idx {
                                                         break;
                                                     }
                                                 }
-                                                let sentence = current_sentence[..=pos].to_string();
+
+                                                // Do not break in the middle of ellipses (... or ..)
+                                                let mut end_pos = pos;
+                                                if current_sentence.as_bytes().get(pos) == Some(&b'.') {
+                                                    while end_pos + 1 < current_sentence.len()
+                                                        && current_sentence.as_bytes().get(end_pos + 1) == Some(&b'.')
+                                                    {
+                                                        end_pos += 1;
+                                                    }
+                                                }
+
+                                                let sentence = current_sentence[..=end_pos].to_string();
                                                 current_sentence =
-                                                    current_sentence[pos + 1..].to_string();
+                                                    current_sentence[end_pos + 1..].to_string();
 
                                                 if let Some(emo) =
                                                     crate::ui::renderer::expressions::detect_emotion(

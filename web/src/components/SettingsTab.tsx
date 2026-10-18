@@ -43,6 +43,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
   const [lang, setLang] = createSignal('id');
   const [ttsVoiceName, setTtsVoiceName] = createSignal('F2');
   const [ttsSpeed, setTtsSpeed] = createSignal(1.05);
+  const [ttsVolume, setTtsVolume] = createSignal(1.6);
 
   // Avatar & System
   const [avatarType, setAvatarType] = createSignal('vrm');
@@ -111,6 +112,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       if (cfg.lang !== undefined) setLang(cfg.lang);
       if (cfg.tts_voice_name !== undefined) setTtsVoiceName(cfg.tts_voice_name);
       if (cfg.tts_speed !== undefined) setTtsSpeed(cfg.tts_speed);
+      if (cfg.tts_volume !== undefined) setTtsVolume(cfg.tts_volume);
 
       if (cfg.avatar_type !== undefined) setAvatarType(cfg.avatar_type);
       if (cfg.always_on_top !== undefined) setAlwaysOnTop(cfg.always_on_top);
@@ -124,6 +126,13 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
     const target = e.target as HTMLInputElement;
     if (!target.files || target.files.length === 0) return;
     const file = target.files[0];
+
+    // Regex validation: 3D model is specifically VRM format only (.vrm)
+    if (!/\.vrm$/i.test(file.name)) {
+      props.showToast('Format file tidak valid: 3D khusus untuk model .vrm!');
+      target.value = '';
+      return;
+    }
 
     setIsUploadingVrm(true);
     props.showToast(`Uploading VRM model: ${file.name}...`);
@@ -181,6 +190,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
       lang: lang(),
       tts_voice_name: ttsVoiceName(),
       tts_speed: ttsSpeed(),
+      tts_volume: ttsVolume(),
       avatar_type: avatarType(),
       always_on_top: alwaysOnTop(),
     };
@@ -312,6 +322,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           setTtsVoiceName={setTtsVoiceName}
           ttsSpeed={ttsSpeed()}
           setTtsSpeed={setTtsSpeed}
+          ttsVolume={ttsVolume()}
+          setTtsVolume={setTtsVolume}
           voiceInterruption={voiceInterruption()}
           setVoiceInterruption={setVoiceInterruption}
           vadThreshold={vadThreshold()}

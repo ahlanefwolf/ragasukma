@@ -72,25 +72,39 @@ impl LlmClient {
         }
     }
 
-    pub fn chat_stream<F>(&mut self, user_input: &str, mut on_sentence: F) -> Result<String>
+    pub fn chat_stream<F>(&mut self, user_input: &str, on_sentence: F) -> Result<String>
     where
         F: FnMut(&str, &str) -> Result<()>,
     {
-        if user_input.trim().is_empty() {
+        self.chat_stream_with_role("user", user_input, on_sentence)
+    }
+
+    pub fn chat_stream_with_role<F>(
+        &mut self,
+        role: &str,
+        input_text: &str,
+        mut on_sentence: F,
+    ) -> Result<String>
+    where
+        F: FnMut(&str, &str) -> Result<()>,
+    {
+        if input_text.trim().is_empty() {
             return Ok(String::new());
         }
 
-        // Dynamic Prompt Indexing: suntikkan only Ground of Truth which relevan with ucapan user!
-        let current_sys_prompt = build_system_prompt_indexed(Some(user_input));
-        if let Some(first_msg) = self.history.first_mut() {
-            if first_msg.role == "system" {
-                first_msg.content = current_sys_prompt;
+        if role == "user" {
+            // Dynamic Prompt Indexing: suntikkan only Ground of Truth which relevan with ucapan user!
+            let current_sys_prompt = build_system_prompt_indexed(Some(input_text));
+            if let Some(first_msg) = self.history.first_mut() {
+                if first_msg.role == "system" {
+                    first_msg.content = current_sys_prompt;
+                }
             }
         }
 
         self.history.push(ChatMessage {
-            role: "user".to_string(),
-            content: user_input.to_string(),
+            role: role.to_string(),
+            content: input_text.to_string(),
         });
 
         // Selalu reload akun dari disk agar sinkron real-time jika ada akun yang baru ditambah / dihapus
@@ -123,7 +137,7 @@ impl LlmClient {
                         &u.user_callsign,
                         &u.assistant_name,
                         &u.personality_role,
-                        user_input,
+                        input_text,
                         &clean,
                     );
                     return Ok(reply);
@@ -164,7 +178,7 @@ impl LlmClient {
                             &u.user_callsign,
                             &u.assistant_name,
                             &u.personality_role,
-                            user_input,
+                            input_text,
                             &clean,
                         );
 
@@ -269,9 +283,20 @@ impl LlmClient {
                                                     break;
                                                 }
                                             }
-                                            let sentence = current_sentence[..=pos].to_string();
+
+                                            // Do not break in the middle of ellipses (... or ..)
+                                            let mut end_pos = pos;
+                                            if current_sentence.as_bytes().get(pos) == Some(&b'.') {
+                                                while end_pos + 1 < current_sentence.len()
+                                                    && current_sentence.as_bytes().get(end_pos + 1) == Some(&b'.')
+                                                {
+                                                    end_pos += 1;
+                                                }
+                                            }
+
+                                            let sentence = current_sentence[..=end_pos].to_string();
                                             current_sentence =
-                                                current_sentence[pos + 1..].to_string();
+                                                current_sentence[end_pos + 1..].to_string();
 
                                             if let Some(emo) =
                                                 crate::ui::renderer::expressions::detect_emotion(
@@ -314,7 +339,7 @@ impl LlmClient {
                         &u.user_callsign,
                         &u.assistant_name,
                         &u.personality_role,
-                        user_input,
+                        input_text,
                         &clean,
                     );
 
@@ -337,10 +362,10 @@ impl LlmClient {
         }
 
         // 3. Fallback if custom endpoint Ollama native /api/chat used
-        self.chat_fallback_ollama(user_input, on_sentence)
+        self.chat_fallback_ollama(input_text, on_sentence)
     }
 
-    fn chat_fallback_ollama<F>(&mut self, user_input: &str, mut on_sentence: F) -> Result<String>
+    fn chat_fallback_ollama<F>(&mut self, input_text: &str, mut on_sentence: F) -> Result<String>
     where
         F: FnMut(&str, &str) -> Result<()>,
     {
@@ -390,7 +415,7 @@ impl LlmClient {
             &u.user_callsign,
             &u.assistant_name,
             &u.personality_role,
-            user_input,
+            input_text,
             &final_reply,
         );
 

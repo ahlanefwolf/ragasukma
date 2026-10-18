@@ -226,7 +226,7 @@ fn serve_static_asset(url: &str) -> axum::response::Response {
         "ico" => "image/x-icon",
         "json" => "application/json",
         "wasm" => "application/wasm",
-        "vrm" | "glb" => "model/gltf-binary",
+        "vrm" => "model/gltf-binary",
         _ => "application/octet-stream",
     };
 

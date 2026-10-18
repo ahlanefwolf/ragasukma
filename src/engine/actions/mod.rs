@@ -40,6 +40,7 @@ pub fn execute_skill_by_identifier(identifier: &str) -> Option<(String, String)>
         ("recipe", "train") | ("recipe", "learn") | ("recipe", "record") => recipe::record_recipe_action(payload),
         ("browser", act) => browser::execute_browser_action(act, payload),
         ("media", act) => media::execute_media_action(act, payload),
+        ("voice", act) => media::execute_media_action(if act == "volume" { "voice_volume" } else { act }, payload),
         ("todo", act) => todo_actions::execute_todo_action(act, payload),
         ("desktop" | "vision", act) => desktop::execute_desktop_action(act, payload),
         ("os" | "app", act) => os_apps::execute_os_or_app_action(namespace.as_str(), act, payload),

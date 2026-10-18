@@ -105,9 +105,7 @@ impl App {
             std::thread::spawn(move || {
                 let candidates = [
                     assets::find_file_in_candidates("char.vrm"),
-                    assets::find_file_in_candidates("char.glb"),
                     PathBuf::from("assets/char.vrm"),
-                    PathBuf::from("assets/char.glb"),
                 ];
                 for p in &candidates {
                     if p.exists() {
@@ -443,8 +441,6 @@ impl App {
                                     assets::find_file_in_candidates("char.vrm"),
                                     PathBuf::from("assets/char.vrm"),
                                     PathBuf::from("../assets/char.vrm"),
-                                    PathBuf::from("assets/char.glb"),
-                                    PathBuf::from("../assets/char.glb"),
                                 ];
                                 for p in &vrm_candidates {
                                     if p.exists() {
@@ -501,8 +497,6 @@ impl App {
                                                 assets::find_file_in_candidates("char.vrm"),
                                                 PathBuf::from("assets/char.vrm"),
                                                 PathBuf::from("../assets/char.vrm"),
-                                                PathBuf::from("assets/char.glb"),
-                                                PathBuf::from("../assets/char.glb"),
                                             ];
                                             for p in &vrm_candidates {
                                                 if p.exists() {

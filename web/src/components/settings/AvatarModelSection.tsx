@@ -86,22 +86,22 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
           <div class="flex items-center justify-between">
             <span class="text-sm font-bold text-theme-text flex items-center gap-2">
               <Upload size={16} class="text-theme-cyan" />
-              Upload 3D VRM Model (.vrm / .glb)
+              Upload 3D VRM Model (.vrm)
             </span>
             <span class="text-xs font-mono text-theme-cyan bg-theme-cyan/10 border border-theme-cyan/20 px-2 py-0.5">
-              Requires .vrm / .glb
+              Requires .vrm
             </span>
           </div>
 
           <p class="text-xs text-theme-text/70 leading-relaxed">
-            Supported formats: <strong class="text-theme-cyan">.vrm</strong> (VRM 0.x/1.0 standard from VRoid Studio / Blender) or <strong class="text-theme-cyan">.glb</strong>. Files are saved to <code class="text-theme-cyan font-mono">assets/char.vrm</code> and hot-reloaded automatically.
+            Supported formats: <strong class="text-theme-cyan">.vrm</strong> (VRM 0.x/1.0 standard from VRoid Studio / Blender). Files are saved to <code class="text-theme-cyan font-mono">assets/char.vrm</code> and hot-reloaded automatically.
           </p>
 
           <div class="flex items-center gap-3 pt-1">
             <label class="relative cursor-pointer">
               <input
                 type="file"
-                accept=".vrm,.glb"
+                accept=".vrm"
                 disabled={props.isUploadingVrm}
                 onChange={props.handleVrmFileChange}
                 class="sr-only"
@@ -112,7 +112,7 @@ export const AvatarModelSection: Component<AvatarModelSectionProps> = (props) =>
                   : 'bg-theme-cyan hover:bg-theme-cyan/85 text-theme-card shadow anime-shadow-green cursor-pointer'
               }`}>
                 <Upload size={14} />
-                <span>{props.isUploadingVrm ? 'Uploading & Loading...' : 'Select VRM File (.vrm / .glb)'}</span>
+                <span>{props.isUploadingVrm ? 'Uploading & Loading...' : 'Select VRM File (.vrm)'}</span>
               </span>
             </label>
 

@@ -40,7 +40,7 @@ export const assetsService = {
   async uploadVrm(file: File): Promise<{ ok: boolean; message?: string }> {
     try {
       const buffer = await file.arrayBuffer();
-      const res = await fetch(`${API_BASE}/api/upload/vrm`, {
+      const res = await fetch(`${API_BASE}/api/upload/vrm?filename=${encodeURIComponent(file.name)}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/octet-stream',

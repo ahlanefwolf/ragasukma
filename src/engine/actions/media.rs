@@ -229,6 +229,22 @@ pub fn execute_media_action(action: &str, payload: &str) -> Option<(String, Stri
             None
         }
 
+        "voice_volume" | "tts_volume" => {
+            let clean_payload = payload.trim().trim_end_matches('%');
+            if let Ok(mut vol) = clean_payload.parse::<f32>() {
+                if vol > 3.0 && vol <= 100.0 {
+                    vol /= 100.0;
+                }
+                crate::audio::player::set_voice_volume(vol);
+                crate::app_state::push_client_action("voice:volume", Some(&format!("{:.2}", vol)));
+                return Some((
+                    "Voice Volume".to_string(),
+                    format!("Set voice volume to {:.0}%", vol * 100.0),
+                ));
+            }
+            None
+        }
+
         _ => None,
     }
 }

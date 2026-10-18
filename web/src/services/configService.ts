@@ -12,6 +12,7 @@ export interface UserConfig {
   lang: string;
   tts_voice_name?: string;
   tts_speed: number;
+  tts_volume?: number;
   avatar_type: string;
   always_on_top: boolean;
   voice_interruption: boolean;

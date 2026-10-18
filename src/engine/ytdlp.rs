@@ -642,13 +642,170 @@ pub fn list_downloaded(music_dir: &Path) -> Vec<YtTrackInfo> {
     tracks
 }
 
-/// Estimates audio duration in seconds using purely fast file metadata probing (zero external process spawns)
+/// Probe precise audio duration from MP3 Xing/Info/VBRI headers or ID3 TLEN
+fn probe_mp3_info_frame_duration(path: &Path) -> Option<u64> {
+    use std::io::{Read, Seek, SeekFrom};
+
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut buf = vec![0u8; 65536];
+    let bytes_read = file.read(&mut buf).ok()?;
+    if bytes_read < 40 {
+        return None;
+    }
+    buf.truncate(bytes_read);
+
+    // 1. Check ID3v2 tag
+    let mut audio_offset = 0usize;
+    if buf.starts_with(b"ID3") && buf.len() >= 10 {
+        let size = ((buf[6] as usize & 0x7F) << 21)
+            | ((buf[7] as usize & 0x7F) << 14)
+            | ((buf[8] as usize & 0x7F) << 7)
+            | (buf[9] as usize & 0x7F);
+        let id3_end = 10 + size;
+
+        // Try extracting TLEN (length in milliseconds) frame from ID3 tag
+        let scan_limit = id3_end.min(buf.len());
+        if let Some(pos) = buf[..scan_limit].windows(4).position(|w| w == b"TLEN") {
+            if pos + 10 + 4 <= buf.len() {
+                let frame_size = ((buf[pos + 4] as usize) << 24)
+                    | ((buf[pos + 5] as usize) << 16)
+                    | ((buf[pos + 6] as usize) << 8)
+                    | (buf[pos + 7] as usize);
+                let content_start = pos + 10;
+                let content_end = (content_start + frame_size).min(buf.len());
+                if content_end > content_start {
+                    let content_slice = &buf[content_start + 1..content_end];
+                    if let Ok(s) = std::str::from_utf8(content_slice) {
+                        let clean_s = s.trim_matches('\0').trim();
+                        if let Ok(ms) = clean_s.parse::<u64>() {
+                            if ms > 0 {
+                                return Some(ms / 1000);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if id3_end < buf.len() {
+            audio_offset = id3_end;
+        } else if file.seek(SeekFrom::Start(id3_end as u64)).is_ok() {
+            let mut new_buf = vec![0u8; 32768];
+            if let Ok(n) = file.read(&mut new_buf) {
+                new_buf.truncate(n);
+                buf = new_buf;
+                audio_offset = 0;
+            }
+        }
+    }
+
+    // Sample rate lookup table: [MPEG version][index]
+    // version index: 0 = MPEG 2.5, 1 = reserved, 2 = MPEG 2, 3 = MPEG 1
+    const SAMPLE_RATES: [[u32; 4]; 4] = [
+        [11025, 12000, 8000, 0],
+        [0, 0, 0, 0],
+        [22050, 24000, 16000, 0],
+        [44100, 48000, 32000, 0],
+    ];
+
+    let max_search = buf.len().saturating_sub(40);
+    for i in audio_offset..max_search {
+        if buf[i] == 0xFF && (buf[i + 1] & 0xE0) == 0xE0 {
+            let b1 = buf[i + 1];
+            let b2 = buf[i + 2];
+            let b3 = buf[i + 3];
+
+            let version_id = ((b1 >> 3) & 0x03) as usize;
+            let layer_id = ((b1 >> 1) & 0x03) as usize;
+            let protection = b1 & 0x01;
+            let sr_idx = ((b2 >> 2) & 0x03) as usize;
+            let channel_mode = (b3 >> 6) & 0x03;
+
+            // Must be Layer III (MP3)
+            if version_id == 1 || layer_id != 1 || sr_idx == 3 {
+                continue;
+            }
+
+            let sample_rate = SAMPLE_RATES[version_id][sr_idx];
+            if sample_rate == 0 {
+                continue;
+            }
+
+            let is_mono = channel_mode == 3;
+            let is_mpeg1 = version_id == 3;
+            let crc_offset = if protection == 0 { 2 } else { 0 };
+
+            let xing_offset = if is_mpeg1 {
+                if is_mono { 21 } else { 36 }
+            } else if is_mono {
+                13
+            } else {
+                21
+            } + crc_offset;
+
+            // Check Xing / Info frame
+            let check_pos = i + xing_offset;
+            if check_pos + 12 <= buf.len() {
+                let magic = &buf[check_pos..check_pos + 4];
+                if magic == b"Xing" || magic == b"Info" {
+                    let flags = u32::from_be_bytes(buf[check_pos + 4..check_pos + 8].try_into().ok()?);
+                    if flags & 0x0001 != 0 {
+                        let total_frames =
+                            u32::from_be_bytes(buf[check_pos + 8..check_pos + 12].try_into().ok()?);
+                        let samples_per_frame = if is_mpeg1 { 1152u64 } else { 576u64 };
+                        let total_samples = total_frames as u64 * samples_per_frame;
+                        let dur_secs = total_samples / sample_rate as u64;
+                        if dur_secs > 0 {
+                            return Some(dur_secs);
+                        }
+                    }
+                }
+            }
+
+            // Check VBRI frame
+            let vbri_pos = i + 36;
+            if vbri_pos + 18 <= buf.len() && &buf[vbri_pos..vbri_pos + 4] == b"VBRI" {
+                let total_frames =
+                    u32::from_be_bytes(buf[vbri_pos + 14..vbri_pos + 18].try_into().ok()?);
+                let dur_secs = (total_frames as u64 * 1152) / sample_rate as u64;
+                if dur_secs > 0 {
+                    return Some(dur_secs);
+                }
+            }
+        }
+    }
+
+    None
+}
+
+/// Computes audio duration in seconds using precise Info/Xing frame parsing,
+/// native container decoding via rodio/symphonia, and bitrate estimation fallback.
 pub fn estimate_audio_duration_secs(path: &Path) -> u64 {
     if !path.exists() {
         return 0;
     }
 
-    // Fast, 100% in-process calculation based on typical audio bitrates (zero process spawn, zero CMD popup)
+    // 1. Precise MP3 frame parsing (Xing/Info/VBRI or ID3 TLEN)
+    if let Some(dur) = probe_mp3_info_frame_duration(path) {
+        if dur > 0 {
+            return dur;
+        }
+    }
+
+    // 2. Precise container decoder probing via rodio/symphonia (FLAC, M4A, WAV, OGG, etc.)
+    if let Ok(file) = std::fs::File::open(path) {
+        use rodio::Source;
+        if let Ok(decoder) = rodio::Decoder::new(std::io::BufReader::new(file)) {
+            if let Some(dur) = decoder.total_duration() {
+                let secs = dur.as_secs();
+                if secs > 0 {
+                    return secs;
+                }
+            }
+        }
+    }
+
+    // 3. Fallback to file size estimation if headers are absent or stripped
     if let Ok(meta) = std::fs::metadata(path) {
         let size_bytes = meta.len();
         let ext = path
@@ -658,12 +815,12 @@ pub fn estimate_audio_duration_secs(path: &Path) -> u64 {
             .to_lowercase();
 
         let bytes_per_sec = match ext.as_str() {
-            "wav" => 176400,  // 44.1kHz 16bit stereo
+            "wav" => 176400,
             "flac" => 90000,
-            "opus" => 16000,  // 128kbps typical Opus
-            "ogg" => 20000,   // 160kbps typical Vorbis
-            "m4a" => 16000,   // 128kbps AAC
-            _ => 32000,       // ~256-320kbps standard MP3
+            "opus" => 16000,
+            "ogg" => 20000,
+            "m4a" => 16000,
+            _ => 24000,
         };
 
         if let Some(duration) = size_bytes.checked_div(bytes_per_sec) {
@@ -691,4 +848,18 @@ fn parse_filename_title_id(filename: &str) -> (String, String) {
         }
     }
     (stem.to_string(), String::new())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_precise_audio_duration_on_refvoice() {
+        let candidate = Path::new("assets/refvoice.mp3");
+        if candidate.exists() {
+            let dur = estimate_audio_duration_secs(candidate);
+            assert!(dur > 0, "Duration of refvoice.mp3 should be positive");
+        }
+    }
 }

@@ -15,11 +15,21 @@ pub fn process_llm_response(
     asst_name: &str,
     effective_input: &str,
 ) -> Result<String, anyhow::Error> {
+    process_llm_response_with_role(llm, tts, asst_name, "user", effective_input)
+}
+
+pub fn process_llm_response_with_role(
+    llm: &mut LlmClient,
+    tts: &Arc<TextToSpeech>,
+    asst_name: &str,
+    role: &str,
+    effective_input: &str,
+) -> Result<String, anyhow::Error> {
     crate::app_state::clear_interruption();
     crate::app_state::set_ai_speaking(false);
     TrayState::update(AssistantState::Thinking, "LLM Thinking...");
     let llm_start = Instant::now();
-    crate::term_log!("\n[LLM] {} is responding...", asst_name);
+    crate::term_log!("\n[LLM] {} is responding (role: {})...", asst_name, role);
 
     let tts_clone = Arc::clone(tts);
     let mut first_token_time = None;
@@ -28,9 +38,12 @@ pub fn process_llm_response(
     // Inisialisasi streaming voice session untuk sintesis & playback paralel per kalimat
     let mut voice_session = tts.start_streaming_session(asst_name);
 
-    let result = llm.chat_stream(effective_input, |sentence, emotion| {
-        let clean_sentence = sentence.trim().to_string();
-        if clean_sentence.is_empty() {
+    let result = llm.chat_stream_with_role(role, effective_input, |sentence, emotion| {
+        // Strip any action tags or internal markdown before sending to TTS and printing
+        let clean_sentence = crate::llm::cleaner::clean_ai_text(sentence)
+            .trim()
+            .to_string();
+        if !clean_sentence.chars().any(|c| c.is_alphanumeric()) {
             return Ok(());
         }
 
@@ -88,7 +101,7 @@ pub fn process_llm_response(
 
             // Once the assistant finishes summarizing Google search results,
             // clear the transient text_summary so it doesn't linger in DOM memory forever
-            if effective_input.starts_with("Here are the search results for") {
+            if effective_input.contains("Google Search for") || effective_input.starts_with("Here are the search results for") {
                 if let Some(mut snap) = crate::services::browser_session_service::get_latest_snapshot() {
                     snap.text_summary.clear();
                     let _ = crate::services::browser_session_service::save_browser_snapshot(snap);

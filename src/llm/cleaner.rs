@@ -177,9 +177,17 @@ static RE_SINGLE_STAR_EMOTE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\*[^\*\n]{1,60}\*").expect("valid single star emote regex")
 });
 
+static RE_ELLIPSIS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?:\.{2,}|…+)").expect("valid ellipsis regex")
+});
+
+static RE_REPEATED_PUNCT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"!{2,}|\?{2,}|,{2,}").expect("valid repeated punct regex")
+});
+
 /// Clean AI text: strip action tags ([CMD:...], [SKILL:...]), XML tool-call blocks,
 /// bold markdown asterisks (**bold** -> bold), bracket emotion tags ([happy], [shy]),
-/// single-asterisk emotion tags (*...*), and backticks.
+/// single-asterisk emotion tags (*...*), backticks, and normalize audio-unfriendly ellipses.
 pub fn clean_ai_text(text: &str) -> String {
     // 1. Strip any XML tool-call blocks Claude may have emitted
     let text = RE_XML_TOOL_CALL.replace_all(text, "");
@@ -196,7 +204,20 @@ pub fn clean_ai_text(text: &str) -> String {
     // 5. Buang tag bintang tunggal emotion (*malu-malu*, *happy*, dsb.)
     let text = RE_SINGLE_STAR_EMOTE.replace_all(&text, " ");
 
-    // 5. Buang backtick (`` ` ``) and header markdown (`#`)
+    // 6. Normalisasi elipsis (...) dan (…) agar TTS tidak mengeja "titik titik" / "dot dot"
+    let text = RE_ELLIPSIS.replace_all(&text, ", ");
+
+    // 7. Normalisasi tanda baca berulang (???, !!!, ,,,) -> (?, !, ,)
+    let text = RE_REPEATED_PUNCT.replace_all(&text, |caps: &regex::Captures| {
+        match &caps[0][..1] {
+            "!" => "!",
+            "?" => "?",
+            "," => ",",
+            _ => "",
+        }
+    });
+
+    // 8. Buang backtick (`` ` ``) and header markdown (`#`)
     let mut cleaned = String::with_capacity(text.len());
     for c in text.chars() {
         match c {
@@ -205,7 +226,7 @@ pub fn clean_ai_text(text: &str) -> String {
         }
     }
 
-    // 7. Rapikan multiple spaces
+    // 9. Rapikan multiple spaces dan perbaiki koma di akhir
     let mut result = String::with_capacity(cleaned.len());
     let mut last_was_space = false;
     for c in cleaned.chars() {
@@ -220,7 +241,15 @@ pub fn clean_ai_text(text: &str) -> String {
         }
     }
 
-    result.trim().to_string()
+    let mut trimmed = result.trim().to_string();
+    if trimmed.ends_with(',') {
+        trimmed.pop();
+        trimmed.push('.');
+    }
+    trimmed
+        .replace(", !", "!")
+        .replace(", ?", "?")
+        .replace(", .", ".")
 }
 
 #[cfg(test)]
@@ -267,5 +296,21 @@ mod tests {
         let raw = "[happy] Halo! [CMD:media:play|music] [shy] Selamat datang kembali.";
         let cleaned = clean_ai_text(raw);
         assert_eq!(cleaned, "Halo! Selamat datang kembali.");
+    }
+
+    #[test]
+    fn test_clean_ai_text_end_ellipsis() {
+        let end_ellipsis = "Baiklah...";
+        let cleaned_end = clean_ai_text(end_ellipsis);
+        assert_eq!(cleaned_end, "Baiklah.");
+    }
+
+    #[test]
+    fn test_clean_ai_text_combo_ellipsis() {
+        let raw = "Ya... tentu saja... tunggu sebentar...!";
+        let cleaned = clean_ai_text(raw);
+        assert!(!cleaned.contains("..."));
+        assert!(!cleaned.contains(".."));
+        assert!(cleaned.starts_with("Ya, tentu saja"));
     }
 }

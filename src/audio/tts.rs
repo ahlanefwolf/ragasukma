@@ -84,6 +84,9 @@ impl TextToSpeech {
                 } else {
                     1.05
                 };
+                if cfg.tts_volume > 0.0 {
+                    crate::audio::player::set_voice_volume(cfg.tts_volume);
+                }
 
                 let mut native_pc_stream: Option<crate::audio::player::VoiceStreamSender> = None;
                 let mut accumulated_full_text = String::new();
@@ -103,7 +106,7 @@ impl TextToSpeech {
                             }
 
                             let clean_text = clean_text_for_speech(&text);
-                            if clean_text.trim().is_empty() {
+                            if !clean_text.chars().any(|c| c.is_alphanumeric()) {
                                 continue;
                             }
 
@@ -252,7 +255,7 @@ impl TextToSpeech {
         lang_override: Option<&str>,
     ) -> Result<()> {
         let clean_text = clean_text_for_speech(text);
-        if clean_text.trim().is_empty() {
+        if !clean_text.chars().any(|c| c.is_alphanumeric()) {
             return Ok(());
         }
 
@@ -277,6 +280,9 @@ impl TextToSpeech {
         } else {
             1.05
         };
+        if cfg.tts_volume > 0.0 {
+            crate::audio::player::set_voice_volume(cfg.tts_volume);
+        }
 
         let audio_id = format!("{:x}", simple_hash_u64(&clean_text));
         let audio_url = format!("/api/tts/audio?id={audio_id}");

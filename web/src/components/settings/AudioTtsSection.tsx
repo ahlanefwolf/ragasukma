@@ -77,6 +77,8 @@ interface AudioTtsSectionProps {
   setTtsVoiceName: (val: string) => void;
   ttsSpeed: number;
   setTtsSpeed: (val: number) => void;
+  ttsVolume?: number;
+  setTtsVolume?: (val: number) => void;
   voiceInterruption: boolean;
   setVoiceInterruption: (val: boolean) => void;
   vadThreshold: number;
@@ -641,7 +643,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
           <div class="space-y-1.5">
             <div class="flex justify-between items-center">
               <label class="text-xs font-semibold text-theme-text/80">Select Supertonic Voice Character</label>
@@ -697,6 +699,26 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 step="0.05"
                 value={props.ttsSpeed || 1.05}
                 onInput={(e) => props.setTtsSpeed(parseFloat(e.currentTarget.value))}
+                class="w-full h-1.5 bg-theme-bg appearance-none cursor-pointer accent-theme-rose"
+              />
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="flex justify-between items-center text-xs font-semibold text-theme-text/80">
+              <span>Voice Volume Gain</span>
+              <span class="text-xs font-mono font-bold text-theme-rose bg-theme-card px-2 py-0.5 border border-theme-border">
+                {Math.round((props.ttsVolume !== undefined ? props.ttsVolume : 1.6) * 100)}%
+              </span>
+            </div>
+            <div class="h-[42px] px-3.5 bg-theme-card border border-theme-border flex items-center">
+              <input
+                type="range"
+                min="0.5"
+                max="3.0"
+                step="0.1"
+                value={props.ttsVolume !== undefined ? props.ttsVolume : 1.6}
+                onInput={(e) => props.setTtsVolume?.(parseFloat(e.currentTarget.value))}
                 class="w-full h-1.5 bg-theme-bg appearance-none cursor-pointer accent-theme-rose"
               />
             </div>

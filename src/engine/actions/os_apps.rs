@@ -66,8 +66,10 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
     let target_app = find_target_app(app_query, &installed_apps);
 
     // Context-Aware App Switcher: If a matching window is already running, switch focus to it
-    let snapshot = crate::engine::actions::desktop::load_snapshot()
-        .or_else(|| crate::engine::window_scanner::scan_active_window_sync().ok());
+    // Always scan fresh active windows so we don't rely on stale cached snapshots
+    let snapshot = crate::engine::window_scanner::scan_active_window_sync()
+        .ok()
+        .or_else(crate::engine::actions::desktop::load_snapshot);
 
     if let Some(snap) = snapshot {
         let mut all_windows = snap.windows.clone();
@@ -82,24 +84,44 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
         }
 
         if let Some(matching_win) = find_matching_window(app_query, target_app, &all_windows) {
-            if try_focus_window(matching_win) {
-                let display_name = target_app.map(|a| a.name.as_str()).unwrap_or(app_query);
-                crate::term_log!(
-                    "[App Switcher] Switched focus to existing window '{}' (app: '{}')",
-                    matching_win.title,
-                    matching_win.app_name
-                );
-                return Some((
-                    format!("Focus {display_name}"),
-                    format!("Switched focus to existing '{display_name}' window"),
-                ));
-            }
+            let display_name = target_app.map(|a| a.name.as_str()).unwrap_or(app_query);
+            let _ = try_focus_window(matching_win);
+            crate::term_log!(
+                "[App Switcher] Application already running: switched focus to existing window '{}' (app: '{}')",
+                matching_win.title,
+                matching_win.app_name
+            );
+            return Some((
+                format!("Focus {display_name}"),
+                format!("Application '{display_name}' is already running; focused window '{}'", matching_win.title),
+            ));
         }
     }
+
+    // Helper closure: after launching an app for the first time, poll asynchronously
+    // or wait briefly and focus the window as soon as it appears
+    let focus_launched_app = |query: &str, app: Option<&crate::engine::app_scanner::InstalledApp>| {
+        let q = query.to_string();
+        let app_clone = app.cloned();
+        std::thread::spawn(move || {
+            // Poll for up to 3 seconds (30 * 100ms) for the window to appear
+            for _ in 0..30 {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                if let Ok(snap) = crate::engine::window_scanner::scan_active_window_sync() {
+                    if let Some(w) = find_matching_window(&q, app_clone.as_ref(), &snap.windows) {
+                        let _ = try_focus_window(w);
+                        let _ = snap.save_to_file();
+                        break;
+                    }
+                }
+            }
+        });
+    };
 
     // 1. Search application based on matching hierarchy (Exact -> Contains -> Aliases -> Fuzzy)
     if let Some(target_app) = target_app {
         if launch_app(target_app).is_ok() {
+            focus_launched_app(app_query, Some(target_app));
             return Some((
                 format!("Open {}", target_app.name),
                 format!("Successfully opened application '{}'", target_app.name),
@@ -113,6 +135,7 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
     #[cfg(target_os = "windows")]
     {
         if launch_windows_exec(q_clean).is_ok() {
+            focus_launched_app(q_clean, None);
             return Some((
                 format!("Open {q_clean}"),
                 "Successfully launched application from system".to_string(),
@@ -120,6 +143,7 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
         }
         let explorer_cmd = format!("explorer.exe \"{}\"", q_clean);
         if launch_windows_exec(&explorer_cmd).is_ok() {
+            focus_launched_app(q_clean, None);
             return Some((
                 format!("Open {q_clean}"),
                 "Successfully launched application from system".to_string(),
@@ -350,11 +374,26 @@ pub fn find_matching_window<'a>(
         return None;
     }
 
+    let is_system_shell_window = |w: &crate::engine::window_scanner::WindowItem| -> bool {
+        let title_clean = w.title.trim();
+        let app_clean = w.app_name.to_lowercase();
+        // Ignore desktop background, taskbar, shell tray, or empty windows in Windows/Linux
+        title_clean == "Program Manager"
+            || title_clean == "Windows Shell Experience Host"
+            || (app_clean == "explorer.exe" && (title_clean.is_empty() || title_clean == "Program Manager"))
+    };
+
     let mut candidates: Vec<&str> = Vec::new();
     if let Some(app) = target_app {
         candidates.push(&app.name);
         let exec_bin = extract_exec_binary(&app.exec);
-        if !exec_bin.is_empty() {
+        // Do not use generic launcher binaries as candidates to prevent matching shell windows
+        if !exec_bin.is_empty()
+            && !exec_bin.eq_ignore_ascii_case("explorer.exe")
+            && !exec_bin.eq_ignore_ascii_case("explorer")
+            && !exec_bin.eq_ignore_ascii_case("open")
+            && !exec_bin.eq_ignore_ascii_case("sh")
+        {
             candidates.push(exec_bin);
         }
         if let Some(ref id) = app.desktop_id {
@@ -383,6 +422,9 @@ pub fn find_matching_window<'a>(
         let cand_norm = normalize_alnum(cand_trim);
 
         for w in windows {
+            if is_system_shell_window(w) {
+                continue;
+            }
             let app_clean = w.app_name.trim_end_matches(".exe");
             let app_norm = normalize_alnum(app_clean);
             let title_norm = normalize_alnum(&w.title);
@@ -407,6 +449,9 @@ pub fn find_matching_window<'a>(
         let cand_norm = normalize_alnum(cand_trim);
 
         for w in windows {
+            if is_system_shell_window(w) {
+                continue;
+            }
             let app_clean = w.app_name.trim_end_matches(".exe");
             let app_lower = app_clean.to_lowercase();
             let title_lower = w.title.to_lowercase();
@@ -439,6 +484,9 @@ pub fn find_matching_window<'a>(
             continue;
         }
         for w in windows {
+            if is_system_shell_window(w) {
+                continue;
+            }
             let app_clean = w.app_name.trim_end_matches(".exe");
             let sim_app = crate::engine::perception::string_similarity(cand_trim, app_clean);
             let sim_title = crate::engine::perception::string_similarity(cand_trim, &w.title);
@@ -501,36 +549,75 @@ pub fn launch_app(app: &crate::engine::app_scanner::InstalledApp) -> std::io::Re
 
 #[cfg(target_os = "windows")]
 fn launch_windows_exec(exec: &str) -> std::io::Result<()> {
+    use windows::core::HSTRING;
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
     let trimmed = exec.trim();
-    if !trimmed.contains('|')
-        && !trimmed.contains('&')
-        && !trimmed.contains('>')
-        && !trimmed.contains('<')
-    {
-        if let Some((prog, args)) = trimmed.split_once(' ') {
-            let clean_prog = prog.trim_matches('"');
-            let clean_args = args.trim_matches('"');
-            let mut direct_cmd = std::process::Command::new(clean_prog);
-            direct_cmd.arg(clean_args);
-            crate::engine::skills::configure_subprocess(&mut direct_cmd);
-            if direct_cmd.spawn().is_ok() {
-                return Ok(());
-            }
+    if trimmed.is_empty() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Empty execution target",
+        ));
+    }
+
+    // Try ShellExecuteW directly without cmd or consoles
+    // 1. Separate file and args if applicable
+    let (file_part, arg_part) = if let Some(stripped) = trimmed.strip_prefix('"') {
+        if let Some(end_idx) = stripped.find('"') {
+            let f = &stripped[..end_idx];
+            let a = stripped[end_idx + 1..].trim();
+            (f, if a.is_empty() { None } else { Some(a) })
         } else {
-            let clean_prog = trimmed.trim_matches('"');
-            let mut direct_cmd = std::process::Command::new(clean_prog);
-            crate::engine::skills::configure_subprocess(&mut direct_cmd);
-            if direct_cmd.spawn().is_ok() {
-                return Ok(());
-            }
+            (trimmed.trim_matches('"'), None)
+        }
+    } else if let Some((f, a)) = trimmed.split_once(' ') {
+        (f.trim(), Some(a.trim()))
+    } else {
+        (trimmed, None)
+    };
+
+    let h_op = HSTRING::from("open");
+    let h_file = HSTRING::from(file_part);
+    let h_args = arg_part.map(HSTRING::from);
+
+    unsafe {
+        let instance = ShellExecuteW(
+            None,
+            windows::core::PCWSTR(h_op.as_wide().as_ptr()),
+            windows::core::PCWSTR(h_file.as_wide().as_ptr()),
+            h_args
+                .as_ref()
+                .map(|a| windows::core::PCWSTR(a.as_wide().as_ptr()))
+                .unwrap_or(windows::core::PCWSTR::null()),
+            None,
+            SW_SHOWNORMAL,
+        );
+
+        // Win32: HINSTANCE > 32 indicates success
+        if instance.0 as usize > 32 {
+            return Ok(());
         }
     }
 
-    let mut command = std::process::Command::new("cmd");
-    command.args(["/S", "/C", &format!("\"{trimmed}\"")]);
-    crate::engine::skills::configure_subprocess(&mut command);
-    command.spawn()?;
-    Ok(())
+    // Fallback: silently execute command with CREATE_NO_WINDOW (0x08000000)
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        let mut cmd = std::process::Command::new("explorer.exe");
+        cmd.arg(trimmed);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        crate::engine::skills::configure_subprocess(&mut cmd);
+        if cmd.spawn().is_ok() {
+            return Ok(());
+        }
+    }
+
+    Err(std::io::Error::other(format!(
+        "Failed to launch '{trimmed}' via ShellExecuteW"
+    )))
 }
 
 #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]

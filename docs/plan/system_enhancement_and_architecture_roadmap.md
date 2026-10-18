@@ -132,15 +132,15 @@ Dokumen ini merangkum hasil evaluasi arsitektur sistem saat ini, analisis kesenj
 
 ### FASE 4: Agentic Loop & Multi-Step Execution (Prioritas P2)
 
-#### 4.1. ReAct Tool Loop (Reasoning + Acting)
-* **Kelemahan Saat Ini**: Tool output disuntikkan via teks palsu pengguna (`inject_remote_text`).
-* **Perbaikan**:
-  - Implementasikan siklus multi-turn internal:
+#### 4.1. ReAct Tool Loop (Reasoning + Acting) — [SELESAI / COMPLETED]
+* **Implementasi**:
+  - Siklus multi-turn internal ReAct (`handle_skill_execution_with_depth`):
     1. User berucap: *"Tolong cari harga laptop X di Tokopedia dan simpulkan"*.
     2. LLM Turn 1: Memanggil `[CMD:recipe:run|tokopedia_search|{"query":"laptop X"}]`.
-    3. Engine mengeksekusi tool dan mendapatkan hasil JSON DOM.
+    3. Engine mengeksekusi tool dan menangkap output terstruktur (`skill_results`).
     4. Engine menyuntikkan hasil tersebut ke dalam konteks percakapan sebagai message role `tool` (bukan role `user`).
-    5. LLM Turn 2: Membaca hasil tool, lalu merespons dengan suara alami: *"Berdasarkan pencarian, harga laptop X mulai dari Rp...*.
+    5. LLM Turn 2: Membaca hasil tool, lalu merespons dengan suara alami via Supertonic TTS: *"Berdasarkan pencarian, harga laptop X mulai dari Rp...*.
+  - Event background/system status (`[SYSTEM STATUS: ...]` & `[TOOL RESULT: ...]`) otomatis diisolasi sebagai role `tool` di chat loop tanpa mencemari riwayat transcript user (`assistant:transcript`).
 
 ---
 

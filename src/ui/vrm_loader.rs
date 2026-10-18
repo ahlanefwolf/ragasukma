@@ -193,7 +193,7 @@ impl VrmModelData {
         let buffers = gltf::import_buffers(&gltf.document, path_ref.parent(), gltf.blob)?;
         let document = gltf.document;
 
-        // Read raw JSON from GLB for accurate parsing of MToon and VRMC_vrm extensions
+        // Read raw JSON from VRM binary container for accurate parsing of MToon and VRMC_vrm extensions
         let mut gltf_json: Option<serde_json::Value> = None;
         if let Ok(mut file) = File::open(path_ref) {
             let mut bytes = Vec::new();
@@ -264,7 +264,7 @@ impl VrmModelData {
             let mut is_blend = matches!(mat.alpha_mode(), gltf::material::AlphaMode::Blend);
             let mut render_queue: i32 = if is_blend { 3000 } else { 2000 };
 
-            let is_unlit = json_materials
+            let mut is_unlit = json_materials
                 .and_then(|arr| arr.get(mat_idx))
                 .and_then(|m| m.get("extensions"))
                 .and_then(|e| e.get("KHR_materials_unlit"))
@@ -300,6 +300,7 @@ impl VrmModelData {
             };
 
             // MToon Parsing from raw JSON (supporting both VRM 0.X and VRM 1.0)
+            let mut has_mtoon = false;
             let mut shade_texture = None;
             let mut shade_color_factor = [1.0, 1.0, 1.0];
             let mut matcap_texture = None;
@@ -313,6 +314,7 @@ impl VrmModelData {
                     .get("extensions")
                     .and_then(|e| e.get("VRMC_materials_mtoon"))
                 {
+                    has_mtoon = true;
                     if let Some(cm) = mtoon_json.get("cullMode").and_then(|v| v.as_str()) {
                         if cm.eq_ignore_ascii_case("off") {
                             double_sided = true;
@@ -393,6 +395,14 @@ impl VrmModelData {
                     }).or_else(|| mat_props.get(mat_idx));
 
                     if let Some(prop) = prop_opt {
+                        let shader_name = prop.get("shader").and_then(|s| s.as_str()).unwrap_or("");
+                        let is_vrm0_mtoon = shader_name.contains("MToon")
+                            || (!shader_name.is_empty() && !shader_name.contains("Unlit"))
+                            || (shader_name.is_empty() && is_vrm_0);
+                        if is_vrm0_mtoon {
+                            has_mtoon = true;
+                        }
+
                         if let Some(rq) = prop.get("renderQueue").and_then(|v| v.as_i64()) {
                             if rq > 0 {
                                 render_queue = rq as i32;
@@ -514,6 +524,23 @@ impl VrmModelData {
                             }
                         }
                     }
+                }
+            }
+
+            // Prioritaskan MToon di atas Unlit:
+            // Jika material memiliki definisi MToon (VRMC_materials_mtoon atau VRM 0.x MToon),
+            // KHR_materials_unlit hanyalah glTF fallback standar, jadi jangan set is_unlit = true.
+            if has_mtoon {
+                is_unlit = false;
+            }
+
+            // Fallback Shade Tint:
+            // Jika material skin tidak memiliki file shade texture terpisah dan warna shade masih
+            // putih/default (>= 0.95), berikan warna bayangan hangat (peach/warm shadow tint ~0.85)
+            // agar kontur cel-shading anime otomatis terbentuk saat terkena sudut cahaya.
+            if matches!(category, MaterialCategory::Skin) && shade_texture.is_none() {
+                if shade_color_factor[0] >= 0.95 && shade_color_factor[1] >= 0.95 && shade_color_factor[2] >= 0.95 {
+                    shade_color_factor = [0.85, 0.81, 0.78];
                 }
             }
 
