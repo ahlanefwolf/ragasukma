@@ -179,6 +179,7 @@ pub enum VisionRequest {
 }
 
 static VISION_SENDER: Mutex<Option<std::sync::mpsc::Sender<VisionRequest>>> = Mutex::new(None);
+static IS_SCANNING_ASYNC: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Initialize Vision Worker in thread background terpisah.
 /// This thread is 100% idle (0% CPU, 0 MB model load) when there are no scan requests.
@@ -239,6 +240,8 @@ pub fn start_vision_worker() {
                             crate::engine::remote_text::inject_remote_text(summary_info);
                         }
 
+                        IS_SCANNING_ASYNC.store(false, std::sync::atomic::Ordering::SeqCst);
+
                         if let Some(resp) = respond_to {
                             let _ = resp.send(res);
                         }
@@ -290,6 +293,11 @@ pub fn request_vision_scan_sync() -> PerceptionResult {
 
 /// Asynchronous fire-and-forget helper to trigger vision scan in background
 pub fn trigger_vision_scan_async() {
+    if IS_SCANNING_ASYNC.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        crate::term_log!("[Vision Worker] Screen scan already running in background. Skipping duplicate request.");
+        return;
+    }
+
     start_vision_worker();
 
     let req = VisionRequest::ScanActiveScreen {
@@ -300,8 +308,11 @@ pub fn trigger_vision_scan_async() {
     if let Ok(guard) = VISION_SENDER.lock() {
         if let Some(ref sender) = *guard {
             let _ = sender.send(req);
+            return;
         }
     }
+
+    IS_SCANNING_ASYNC.store(false, std::sync::atomic::Ordering::SeqCst);
 }
 
 /// Synchronizes perception results to `active_window_app.json`

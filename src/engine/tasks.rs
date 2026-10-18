@@ -20,6 +20,8 @@ pub struct BackgroundTaskState {
 
 static TASK_SENDER: Mutex<Option<Sender<BackgroundTask>>> = Mutex::new(None);
 static CURRENT_TASK_INFO: Mutex<Option<BackgroundTaskState>> = Mutex::new(None);
+static ACTIVE_DOWNLOADS: std::sync::LazyLock<Mutex<std::collections::HashSet<String>>> =
+    std::sync::LazyLock::new(|| Mutex::new(std::collections::HashSet::new()));
 
 /// Initialize dedicated background worker thread for yt-dlp & other heavy asynchronous tasks
 pub fn init_background_task_worker() {
@@ -114,6 +116,10 @@ pub fn init_background_task_worker() {
                             }
                         }
 
+                        if let Ok(mut active) = ACTIVE_DOWNLOADS.lock() {
+                            active.remove(&query.trim().to_lowercase());
+                        }
+
                         set_current_task(None);
                     }
                 }
@@ -130,15 +136,41 @@ fn set_current_task(state: Option<BackgroundTaskState>) {
 
 /// Send download & play music tasks to Background Worker
 pub fn queue_download_and_play(query: &str) -> bool {
+    let q_clean = query.trim();
+    if q_clean.is_empty() {
+        return false;
+    }
+    let q_key = q_clean.to_lowercase();
+    if let Ok(mut active) = ACTIVE_DOWNLOADS.lock() {
+        if active.contains(&q_key) {
+            crate::term_log!(
+                "[Task Worker: yt-dlp] Song '{}' is already currently downloading or queued. Skipping duplicate queue.",
+                q_clean
+            );
+            return true;
+        }
+        active.insert(q_key.clone());
+    }
+
     init_background_task_worker();
     if let Ok(lock) = TASK_SENDER.lock() {
         if let Some(tx) = lock.as_ref() {
-            return tx
+            let sent = tx
                 .send(BackgroundTask::DownloadAndPlayMusic {
-                    query: query.to_string(),
+                    query: q_clean.to_string(),
                 })
                 .is_ok();
+            if !sent {
+                if let Ok(mut active) = ACTIVE_DOWNLOADS.lock() {
+                    active.remove(&q_key);
+                }
+            }
+            return sent;
         }
+    }
+
+    if let Ok(mut active) = ACTIVE_DOWNLOADS.lock() {
+        active.remove(&q_key);
     }
     false
 }
