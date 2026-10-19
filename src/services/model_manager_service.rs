@@ -11,8 +11,6 @@ pub const SUPERTONIC_DOWNLOAD_URL: &str =
 pub const OPENVOICE_DOWNLOAD_URL: &str =
     "https://huggingface.co/ahlanefwolf/ragasukma-models/resolve/main/openvoice-v2.zip";
 
-pub const MODEL_DOWNLOAD_URL: &str = SUPERTONIC_DOWNLOAD_URL;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelDownloadStatus {
     pub status: String, // "ready", "checking", "downloading", "extracting", "error"
@@ -56,22 +54,34 @@ pub fn update_model_status(status: ModelDownloadStatus) {
 }
 
 pub fn check_supertonic_exists() -> bool {
-    let candidates = [
+    let mut candidates = vec![
         PathBuf::from("models/supertonic-3"),
         PathBuf::from("../models/supertonic-3"),
-        PathBuf::from("/home/headway/MyWork/project/node/ai-voice/models/supertonic-3"),
+        crate::config::get_app_config_dir().join("models/supertonic-3"),
     ];
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            candidates.push(parent.join("models/supertonic-3"));
+            candidates.push(parent.join("../models/supertonic-3"));
+        }
+    }
     candidates
         .into_iter()
         .any(|c| c.join("onnx/vocoder.onnx").exists())
 }
 
 pub fn check_openvoice_exists() -> bool {
-    let candidates = [
+    let mut candidates = vec![
         PathBuf::from("models/openvoice-v2"),
         PathBuf::from("../models/openvoice-v2"),
-        PathBuf::from("/home/headway/MyWork/project/node/ai-voice/models/openvoice-v2"),
+        crate::config::get_app_config_dir().join("models/openvoice-v2"),
     ];
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            candidates.push(parent.join("models/openvoice-v2"));
+            candidates.push(parent.join("../models/openvoice-v2"));
+        }
+    }
     candidates
         .into_iter()
         .any(|c| c.join("openvoice_tone_converter.onnx").exists())

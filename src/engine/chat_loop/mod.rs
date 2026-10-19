@@ -110,14 +110,6 @@ impl AppSession {
             } else {
                 crate::term_log!("\n[User] You [5.00ms]:");
                 crate::term_log!("   \"{}\"", raw_text);
-
-                TrayState::emit_event(
-                    "assistant:transcript",
-                    serde_json::json!({
-                        "role": "user",
-                        "text": &raw_text
-                    }),
-                );
             }
 
             let msg_role = if is_system_notice { "tool" } else { "user" };

@@ -176,28 +176,6 @@ pub fn scan_active_window_sync() -> Result<ActiveWindowSnapshot, String> {
     }
 }
 
-pub async fn scan_active_window() -> Result<ActiveWindowSnapshot, String> {
-    #[cfg(target_os = "windows")]
-    {
-        windows::scan_active_window_windows()
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        linux::scan_active_window_linux().await
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        macos::scan_active_window_macos().await
-    }
-
-    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-    {
-        Err("Unsupported operating system".to_string())
-    }
-}
-
 pub fn get_focused_window_quick_info() -> Option<(String, String)> {
     #[cfg(target_os = "windows")]
     {

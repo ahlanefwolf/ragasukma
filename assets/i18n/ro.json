@@ -1,0 +1,60 @@
+{
+  "music": [
+    "muzică",
+    "melodie",
+    "redă",
+    "sunet",
+    "piesă"
+  ],
+  "recipe": [
+    "rețetă",
+    "flux de lucru",
+    "automatizare"
+  ],
+  "todo": [
+    "sarcină",
+    "notă",
+    "memento",
+    "program",
+    "listă",
+    "plan"
+  ],
+  "skill": [
+    "abilitate",
+    "comandă",
+    "execută",
+    "script",
+    "terminal"
+  ],
+  "browser": [
+    "navigator",
+    "web",
+    "pagină",
+    "filă",
+    "caută",
+    "rezumă"
+  ],
+  "desktop": [
+    "desktop",
+    "ecran",
+    "fereastră",
+    "aplicație",
+    "clic",
+    "minimizează",
+    "captură de ecran"
+  ],
+  "app_query": [
+    "aplicații",
+    "programe",
+    "software",
+    "instalate"
+  ],
+  "conjunctions": [
+    "și",
+    "dar",
+    "pentru că",
+    "deși",
+    "în timp ce",
+    "prin urmare"
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "music": [
+    "mūzika",
+    "dziesma",
+    "atskaņot",
+    "skaņa",
+    "ieraksts"
+  ],
+  "recipe": [
+    "recepte",
+    "darbplūsma",
+    "automatizācija"
+  ],
+  "todo": [
+    "uzdevums",
+    "piezīme",
+    "atgādinājums",
+    "grafiks",
+    "saraksts",
+    "plāns"
+  ],
+  "skill": [
+    "prasme",
+    "komanda",
+    "palaist",
+    "skripts",
+    "terminālis"
+  ],
+  "browser": [
+    "pārlūks",
+    "tīmeklis",
+    "lapa",
+    "cilne",
+    "meklēt",
+    "apkopot"
+  ],
+  "desktop": [
+    "darbvirsma",
+    "ekrāns",
+    "logs",
+    "lietotne",
+    "klikšķināt",
+    "ekrānuzņēmums"
+  ],
+  "app_query": [
+    "lietotnes",
+    "programmas",
+    "programmatūra",
+    "instalētās"
+  ],
+  "conjunctions": [
+    "un",
+    "bet",
+    "jo",
+    "lai gan",
+    "kamēr",
+    "tāpēc"
+  ]
+}

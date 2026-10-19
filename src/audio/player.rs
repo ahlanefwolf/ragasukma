@@ -1,4 +1,3 @@
-use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -33,66 +32,7 @@ struct ActiveVoiceSpeech {
 
 static ACTIVE_VOICE_SPEECH: Mutex<Option<ActiveVoiceSpeech>> = Mutex::new(None);
 
-/// Extracts PCM samples and sample_rate from WAV format
-fn parse_wav_samples(bytes: &[u8]) -> Option<(Vec<f32>, u32)> {
-    if bytes.len() < 44 || &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
-        return None;
-    }
 
-    let mut cursor = 12;
-    let mut sample_rate = 24000u32;
-    let mut channels = 1u16;
-    let mut bits_per_sample = 16u16;
-    let mut data_slice: Option<&[u8]> = None;
-
-    while cursor + 8 <= bytes.len() {
-        let chunk_id = &bytes[cursor..cursor + 4];
-        let chunk_size =
-            u32::from_le_bytes(bytes[cursor + 4..cursor + 8].try_into().ok()?) as usize;
-        cursor += 8;
-
-        if chunk_id == b"fmt " {
-            if cursor + 14 <= bytes.len() {
-                channels = u16::from_le_bytes(bytes[cursor + 2..cursor + 4].try_into().ok()?);
-                sample_rate =
-                    u32::from_le_bytes(bytes[cursor + 4..cursor + 8].try_into().ok()?);
-                if cursor + 16 <= bytes.len() {
-                    bits_per_sample =
-                        u16::from_le_bytes(bytes[cursor + 14..cursor + 16].try_into().ok()?);
-                }
-            }
-        } else if chunk_id == b"data" {
-            let actual_len = chunk_size.min(bytes.len().saturating_sub(cursor));
-            data_slice = Some(&bytes[cursor..cursor + actual_len]);
-            break;
-        }
-
-        cursor = cursor.saturating_add(chunk_size);
-    }
-
-    let raw_data = data_slice?;
-    if bits_per_sample != 16 || channels == 0 {
-        return None;
-    }
-
-    let num_samples = raw_data.len() / (2 * channels as usize);
-    let mut mono_samples = Vec::with_capacity(num_samples);
-
-    for i in 0..num_samples {
-        let mut sum = 0.0f32;
-        for c in 0..channels as usize {
-            let byte_idx = (i * channels as usize + c) * 2;
-            if byte_idx + 2 <= raw_data.len() {
-                let sample_i16 =
-                    i16::from_le_bytes([raw_data[byte_idx], raw_data[byte_idx + 1]]);
-                sum += (sample_i16 as f32) / 32768.0;
-            }
-        }
-        mono_samples.push(sum / channels as f32);
-    }
-
-    Some((mono_samples, sample_rate))
-}
 
 /// Calculates real-time AIUEO lip weights based on formant frequencies of the currently playing audio
 pub fn get_current_lip_sync_weights() -> LipSyncWeights {
@@ -197,10 +137,9 @@ fn get_audio_handle() -> Option<rodio::OutputStreamHandle> {
         .clone()
 }
 
-pub enum VoiceChunk {
-    Pcm { samples: Vec<f32>, sample_rate: u32 },
-    #[allow(dead_code)]
-    Wav(Vec<u8>),
+pub struct VoiceChunk {
+    pub samples: Vec<f32>,
+    pub sample_rate: u32,
 }
 
 pub struct VoiceStreamSender {
@@ -210,15 +149,10 @@ pub struct VoiceStreamSender {
 impl VoiceStreamSender {
     /// Pushes raw PCM samples directly to the audio player without WAV encoding/decoding overhead
     pub fn push_chunk_pcm(&self, samples: Vec<f32>, sample_rate: u32) {
-        let _ = self.sender.send(Some(VoiceChunk::Pcm {
+        let _ = self.sender.send(Some(VoiceChunk {
             samples,
             sample_rate,
         }));
-    }
-
-    #[allow(dead_code)]
-    pub fn push_chunk(&self, wav_bytes: Vec<u8>) {
-        let _ = self.sender.send(Some(VoiceChunk::Wav(wav_bytes)));
     }
 
     pub fn finish(&self) {
@@ -232,6 +166,11 @@ pub fn start_voice_stream(emotion: String, asst_name: String) -> VoiceStreamSend
     let (tx, rx) = std::sync::mpsc::channel::<Option<VoiceChunk>>();
 
     if crate::app_state::is_voice_muted() {
+        let _ = std::thread::Builder::new()
+            .name("ragasukma-voice-muted-drain".to_string())
+            .spawn(move || {
+                while let Ok(Some(_)) = rx.recv() {}
+            });
         return VoiceStreamSender { sender: tx };
     }
 
@@ -251,70 +190,35 @@ pub fn start_voice_stream(emotion: String, asst_name: String) -> VoiceStreamSend
 
             match msg {
                 Some(chunk) => {
-                    let (pcm_samples, pcm_rate) = match chunk {
-                        VoiceChunk::Pcm { samples, sample_rate } => {
-                            let sr = sample_rate;
-                            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                                if let Some(handle) = get_audio_handle() {
-                                    let source = rodio::buffer::SamplesBuffer::new(1, sr, samples.clone());
-                                    if sink_arc.is_none() {
-                                        if let Ok(new_sink) = rodio::Sink::try_new(&handle) {
-                                            new_sink.set_volume(get_voice_volume());
-                                            if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
-                                                if let Some(ref m_sink) = *music_lock {
-                                                    m_sink.set_volume(get_music_volume() * 0.25);
-                                                }
-                                            }
-                                            new_sink.append(source);
-                                            let arc = Arc::new(new_sink);
-                                            if let Ok(mut lock) = NATIVE_VOICE_SINK.lock() {
-                                                if let Some(old) = lock.take() {
-                                                    old.stop();
-                                                }
-                                                *lock = Some(Arc::clone(&arc));
-                                            }
-                                            sink_arc = Some(arc);
-                                        }
-                                    } else if let Some(ref sink) = sink_arc {
-                                        sink.append(source);
-                                    }
-                                }
-                            }));
-                            (samples, sr)
-                        }
-                        VoiceChunk::Wav(wav_bytes) => {
-                            let parsed = parse_wav_samples(&wav_bytes);
-                            let (s, sr) = parsed.unwrap_or_else(|| (Vec::new(), 24000));
-                            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                                if let Some(handle) = get_audio_handle() {
-                                    if let Ok(decoder) = rodio::Decoder::new(Cursor::new(wav_bytes)) {
-                                        if sink_arc.is_none() {
-                                            if let Ok(new_sink) = rodio::Sink::try_new(&handle) {
-                                                new_sink.set_volume(get_voice_volume());
-                                                if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
-                                                    if let Some(ref m_sink) = *music_lock {
-                                                        m_sink.set_volume(get_music_volume() * 0.25);
-                                                    }
-                                                }
-                                                new_sink.append(decoder);
-                                                let arc = Arc::new(new_sink);
-                                                if let Ok(mut lock) = NATIVE_VOICE_SINK.lock() {
-                                                    if let Some(old) = lock.take() {
-                                                        old.stop();
-                                                    }
-                                                    *lock = Some(Arc::clone(&arc));
-                                                }
-                                                sink_arc = Some(arc);
-                                            }
-                                        } else if let Some(ref sink) = sink_arc {
-                                            sink.append(decoder);
+                    let pcm_samples = chunk.samples;
+                    let pcm_rate = chunk.sample_rate;
+                    let sr = pcm_rate;
+                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        if let Some(handle) = get_audio_handle() {
+                            let source = rodio::buffer::SamplesBuffer::new(1, sr, pcm_samples.clone());
+                            if sink_arc.is_none() {
+                                if let Ok(new_sink) = rodio::Sink::try_new(&handle) {
+                                    new_sink.set_volume(get_voice_volume());
+                                    if let Ok(music_lock) = NATIVE_MUSIC_SINK.lock() {
+                                        if let Some(ref m_sink) = *music_lock {
+                                            m_sink.set_volume(get_music_volume() * 0.25);
                                         }
                                     }
+                                    new_sink.append(source);
+                                    let arc = Arc::new(new_sink);
+                                    if let Ok(mut lock) = NATIVE_VOICE_SINK.lock() {
+                                        if let Some(old) = lock.take() {
+                                            old.stop();
+                                        }
+                                        *lock = Some(Arc::clone(&arc));
+                                    }
+                                    sink_arc = Some(arc);
                                 }
-                            }));
-                            (s, sr)
+                            } else if let Some(ref sink) = sink_arc {
+                                sink.append(source);
+                            }
                         }
-                    };
+                    }));
 
                     if !pcm_samples.is_empty() {
                         if let Ok(mut lock) = ACTIVE_VOICE_SPEECH.lock() {

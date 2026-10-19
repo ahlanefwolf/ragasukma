@@ -1,0 +1,60 @@
+{
+  "music": [
+    "musik",
+    "sang",
+    "afspil",
+    "lyd",
+    "nummer"
+  ],
+  "recipe": [
+    "opskrift",
+    "arbejdsgang",
+    "automatisering"
+  ],
+  "todo": [
+    "opgave",
+    "note",
+    "påmindelse",
+    "tidsplan",
+    "liste",
+    "plan"
+  ],
+  "skill": [
+    "færdighed",
+    "kommando",
+    "kør",
+    "script",
+    "terminal"
+  ],
+  "browser": [
+    "browser",
+    "web",
+    "side",
+    "fane",
+    "søg",
+    "opsummer"
+  ],
+  "desktop": [
+    "skrivebord",
+    "skærm",
+    "vindue",
+    "app",
+    "klik",
+    "minimer",
+    "skærmbillede"
+  ],
+  "app_query": [
+    "apps",
+    "programmer",
+    "software",
+    "installerede"
+  ],
+  "conjunctions": [
+    "og",
+    "men",
+    "fordi",
+    "selvom",
+    "mens",
+    "derfor"
+  ]
+}

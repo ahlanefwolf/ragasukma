@@ -226,6 +226,7 @@ pub async fn axum_v1_chat_completions_handler(
     let cmpl_id = format!("chatcmpl-{}", current_ts());
     let now = current_ts();
     let is_codex = model.starts_with("cx/") || model.to_lowercase().contains("codex");
+    let req_start_time = std::time::Instant::now();
 
     if is_stream {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<axum::body::Bytes>(64);
@@ -374,7 +375,7 @@ pub async fn axum_v1_chat_completions_handler(
                         id: cmpl_id,
                         object: "chat.completion.chunk".to_string(),
                         created: now,
-                        model,
+                        model: model.clone(),
                         choices: vec![StreamChoice {
                             index: 0,
                             delta: serde_json::json!({}),
@@ -386,6 +387,25 @@ pub async fn axum_v1_chat_completions_handler(
                         let _ = tx.blocking_send(axum::body::Bytes::from(msg));
                     }
                     let _ = tx.blocking_send(axum::body::Bytes::from_static(b"data: [DONE]\n\n"));
+
+                    let duration_ms = req_start_time.elapsed().as_millis() as u64;
+                    let approx_prompt_tokens = req
+                        .messages
+                        .iter()
+                        .map(|m| serde_json::to_string(&m.content).unwrap_or_default().len() / 4)
+                        .sum::<usize>()
+                        .max(1);
+                    let approx_comp_tokens = (v1_resp.content.len() / 4).max(1);
+                    let provider = if is_codex { "codex" } else { "antigravity" };
+                    crate::llm::usage::record_usage(
+                        provider,
+                        &model,
+                        approx_prompt_tokens,
+                        0,
+                        approx_comp_tokens,
+                        duration_ms,
+                        "success",
+                    );
                 }
                 Err(e) => {
                     let err_chunk = serde_json::json!({
@@ -450,6 +470,17 @@ pub async fn axum_v1_chat_completions_handler(
         match v1_resp_res {
             Ok(v1_resp) => {
                 let approx_comp_tokens = (v1_resp.content.len() / 4).max(1);
+                let duration_ms = req_start_time.elapsed().as_millis() as u64;
+                let provider = if is_codex { "codex" } else { "antigravity" };
+                crate::llm::usage::record_usage(
+                    provider,
+                    &model,
+                    approx_prompt_tokens,
+                    0,
+                    approx_comp_tokens,
+                    duration_ms,
+                    "success",
+                );
 
                 let resp = OpenAIChatResponse {
                     id: cmpl_id,

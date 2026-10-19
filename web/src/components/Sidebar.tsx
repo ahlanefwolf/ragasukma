@@ -14,7 +14,8 @@ import {
   ChevronDown,
   Radio,
   Workflow,
-  MessageSquare
+  MessageSquare,
+  BarChart3
 } from 'lucide-solid';
 import { BrandLogo } from './BrandLogo';
 
@@ -34,6 +35,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
     { id: 'menu', label: 'Main Menu', icon: MenuIcon },
     { id: 'recipes', label: 'Recipes', icon: Workflow },
     { id: 'history', label: 'Chat History', icon: MessageSquare },
+    { id: 'usage', label: 'Token Usage', icon: BarChart3 },
     { id: 'skills', label: 'Custom Skills', icon: Zap },
     { id: 'music', label: 'Music Player', icon: Music },
     { id: 'tuner', label: 'Pose Tuner', icon: Sliders },

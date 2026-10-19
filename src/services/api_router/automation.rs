@@ -19,6 +19,10 @@ pub fn register_automation_routes(
         .route("/api/skills", get(axum_get_skills).post(axum_post_skills))
         .route("/api/skills/delete", post(axum_delete_skill))
         .route("/api/skills/run", post(axum_run_skill))
+        // Todos
+        .route("/api/todos", get(axum_get_todos).post(axum_post_todo))
+        .route("/api/todos/complete", post(axum_complete_todo))
+        .route("/api/todos/delete", post(axum_delete_todo))
         // Recipes
         .route("/api/recipes", get(axum_get_recipes))
         .route("/api/recipes/save", post(axum_save_recipe))
@@ -43,7 +47,8 @@ pub fn register_automation_routes(
 // 1. Skills Service
 // -----------------------------------------------------------------------------
 pub(crate) async fn axum_get_skills() -> impl IntoResponse {
-    Json(crate::engine::parse_skills_markdown())
+    let skills = crate::engine::skills::sync_skills_from_db().await;
+    Json(skills)
 }
 
 #[derive(Deserialize)]
@@ -55,28 +60,18 @@ pub(crate) struct AddSkillPayload {
 }
 
 pub(crate) async fn axum_post_skills(Json(item): Json<AddSkillPayload>) -> impl IntoResponse {
-    let mut skills = crate::engine::parse_skills_markdown();
-    if let Some(pos) = skills.iter().position(|s| s.name.eq_ignore_ascii_case(&item.name)) {
-        skills[pos] = crate::engine::SkillItem {
-            name: item.name,
-            description: item.description,
-            command: item.command,
-        };
-    } else {
-        skills.push(crate::engine::SkillItem {
-            name: item.name,
-            description: item.description,
-            command: item.command,
-        });
-    }
-    if let Err(e) = crate::engine::save_skills_markdown(&skills) {
-        (
+    let skill = crate::engine::SkillItem::new(
+        item.name,
+        item.description,
+        item.command,
+    );
+    match crate::engine::skills::save_skill_to_db(&skill).await {
+        Ok(_) => Json(json!({ "success": true })).into_response(),
+        Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": e.to_string() })),
+            Json(json!({ "error": e })),
         )
-            .into_response()
-    } else {
-        Json(json!({ "success": true })).into_response()
+            .into_response(),
     }
 }
 
@@ -86,17 +81,75 @@ pub(crate) struct DeleteSkillPayload {
 }
 
 pub(crate) async fn axum_delete_skill(Json(item): Json<DeleteSkillPayload>) -> impl IntoResponse {
-    let mut skills = crate::engine::parse_skills_markdown();
-    skills.retain(|s| !s.name.eq_ignore_ascii_case(&item.name));
-    if let Err(e) = crate::engine::save_skills_markdown(&skills) {
-        (
+    match crate::engine::skills::delete_skill_from_db(&item.name).await {
+        Ok(_) => Json(json!({ "success": true })).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e })),
+        )
+            .into_response(),
+    }
+}
+
+// -----------------------------------------------------------------------------
+// 1b. Todos Service
+// -----------------------------------------------------------------------------
+pub(crate) async fn axum_get_todos() -> impl IntoResponse {
+    let todos = crate::engine::todo::sync_todos_from_db().await;
+    Json(todos)
+}
+
+#[derive(Deserialize)]
+pub(crate) struct AddTodoPayload {
+    pub(crate) task: String,
+}
+
+pub(crate) async fn axum_post_todo(Json(item): Json<AddTodoPayload>) -> impl IntoResponse {
+    let task = item.task.trim();
+    if task.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Task must not be empty" })),
+        )
+            .into_response();
+    }
+    match crate::engine::todo::add_task(task) {
+        Ok(msg) => Json(json!({ "success": true, "message": msg })).into_response(),
+        Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),
         )
-            .into_response()
-    } else {
-        Json(json!({ "success": true })).into_response()
+            .into_response(),
     }
+}
+
+#[derive(Deserialize)]
+pub(crate) struct CompleteTodoPayload {
+    #[serde(default)]
+    pub(crate) query: String,
+}
+
+pub(crate) async fn axum_complete_todo(
+    Json(payload): Json<CompleteTodoPayload>,
+) -> impl IntoResponse {
+    match crate::engine::todo::complete_task(&payload.query) {
+        Ok(msg) => Json(json!({ "success": true, "message": msg })).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub(crate) struct DeleteTodoPayload {
+    pub(crate) id: i64,
+}
+
+pub(crate) async fn axum_delete_todo(Json(payload): Json<DeleteTodoPayload>) -> impl IntoResponse {
+    let removed = crate::engine::todo::delete_task(payload.id);
+    Json(json!({ "success": removed })).into_response()
 }
 
 #[derive(Deserialize)]

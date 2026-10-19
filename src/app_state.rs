@@ -32,6 +32,43 @@ pub struct ActiveWebSession {
 }
 
 pub static ACTIVE_WEB_SESSION: Mutex<Option<ActiveWebSession>> = Mutex::new(None);
+static TOKIO_HANDLE: Mutex<Option<tokio::runtime::Handle>> = Mutex::new(None);
+
+pub fn set_tokio_handle(handle: tokio::runtime::Handle) {
+    if let Ok(mut lock) = TOKIO_HANDLE.lock() {
+        *lock = Some(handle);
+    }
+}
+
+pub fn get_tokio_handle() -> Option<tokio::runtime::Handle> {
+    TOKIO_HANDLE.lock().ok().and_then(|guard| guard.clone())
+}
+
+static FALLBACK_DB_RT: std::sync::OnceLock<Option<tokio::runtime::Runtime>> = std::sync::OnceLock::new();
+
+pub fn spawn_db_task<F>(fut: F)
+where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
+    let handle = tokio::runtime::Handle::try_current()
+        .ok()
+        .or_else(get_tokio_handle);
+
+    if let Some(h) = handle {
+        h.spawn(fut);
+    } else {
+        let rt_opt = FALLBACK_DB_RT.get_or_init(|| {
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(1)
+                .enable_all()
+                .build()
+                .ok()
+        });
+        if let Some(rt) = rt_opt.as_ref() {
+            rt.spawn(fut);
+        }
+    }
+}
 
 pub struct ServerSharedState {
     pub current_state: AssistantVisualState,
@@ -203,64 +240,7 @@ pub fn is_tuning_mode() -> bool {
     false
 }
 
-// -----------------------------------------------------------------------------
-// Anti-Echolalia Speaker Echo Guard (Acoustic Loopback Prevention)
-// -----------------------------------------------------------------------------
-static LAST_SPOKEN_TEXT: Mutex<Option<(String, Instant)>> = Mutex::new(None);
 
-pub fn record_last_spoken_text(text: &str) {
-    if let Ok(mut lock) = LAST_SPOKEN_TEXT.lock() {
-        *lock = Some((text.to_lowercase(), Instant::now()));
-    }
-}
-
-pub fn is_echo_of_last_spoken(transcript: &str) -> bool {
-    let Ok(lock) = LAST_SPOKEN_TEXT.lock() else {
-        return false;
-    };
-    let Some((ref text, instant)) = *lock else {
-        return false;
-    };
-
-    // Speaker voice reflection protection for up to 12 seconds after it is spoken
-    if instant.elapsed().as_secs() > 12 {
-        return false;
-    }
-
-    let trans_clean = transcript.trim().to_lowercase();
-    let trans_words: Vec<&str> = trans_clean
-        .split_whitespace()
-        .filter(|w| w.len() >= 3)
-        .collect();
-    if trans_words.is_empty() {
-        return false;
-    }
-
-    // 1. Check exact match or substring
-    if text.contains(&trans_clean) || trans_clean.contains(text) {
-        return true;
-    }
-
-    // 2. Check the trigram (3 consecutive words)
-    if trans_words.len() >= 3 {
-        for window in trans_words.windows(3) {
-            let trigram = format!("{} {} {}", window[0], window[1], window[2]);
-            if text.contains(&trigram) {
-                return true;
-            }
-        }
-    }
-
-    // 3. Check significant word overlap (> 50% words exist in assistant sentence)
-    let mut match_count = 0;
-    for &word in &trans_words {
-        if text.contains(word) {
-            match_count += 1;
-        }
-    }
-    let ratio = match_count as f32 / trans_words.len() as f32;
-    ratio >= 0.50
-}
 
 pub fn is_voice_muted() -> bool {
     if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {

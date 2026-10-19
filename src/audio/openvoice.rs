@@ -16,11 +16,19 @@ pub struct OpenVoiceEngine {
 static OPENVOICE_ENGINE: OnceLock<Option<OpenVoiceEngine>> = OnceLock::new();
 
 fn find_openvoice_model_dir() -> Option<PathBuf> {
-    let candidates = [
+    let mut candidates = vec![
         PathBuf::from("models/openvoice-v2"),
         PathBuf::from("../models/openvoice-v2"),
-        PathBuf::from("/home/headway/MyWork/project/node/ai-voice/models/openvoice-v2"),
+        crate::config::get_app_config_dir().join("models/openvoice-v2"),
     ];
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            candidates.push(parent.join("models/openvoice-v2"));
+            candidates.push(parent.join("../models/openvoice-v2"));
+        }
+    }
+
     candidates
         .into_iter()
         .find(|c| c.join("openvoice_tone_converter.onnx").exists())

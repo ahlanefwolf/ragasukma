@@ -1,0 +1,60 @@
+{
+  "music": [
+    "hudba",
+    "pieseň",
+    "prehraj",
+    "zvuk",
+    "skladba"
+  ],
+  "recipe": [
+    "recept",
+    "pracovný postup",
+    "automatizácia"
+  ],
+  "todo": [
+    "úloha",
+    "poznámka",
+    "pripomienka",
+    "rozvrh",
+    "zoznam",
+    "plán"
+  ],
+  "skill": [
+    "zručnosť",
+    "príkaz",
+    "spusť",
+    "skript",
+    "terminál"
+  ],
+  "browser": [
+    "prehliadač",
+    "web",
+    "stránka",
+    "karta",
+    "hľadaj",
+    "zhrnúť"
+  ],
+  "desktop": [
+    "plocha",
+    "obrazovka",
+    "okno",
+    "aplikácia",
+    "klikni",
+    "minimalizuj",
+    "snímka obrazovky"
+  ],
+  "app_query": [
+    "aplikácie",
+    "programy",
+    "softvér",
+    "nainštalované"
+  ],
+  "conjunctions": [
+    "a",
+    "ale",
+    "pretože",
+    "hoci",
+    "zatiaľ čo",
+    "preto"
+  ]
+}

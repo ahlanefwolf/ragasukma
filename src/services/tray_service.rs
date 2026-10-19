@@ -85,8 +85,6 @@ impl TrayState {
         )
     }
 
-    pub fn emit_event(_event_name: &str, _payload: serde_json::Value) {}
-
     pub fn push_command(cmd: String) {
         if let Ok(mut queue) = COMMAND_QUEUE.lock() {
             if queue.len() >= 50 {

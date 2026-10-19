@@ -1,0 +1,60 @@
+{
+  "music": [
+    "muusika",
+    "laul",
+    "mängi",
+    "heli",
+    "lugu"
+  ],
+  "recipe": [
+    "retsept",
+    "töövoog",
+    "automatiseerimine"
+  ],
+  "todo": [
+    "ülesanne",
+    "märkus",
+    "meeldetuletus",
+    "graafik",
+    "nimekiri",
+    "plaan"
+  ],
+  "skill": [
+    "oskus",
+    "käsk",
+    "käivita",
+    "skript",
+    "terminal"
+  ],
+  "browser": [
+    "brauser",
+    "veeb",
+    "leht",
+    "vahekaart",
+    "otsi",
+    "koki"
+  ],
+  "desktop": [
+    "töölaud",
+    "ekraan",
+    "aken",
+    "rakendus",
+    "klõpsa",
+    "minimeeri",
+    "ekraanipilt"
+  ],
+  "app_query": [
+    "rakendused",
+    "programmid",
+    "tarkvara",
+    "installitud"
+  ],
+  "conjunctions": [
+    "ja",
+    "aga",
+    "sest",
+    "kuigi",
+    "kuna",
+    "seetõttu"
+  ]
+}

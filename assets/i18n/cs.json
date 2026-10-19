@@ -1,0 +1,61 @@
+{
+  "music": [
+    "hudba",
+    "píseň",
+    "přehraj",
+    "skladba",
+    "zvuk"
+  ],
+  "recipe": [
+    "recept",
+    "postup",
+    "automatizace"
+  ],
+  "todo": [
+    "úkol",
+    "poznámka",
+    "připomínka",
+    "rozvrh",
+    "seznam",
+    "plán"
+  ],
+  "skill": [
+    "dovednost",
+    "příkaz",
+    "spusť",
+    "skript",
+    "terminál"
+  ],
+  "browser": [
+    "prohlížeč",
+    "web",
+    "stránka",
+    "karta",
+    "hledej",
+    "posuň",
+    "shrnout"
+  ],
+  "desktop": [
+    "plocha",
+    "obrazovka",
+    "okno",
+    "aplikace",
+    "klikni",
+    "minimalizuj",
+    "snímek"
+  ],
+  "app_query": [
+    "aplikace",
+    "programy",
+    "software",
+    "nainstalované"
+  ],
+  "conjunctions": [
+    "a",
+    "ale",
+    "protože",
+    "ačkoliv",
+    "zatímco",
+    "tudíž"
+  ]
+}

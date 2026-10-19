@@ -9,6 +9,10 @@ export interface ChatTurnItem {
 export interface ChatHistoryDay {
   date: string;
   turns: ChatTurnItem[];
+  total_turns?: number;
+  page?: number;
+  limit?: number;
+  total_pages?: number;
 }
 
 export const historyService = {
@@ -23,15 +27,22 @@ export const historyService = {
     }
   },
 
-  async getHistoryByDate(date?: string): Promise<ChatHistoryDay> {
+  async getHistoryByDate(date?: string, page = 1, limit = 20): Promise<ChatHistoryDay> {
     try {
-      const url = date ? `${API_BASE}/api/history/view?date=${encodeURIComponent(date)}` : `${API_BASE}/api/history/view`;
+      const params = new URLSearchParams();
+      if (date) params.append('date', date);
+      params.append('page', page.toString());
+      params.append('limit', limit.toString());
+
+      const url = `${API_BASE}/api/history/view?${params.toString()}`;
       const res = await fetchWithTimeout(url);
-      if (!res.ok) return { date: date || '', turns: [] };
+      if (!res.ok) {
+        return { date: date || '', turns: [], total_turns: 0, page: 1, limit, total_pages: 1 };
+      }
       return await res.json();
     } catch (e) {
       console.error('Failed to get history content:', e);
-      return { date: date || '', turns: [] };
+      return { date: date || '', turns: [], total_turns: 0, page: 1, limit, total_pages: 1 };
     }
   },
 

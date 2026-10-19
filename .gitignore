@@ -50,10 +50,26 @@ nohup.out
 ai_voice_cmd.json
 ai_voice_state.json
 overlay_pos.json
+assets/active_window_app.json
+/assets/active_window_app.json
+assets/active_tab_browser.json
+/assets/active_tab_browser.json
+assets/antigravity_accounts.json
+/assets/antigravity_accounts.json
+assets/codex_accounts.json
+/assets/codex_accounts.json
+active_window_app.json
+active_tab_browser.json
+antigravity_accounts.json
+codex_accounts.json
 assets/histories/
 /assets/histories/
 assets/recipes/
 /assets/recipes/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
 
 # ------------------------------------------------------------------------------
 # OS, IDE & Editor metadata

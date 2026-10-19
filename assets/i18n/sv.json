@@ -1,0 +1,60 @@
+{
+  "music": [
+    "musik",
+    "låt",
+    "spela",
+    "ljud",
+    "spår"
+  ],
+  "recipe": [
+    "recept",
+    "arbetsflöde",
+    "automatisering"
+  ],
+  "todo": [
+    "uppgift",
+    "anteckning",
+    "påminnelse",
+    "schema",
+    "lista",
+    "plan"
+  ],
+  "skill": [
+    "färdighet",
+    "kommando",
+    "kör",
+    "skript",
+    "terminal"
+  ],
+  "browser": [
+    "webbläsare",
+    "webb",
+    "sida",
+    "flik",
+    "sök",
+    "sammanfatta"
+  ],
+  "desktop": [
+    "skrivbord",
+    "skärm",
+    "fönster",
+    "app",
+    "klicka",
+    "minimera",
+    "skärmdump"
+  ],
+  "app_query": [
+    "appar",
+    "program",
+    "programvara",
+    "installerade"
+  ],
+  "conjunctions": [
+    "och",
+    "men",
+    "eftersom",
+    "fastän",
+    "medan",
+    "därför"
+  ]
+}

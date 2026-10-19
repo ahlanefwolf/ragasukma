@@ -62,6 +62,10 @@ impl CodexProvider {
         if !self.config_file.exists() {
             self.config_file = Self::get_accounts_file_path();
             if !self.config_file.exists() {
+                if let Some(parent) = self.config_file.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                let _ = fs::write(&self.config_file, "[]\n");
                 return Ok(());
             }
         }

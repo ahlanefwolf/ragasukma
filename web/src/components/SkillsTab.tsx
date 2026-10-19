@@ -164,7 +164,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
               Smart Automation
             </span>
             <span class="px-2 py-0.5 text-xs font-mono bg-theme-bg text-theme-cyan border border-theme-border">
-              skill-command.md
+              SQLite Database
             </span>
           </div>
           <h2 class="font-heading tracking-tight text-theme-text mt-2">
@@ -186,7 +186,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
         {loading() ? (
           <div class="p-8 flex items-center justify-center gap-2 text-xs text-theme-text/50">
             <Loader size={16} class="animate-spin text-theme-cyan" />
-            <span>Loading skill-command.md...</span>
+            <span>Loading skills...</span>
           </div>
         ) : skills().length === 0 ? (
           <div class="p-8 text-center text-xs text-theme-text/60 bg-theme-surface border border-theme-border">

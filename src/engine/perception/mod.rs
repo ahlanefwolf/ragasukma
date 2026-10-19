@@ -6,7 +6,7 @@ pub mod ocr_tesseract;
 pub mod ocr_windows;
 pub mod utils;
 
-pub use capture::{capture_screen_image, capture_window_image_by_title};
+pub use capture::capture_screen_image;
 pub use utils::{get_coordinate_scale_divisor, is_button_like_text, string_similarity};
 
 use image::{DynamicImage, GenericImageView};
@@ -171,11 +171,6 @@ pub enum VisionRequest {
         save_snapshot: bool,
         respond_to: Option<std::sync::mpsc::Sender<PerceptionResult>>,
     },
-    ScanTargetWindow {
-        title: String,
-        save_snapshot: bool,
-        respond_to: Option<std::sync::mpsc::Sender<PerceptionResult>>,
-    },
 }
 
 static VISION_SENDER: Mutex<Option<std::sync::mpsc::Sender<VisionRequest>>> = Mutex::new(None);
@@ -246,27 +241,9 @@ pub fn start_vision_worker() {
                             let _ = resp.send(res);
                         }
                     }
-                    VisionRequest::ScanTargetWindow { title, save_snapshot, respond_to } => {
-                        let res = match capture_window_image_by_title(&title) {
-                            Ok(img) => engine.analyze_image(&img),
-                            Err(e) => {
-                                eprintln!("[Vision Worker] Failed to capture window '{title}': {e}");
-                                PerceptionResult::default()
-                            }
-                        };
-
-                        if save_snapshot {
-                            apply_perception_to_snapshot(&res);
-                        }
-
-                        if let Some(resp) = respond_to {
-                            let _ = resp.send(res);
-                        }
-                    }
                 }
             }
-        })
-        .expect("Failed to spawn vision worker thread");
+        });
 }
 
 /// Helper sync for meminta scan from vision worker

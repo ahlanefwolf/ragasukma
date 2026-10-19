@@ -54,7 +54,7 @@ pub(crate) async fn axum_post_config(
     if let Err(e) = crate::assets::save_config(&cfg) {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": e.to_string() })),
+            Json(json!({ "error": e })),
         )
             .into_response()
     } else {
@@ -293,25 +293,10 @@ pub(crate) async fn axum_get_actions_since(Query(q): Query<LastIdQuery>) -> impl
 // -----------------------------------------------------------------------------
 // 5. History Service
 // -----------------------------------------------------------------------------
+// 5. History Service (SQLite-Powered with Legacy Markdown Fallback)
+// -----------------------------------------------------------------------------
 pub(crate) async fn axum_get_history_dates() -> impl IntoResponse {
-    let histories_dir = crate::assets::get_assets_dir().join("histories");
-    let mut dates: Vec<String> = Vec::new();
-
-    if histories_dir.exists() {
-        if let Ok(entries) = std::fs::read_dir(&histories_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("md") {
-                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                        dates.push(stem.to_string());
-                    }
-                }
-            }
-        }
-    }
-
-    dates.sort();
-    dates.reverse();
+    let dates = crate::llm::history::get_history_dates().await;
     Json(dates)
 }
 
@@ -319,90 +304,37 @@ pub(crate) async fn axum_get_history_dates() -> impl IntoResponse {
 pub(crate) struct HistoryViewQuery {
     #[serde(default)]
     pub(crate) date: Option<String>,
+    #[serde(default)]
+    pub(crate) page: Option<usize>,
+    #[serde(default)]
+    pub(crate) limit: Option<usize>,
 }
 
 pub(crate) async fn axum_get_history_view(Query(q): Query<HistoryViewQuery>) -> impl IntoResponse {
-    let histories_dir = crate::assets::get_assets_dir().join("histories");
     let target_date = match q.date {
         Some(ref d) if !d.trim().is_empty() => d.trim().to_string(),
         _ => {
-            let mut dates: Vec<String> = Vec::new();
-            if histories_dir.exists() {
-                if let Ok(entries) = std::fs::read_dir(&histories_dir) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("md") {
-                            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                                dates.push(stem.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-            dates.sort();
-            dates.pop().unwrap_or_default()
+            let dates = crate::llm::history::get_history_dates().await;
+            dates.first().cloned().unwrap_or_default()
         }
     };
 
     if target_date.is_empty() {
-        return Json(json!({ "date": "", "turns": [] })).into_response();
+        return Json(json!({
+            "date": "",
+            "turns": [],
+            "total_turns": 0,
+            "page": 1,
+            "limit": 20,
+            "total_pages": 1
+        }))
+        .into_response();
     }
 
-    let file_path = histories_dir.join(format!("{}.md", target_date));
-    if !file_path.exists() {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "History file not found" })),
-        )
-            .into_response();
-    }
-
-    match std::fs::read_to_string(&file_path) {
-        Ok(content) => {
-            let mut turns = Vec::new();
-            let lines: Vec<&str> = content.lines().collect();
-            let mut i = 0;
-            while i < lines.len() {
-                let line = lines[i].trim();
-                if line.starts_with("### [") {
-                    if let Some(end_bracket) = line.find(']') {
-                        let time = line[5..end_bracket].trim().to_string();
-                        let speaker = line[end_bracket + 1..].trim().to_string();
-                        i += 1;
-                        let mut msg_lines = Vec::new();
-                        while i < lines.len() {
-                            let next = lines[i];
-                            if next.trim().starts_with("### [") || next.trim() == "---" {
-                                break;
-                            }
-                            msg_lines.push(next);
-                            i += 1;
-                        }
-                        let message = msg_lines.join("\n").trim().to_string();
-                        if !message.is_empty() {
-                            turns.push(json!({
-                                "time": time,
-                                "speaker": speaker,
-                                "message": message,
-                            }));
-                        }
-                        continue;
-                    }
-                }
-                i += 1;
-            }
-            Json(json!({
-                "date": target_date,
-                "turns": turns
-            }))
-            .into_response()
-        }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("Failed to read file: {e}") })),
-        )
-            .into_response(),
-    }
+    let page = q.page.unwrap_or(1);
+    let limit = q.limit.unwrap_or(20);
+    let paginated = crate::llm::history::get_history_by_date_paginated(&target_date, page, limit).await;
+    Json(paginated).into_response()
 }
 
 #[derive(Deserialize)]
@@ -420,19 +352,18 @@ pub(crate) async fn axum_delete_history(Json(payload): Json<DeleteHistoryPayload
             .into_response();
     }
 
-    let file_path = crate::assets::get_assets_dir()
-        .join("histories")
-        .join(format!("{}.md", clean_date));
-
-    if file_path.exists() {
-        let _ = std::fs::remove_file(file_path);
-        Json(json!({ "success": true })).into_response()
-    } else {
-        (
+    match crate::llm::history::delete_history_by_date(clean_date).await {
+        Ok(true) => Json(json!({ "success": true })).into_response(),
+        Ok(false) => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "History file not found" })),
+            Json(json!({ "error": "History record not found" })),
         )
-            .into_response()
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("Failed to delete history: {e}") })),
+        )
+            .into_response(),
     }
 }
 

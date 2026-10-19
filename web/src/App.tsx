@@ -3,6 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { MenuTab } from './components/MenuTab';
 import { RecipesTab } from './components/RecipesTab';
 import { HistoryTab } from './components/HistoryTab';
+import { UsageTab } from './components/UsageTab';
 
 import { SkillsTab } from './components/SkillsTab';
 import { MusicTab } from './components/MusicTab';
@@ -34,6 +35,9 @@ const TAB_HASH_ALIASES: Record<string, string> = {
   '#recipe': 'recipes',
   '#history': 'history',
   '#chat-history': 'history',
+  '#usage': 'usage',
+  '#tokens': 'usage',
+  '#token-usage': 'usage',
   '#skills': 'skills',
   '#music': 'music',
   '#tuner': 'tuner',
@@ -415,6 +419,10 @@ const App: Component = () => {
 
                 <Show when={activeTab() === 'history'}>
                   <HistoryTab showToast={showToast} />
+                </Show>
+
+                <Show when={activeTab() === 'usage'}>
+                  <UsageTab showToast={showToast} />
                 </Show>
 
                 <Show when={activeTab() === 'skills'}>

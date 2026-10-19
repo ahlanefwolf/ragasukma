@@ -117,6 +117,8 @@ impl LlmClient {
             || self.model.starts_with("cx/");
 
         if is_codex_engine && !self.codex.accounts.is_empty() {
+            let start_time = std::time::Instant::now();
+            let in_tokens = self.history.iter().map(|m| m.content.len() / 4).sum::<usize>().max(1);
             match self.codex.chat_stream(
                 &self.model,
                 &self.history,
@@ -125,7 +127,19 @@ impl LlmClient {
                 &mut on_sentence,
             ) {
                 Ok(reply) => {
+                    let duration_ms = start_time.elapsed().as_millis() as u64;
                     let clean = clean_ai_text(&reply);
+                    let out_tokens = (clean.len() / 4).max(1);
+                    crate::llm::usage::record_usage(
+                        "codex",
+                        &self.model,
+                        in_tokens,
+                        0,
+                        out_tokens,
+                        duration_ms,
+                        "success",
+                    );
+
                     self.history.push(ChatMessage {
                         role: "assistant".to_string(),
                         content: clean.clone(),
@@ -143,6 +157,16 @@ impl LlmClient {
                     return Ok(reply);
                 }
                 Err(e) => {
+                    let duration_ms = start_time.elapsed().as_millis() as u64;
+                    crate::llm::usage::record_usage(
+                        "codex",
+                        &self.model,
+                        in_tokens,
+                        0,
+                        0,
+                        duration_ms,
+                        "error",
+                    );
                     crate::term_err!("[Codex Engine Error]: {}. Falling back to default provider...", e);
                 }
             }
@@ -158,6 +182,9 @@ impl LlmClient {
                 } else {
                     &self.model
                 };
+                let start_time = std::time::Instant::now();
+                let in_tokens = self.history.iter().map(|m| m.content.len() / 4).sum::<usize>().max(1);
+
                 match self.antigravity.chat_stream(
                     ag_model,
                     &self.history,
@@ -166,7 +193,19 @@ impl LlmClient {
                     &mut on_sentence,
                 ) {
                     Ok(reply) => {
+                        let duration_ms = start_time.elapsed().as_millis() as u64;
                         let clean = clean_ai_text(&reply);
+                        let out_tokens = (clean.len() / 4).max(1);
+                        crate::llm::usage::record_usage(
+                            "antigravity",
+                            ag_model,
+                            in_tokens,
+                            0,
+                            out_tokens,
+                            duration_ms,
+                            "success",
+                        );
+
                         self.history.push(ChatMessage {
                             role: "assistant".to_string(),
                             content: clean.clone(),
@@ -185,6 +224,16 @@ impl LlmClient {
                         return Ok(reply);
                     }
                     Err(e) => {
+                        let duration_ms = start_time.elapsed().as_millis() as u64;
+                        crate::llm::usage::record_usage(
+                            "antigravity",
+                            ag_model,
+                            in_tokens,
+                            0,
+                            0,
+                            duration_ms,
+                            "error",
+                        );
                         crate::term_err!(
                             "[LLM Client] Local Engine error: {e}. Attempting fallback..."
                         );

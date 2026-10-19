@@ -55,7 +55,7 @@ pub(crate) async fn axum_post_poses(
     if let Err(e) = crate::assets::save_poses(&poses) {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": e.to_string() })),
+            Json(json!({ "error": e })),
         )
             .into_response()
     } else {
@@ -254,15 +254,9 @@ pub(crate) async fn axum_music_delete(Json(payload): Json<MediaDeletePayload>) -
 // -----------------------------------------------------------------------------
 // 3. STT & TTS
 // -----------------------------------------------------------------------------
-#[derive(Deserialize)]
-pub(crate) struct SttTranscriptPayload {
-    pub(crate) text: String,
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub(crate) device_id: Option<String>,
-}
-
-pub(crate) async fn axum_stt_transcript(Json(payload): Json<SttTranscriptPayload>) -> impl IntoResponse {
+pub(crate) async fn axum_stt_transcript(
+    Json(payload): Json<super::automation::RemoteTextPayload>,
+) -> impl IntoResponse {
     let clean = payload.text.trim();
     if !clean.is_empty() {
         println!("[Mobile STT -> Remote Text] Transcript received: {}", clean);

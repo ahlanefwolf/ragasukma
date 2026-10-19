@@ -1,0 +1,60 @@
+{
+  "music": [
+    "muzyka",
+    "piosenka",
+    "odtwórz",
+    "utwór",
+    "dźwięk"
+  ],
+  "recipe": [
+    "przepis",
+    "przepływ pracy",
+    "automatyzacja"
+  ],
+  "todo": [
+    "zadanie",
+    "notatka",
+    "przypomnienie",
+    "harmonogram",
+    "lista",
+    "plan",
+    "zrobione"
+  ],
+  "skill": [
+    "umiejętność",
+    "polecenie",
+    "uruchom",
+    "skrypt",
+    "terminal"
+  ],
+  "browser": [
+    "przeglądarka",
+    "strona",
+    "karta",
+    "szukaj",
+    "podsumuj"
+  ],
+  "desktop": [
+    "pulpit",
+    "ekran",
+    "okno",
+    "aplikacja",
+    "kliknij",
+    "zminimalizuj",
+    "zrzut ekranu"
+  ],
+  "app_query": [
+    "aplikacje",
+    "programy",
+    "oprogramowanie",
+    "zainstalowane"
+  ],
+  "conjunctions": [
+    "i",
+    "ale",
+    "ponieważ",
+    "chociaż",
+    "podczas gdy",
+    "dlatego"
+  ]
+}

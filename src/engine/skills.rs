@@ -1,68 +1,38 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use sqlx::FromRow;
+use std::sync::Mutex;
+use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, FromRow, PartialEq, Eq)]
 pub struct SkillItem {
     pub name: String,
     pub description: String,
     pub command: String,
 }
 
-pub fn get_skills_path() -> PathBuf {
-    // Use kandidat standar (Lokal project assets/ -> beside exe -> Resources macOS -> AppData/Roaming)
-    let candidate = crate::assets::find_file_in_candidates("skill-command.md");
-    if candidate.exists() {
-        return candidate;
-    }
-
-    // Default target if none exists yet
-    crate::config::get_app_config_dir()
-        .join("assets")
-        .join("skill-command.md")
-}
-
-pub fn parse_skills_markdown() -> Vec<SkillItem> {
-    let path = get_skills_path();
-    let content = match std::fs::read_to_string(&path) {
-        Ok(c) => c,
-        Err(_) => return Vec::new(),
-    };
-
-    let mut skills = Vec::new();
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if !trimmed.starts_with('|')
-            || trimmed.contains(":---")
-            || trimmed.contains("Skill Name")
-            || trimmed.contains("Nama Skill")
-        {
-            continue;
-        }
-
-        let parts: Vec<&str> = trimmed
-            .split('|')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .collect();
-
-        if parts.len() >= 3 {
-            let name = parts[0].to_string();
-            let description = parts[1].to_string();
-            let command = parts[2].replace('`', "");
-
-            if !name.is_empty() && !command.is_empty() {
-                skills.push(SkillItem {
-                    name,
-                    description,
-                    command,
-                });
-            }
+impl SkillItem {
+    pub fn new(name: impl Into<String>, description: impl Into<String>, command: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            description: description.into(),
+            command: command.into(),
         }
     }
-    skills
 }
 
-pub fn save_skills_markdown(skills: &[SkillItem]) -> std::io::Result<()> {
+static SKILLS_CACHE: Mutex<Option<Vec<SkillItem>>> = Mutex::new(None);
+static SKILLS_MUTEX: Mutex<()> = Mutex::new(());
+
+fn get_now_secs() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}
+
+use crate::app_state::spawn_db_task;
+
+pub fn format_skills_markdown(skills: &[SkillItem]) -> String {
     let mut out = String::from(
         "#  Skill Command Registry\n\n\
 List of quick commands and system automations that can be triggered directly via voice, menu, or AI automation.\n\
@@ -79,9 +49,119 @@ This file can be edited directly or managed via the Skill Commands UI.\n\n\
             s.command.trim()
         ));
     }
+    out
+}
 
-    let path = get_skills_path();
-    std::fs::write(path, out)
+fn ensure_cache_loaded() {
+    let mut guard = SKILLS_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if guard.is_none() {
+        *guard = Some(Vec::new());
+
+        spawn_db_task(async {
+            let _ = sync_skills_from_db().await;
+        });
+    }
+}
+
+pub async fn sync_skills_from_db() -> Vec<SkillItem> {
+    let pool = crate::llm::usage::get_pool().await;
+    let rows = sqlx::query_as::<_, SkillItem>(
+        "SELECT name, description, command FROM skills WHERE is_active = 1 ORDER BY name ASC",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    if rows.is_empty() {
+        let default_skills = vec![
+            SkillItem::new("Btop", "Buka btop", "btop"),
+        ];
+        let now = get_now_secs();
+        for s in &default_skills {
+            let _ = sqlx::query(
+                "INSERT INTO skills (name, description, command, is_active, created_at) VALUES (?1, ?2, ?3, 1, ?4) ON CONFLICT(name) DO UPDATE SET description = excluded.description, command = excluded.command, is_active = 1",
+            )
+            .bind(&s.name)
+            .bind(&s.description)
+            .bind(&s.command)
+            .bind(now)
+            .execute(pool)
+            .await;
+        }
+
+        let mut guard = SKILLS_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = Some(default_skills.clone());
+        return default_skills;
+    }
+
+    let mut guard = SKILLS_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    *guard = Some(rows.clone());
+    rows
+}
+
+pub async fn save_skill_to_db(skill: &SkillItem) -> Result<(), String> {
+    let pool = crate::llm::usage::get_pool().await;
+    let now = get_now_secs();
+
+    sqlx::query(
+        "INSERT INTO skills (name, description, command, is_active, created_at) VALUES (?1, ?2, ?3, 1, ?4) ON CONFLICT(name) DO UPDATE SET description = excluded.description, command = excluded.command, is_active = 1",
+    )
+    .bind(&skill.name)
+    .bind(&skill.description)
+    .bind(&skill.command)
+    .bind(now)
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let _ = sync_skills_from_db().await;
+    Ok(())
+}
+
+pub async fn delete_skill_from_db(name: &str) -> Result<(), String> {
+    let pool = crate::llm::usage::get_pool().await;
+
+    sqlx::query("DELETE FROM skills WHERE name = ?1 COLLATE NOCASE")
+        .bind(name)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let _ = sync_skills_from_db().await;
+    Ok(())
+}
+
+pub fn parse_skills_markdown() -> Vec<SkillItem> {
+    ensure_cache_loaded();
+    let guard = SKILLS_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    guard.as_ref().cloned().unwrap_or_default()
+}
+
+pub fn save_skills_markdown(skills: &[SkillItem]) -> std::io::Result<()> {
+    let _sync_guard = SKILLS_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+    {
+        let mut guard = SKILLS_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = Some(skills.to_vec());
+    }
+
+    let items_clone = skills.to_vec();
+    let now = get_now_secs();
+    spawn_db_task(async move {
+        let pool = crate::llm::usage::get_pool().await;
+        for s in &items_clone {
+            let _ = sqlx::query(
+                "INSERT INTO skills (name, description, command, is_active, created_at) VALUES (?1, ?2, ?3, 1, ?4) ON CONFLICT(name) DO UPDATE SET description = excluded.description, command = excluded.command, is_active = 1",
+            )
+            .bind(&s.name)
+            .bind(&s.description)
+            .bind(&s.command)
+            .bind(now)
+            .execute(pool)
+            .await;
+        }
+    });
+
+    Ok(())
 }
 
 /// Utility helper to configure subprocess to be isolated from AppImage runtime and prevent console flash on Windows
@@ -146,4 +226,20 @@ pub fn execute_command_by_os(cmd: &str) -> std::io::Result<()> {
         command.spawn()?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_skill_item_new_and_format() {
+        let skill = SkillItem::new("Open Terminal", "Opens bash terminal", "alacritty");
+        assert_eq!(skill.name, "Open Terminal");
+        assert_eq!(skill.description, "Opens bash terminal");
+        assert_eq!(skill.command, "alacritty");
+
+        let formatted = format_skills_markdown(&[skill]);
+        assert!(formatted.contains("| Open Terminal | Opens bash terminal | `alacritty` |"));
+    }
 }

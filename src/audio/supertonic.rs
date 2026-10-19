@@ -488,7 +488,7 @@ impl SupertonicEngine {
                 _ => (samples, self.cfg.ae.sample_rate),
             };
             let wav_bytes = samples_to_wav_bytes(&final_samples, out_sample_rate);
-            on_chunk_ready(0, 1, final_samples.clone(), out_sample_rate, wav_bytes.clone());
+            on_chunk_ready(0, 1, final_samples, out_sample_rate, wav_bytes.clone());
             return Ok(wav_bytes);
         }
 
@@ -547,92 +547,6 @@ impl SupertonicEngine {
         }
 
         Ok(samples_to_wav_bytes(&all_samples, out_sample_rate))
-    }
-}
-
-/// Blends two voice styles using Magnitude-Preserving Spherical Interpolation (Slerp).
-/// Unlike simple linear interpolation (Lerp) which diminishes latent variance and muffles high frequencies,
-/// geometric Slerp preserves the vector manifold curvature and full acoustic energy.
-#[allow(dead_code)]
-pub fn blend_voice_styles(style_a: &VoiceStyleData, style_b: &VoiceStyleData, ratio_b: f32) -> VoiceStyleData {
-    let t = ratio_b.clamp(0.0, 1.0);
-
-    let slerp_vec = |a: &[f32], b: &[f32], t: f32| -> Vec<f32> {
-        if a.len() != b.len() || a.is_empty() {
-            return a.to_vec();
-        }
-
-        let mut dot = 0.0f32;
-        let mut norm_a_sq = 0.0f32;
-        let mut norm_b_sq = 0.0f32;
-
-        for (&x, &y) in a.iter().zip(b.iter()) {
-            dot += x * y;
-            norm_a_sq += x * x;
-            norm_b_sq += y * y;
-        }
-
-        let norm_a = norm_a_sq.sqrt();
-        let norm_b = norm_b_sq.sqrt();
-
-        if norm_a < 1e-7 || norm_b < 1e-7 {
-            return a.iter().zip(b.iter()).map(|(&x, &y)| (1.0 - t) * x + t * y).collect();
-        }
-
-        // Cosine of angle between vectors
-        let cos_theta = (dot / (norm_a * norm_b)).clamp(-1.0, 1.0);
-        let target_norm = (1.0 - t) * norm_a + t * norm_b;
-
-        // If vectors are nearly collinear, fall back to linear interpolation with norm preservation
-        if cos_theta.abs() > 0.9995 {
-            let mut out: Vec<f32> = a.iter().zip(b.iter()).map(|(&x, &y)| (1.0 - t) * x + t * y).collect();
-            let mut out_norm_sq = 0.0f32;
-            for &val in &out {
-                out_norm_sq += val * val;
-            }
-            let out_norm = out_norm_sq.sqrt();
-            if out_norm > 1e-7 {
-                let scale = target_norm / out_norm;
-                for val in &mut out {
-                    *val *= scale;
-                }
-            }
-            return out;
-        }
-
-        let theta = cos_theta.acos();
-        let sin_theta = theta.sin();
-        let scale_a = ((1.0 - t) * theta).sin() / sin_theta;
-        let scale_b = (t * theta).sin() / sin_theta;
-
-        let mut out = Vec::with_capacity(a.len());
-        for (&x, &y) in a.iter().zip(b.iter()) {
-            out.push(scale_a * x + scale_b * y);
-        }
-
-        // Ensure resulting magnitude matches expected blended target norm
-        let mut res_norm_sq = 0.0f32;
-        for &val in &out {
-            res_norm_sq += val * val;
-        }
-        let res_norm = res_norm_sq.sqrt();
-        if res_norm > 1e-7 {
-            let scale = target_norm / res_norm;
-            for val in &mut out {
-                *val *= scale;
-            }
-        }
-        out
-    };
-
-    let ttl_data = slerp_vec(&style_a.ttl_data, &style_b.ttl_data, t);
-    let dp_data = slerp_vec(&style_a.dp_data, &style_b.dp_data, t);
-
-    VoiceStyleData {
-        ttl_dims: style_a.ttl_dims,
-        ttl_data,
-        dp_dims: style_a.dp_dims,
-        dp_data,
     }
 }
 
@@ -718,13 +632,6 @@ pub fn split_long_sentence_into_clauses(sentence: &str) -> Vec<String> {
         return vec![trimmed.to_string()];
     }
 
-    // Common natural conjunctions for Indonesian and English
-    const CONJUNCTIONS: &[&str] = &[
-        "dan", "tetapi", "tapi", "karena", "sehingga", "serta", "namun",
-        "melainkan", "sedangkan", "agar", "supaya", "biar", "yaitu", "yakni",
-        "and", "but", "because", "so", "which", "although", "whereas", "since", "while",
-    ];
-
     // Identify candidate split points:
     // (word_index, is_punct_boundary, split_before_word)
     let mut candidates: Vec<(usize, bool, bool)> = Vec::new();
@@ -739,7 +646,7 @@ pub fn split_long_sentence_into_clauses(sentence: &str) -> Vec<String> {
             candidates.push((idx, true, false));
         } else {
             let clean_w = word.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
-            if idx > 0 && CONJUNCTIONS.contains(&clean_w.as_str()) {
+            if idx > 0 && crate::engine::intent::is_natural_conjunction(clean_w.as_str(), None) {
                 candidates.push((idx, false, true));
             }
         }
@@ -1114,29 +1021,6 @@ pub fn samples_to_wav_bytes(samples: &[f32], sample_rate: u32) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_blend_voice_styles() {
-        let style_a = VoiceStyleData {
-            ttl_dims: [1, 1, 2],
-            ttl_data: vec![1.0, 0.0],
-            dp_dims: [1, 1, 2],
-            dp_data: vec![2.0, 0.0],
-        };
-        let style_b = VoiceStyleData {
-            ttl_dims: [1, 1, 2],
-            ttl_data: vec![0.0, 1.0],
-            dp_dims: [1, 1, 2],
-            dp_data: vec![0.0, 2.0],
-        };
-        let blended = blend_voice_styles(&style_a, &style_b, 0.5);
-        // Slerp for orthogonal vectors at t=0.5 produces cos(45°)=sin(45°) ≈ 0.7071
-        // and preserves original vector magnitudes (norm 1.0 for ttl, 2.0 for dp)
-        assert!((blended.ttl_data[0] - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-4);
-        assert!((blended.ttl_data[1] - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-4);
-        assert!((blended.dp_data[0] - 2.0 * std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-4);
-        assert!((blended.dp_data[1] - 2.0 * std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-4);
-    }
 
     #[test]
     fn test_hangul_decomposition() {

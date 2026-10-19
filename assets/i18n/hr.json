@@ -1,0 +1,59 @@
+{
+  "music": [
+    "glazba",
+    "pjesma",
+    "sviraj",
+    "zvuk",
+    "traka"
+  ],
+  "recipe": [
+    "recept",
+    "tijek rada",
+    "automatizacija"
+  ],
+  "todo": [
+    "zadatak",
+    "bilješka",
+    "podsjetnik",
+    "raspored",
+    "popis",
+    "plan"
+  ],
+  "skill": [
+    "vještina",
+    "naredba",
+    "pokreni",
+    "skripta",
+    "terminal"
+  ],
+  "browser": [
+    "preglednik",
+    "web",
+    "stranica",
+    "kartica",
+    "traži",
+    "sažmi"
+  ],
+  "desktop": [
+    "radna površina",
+    "zaslon",
+    "prozor",
+    "aplikacija",
+    "klikni",
+    "snimka zaslona"
+  ],
+  "app_query": [
+    "aplikacije",
+    "programi",
+    "softver",
+    "instalirani"
+  ],
+  "conjunctions": [
+    "i",
+    "ali",
+    "jer",
+    "iako",
+    "dok",
+    "stoga"
+  ]
+}

@@ -236,6 +236,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     text: string;
     emotion: string;
     seq: number;
+    sessionId?: string;
     prefetchedBlobUrl?: string;
   }
   let audioChunkQueue: Map<number, ChunkQueueItem> = new Map();
@@ -244,6 +245,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   let isPlayingChunk = false;
   let chunkTotalExpected = 1;
   let chunkWaitTimer: number | null = null;
+  let activeSessionId = '';
 
   const clearPrefetchedBlobs = () => {
     prefetchedBlobUrls.forEach((blobUrl) => {
@@ -398,15 +400,23 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     totalChunks: number,
     audioUrl: string,
     text: string,
-    emotion: string
+    emotion: string,
+    sessionId?: string
   ) => {
     if (!isHpAudioActive()) return;
 
-    if (chunkIndex === 0) {
+    const isNewTurn = sessionId
+      ? sessionId !== activeSessionId
+      : (chunkIndex === 0 && !isVoiceSpeakingOnMobile && audioChunkQueue.size === 0);
+
+    if (isNewTurn) {
+      if (sessionId) {
+        activeSessionId = sessionId;
+      }
       mobileSpeakSeq++;
       audioChunkQueue.clear();
       clearPrefetchedBlobs();
-      nextExpectedChunkIndex = 0;
+      nextExpectedChunkIndex = chunkIndex;
       chunkTotalExpected = totalChunks;
       isPlayingChunk = false;
       audioSync.stopVoice();
@@ -415,6 +425,10 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       setEmotion(emotion);
       notifySpeakingState(true, emotion);
       audioSync.duckMusic(0.25);
+    } else {
+      if (totalChunks > chunkTotalExpected) {
+        chunkTotalExpected = totalChunks;
+      }
     }
 
     const item: ChunkQueueItem = {
@@ -424,6 +438,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       text,
       emotion,
       seq: mobileSpeakSeq,
+      sessionId,
     };
     audioChunkQueue.set(chunkIndex, item);
 
@@ -596,6 +611,8 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       let isChunk = false;
       let chunkIndex = 0;
       let totalChunks = 1;
+      let sessionId: string | undefined;
+      let isFinish = false;
       try {
         const parsed = typeof act.payload === 'string' ? JSON.parse(act.payload) : act.payload;
         textToSpeak = parsed.text || '';
@@ -605,6 +622,8 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         isChunk = !!parsed.is_chunk;
         chunkIndex = parsed.chunk_index ?? 0;
         totalChunks = parsed.total_chunks ?? 1;
+        sessionId = parsed.session_id;
+        isFinish = !!parsed.is_finish;
       } catch {
         textToSpeak = typeof act.payload === 'string' ? act.payload : '';
       }
@@ -612,10 +631,17 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         setEmotion(em);
       }
 
+      if (isFinish) {
+        if (totalChunks !== undefined && totalChunks > chunkTotalExpected) {
+          chunkTotalExpected = totalChunks;
+        }
+        return;
+      }
+
       if (isChunk && audioUrl) {
-        console.log(`[MobileApp] assistant:speak (chunk ${chunkIndex}/${totalChunks}). audioUrl:`, audioUrl);
+        console.log(`[MobileApp] assistant:speak (chunk ${chunkIndex}/${totalChunks}, session: ${sessionId}). audioUrl:`, audioUrl);
         if (isHpAudioActive()) {
-          enqueueAudioChunk(chunkIndex, totalChunks, audioUrl, textToSpeak, em);
+          enqueueAudioChunk(chunkIndex, totalChunks, audioUrl, textToSpeak, em, sessionId);
         }
         return;
       }

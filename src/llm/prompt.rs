@@ -44,26 +44,10 @@ pub fn resolve_language_info(lang: &str) -> (&'static str, &'static str) {
     }
 }
 
-#[allow(dead_code)]
-pub fn load_local_music_summary() -> String {
-    load_local_music_summary_indexed(None)
-}
-
 pub fn load_local_music_summary_indexed(query: Option<&str>) -> String {
     let q_clean = query.unwrap_or("").trim().to_lowercase();
-    if !q_clean.is_empty() {
-        let is_music_intent = q_clean.contains("music")
-            || q_clean.contains("musik")
-            || q_clean.contains("song")
-            || q_clean.contains("lagu")
-            || q_clean.contains("play")
-            || q_clean.contains("putar")
-            || q_clean.contains("nyanyi")
-            || q_clean.contains("track")
-            || q_clean.contains("audio");
-        if !is_music_intent {
-            return String::new();
-        }
+    if !q_clean.is_empty() && !crate::engine::intent::is_music_intent(&q_clean) {
+        return String::new();
     }
 
     let music_dir = crate::config::get_music_dir();
@@ -86,11 +70,16 @@ pub fn load_local_music_summary_indexed(query: Option<&str>) -> String {
 
 static SKILLS_SUMMARY_CACHE: Mutex<Option<(Instant, String)>> = Mutex::new(None);
 
-pub fn load_skills_summary() -> String {
-    if let Ok(guard) = SKILLS_SUMMARY_CACHE.lock() {
-        if let Some((instant, ref cached)) = *guard {
-            if instant.elapsed().as_secs() < 30 {
-                return cached.clone();
+pub fn load_skills_summary_indexed(query: Option<&str>) -> String {
+    let q_clean = query.unwrap_or("").trim().to_lowercase();
+    let is_generic_or_init = query.is_none();
+
+    if is_generic_or_init {
+        if let Ok(guard) = SKILLS_SUMMARY_CACHE.lock() {
+            if let Some((instant, ref cached)) = *guard {
+                if instant.elapsed().as_secs() < 30 {
+                    return cached.clone();
+                }
             }
         }
     }
@@ -98,11 +87,15 @@ pub fn load_skills_summary() -> String {
     let mut seen_names = HashSet::new();
     let mut lines = Vec::new();
 
-    // User custom skills from assets/skill-command.md
+    // User custom skills from SQLite database / cache
     let custom_skills = crate::engine::parse_skills_markdown();
+    let is_skill_req = is_generic_or_init || is_skill_intent(&q_clean);
+
     for s in &custom_skills {
         let key = s.name.trim().to_lowercase();
-        if !seen_names.contains(&key) {
+        let matches_query = is_skill_req || (!q_clean.is_empty() && (q_clean.contains(&key) || key.contains(&q_clean)));
+
+        if matches_query && !seen_names.contains(&key) {
             seen_names.insert(key);
             lines.push(format!(
                 "| `[SKILL:{}]` | As defined in script | {} |",
@@ -112,7 +105,11 @@ pub fn load_skills_summary() -> String {
     }
 
     let custom_skills_text = if lines.is_empty() {
-        "*(No additional custom skills registered)*".to_string()
+        if is_generic_or_init || custom_skills.is_empty() {
+            "*(No additional custom skills registered)*".to_string()
+        } else {
+            "*(No matching custom skills for this request)*".to_string()
+        }
     } else {
         format!(
             "| Custom Skill Tag | Parameter | Description |\n| :--- | :--- | :--- |\n{}",
@@ -121,33 +118,41 @@ pub fn load_skills_summary() -> String {
     };
 
     // Load registered automation recipes from assets/recipes/*.json
-    let recipes = crate::engine::actions::recipe::load_all_recipes();
-    let mut recipe_lines = Vec::new();
-    for r in &recipes {
-        let params_example = if r.required_params.is_empty() {
-            format!("[CMD:recipe:run|{}]", r.recipe_id)
-        } else {
-            let sample_json: serde_json::Value = serde_json::Value::Object(
-                r.required_params
-                    .iter()
-                    .map(|p| (p.clone(), serde_json::Value::String(format!("value_{p}"))))
-                    .collect(),
-            );
-            format!("[CMD:recipe:run|{}|{}]", r.recipe_id, sample_json)
-        };
-        recipe_lines.push(format!(
-            "| `{}` | `{}` | {} |",
-            r.name, params_example, r.name
-        ));
-    }
+    let should_include_recipes = is_generic_or_init
+        || is_browser_intent(&q_clean)
+        || crate::engine::intent::is_recipe_intent(&q_clean);
 
-    let recipes_text = if recipe_lines.is_empty() {
-        "*(No recipes registered in assets/recipes/)*".to_string()
+    let recipes_text = if should_include_recipes {
+        let recipes = crate::engine::actions::recipe::load_all_recipes();
+        let mut recipe_lines = Vec::new();
+        for r in &recipes {
+            let params_example = if r.required_params.is_empty() {
+                format!("[CMD:recipe:run|{}]", r.recipe_id)
+            } else {
+                let sample_json: serde_json::Value = serde_json::Value::Object(
+                    r.required_params
+                        .iter()
+                        .map(|p| (p.clone(), serde_json::Value::String(format!("value_{p}"))))
+                        .collect(),
+                );
+                format!("[CMD:recipe:run|{}|{}]", r.recipe_id, sample_json)
+            };
+            recipe_lines.push(format!(
+                "| `{}` | `{}` | {} |",
+                r.name, params_example, r.name
+            ));
+        }
+
+        if recipe_lines.is_empty() {
+            "*(No recipes registered in assets/recipes/)*".to_string()
+        } else {
+            format!(
+                "| Recipe Name | Action Tag (Run Directly) | Description |\n| :--- | :--- | :--- |\n{}",
+                recipe_lines.join("\n")
+            )
+        }
     } else {
-        format!(
-            "| Recipe Name | Action Tag (Run Directly) | Description |\n| :--- | :--- | :--- |\n{}",
-            recipe_lines.join("\n")
-        )
+        "*(No recipes required for this request)*".to_string()
     };
 
     let formatted = format!(
@@ -214,51 +219,30 @@ RULE: Action tags [CMD:...] or [SKILL:...] run silently in background — NOT sp
         recipes_text, custom_skills_text
     );
 
-    if let Ok(mut guard) = SKILLS_SUMMARY_CACHE.lock() {
-        *guard = Some((Instant::now(), formatted.clone()));
+    if is_generic_or_init {
+        if let Ok(mut guard) = SKILLS_SUMMARY_CACHE.lock() {
+            *guard = Some((Instant::now(), formatted.clone()));
+        }
     }
 
     formatted
 }
 
-pub fn load_todo_summary() -> String {
-    let todo_path = crate::assets::find_file_in_candidates("todo.md");
-    if let Ok(content) = std::fs::read_to_string(&todo_path) {
-        let trimmed = content.trim();
-        if !trimmed.is_empty() {
-            return format!("\nUSER TO-DO / NOTES:\n{}\n", trimmed);
-        }
+#[allow(unused_imports)]
+pub use crate::engine::intent::{
+    is_browser_intent, is_desktop_intent, is_music_intent, is_recipe_intent, is_skill_intent,
+    is_todo_intent,
+};
+
+pub fn load_todo_summary_indexed(query: Option<&str>) -> String {
+    let q_clean = query.unwrap_or("").trim();
+    if !q_clean.is_empty() && !is_todo_intent(q_clean) {
+        return String::new();
     }
-    String::new()
+    crate::engine::todo::format_todo_summary()
 }
 
-/// Universal intent detector across 31 supported languages (technical web terms, universal keywords, actions)
-pub fn is_browser_intent(query: &str) -> bool {
-    let q = query.to_lowercase();
-    let keywords = [
-        "browser", "web", "tab", "page", "halaman", "site", "website", "url", "link",
-        "scroll", "search", "cari", "google", "youtube", "tokopedia", "shopee", "baca",
-        "read", "summarize", "ringkas", "rangkum", "click", "klik", "input", "form",
-        "type", "ketik", "submit", "button", "tombol", "refresh", "close tab", "tutup tab",
-        "buka tab", "switch tab", "pindah tab", "open tab", "internet", "online", "http",
-        "www", ".com", ".id", ".org", ".io", ".net", ".dev",
-    ];
-    keywords.iter().any(|k| q.contains(k))
-}
 
-/// Universal intent detector across 31 supported languages for OS desktop and screen actions
-pub fn is_desktop_intent(query: &str) -> bool {
-    let q = query.to_lowercase();
-    let keywords = [
-        "desktop", "screen", "layar", "window", "jendela", "aplikasi", "application",
-        "app", "focus", "fokus", "buka", "open", "launch", "minimize", "maximize",
-        "close window", "tutup jendela", "click", "klik", "coordinate", "koordinat",
-        "button", "tombol", "text on screen", "teks di layar", "scan", "visual",
-        "type", "ketik", "key", "tombol", "lock", "kunci", "volume", "suara",
-        "screenshot", "tangkap layar", "capture",
-    ];
-    keywords.iter().any(|k| q.contains(k))
-}
 
 pub fn load_active_browser_summary_indexed(query: Option<&str>) -> String {
     let query_clean = query.unwrap_or("").trim();
@@ -527,11 +511,11 @@ pub fn build_system_prompt_indexed(user_input: Option<&str>) -> String {
 
     // Living State: Provide holistic computer status context to the LLM
     let music_prompt = load_local_music_summary_indexed(user_input);
-    let todo_prompt = load_todo_summary();
+    let todo_prompt = load_todo_summary_indexed(user_input);
     let browser_prompt = load_active_browser_summary_indexed(user_input);
     let window_prompt = load_active_window_summary_indexed(user_input);
     let apps_prompt = load_installed_apps_indexed(user_input);
-    let skills_prompt = load_skills_summary();
+    let skills_prompt = load_skills_summary_indexed(user_input);
 
     // Persona & Character Dynamics
     let persona_desc = if is_male {
@@ -708,6 +692,20 @@ mod tests {
         assert!(is_desktop_intent("minimize active window"));
         assert!(!is_desktop_intent("halo apa kabar?"));
         assert!(!is_desktop_intent("ceritakan lelucon lucu"));
+
+        // To-Do intent tests across terms
+        assert!(is_todo_intent("tambahkan to-do beli kopi"));
+        assert!(is_todo_intent("catat tugas laporan keuangan"));
+        assert!(is_todo_intent("ingatkan jadwal meeting besok"));
+        assert!(is_todo_intent("apa saja task saya hari ini?"));
+        assert!(!is_todo_intent("halo apa kabar?"));
+        assert!(!is_todo_intent("siapa namamu?"));
+
+        // Skill / Command intent tests
+        assert!(is_skill_intent("jalankan skill backup data"));
+        assert!(is_skill_intent("run script build"));
+        assert!(is_skill_intent("apa saja custom command yang tersedia?"));
+        assert!(!is_skill_intent("halo selamat pagi"));
     }
 
     #[test]
@@ -715,12 +713,18 @@ mod tests {
         let generic_prompt = build_system_prompt_indexed(Some("halo selamat pagi"));
         let web_prompt = build_system_prompt_indexed(Some("baca halaman web ini"));
 
-        // Generic prompt should not dump full web DOM summary or buttons
+        // Generic prompt should not dump full web DOM summary or buttons or unrequested todos
         assert!(!generic_prompt.contains("ACTIVE BROWSER PAGE CONTEXT (GROUND OF TRUTH):"));
         assert!(!generic_prompt.contains("INSTALLED SYSTEM APPLICATIONS (GROUND OF TRUTH):"));
+        assert!(!generic_prompt.contains("USER TO-DO / NOTES:"));
 
         // Both prompts must contain base skills and format rules
         assert!(generic_prompt.contains("ACTION TAG FORMAT"));
         assert!(web_prompt.contains("ACTION TAG FORMAT"));
+
+        // Todo prompt when requested contains todo section if tasks exist
+        let _ = crate::engine::todo::add_task("Test sample task indexing");
+        let todo_prompt = build_system_prompt_indexed(Some("apa to-do list saya?"));
+        assert!(todo_prompt.contains("USER TO-DO / NOTES:"));
     }
 }

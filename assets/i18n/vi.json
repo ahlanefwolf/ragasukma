@@ -1,0 +1,60 @@
+{
+  "music": [
+    "âm nhạc",
+    "bài hát",
+    "phát",
+    "bật",
+    "nhạc",
+    "âm thanh"
+  ],
+  "recipe": [
+    "công thức",
+    "quy trình",
+    "tự động hóa"
+  ],
+  "todo": [
+    "nhiệm vụ",
+    "ghi chú",
+    "nhắc nhở",
+    "lịch trình",
+    "danh sách",
+    "kế hoạch"
+  ],
+  "skill": [
+    "kỹ năng",
+    "lệnh",
+    "chạy",
+    "tập lệnh",
+    "terminal"
+  ],
+  "browser": [
+    "trình duyệt",
+    "web",
+    "trang",
+    "tab",
+    "tìm kiếm",
+    "tóm tắt"
+  ],
+  "desktop": [
+    "màn hình",
+    "cửa sổ",
+    "ứng dụng",
+    "nhấp",
+    "thu nhỏ",
+    "chụp màn hình"
+  ],
+  "app_query": [
+    "ứng dụng",
+    "chương trình",
+    "phần mềm",
+    "đã cài đặt"
+  ],
+  "conjunctions": [
+    "và",
+    "nhưng",
+    "bởi vì",
+    "mặc dù",
+    "trong khi",
+    "cho nên"
+  ]
+}

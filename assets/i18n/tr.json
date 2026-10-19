@@ -1,0 +1,63 @@
+{
+  "music": [
+    "müzik",
+    "şarkı",
+    "çal",
+    "oynat",
+    "ses",
+    "parça"
+  ],
+  "recipe": [
+    "tarif",
+    "iş akışı",
+    "otomasyon",
+    "öğren"
+  ],
+  "todo": [
+    "görev",
+    "not",
+    "hatırlatıcı",
+    "program",
+    "liste",
+    "plan",
+    "tamamlandı"
+  ],
+  "skill": [
+    "beceri",
+    "komut",
+    "çalıştır",
+    "betik",
+    "terminal"
+  ],
+  "browser": [
+    "tarayıcı",
+    "web",
+    "sayfa",
+    "sekme",
+    "ara",
+    "özetle"
+  ],
+  "desktop": [
+    "masaüstü",
+    "ekran",
+    "pencere",
+    "uygulama",
+    "tıkla",
+    "küçült",
+    "ekran görüntüsü"
+  ],
+  "app_query": [
+    "uygulamalar",
+    "programlar",
+    "yazılım",
+    "yüklü"
+  ],
+  "conjunctions": [
+    "ve",
+    "ama",
+    "çünkü",
+    "rağmen",
+    "oysa",
+    "bu yüzden"
+  ]
+}

@@ -207,6 +207,31 @@ pub fn ensure_default_user_assets() {
         }
     }
 
+    // Ensure initial runtime snapshots and empty account registries exist on fresh install
+    let initial_files: &[(&str, &str)] = &[
+        ("antigravity_accounts.json", "[]\n"),
+        ("codex_accounts.json", "[]\n"),
+        (
+            "active_window_app.json",
+            "{\n  \"app_name\": \"\",\n  \"window_title\": \"\",\n  \"window_id\": \"\",\n  \"source\": \"desktop_window\",\n  \"timestamp\": 0,\n  \"windows\": [],\n  \"buttons\": [],\n  \"inputs\": [],\n  \"texts\": [],\n  \"text_summary\": \"\"\n}\n",
+        ),
+        (
+            "active_tab_browser.json",
+            "{\n  \"url\": \"\",\n  \"domain\": \"\",\n  \"title\": \"\",\n  \"timestamp\": 0,\n  \"tabs\": [],\n  \"buttons\": [],\n  \"inputs\": [],\n  \"texts\": [],\n  \"text_summary\": \"\",\n  \"is_loading\": false,\n  \"pending_requests\": 0,\n  \"is_network_idle\": true\n}\n",
+        ),
+    ];
+
+    for (filename, default_content) in initial_files {
+        let target_path = cfg_assets_dir.join(filename);
+        if !target_path.exists() {
+            let _ = fs::write(&target_path, default_content);
+        }
+        let local_path = PathBuf::from("assets").join(filename);
+        if PathBuf::from("Cargo.toml").exists() && !local_path.exists() {
+            let _ = fs::write(&local_path, default_content);
+        }
+    }
+
     #[cfg(target_os = "linux")]
     {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());

@@ -1,0 +1,63 @@
+{
+  "music": [
+    "muziek",
+    "liedje",
+    "afspelen",
+    "nummer",
+    "geluid",
+    "track"
+  ],
+  "recipe": [
+    "recept",
+    "werkstroom",
+    "automatisering",
+    "trainen"
+  ],
+  "todo": [
+    "taak",
+    "notitie",
+    "herinnering",
+    "schema",
+    "lijst",
+    "plan",
+    "voltooid"
+  ],
+  "skill": [
+    "vaardigheid",
+    "opdracht",
+    "uitvoeren",
+    "script",
+    "terminal"
+  ],
+  "browser": [
+    "browser",
+    "web",
+    "pagina",
+    "tabblad",
+    "zoeken",
+    "samenvatten"
+  ],
+  "desktop": [
+    "bureaublad",
+    "scherm",
+    "venster",
+    "app",
+    "klikken",
+    "minimaliseren",
+    "screenshot"
+  ],
+  "app_query": [
+    "apps",
+    "programma",
+    "software",
+    "geïnstalleerd"
+  ],
+  "conjunctions": [
+    "en",
+    "maar",
+    "omdat",
+    "hoewel",
+    "terwijl",
+    "dus"
+  ]
+}

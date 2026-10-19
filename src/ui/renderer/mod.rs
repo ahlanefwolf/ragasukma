@@ -88,6 +88,7 @@ pub struct Renderer {
 
 impl Drop for Renderer {
     fn drop(&mut self) {
+        self.unload_vrm_model();
         self.msaa_texture.destroy();
         self.depth_texture.destroy();
     }
@@ -356,6 +357,20 @@ impl Renderer {
 
     pub fn has_model(&self) -> bool {
         self.model_data.is_some()
+    }
+
+    pub fn unload_vrm_model(&mut self) {
+        for prim in &self.gpu_primitives {
+            prim.vertex_buffer.destroy();
+            prim.index_buffer.destroy();
+        }
+        self.gpu_primitives.clear();
+        self.gpu_materials.clear();
+        self.opaque_primitive_indices.clear();
+        self.transparent_primitive_indices.clear();
+        self.cached_global_transforms.clear();
+        self.model_data = None;
+        println!("[Renderer] 3D VRM Model unloaded from RAM and VRAM.");
     }
 
     pub fn load_vrm_model(&mut self, model: Box<VrmModelData>) {

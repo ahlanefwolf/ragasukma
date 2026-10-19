@@ -8,6 +8,7 @@ import {
   User,
   Bot,
   ChevronRight,
+  ChevronLeft,
   Download
 } from 'lucide-solid';
 import { api, ChatHistoryDay, ChatTurnItem } from '../api';
@@ -23,6 +24,10 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
   const [loadingDates, setLoadingDates] = createSignal(true);
   const [loadingTurns, setLoadingTurns] = createSignal(false);
 
+  // Pagination Signals
+  const [page, setPage] = createSignal(1);
+  const [limit] = createSignal(20);
+
   const loadDates = async (selectFirst = true) => {
     setLoadingDates(true);
     try {
@@ -30,7 +35,8 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
       const list = Array.isArray(data) ? data : [];
       setDates(list);
       if (selectFirst && list.length > 0) {
-        loadHistoryDay(list[0]);
+        setPage(1);
+        loadHistoryDay(list[0], 1);
       } else if (list.length === 0) {
         setSelectedDate('');
         setCurrentHistory(null);
@@ -42,16 +48,34 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
     }
   };
 
-  const loadHistoryDay = async (date: string) => {
+  const loadHistoryDay = async (date: string, targetPage = page()) => {
     setSelectedDate(date);
     setLoadingTurns(true);
     try {
-      const data = await api.getHistoryByDate(date);
+      const data = await api.getHistoryByDate(date, targetPage, limit());
       setCurrentHistory(data);
+      if (data.page) setPage(data.page);
     } catch {
       setCurrentHistory({ date, turns: [] });
     } finally {
       setLoadingTurns(false);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (page() > 1 && !loadingTurns() && selectedDate()) {
+      const prev = page() - 1;
+      setPage(prev);
+      loadHistoryDay(selectedDate(), prev);
+    }
+  };
+
+  const handleNextPage = () => {
+    const totalPages = currentHistory()?.total_pages || 1;
+    if (page() < totalPages && !loadingTurns() && selectedDate()) {
+      const next = page() + 1;
+      setPage(next);
+      loadHistoryDay(selectedDate(), next);
     }
   };
 
@@ -68,7 +92,8 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
         setDates(remaining);
         if (selectedDate() === date) {
           if (remaining.length > 0) {
-            loadHistoryDay(remaining[0]);
+            setPage(1);
+            loadHistoryDay(remaining[0], 1);
           } else {
             setSelectedDate('');
             setCurrentHistory(null);
@@ -119,83 +144,80 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
             <MessageSquare size={22} />
           </div>
           <div>
-            <div class="flex items-center gap-2">
-              <h2 class="font-heading tracking-wide">
-                Chat History
-              </h2>
-              <span class="text-xs font-mono px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan font-bold">
-                {dates().length} Days Recorded
-              </span>
-            </div>
-            <p class="text-xs text-theme-text/70 mt-1">
-              Review dialogue sessions, spoken instructions, and assistant replies
+            <h1 class="text-xl font-heading font-bold text-theme-text tracking-wide uppercase">
+              Conversation History
+            </h1>
+            <p class="text-xs text-theme-text/60 font-mono mt-0.5">
+              Review, search and export daily voice interactions stored in SQLite
             </p>
           </div>
         </div>
 
-        <div class="flex items-center gap-2 self-end sm:self-center">
+        <div class="flex items-center gap-2">
           <button
             onClick={() => loadDates(false)}
             disabled={loadingDates()}
-            class="px-3.5 py-2 text-xs font-semibold bg-theme-bg hover:bg-theme-card border border-theme-border flex items-center gap-2 transition-all cursor-pointer"
-            title="Refresh dates"
+            class="px-3 py-1.5 text-xs font-semibold bg-theme-card border border-theme-border hover:border-theme-cyan text-theme-text transition-all flex items-center gap-1.5"
+            title="Refresh date list"
           >
-            <RefreshCw size={14} class={loadingDates() ? 'animate-spin text-theme-cyan' : ''} />
-            <span class="hidden sm:inline">Refresh</span>
+            <RefreshCw size={13} class={loadingDates() ? 'animate-spin' : ''} />
+            <span>Refresh</span>
           </button>
 
-          <button
-            onClick={handleExportMarkdown}
-            disabled={!currentHistory() || (currentHistory()?.turns.length || 0) === 0}
-            class="px-4 py-2 text-xs font-bold bg-theme-card hover:bg-theme-bg border border-theme-border text-theme-cyan flex items-center gap-2 transition-all cursor-pointer disabled:opacity-40"
-            title="Export markdown file"
-          >
-            <Download size={14} />
-            <span>Export Markdown</span>
-          </button>
+          <Show when={selectedDate() && currentHistory() && currentHistory()!.turns.length > 0}>
+            <button
+              onClick={handleExportMarkdown}
+              class="px-3 py-1.5 text-xs font-semibold bg-theme-cyan text-theme-card border border-theme-cyan shadow-sm hover:brightness-110 transition-all flex items-center gap-1.5 font-bold"
+              title="Download chat history as Markdown file"
+            >
+              <Download size={13} />
+              <span>Export MD</span>
+            </button>
+          </Show>
         </div>
       </div>
 
-      {/* Main Two-Column Layout (Date Sidebar + Chat Log) */}
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Left Column: Dates List */}
-        <div class="md:col-span-1 bg-theme-surface border border-theme-border p-3 space-y-2 h-fit">
-          <div class="flex items-center justify-between pb-2 border-b border-theme-border">
-            <span class="text-xs font-mono uppercase tracking-wider text-theme-text/70 font-bold flex items-center gap-1.5">
-              <Calendar size={13} class="text-theme-cyan" />
-              <span>Log Dates</span>
-            </span>
-            <span class="text-[11px] font-mono text-theme-text/50">
-              {dates().length} files
+      {/* Main Grid: Date Selector + Turn Viewer */}
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
+        {/* Left Column: Dates list */}
+        <div class="md:col-span-1 bg-theme-surface border border-theme-border p-3 space-y-2">
+          <div class="flex items-center gap-2 px-2 py-1 text-xs font-mono text-theme-text/60 border-b border-theme-border pb-2">
+            <Calendar size={14} />
+            <span class="font-bold uppercase tracking-wider">Dates Logged</span>
+            <span class="ml-auto text-[10px] bg-theme-card px-1.5 py-0.5 border border-theme-border">
+              {dates().length}
             </span>
           </div>
 
           <Show when={!loadingDates()} fallback={
-            <div class="p-6 text-center text-xs text-theme-text/50 font-mono">
+            <div class="p-6 text-center text-xs font-mono text-theme-text/50">
               Loading dates...
             </div>
           }>
             <Show when={dates().length > 0} fallback={
-              <div class="p-6 text-center text-xs text-theme-text/50 font-mono">
-                No conversation history found.
+              <div class="p-6 text-center text-xs font-mono text-theme-text/50">
+                No history records yet.
               </div>
             }>
-              <div class="space-y-1 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              <div class="space-y-1 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
                 <For each={dates()}>
                   {(date) => {
                     const isSelected = () => selectedDate() === date;
                     return (
                       <div
-                        onClick={() => loadHistoryDay(date)}
-                        class={`w-full text-left p-2.5 flex items-center justify-between border transition-all cursor-pointer ${
+                        onClick={() => {
+                          setPage(1);
+                          loadHistoryDay(date, 1);
+                        }}
+                        class={`w-full flex items-center justify-between px-3 py-2 text-xs font-mono cursor-pointer border transition-all ${
                           isSelected()
                             ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold shadow-sm'
-                            : 'bg-theme-bg hover:bg-theme-card border-theme-border text-theme-text/80'
+                            : 'bg-theme-card/60 text-theme-text/80 border-theme-border hover:bg-theme-card hover:text-theme-text'
                         }`}
                       >
-                        <div class="flex items-center gap-2 min-w-0">
+                        <div class="flex items-center gap-2">
                           <Clock size={13} class={isSelected() ? 'text-theme-card' : 'text-theme-cyan'} />
-                          <span class="text-xs font-mono truncate">{date}</span>
+                          <span>{date}</span>
                         </div>
                         <button
                           type="button"
@@ -222,83 +244,121 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
         </div>
 
         {/* Right Column: Chat Turns Stream */}
-        <div class="md:col-span-3 bg-theme-surface border border-theme-border p-4 space-y-4 min-h-[400px]">
-          <div class="flex items-center justify-between pb-3 border-b border-theme-border">
-            <div class="flex items-center gap-2">
-              <h3 class="text-theme-text font-heading">
-                {selectedDate() ? `Conversation on ${selectedDate()}` : 'Select a date'}
-              </h3>
-              <Show when={currentHistory()}>
-                <span class="text-xs font-mono px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan">
-                  {currentHistory()!.turns.length} Turns
+        <div class="md:col-span-3 bg-theme-surface border border-theme-border p-4 space-y-4 min-h-[400px] flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between pb-3 border-b border-theme-border">
+              <div class="flex items-center gap-2">
+                <h3 class="text-theme-text font-heading text-sm font-bold">
+                  {selectedDate() ? `Conversation on ${selectedDate()}` : 'Select a date'}
+                </h3>
+                <Show when={currentHistory()}>
+                  <span class="text-xs font-mono px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan">
+                    {currentHistory()!.total_turns ?? currentHistory()!.turns.length} Turns
+                  </span>
+                </Show>
+              </div>
+
+              <Show when={currentHistory() && (currentHistory()!.total_pages || 1) > 1}>
+                <span class="text-xs font-mono text-theme-text/50">
+                  Page {page()} of {currentHistory()!.total_pages}
                 </span>
               </Show>
             </div>
-          </div>
 
-          <Show when={!loadingTurns()} fallback={
-            <div class="p-12 text-center text-xs font-mono text-theme-text/50">
-              Loading chat turns...
-            </div>
-          }>
-            <Show when={currentHistory() && currentHistory()!.turns.length > 0} fallback={
-              <div class="p-12 text-center text-xs font-mono text-theme-text/50 space-y-2">
-                <MessageSquare size={32} class="mx-auto text-theme-text/30" />
-                <p>No messages recorded for this date.</p>
+            <Show when={!loadingTurns()} fallback={
+              <div class="p-12 text-center text-xs font-mono text-theme-text/50">
+                Loading chat turns...
               </div>
             }>
-              <div class="space-y-3.5 max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar">
-                <For each={currentHistory()!.turns}>
-                  {(turn) => {
-                    const isAssistant = () => turn.speaker.toLowerCase().includes('sukma') ||
-                      turn.speaker.toLowerCase().includes('assistant') ||
-                      turn.speaker.toLowerCase().includes('ai');
+              <Show when={currentHistory() && currentHistory()!.turns.length > 0} fallback={
+                <div class="p-12 text-center text-xs font-mono text-theme-text/50 space-y-2">
+                  <MessageSquare size={32} class="mx-auto text-theme-text/30" />
+                  <p>No messages recorded for this date.</p>
+                </div>
+              }>
+                <div class="space-y-3.5 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar pt-2">
+                  <For each={currentHistory()!.turns}>
+                    {(turn) => {
+                      const isAssistant = () => turn.speaker.toLowerCase().includes('sukma') ||
+                        turn.speaker.toLowerCase().includes('assistant') ||
+                        turn.speaker.toLowerCase().includes('ai');
 
-                    return (
-                      <div class={`p-3.5 border transition-all ${
-                        isAssistant()
-                          ? 'bg-theme-bg border-theme-cyan/30 ml-2 sm:ml-6'
-                          : 'bg-theme-card border-theme-border mr-2 sm:mr-6'
-                      }`}>
-                        <div class="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-theme-border/40">
-                          <div class="flex items-center gap-2">
-                            {isAssistant() ? (
-                              <span class="p-1 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30">
-                                <Bot size={13} />
+                      return (
+                        <div class={`p-3.5 border transition-all ${
+                          isAssistant()
+                            ? 'bg-theme-bg border-theme-cyan/30 ml-2 sm:ml-6'
+                            : 'bg-theme-card border-theme-border mr-2 sm:mr-6'
+                        }`}>
+                          <div class="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-theme-border/40">
+                            <div class="flex items-center gap-2">
+                              {isAssistant() ? (
+                                <span class="p-1 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30">
+                                  <Bot size={13} />
+                                </span>
+                              ) : (
+                                <span class="p-1 bg-theme-border text-theme-text/80 border border-theme-border">
+                                  <User size={13} />
+                                </span>
+                              )}
+                              <span class={`text-xs font-bold font-mono ${isAssistant() ? 'text-theme-cyan' : 'text-theme-text'}`}>
+                                {turn.speaker}
                               </span>
-                            ) : (
-                              <span class="p-1 bg-theme-border text-theme-text/80 border border-theme-border">
-                                <User size={13} />
-                              </span>
-                            )}
-                            <span class={`text-xs font-bold font-mono ${isAssistant() ? 'text-theme-cyan' : 'text-theme-text'}`}>
-                              {turn.speaker}
+                            </div>
+                            <span class="text-[10.5px] font-mono text-theme-text/50 flex items-center gap-1.5">
+                              <Clock size={11} />
+                              <span>{turn.time.split('+')[0].split('-')[0]}</span>
+                              {turn.time.includes('+') && (
+                                <span class="px-1.5 py-0.2 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30 text-[9.5px] font-bold">
+                                  UTC+{turn.time.split('+')[1]}
+                                </span>
+                              )}
+                              {turn.time.includes('-') && turn.time.split('-').length > 1 && !turn.time.startsWith('-') && (
+                                <span class="px-1.5 py-0.2 bg-theme-card text-theme-text/70 border border-theme-border text-[9.5px] font-bold">
+                                  UTC-{turn.time.split('-')[1]}
+                                </span>
+                              )}
                             </span>
                           </div>
-                          <span class="text-[10.5px] font-mono text-theme-text/50 flex items-center gap-1.5">
-                            <Clock size={11} />
-                            <span>{turn.time.split('+')[0].split('-')[0]}</span>
-                            {turn.time.includes('+') && (
-                              <span class="px-1.5 py-0.2 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30 text-[9.5px] font-bold">
-                                UTC+{turn.time.split('+')[1]}
-                              </span>
-                            )}
-                            {turn.time.includes('-') && turn.time.split('-').length > 1 && !turn.time.startsWith('-') && (
-                              <span class="px-1.5 py-0.2 bg-theme-card text-theme-text/70 border border-theme-border text-[9.5px] font-bold">
-                                UTC-{turn.time.split('-')[1]}
-                              </span>
-                            )}
-                          </span>
+                          <p class="text-xs leading-relaxed text-theme-text/90 font-sans whitespace-pre-wrap select-text">
+                            {turn.message}
+                          </p>
                         </div>
-                        <p class="text-xs leading-relaxed text-theme-text/90 font-sans whitespace-pre-wrap select-text">
-                          {turn.message}
-                        </p>
-                      </div>
-                    );
-                  }}
-                </For>
-              </div>
+                      );
+                    }}
+                  </For>
+                </div>
+              </Show>
             </Show>
+          </div>
+
+          {/* Pagination Controls */}
+          <Show when={currentHistory() && (currentHistory()!.total_pages || 1) > 1}>
+            <div class="pt-3 border-t border-theme-border flex items-center justify-between">
+              <span class="text-xs font-mono text-theme-text/60">
+                Showing page <span class="text-theme-text font-bold">{page()}</span> of{' '}
+                <span class="text-theme-text font-bold">{currentHistory()!.total_pages}</span>
+              </span>
+
+              <div class="flex items-center gap-2">
+                <button
+                  onClick={handlePrevPage}
+                  disabled={page() <= 1 || loadingTurns()}
+                  class="px-3 py-1.5 text-xs font-semibold bg-theme-card border border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan transition-all flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft size={14} />
+                  <span>Previous</span>
+                </button>
+
+                <button
+                  onClick={handleNextPage}
+                  disabled={page() >= (currentHistory()?.total_pages || 1) || loadingTurns()}
+                  class="px-3 py-1.5 text-xs font-semibold bg-theme-card border border-theme-border text-theme-text/80 hover:text-theme-text hover:border-theme-cyan transition-all flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span>Next</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
           </Show>
         </div>
       </div>

@@ -35,6 +35,10 @@ pub fn register_llm_routes(
         .route("/api/llm/codex/oauth/url", get(axum_cx_oauth_url))
         .route("/api/llm/codex/oauth/callback", get(crate::services::llm_providers::codex_service::axum_codex_oauth_callback))
         .route("/api/llm/codex/oauth/exchange", post(axum_cx_oauth_exchange))
+        // LLM Token Usage
+        .route("/api/llm/usage/summary", get(axum_usage_summary))
+        .route("/api/llm/usage/records", get(axum_usage_records))
+        .route("/api/llm/usage/clear", post(axum_usage_clear))
 }
 
 // -----------------------------------------------------------------------------
@@ -742,6 +746,54 @@ pub(crate) async fn axum_cx_oauth_exchange(Json(payload): Json<ExchangeCodexCode
             Json(json!({ "status": "error", "error": msg })),
         )
             .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "status": "error", "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+// -----------------------------------------------------------------------------
+// 3. LLM Token Usage Service
+// -----------------------------------------------------------------------------
+#[derive(Deserialize)]
+pub(crate) struct UsageQuery {
+    pub(crate) provider: Option<String>,
+    pub(crate) date: Option<String>,
+    pub(crate) page: Option<usize>,
+    pub(crate) limit: Option<usize>,
+    pub(crate) offset: Option<usize>,
+}
+
+pub(crate) async fn axum_usage_summary(Query(q): Query<UsageQuery>) -> impl IntoResponse {
+    let summary = crate::llm::usage::get_usage_summary(q.provider.as_deref(), q.date.as_deref()).await;
+    Json(summary)
+}
+
+pub(crate) async fn axum_usage_records(Query(q): Query<UsageQuery>) -> impl IntoResponse {
+    let limit = q.limit.unwrap_or(25).min(200);
+    let page = q.page.unwrap_or_else(|| {
+        if let Some(off) = q.offset {
+            (off / limit) + 1
+        } else {
+            1
+        }
+    });
+
+    let paginated = crate::llm::usage::get_usage_records_paginated(
+        q.provider.as_deref(),
+        q.date.as_deref(),
+        page,
+        limit,
+    )
+    .await;
+    Json(paginated)
+}
+
+pub(crate) async fn axum_usage_clear() -> impl IntoResponse {
+    match crate::llm::usage::clear_usage().await {
+        Ok(_) => Json(json!({ "status": "success", "success": true })).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "status": "error", "error": e.to_string() })),

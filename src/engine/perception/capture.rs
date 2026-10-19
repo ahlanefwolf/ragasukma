@@ -1,5 +1,5 @@
 use image::{DynamicImage, RgbaImage};
-use xcap::{Monitor, Window};
+use xcap::Monitor;
 
 #[cfg(target_os = "linux")]
 fn capture_screen_image_linux_fallback() -> Result<DynamicImage, String> {
@@ -93,23 +93,4 @@ pub fn capture_screen_image() -> Result<DynamicImage, String> {
     });
 
     xcap_res
-}
-
-/// Capture specific active window image
-pub fn capture_window_image_by_title(target_title: &str) -> Result<DynamicImage, String> {
-    let windows = Window::all().map_err(|e| format!("Failed to list windows: {e}"))?;
-    let lower = target_title.to_lowercase();
-
-    for win in windows {
-        if win.title().to_lowercase().contains(&lower) {
-            let frame = win
-                .capture_image()
-                .map_err(|e| format!("Window capture error: {e}"))?;
-            let img_buf = RgbaImage::from_raw(frame.width(), frame.height(), frame.into_raw())
-                .ok_or_else(|| "Failed to construct ImageBuffer from window frame".to_string())?;
-            return Ok(DynamicImage::ImageRgba8(img_buf));
-        }
-    }
-
-    capture_screen_image()
 }

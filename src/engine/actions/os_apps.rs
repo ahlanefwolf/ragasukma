@@ -79,7 +79,7 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
                 app_name: snap.app_name.clone(),
                 title: snap.window_title.clone(),
                 active: true,
-                window_id: snap.window_id.clone(),
+                window_id: snap.window_id,
             });
         }
 

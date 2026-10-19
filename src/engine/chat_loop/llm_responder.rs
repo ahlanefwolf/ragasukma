@@ -5,19 +5,6 @@ use crate::audio::tts::TextToSpeech;
 use crate::llm::LlmClient;
 use crate::tray::{AssistantState, TrayState};
 
-pub fn detect_emotion(text: &str) -> String {
-    crate::ui::renderer::expressions::detect_emotion_with_fallback(text).to_string()
-}
-
-pub fn process_llm_response(
-    llm: &mut LlmClient,
-    tts: &Arc<TextToSpeech>,
-    asst_name: &str,
-    effective_input: &str,
-) -> Result<String, anyhow::Error> {
-    process_llm_response_with_role(llm, tts, asst_name, "user", effective_input)
-}
-
 pub fn process_llm_response_with_role(
     llm: &mut LlmClient,
     tts: &Arc<TextToSpeech>,
@@ -71,15 +58,6 @@ pub fn process_llm_response_with_role(
             }
         }
 
-        TrayState::emit_event(
-            "assistant:stream-chunk",
-            serde_json::json!({
-                "sentence": &clean_sentence,
-                "chunk": &clean_sentence,
-                "speaker": asst_name
-            }),
-        );
-
         print!("{} ", clean_sentence);
         use std::io::Write;
         let _ = std::io::stdout().flush();
@@ -89,7 +67,7 @@ pub fn process_llm_response_with_role(
 
     println!();
 
-    let full_response_text = match &result {
+    match &result {
         Ok(txt) => {
             // Selesaikan session streaming voice (sinkronisasi kalimat terakhir)
             voice_session.finish();
@@ -108,8 +86,6 @@ pub fn process_llm_response_with_role(
                     crate::term_log!("[Browser AI Search] Cleared transient search summary from active DOM context.");
                 }
             }
-
-            txt.clone()
         }
         Err(e) => {
             // Hentikan antrean audio jika LLM terputus atau gagal
@@ -128,17 +104,8 @@ pub fn process_llm_response_with_role(
                     Some("en"),
                 );
             }
-
-            String::new()
         }
-    };
-
-    TrayState::emit_event(
-        "assistant:response-done",
-        serde_json::json!({
-            "text": &full_response_text
-        }),
-    );
+    }
 
     result
 }

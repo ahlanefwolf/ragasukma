@@ -12,6 +12,7 @@ import {
   remoteService,
   recipeService,
   historyService,
+  usageService,
 } from './services';
 
 export * from './services';
@@ -108,6 +109,11 @@ export const api = {
   getHistoryByDate: historyService.getHistoryByDate,
   deleteHistory: historyService.deleteHistory,
 
+  // LLM Token Usage Service
+  getUsageSummary: usageService.getUsageSummary,
+  getUsageRecords: usageService.getUsageRecords,
+  clearUsage: usageService.clearUsage,
+
   // Model Manager Service
   getModelStatus: eventsService.getModelStatus,
   subscribeModelStatus: eventsService.subscribeModelStatus,
@@ -116,3 +122,4 @@ export const api = {
 
 export type { AntigravityAccount, AntigravityQuotaResponse } from './services/antigravityService';
 export type { CodexAccount, CodexQuotaResponse, CodexQuotaWindow, CodexModelItem } from './services/codexService';
+export type { LlmUsageRecord, LlmUsageSummary, LlmUsagePaginatedResponse } from './services/usageService';

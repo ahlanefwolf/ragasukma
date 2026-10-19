@@ -1,0 +1,60 @@
+{
+  "music": [
+    "glasba",
+    "pesem",
+    "predvajaj",
+    "zvok",
+    "skladba"
+  ],
+  "recipe": [
+    "recept",
+    "delovni potek",
+    "avtomatizacija"
+  ],
+  "todo": [
+    "opravilo",
+    "opomba",
+    "opomnik",
+    "urnik",
+    "seznam",
+    "načrt"
+  ],
+  "skill": [
+    "veščina",
+    "ukaz",
+    "zaženi",
+    "skript",
+    "terminal"
+  ],
+  "browser": [
+    "brskalnik",
+    "splet",
+    "stran",
+    "zavihek",
+    "išči",
+    "povzemi"
+  ],
+  "desktop": [
+    "namizje",
+    "zaslon",
+    "okno",
+    "aplikacija",
+    "klikni",
+    "pomanjšaj",
+    "posnetek zaslona"
+  ],
+  "app_query": [
+    "aplikacije",
+    "programi",
+    "programska oprema",
+    "nameščene"
+  ],
+  "conjunctions": [
+    "in",
+    "toda",
+    "ker",
+    "čeprav",
+    "medtem ko",
+    "zato"
+  ]
+}

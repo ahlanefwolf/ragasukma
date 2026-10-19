@@ -4,7 +4,6 @@ use std::thread;
 
 use crate::app_state::push_client_action;
 use crate::engine::ytdlp::download_audio;
-use crate::tray::TrayState;
 
 #[derive(Debug, Clone)]
 pub enum BackgroundTask {
@@ -22,6 +21,17 @@ static TASK_SENDER: Mutex<Option<Sender<BackgroundTask>>> = Mutex::new(None);
 static CURRENT_TASK_INFO: Mutex<Option<BackgroundTaskState>> = Mutex::new(None);
 static ACTIVE_DOWNLOADS: std::sync::LazyLock<Mutex<std::collections::HashSet<String>>> =
     std::sync::LazyLock::new(|| Mutex::new(std::collections::HashSet::new()));
+
+struct DownloadGuard(String);
+
+impl Drop for DownloadGuard {
+    fn drop(&mut self) {
+        if let Ok(mut active) = ACTIVE_DOWNLOADS.lock() {
+            active.remove(&self.0);
+        }
+        set_current_task(None);
+    }
+}
 
 /// Initialize dedicated background worker thread for yt-dlp & other heavy asynchronous tasks
 pub fn init_background_task_worker() {
@@ -41,91 +51,60 @@ pub fn init_background_task_worker() {
         .name("ragasukma-task-worker".to_string())
         .stack_size(2 * 1024 * 1024);
 
-    builder
-        .spawn(move || {
-            crate::term_log!("[Task Worker] Dedicated Background Task Engine ready.");
+    if let Err(e) = builder.spawn(move || {
+        crate::term_log!("[Task Worker] Dedicated Background Task Engine ready.");
 
-            while let Ok(task) = rx.recv() {
-                match task {
-                    BackgroundTask::DownloadAndPlayMusic { query } => {
-                        set_current_task(Some(BackgroundTaskState {
-                            is_busy: true,
-                            task_type: "ytdlp_download".to_string(),
-                            description: format!("Downloading song: {query}"),
-                        }));
+        while let Ok(task) = rx.recv() {
+            match task {
+                BackgroundTask::DownloadAndPlayMusic { query } => {
+                    let _guard = DownloadGuard(query.trim().to_lowercase());
+                    set_current_task(Some(BackgroundTaskState {
+                        is_busy: true,
+                        task_type: "ytdlp_download".to_string(),
+                        description: format!("Downloading song: {query}"),
+                    }));
 
-                        crate::term_log!(" [Task Worker: yt-dlp] Downloading in background: '{}'...", query);
-                        TrayState::emit_event(
-                            "task:started",
-                            serde_json::json!({
-                                "type": "ytdlp_download",
-                                "query": &query,
-                                "status": "downloading"
-                            }),
-                        );
+                    crate::term_log!(" [Task Worker: yt-dlp] Downloading in background: '{}'...", query);
 
-                        let music_dir = crate::config::get_music_dir();
-                        match download_audio(&query, &music_dir) {
-                            Ok(track) => {
-                                crate::term_log!(
-                                    " [Task Worker: yt-dlp] Done: '{}' -> Playing directly to speaker!",
-                                    track.title
-                                );
+                    let music_dir = crate::config::get_music_dir();
+                    match download_audio(&query, &music_dir) {
+                        Ok(track) => {
+                            crate::term_log!(
+                                " [Task Worker: yt-dlp] Done: '{}' -> Playing directly to speaker!",
+                                track.title
+                            );
 
-                                // 1. Play directly via desktop speakers (Native Audio Player)
-                                let file_path = music_dir.join(&track.filename);
-                                crate::audio::player::play_file(&file_path, &track.title);
+                            // 1. Play directly via desktop speakers (Native Audio Player)
+                            let file_path = music_dir.join(&track.filename);
+                            crate::audio::player::play_file(&file_path, &track.title);
 
-                                // 2. Sync to Web Dashboard
-                                push_client_action("music:play", Some(&track.title));
+                            // 2. Sync to Web Dashboard
+                            push_client_action("music:play", Some(&track.title));
 
-                                TrayState::emit_event(
-                                    "task:completed",
-                                    serde_json::json!({
-                                        "type": "ytdlp_download",
-                                        "title": track.title,
-                                        "status": "success"
-                                    }),
-                                );
-
-                                // 3. Send a signal to the assistant so that it speaks to inform the user that the song has finished downloading & playing
-                                let notify_msg = format!(
-                                    "[SYSTEM STATUS: Song '{}' has been downloaded and is now playing automatically. Inform the user briefly and warmly. DO NOT include any [CMD:media:play] or other commands — music is already playing.]",
-                                    track.title
-                                );
-                                crate::engine::remote_text::inject_remote_text(notify_msg);
-                            }
-                            Err(e) => {
-                                crate::term_err!(" [Task Worker: yt-dlp] Failed to download '{}': {e}", query);
-                                TrayState::emit_event(
-                                    "task:failed",
-                                    serde_json::json!({
-                                        "type": "ytdlp_download",
-                                        "query": &query,
-                                        "error": e.to_string(),
-                                        "status": "failed"
-                                    }),
-                                );
-
-                                // Send a signal to assistant so that notifies the user that the download failed
-                                let err_msg = format!(
-                                    "[SYSTEM STATUS: Failed to download song '{}'. Detail: {}. Inform the user briefly and warmly. DO NOT include any commands.]",
-                                    query, e
-                                );
-                                crate::engine::remote_text::inject_remote_text(err_msg);
-                            }
+                            // 3. Send a signal to the assistant so that it speaks to inform the user that the song has finished downloading & playing
+                            let notify_msg = format!(
+                                "[SYSTEM STATUS: Song '{}' has been downloaded and is now playing automatically. Inform the user briefly and warmly. DO NOT include any [CMD:media:play] or other commands — music is already playing.]",
+                                track.title
+                            );
+                            crate::engine::remote_text::inject_remote_text(notify_msg);
                         }
+                        Err(e) => {
+                            crate::term_err!(" [Task Worker: yt-dlp] Failed to download '{}': {e}", query);
 
-                        if let Ok(mut active) = ACTIVE_DOWNLOADS.lock() {
-                            active.remove(&query.trim().to_lowercase());
+                            // Send a signal to assistant so that notifies the user that the download failed
+                            let err_msg = format!(
+                                "[SYSTEM STATUS: Failed to download song '{}'. Detail: {}. Inform the user briefly and warmly. DO NOT include any commands.]",
+                                query, e
+                            );
+                            crate::engine::remote_text::inject_remote_text(err_msg);
                         }
-
-                        set_current_task(None);
                     }
                 }
             }
-        })
-        .expect("Failed to spawn background task worker thread");
+        }
+    }) {
+        crate::term_err!("[Task Worker] Failed to spawn background task worker thread: {e}");
+    }
 }
 
 fn set_current_task(state: Option<BackgroundTaskState>) {

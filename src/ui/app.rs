@@ -37,6 +37,27 @@ pub struct App {
     pub listening_duration: f32,
 }
 
+fn spawn_vrm_loader(label: &'static str) -> std::sync::mpsc::Receiver<Box<VrmModelData>> {
+    let (vrm_tx, vrm_rx) = std::sync::mpsc::channel::<Box<VrmModelData>>();
+    std::thread::spawn(move || {
+        let vrm_candidates = [
+            assets::find_file_in_candidates("char.vrm"),
+            PathBuf::from("assets/char.vrm"),
+            PathBuf::from("../assets/char.vrm"),
+        ];
+        for p in &vrm_candidates {
+            if p.exists() {
+                println!("[Async Asset Loader] {label}: {:?}", p);
+                if let Ok(model) = VrmModelData::load_from_file(p) {
+                    let _ = vrm_tx.send(model);
+                    break;
+                }
+            }
+        }
+    });
+    vrm_rx
+}
+
 impl App {
     pub async fn new(window_target: &EventLoopWindowTarget<()>) -> anyhow::Result<Self> {
         let initial_cfg = assets::load_config();
@@ -101,26 +122,7 @@ impl App {
         let is_vrm = initial_cfg.avatar_type.eq_ignore_ascii_case("vrm");
         let vrm_loader_rx = if is_vrm {
             renderer.is_loading = true;
-            let (vrm_tx, vrm_rx) = std::sync::mpsc::channel::<Box<VrmModelData>>();
-            std::thread::spawn(move || {
-                let candidates = [
-                    assets::find_file_in_candidates("char.vrm"),
-                    PathBuf::from("assets/char.vrm"),
-                ];
-                for p in &candidates {
-                    if p.exists() {
-                        println!(
-                            "[Async Asset Loader] Loading avatar model in background: {:?}",
-                            p
-                        );
-                        if let Ok(model) = VrmModelData::load_from_file(p) {
-                            let _ = vrm_tx.send(model);
-                            break;
-                        }
-                    }
-                }
-            });
-            Some(vrm_rx)
+            Some(spawn_vrm_loader("Loading avatar model in background"))
         } else {
             renderer.is_loading = false;
             None
@@ -435,27 +437,7 @@ impl App {
 
                         if lock.vrm_updated {
                             self.renderer.is_loading = true;
-                            let (vrm_tx, vrm_rx) = std::sync::mpsc::channel::<Box<VrmModelData>>();
-                            std::thread::spawn(move || {
-                                let vrm_candidates = [
-                                    assets::find_file_in_candidates("char.vrm"),
-                                    PathBuf::from("assets/char.vrm"),
-                                    PathBuf::from("../assets/char.vrm"),
-                                ];
-                                for p in &vrm_candidates {
-                                    if p.exists() {
-                                        println!(
-                                            "[Async Asset Loader] Reloading avatar model in background: {:?}",
-                                            p
-                                        );
-                                        if let Ok(model) = VrmModelData::load_from_file(p) {
-                                            let _ = vrm_tx.send(model);
-                                            break;
-                                        }
-                                    }
-                                }
-                            });
-                            self.vrm_loader_rx = Some(vrm_rx);
+                            self.vrm_loader_rx = Some(spawn_vrm_loader("Reloading avatar model in background"));
                             self.renderer.reload_2d_avatar_textures();
                             lock.vrm_updated = false;
                         }
@@ -486,34 +468,14 @@ impl App {
                                 .eq_ignore_ascii_case(&old_avatar_type)
                             {
                                 if self.renderer.avatar_type.eq_ignore_ascii_case("2d") {
+                                    self.renderer.unload_vrm_model();
+                                    self.vrm_loader_rx = None;
+                                    self.renderer.is_loading = false;
                                     self.renderer.reload_2d_avatar_textures();
                                 } else if self.renderer.avatar_type.eq_ignore_ascii_case("vrm") {
                                     if !self.renderer.has_model() && self.vrm_loader_rx.is_none() {
                                         self.renderer.is_loading = true;
-                                        let (vrm_tx, vrm_rx) =
-                                            std::sync::mpsc::channel::<Box<VrmModelData>>();
-                                        std::thread::spawn(move || {
-                                            let vrm_candidates = [
-                                                assets::find_file_in_candidates("char.vrm"),
-                                                PathBuf::from("assets/char.vrm"),
-                                                PathBuf::from("../assets/char.vrm"),
-                                            ];
-                                            for p in &vrm_candidates {
-                                                if p.exists() {
-                                                    println!(
-                                                        "[Async Asset Loader] Loading avatar model in background: {:?}",
-                                                        p
-                                                    );
-                                                    if let Ok(model) =
-                                                        VrmModelData::load_from_file(p)
-                                                    {
-                                                        let _ = vrm_tx.send(model);
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                        });
-                                        self.vrm_loader_rx = Some(vrm_rx);
+                                        self.vrm_loader_rx = Some(spawn_vrm_loader("Loading avatar model in background"));
                                     }
                                 }
                             }

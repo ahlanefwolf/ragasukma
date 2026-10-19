@@ -326,7 +326,10 @@ pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
             .enable_all()
             .build()
         {
-            Ok(r) => r,
+            Ok(r) => {
+                crate::app_state::set_tokio_handle(r.handle().clone());
+                r
+            }
             Err(e) => {
                 eprintln!("[Web Server] Failed to initialize Tokio runtime: {}", e);
                 return;

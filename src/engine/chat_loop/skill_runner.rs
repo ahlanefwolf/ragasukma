@@ -3,7 +3,6 @@ use std::sync::Arc;
 use crate::audio::tts::TextToSpeech;
 use crate::engine::actions::execute_skill_by_identifier;
 use crate::llm::LlmClient;
-use crate::tray::TrayState;
 
 static RE_SKILL: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
     regex::Regex::new(r"\[(?:SKILL|CMD):([^\]]+)\]").expect("valid skill regex")
@@ -86,18 +85,6 @@ pub fn handle_skill_execution(
     handle_skill_execution_inner(llm, tts, asst_name, full_reply, effective_input, 0, &mut executed_ids);
 }
 
-pub fn handle_skill_execution_with_depth(
-    llm: &mut LlmClient,
-    tts: &Arc<TextToSpeech>,
-    asst_name: &str,
-    full_reply: &str,
-    effective_input: &str,
-    depth: usize,
-) {
-    let mut executed_ids = std::collections::HashSet::new();
-    handle_skill_execution_inner(llm, tts, asst_name, full_reply, effective_input, depth, &mut executed_ids);
-}
-
 fn handle_skill_execution_inner(
     llm: &mut LlmClient,
     tts: &Arc<TextToSpeech>,
@@ -151,15 +138,6 @@ fn handle_skill_execution_inner(
                     id,
                     clean_out
                 );
-                TrayState::emit_event(
-                    "assistant:skill",
-                    serde_json::json!({
-                        "id": id,
-                        "name": skill_name,
-                        "status": "success",
-                        "output": &clean_out
-                    }),
-                );
 
                 skill_results.push((skill_name, clean_out, true));
 
@@ -186,17 +164,8 @@ fn handle_skill_execution_inner(
                 };
 
                 crate::term_err!("[ACTION FAILED]: {err_msg}");
-                TrayState::emit_event(
-                    "assistant:skill",
-                    serde_json::json!({
-                        "id": id,
-                        "name": id,
-                        "status": "failed",
-                        "output": &err_msg
-                    }),
-                );
 
-                skill_results.push((id, err_msg, false));
+                skill_results.push((id.clone(), err_msg, false));
             }
         }
     }

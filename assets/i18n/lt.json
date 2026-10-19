@@ -1,0 +1,59 @@
+{
+  "music": [
+    "muzika",
+    "daina",
+    "groti",
+    "garsas",
+    "kūrinys"
+  ],
+  "recipe": [
+    "receptas",
+    "darbo eiga",
+    "automatizavimas"
+  ],
+  "todo": [
+    "užduotis",
+    "pastaba",
+    "pr priminimas",
+    "tvarkaraštis",
+    "sąrašas",
+    "planas"
+  ],
+  "skill": [
+    "įgūdis",
+    "komanda",
+    "vykdyti",
+    "scenarijus",
+    "terminalas"
+  ],
+  "browser": [
+    "naršyklė",
+    "internetas",
+    "puslapis",
+    "skirtukas",
+    "ieškoti",
+    "apibendrinti"
+  ],
+  "desktop": [
+    "darbalaukis",
+    "ekranas",
+    "langas",
+    "programėlė",
+    "spustelėti",
+    "ekrano kopija"
+  ],
+  "app_query": [
+    "programėlės",
+    "programos",
+    "programinė įranga",
+    "įdiegtos"
+  ],
+  "conjunctions": [
+    "ir",
+    "bet",
+    "nes",
+    "nors",
+    "kol",
+    "todėl"
+  ]
+}

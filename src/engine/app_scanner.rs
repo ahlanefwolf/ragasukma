@@ -331,11 +331,7 @@ pub fn format_installed_apps_indexed(query: Option<&str>) -> String {
     let matched_apps: Vec<String> = if !matches.is_empty() {
         matches
     } else {
-        let is_asking_for_apps = q_clean.contains("app")
-            || q_clean.contains("aplikasi")
-            || q_clean.contains("program")
-            || q_clean.contains("software")
-            || q_clean.contains("installed");
+        let is_asking_for_apps = crate::engine::intent::is_app_query_intent(&q_clean);
         if is_asking_for_apps {
             apps.iter().take(20).map(|a| a.display_label()).collect()
         } else {

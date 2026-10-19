@@ -68,6 +68,14 @@ impl TextToSpeech {
             .name("ragasukma-tts-stream".to_string())
             .stack_size(1024 * 1024)
             .spawn(move || {
+                let session_id = format!(
+                    "{:x}_{}",
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis(),
+                    std::process::id()
+                );
                 let cfg = crate::assets::load_config();
                 let voice = if !cfg.tts_voice_name.is_empty() {
                     cfg.tts_voice_name.clone()
@@ -92,6 +100,7 @@ impl TextToSpeech {
                 let mut accumulated_full_text = String::new();
                 let mut first_emotion = String::new();
                 let mut sentence_count = 0usize;
+                let mut global_chunk_counter = 0usize;
                 let mut total_audio_duration = 0.0f32;
 
                 while let Ok(msg) = rx.recv() {
@@ -138,6 +147,7 @@ impl TextToSpeech {
                                 let voice_for_closure = voice.clone();
                                 let lang_for_closure = lang.clone();
                                 let cur_sent_idx = sentence_count;
+                                let sess_id_closure = session_id.clone();
 
                                 let synth_res = engine.synthesize_stream(
                                     &clean_text,
@@ -156,6 +166,9 @@ impl TextToSpeech {
                                         if let Some(pc_stream) = pc_stream_ref {
                                             pc_stream.push_chunk_pcm(chunk_samples, chunk_rate);
                                         }
+
+                                        let chunk_global_idx = global_chunk_counter;
+                                        global_chunk_counter += 1;
 
                                         let chunk_id = format!(
                                             "{:x}_{}_{}",
@@ -178,8 +191,12 @@ impl TextToSpeech {
                                             "duration": chunk_dur,
                                             "voice": voice_for_closure,
                                             "lang": lang_for_closure,
-                                            "chunk_index": chunk_idx,
-                                            "total_chunks": total_chunks,
+                                            "chunk_index": chunk_global_idx,
+                                            "sentence_index": cur_sent_idx,
+                                            "session_id": sess_id_closure,
+                                            "sub_chunk_index": chunk_idx,
+                                            "sub_total_chunks": total_chunks,
+                                            "total_chunks": chunk_global_idx + 1,
                                             "is_chunk": true,
                                             "native_played": !crate::app_state::is_voice_muted()
                                         })
@@ -202,8 +219,6 @@ impl TextToSpeech {
                             }
 
                             if !accumulated_full_text.is_empty() {
-                                crate::app_state::record_last_spoken_text(&accumulated_full_text);
-
                                 let payload = serde_json::json!({
                                     "text": accumulated_full_text,
                                     "emotion": if first_emotion.is_empty() { "neutral" } else { &first_emotion },
@@ -211,7 +226,10 @@ impl TextToSpeech {
                                     "duration": if total_audio_duration > 0.0 { Some(total_audio_duration) } else { None },
                                     "voice": voice,
                                     "lang": lang,
+                                    "session_id": session_id,
+                                    "total_chunks": global_chunk_counter,
                                     "is_chunk": false,
+                                    "is_finish": true,
                                     "native_played": !crate::app_state::is_voice_muted()
                                 })
                                 .to_string();
@@ -329,6 +347,7 @@ impl TextToSpeech {
                     "lang": lang_for_worker,
                     "chunk_index": item.chunk_idx,
                     "total_chunks": item.total_chunks,
+                    "session_id": format!("{:x}", simple_hash_u64(&clean_text_for_worker)),
                     "is_chunk": true,
                     "native_played": !crate::app_state::is_voice_muted()
                 })
@@ -342,8 +361,8 @@ impl TextToSpeech {
         // ---------------------------------------------------------------------
         let native_pc_stream = if !crate::app_state::is_voice_muted() {
             Some(crate::audio::player::start_voice_stream(
-                emotion_str.clone(),
-                asst_name_str.clone(),
+                emotion_str,
+                asst_name_str,
             ))
         } else {
             None
@@ -427,8 +446,6 @@ impl TextToSpeech {
             .and_then(|bytes| wav_duration_secs(bytes));
 
         let native_played = synthesized && !crate::app_state::is_voice_muted();
-
-        crate::app_state::record_last_spoken_text(&clean_text);
 
         // 1. Sync full text and fallback combined audio_url to clients (Desktop & Mobile) via action
         let payload = serde_json::json!({

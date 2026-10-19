@@ -1,8 +1,9 @@
-use std::fs::OpenOptions;
-use std::io::Write;
+use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(windows)]
-fn get_local_date_and_time() -> (String, String) {
+pub fn get_local_date_and_time() -> (String, String) {
     #[repr(C)]
     struct SystemTime {
         w_year: u16,
@@ -64,7 +65,7 @@ fn get_local_date_and_time() -> (String, String) {
 }
 
 #[cfg(not(windows))]
-fn get_local_date_and_time() -> (String, String) {
+pub fn get_local_date_and_time() -> (String, String) {
     let now = std::time::SystemTime::now();
     let secs = now
         .duration_since(std::time::UNIX_EPOCH)
@@ -131,6 +132,36 @@ fn get_local_date_and_time() -> (String, String) {
     )
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ChatHistoryRecord {
+    pub id: String,
+    pub timestamp: i64,
+    pub date_str: String,
+    pub time_str: String,
+    pub callsign: String,
+    pub assistant_name: String,
+    pub role: String,
+    pub user_msg: String,
+    pub assistant_msg: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatTurnItem {
+    pub time: String,
+    pub speaker: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ChatHistoryPaginatedResponse {
+    pub date: String,
+    pub turns: Vec<ChatTurnItem>,
+    pub total_turns: usize,
+    pub page: usize,
+    pub limit: usize,
+    pub total_pages: usize,
+}
+
 pub fn log_conversation_turn(
     callsign: &str,
     assistant_name: &str,
@@ -139,38 +170,209 @@ pub fn log_conversation_turn(
     assistant_msg: &str,
 ) {
     let (date_str, time_str) = get_local_date_and_time();
-    let histories_dir = crate::assets::get_assets_dir().join("histories");
-    if let Err(e) = std::fs::create_dir_all(&histories_dir) {
-        crate::term_err!("[History] Failed to create histories directory: {e}");
-        return;
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    let id = format!("chat_{}_{}", timestamp, fastrand_hex(6));
+
+    // 1. Asynchronously insert into SQLite
+    let record = ChatHistoryRecord {
+        id,
+        timestamp,
+        date_str: date_str.clone(),
+        time_str: time_str.clone(),
+        callsign: callsign.to_string(),
+        assistant_name: assistant_name.to_string(),
+        role: role.to_string(),
+        user_msg: user_msg.to_string(),
+        assistant_msg: assistant_msg.to_string(),
+    };
+
+    let rec = record;
+    crate::app_state::spawn_db_task(async move {
+        let pool = crate::llm::usage::get_pool().await;
+        let _ = sqlx::query(
+            r#"
+            INSERT INTO chat_history (
+                id, timestamp, date_str, time_str, callsign, assistant_name, role, user_msg, assistant_msg
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            "#,
+        )
+        .bind(&rec.id)
+        .bind(rec.timestamp)
+        .bind(&rec.date_str)
+        .bind(&rec.time_str)
+        .bind(&rec.callsign)
+        .bind(&rec.assistant_name)
+        .bind(&rec.role)
+        .bind(&rec.user_msg)
+        .bind(&rec.assistant_msg)
+        .execute(pool)
+        .await;
+    });
+    crate::term_log!("[History] Saved chat turn ({date_str} {time_str}) to SQLite");
+}
+
+pub async fn get_history_dates() -> Vec<String> {
+    let pool = crate::llm::usage::get_pool().await;
+    let mut dates: Vec<String> = Vec::new();
+
+    if let Ok(rows) = sqlx::query("SELECT DISTINCT date_str FROM chat_history ORDER BY date_str DESC")
+        .fetch_all(pool)
+        .await
+    {
+        for r in rows {
+            use sqlx::Row;
+            if let Ok(d) = r.try_get::<String, _>("date_str") {
+                dates.push(d);
+            }
+        }
     }
 
-    let file_path = histories_dir.join(format!("{date_str}.md"));
-    let is_new = !file_path.exists();
+    dates
+}
 
-    match OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&file_path)
-    {
-        Ok(mut file) => {
-            if is_new {
-                let header = format!(
-                    "# Conversation History — {date_str}\n> Assistant: {assistant_name} ({role}) | User: {callsign}\n\n---\n\n"
-                );
-                let _ = file.write_all(header.as_bytes());
-            }
+pub async fn get_history_by_date_paginated(
+    target_date: &str,
+    page: usize,
+    limit: usize,
+) -> ChatHistoryPaginatedResponse {
+    let pool = crate::llm::usage::get_pool().await;
+    let page = page.max(1);
+    let limit = limit.clamp(1, 100);
+    let offset = (page - 1) * limit;
 
-            let entry = format!(
-                "### [{time_str}] {callsign}\n{user_msg}\n\n### [{time_str}] {assistant_name}\n{assistant_msg}\n\n---\n\n"
-            );
-            let _ = file.write_all(entry.as_bytes());
-        }
-        Err(e) => {
-            crate::term_err!(
-                "[History] Failed to write chat history to {:?}: {e}",
-                file_path
-            );
-        }
+    let total_rows: usize = sqlx::query("SELECT COUNT(*) as cnt FROM chat_history WHERE date_str = ?")
+        .bind(target_date)
+        .fetch_one(pool)
+        .await
+        .ok()
+        .and_then(|row| {
+            use sqlx::Row;
+            row.try_get::<i64, _>("cnt").ok()
+        })
+        .map(|c| c.max(0) as usize)
+        .unwrap_or(0);
+
+    let total_turns = total_rows * 2;
+    let total_pages = if total_rows == 0 {
+        1
+    } else {
+        total_rows.div_ceil(limit)
+    };
+
+    let rows = sqlx::query_as::<_, ChatHistoryRecord>(
+        "SELECT * FROM chat_history WHERE date_str = ? ORDER BY timestamp ASC, id ASC LIMIT ? OFFSET ?",
+    )
+    .bind(target_date)
+    .bind(limit as i64)
+    .bind(offset as i64)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    let mut turns = Vec::with_capacity(rows.len() * 2);
+    for r in rows {
+        turns.push(ChatTurnItem {
+            time: r.time_str.clone(),
+            speaker: r.callsign,
+            message: r.user_msg,
+        });
+        turns.push(ChatTurnItem {
+            time: r.time_str,
+            speaker: r.assistant_name,
+            message: r.assistant_msg,
+        });
+    }
+
+    ChatHistoryPaginatedResponse {
+        date: target_date.to_string(),
+        turns,
+        total_turns,
+        page,
+        limit,
+        total_pages,
+    }
+}
+
+pub async fn delete_history_by_date(target_date: &str) -> anyhow::Result<bool> {
+    let pool = crate::llm::usage::get_pool().await;
+
+    let res = sqlx::query("DELETE FROM chat_history WHERE date_str = ?")
+        .bind(target_date)
+        .execute(pool)
+        .await?;
+
+    Ok(res.rows_affected() > 0)
+}
+
+fn fastrand_hex(len: usize) -> String {
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hasher};
+    let s = RandomState::new().build_hasher().finish();
+    let hex = format!("{:016x}", s);
+    hex.chars().take(len).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    #[tokio::test]
+    async fn test_chat_history_sqlite_operations() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+
+        sqlx::migrate!("./migrations")
+            .run(&pool)
+            .await
+            .unwrap();
+
+        let test_date = "2026-99-99";
+        let rec_id = format!("test_{}", fastrand_hex(6));
+        sqlx::query(
+            r#"
+            INSERT INTO chat_history (
+                id, timestamp, date_str, time_str, callsign, assistant_name, role, user_msg, assistant_msg
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            "#,
+        )
+        .bind(&rec_id)
+        .bind(123456789i64)
+        .bind(test_date)
+        .bind("12:00:00")
+        .bind("Ahlan")
+        .bind("Sukma")
+        .bind("companion")
+        .bind("Halo Sukma")
+        .bind("Halo Ahlan, ada yang bisa dibantu?")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let rows = sqlx::query_as::<_, ChatHistoryRecord>(
+            "SELECT * FROM chat_history WHERE date_str = ? ORDER BY timestamp ASC, id ASC",
+        )
+        .bind(test_date)
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].callsign, "Ahlan");
+        assert_eq!(rows[0].user_msg, "Halo Sukma");
+        assert_eq!(rows[0].assistant_name, "Sukma");
+
+        let res = sqlx::query("DELETE FROM chat_history WHERE date_str = ?")
+            .bind(test_date)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(res.rows_affected(), 1);
     }
 }

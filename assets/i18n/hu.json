@@ -1,0 +1,59 @@
+{
+  "music": [
+    "zene",
+    "dal",
+    "lejátszás",
+    "hang",
+    "szám"
+  ],
+  "recipe": [
+    "recept",
+    "munkafolyamat",
+    "automatizálás"
+  ],
+  "todo": [
+    "feladat",
+    "jegyzet",
+    "emlékeztető",
+    "ütemterv",
+    "lista",
+    "terv"
+  ],
+  "skill": [
+    "készség",
+    "parancs",
+    "futtatás",
+    "szkript",
+    "terminál"
+  ],
+  "browser": [
+    "böngésző",
+    "web",
+    "oldal",
+    "lap",
+    "keresés",
+    "összegzés"
+  ],
+  "desktop": [
+    "asztal",
+    "képernyő",
+    "ablak",
+    "alkalmazás",
+    "kattintás",
+    "képernyőkép"
+  ],
+  "app_query": [
+    "alkalmazások",
+    "programok",
+    "szoftver",
+    "telepített"
+  ],
+  "conjunctions": [
+    "és",
+    "de",
+    "mert",
+    "bár",
+    "míg",
+    "ezért"
+  ]
+}

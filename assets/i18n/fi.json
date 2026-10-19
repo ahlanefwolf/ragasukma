@@ -1,0 +1,60 @@
+{
+  "music": [
+    "musiikki",
+    "laulu",
+    "toista",
+    "ääni",
+    "kappale"
+  ],
+  "recipe": [
+    "resepti",
+    "työnkulku",
+    "automaatio"
+  ],
+  "todo": [
+    "tehtävä",
+    "muistiinpano",
+    "muistutus",
+    "aikataulu",
+    "lista",
+    "suunnitelma"
+  ],
+  "skill": [
+    "taito",
+    "komento",
+    "suorita",
+    "skripti",
+    "pääte"
+  ],
+  "browser": [
+    "selain",
+    "verkko",
+    "sivu",
+    "välilehti",
+    "hae",
+    "tiivistä"
+  ],
+  "desktop": [
+    "työpöytä",
+    "näyttö",
+    "ikkuna",
+    "sovellus",
+    "klikkaa",
+    "pienennä",
+    "kuvankaappaus"
+  ],
+  "app_query": [
+    "sovellukset",
+    "ohjelmat",
+    "ohjelmisto",
+    "asennetut"
+  ],
+  "conjunctions": [
+    "ja",
+    "mutta",
+    "koska",
+    "vaikka",
+    "joten",
+    "kuitenkin"
+  ]
+}
