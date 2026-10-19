@@ -198,6 +198,182 @@ pub fn get_focused_window_quick_info() -> Option<(String, String)> {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "cmd")]
+pub enum WindowScannerIpcCmd {
+    #[serde(rename = "scan")]
+    Scan,
+    #[serde(rename = "quick_info")]
+    QuickInfo,
+    #[serde(rename = "quit")]
+    Quit,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WindowScannerIpcResp {
+    pub success: bool,
+    pub snapshot: Option<ActiveWindowSnapshot>,
+    pub quick_info: Option<(String, String)>,
+    pub error: Option<String>,
+}
+
+pub static WINDOW_SCANNER_SUPERVISOR: crate::services::ManagedWorkerProcess =
+    crate::services::ManagedWorkerProcess::new(
+        "--worker-window-scanner",
+        std::time::Duration::from_secs(10),
+    );
+
+/// Dedicated Child Process Entry Point for Window Accessibility Scanner.
+/// Isolates native OS accessibility calls (UIAutomation / ATSPI) so freezes or deadlocks do not hang the main app.
+/// Automatically terminates after 10 seconds of idle inactivity.
+pub fn run_window_scanner_worker_process() -> anyhow::Result<()> {
+    use std::io::{BufRead, Write};
+    let stdin = std::io::stdin();
+    let mut stdout = std::io::stdout();
+
+    let (tx_line, rx_line) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("scanner-ipc-stdin".to_string())
+        .spawn(move || {
+            let mut line = String::new();
+            let mut handle = stdin.lock();
+            while let Ok(n) = handle.read_line(&mut line) {
+                if n == 0 {
+                    break;
+                }
+                if tx_line.send(line.trim().to_string()).is_err() {
+                    break;
+                }
+                line.clear();
+            }
+        })?;
+
+    loop {
+        // Idle timeout: 10 seconds of no scan requests -> exit process!
+        let line = match rx_line.recv_timeout(std::time::Duration::from_secs(10)) {
+            Ok(l) => l,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                crate::term_log!(
+                    "[Window Scanner Process] 10s idle timeout reached. Exiting process to free memory."
+                );
+                std::process::exit(0);
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => std::process::exit(0),
+        };
+
+        if line.is_empty() {
+            continue;
+        }
+
+        let cmd: WindowScannerIpcCmd = match serde_json::from_str(&line) {
+            Ok(c) => c,
+            Err(e) => {
+                let err_resp = WindowScannerIpcResp {
+                    success: false,
+                    snapshot: None,
+                    quick_info: None,
+                    error: Some(format!("Invalid command JSON: {e}")),
+                };
+                let _ = writeln!(stdout, "{}", serde_json::to_string(&err_resp)?);
+                let _ = stdout.flush();
+                continue;
+            }
+        };
+
+        match cmd {
+            WindowScannerIpcCmd::Scan => {
+                match scan_active_window_sync() {
+                    Ok(snap) => {
+                        let resp = WindowScannerIpcResp {
+                            success: true,
+                            snapshot: Some(snap),
+                            quick_info: None,
+                            error: None,
+                        };
+                        let _ = writeln!(stdout, "{}", serde_json::to_string(&resp)?);
+                    }
+                    Err(e) => {
+                        let resp = WindowScannerIpcResp {
+                            success: false,
+                            snapshot: None,
+                            quick_info: None,
+                            error: Some(e),
+                        };
+                        let _ = writeln!(stdout, "{}", serde_json::to_string(&resp)?);
+                    }
+                }
+                let _ = stdout.flush();
+            }
+            WindowScannerIpcCmd::QuickInfo => {
+                let info = get_focused_window_quick_info();
+                let resp = WindowScannerIpcResp {
+                    success: true,
+                    snapshot: None,
+                    quick_info: info,
+                    error: None,
+                };
+                let _ = writeln!(stdout, "{}", serde_json::to_string(&resp)?);
+                let _ = stdout.flush();
+            }
+            WindowScannerIpcCmd::Quit => {
+                break;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Request active window accessibility scan via isolated child process with 3.5s watchdog timeout.
+pub fn scan_active_window_ipc() -> Result<ActiveWindowSnapshot, String> {
+    let cmd = WindowScannerIpcCmd::Scan;
+    let json_cmd = serde_json::to_string(&cmd).map_err(|e| e.to_string())?;
+
+    match WINDOW_SCANNER_SUPERVISOR.send_command(&json_cmd, std::time::Duration::from_millis(3500)) {
+        Ok(resp_str) => {
+            if let Ok(resp) = serde_json::from_str::<WindowScannerIpcResp>(&resp_str) {
+                if resp.success {
+                    if let Some(snap) = resp.snapshot {
+                        let _ = snap.save_to_file();
+                        return Ok(snap);
+                    }
+                }
+                return Err(resp.error.unwrap_or_else(|| "Unknown scan error".to_string()));
+            }
+            Err("Failed to parse scan response".to_string())
+        }
+        Err(e) => {
+            crate::term_err!("[Window Scanner Supervisor] Watchdog / process error: {e}");
+            Err(e)
+        }
+    }
+}
+
+/// Request active window quick info via isolated child process with 1.5s watchdog timeout.
+/// Request active window accessibility scan with automatic fallback
+pub fn scan_active_window_auto() -> Result<ActiveWindowSnapshot, String> {
+    scan_active_window_ipc().or_else(|_| scan_active_window_sync())
+}
+
+#[allow(dead_code)]
+pub fn get_focused_window_quick_info_ipc() -> Option<(String, String)> {
+    let cmd = WindowScannerIpcCmd::QuickInfo;
+    let json_cmd = serde_json::to_string(&cmd).ok()?;
+
+    match WINDOW_SCANNER_SUPERVISOR.send_command(&json_cmd, std::time::Duration::from_millis(1500)) {
+        Ok(resp_str) => {
+            if let Ok(resp) = serde_json::from_str::<WindowScannerIpcResp>(&resp_str) {
+                if resp.success {
+                    return resp.quick_info;
+                }
+            }
+            None
+        }
+        Err(_) => None,
+    }
+}
+
+#[allow(dead_code)]
 pub fn start_window_watcher() {
     let _ = std::thread::Builder::new()
         .name("ragasukma-window-watcher".to_string())
@@ -211,7 +387,7 @@ pub fn start_window_watcher() {
                 #[cfg(target_os = "linux")]
                 linux::cleanup_idle_atspi_connection();
 
-                let current_info = get_focused_window_quick_info();
+                let current_info = get_focused_window_quick_info_ipc();
 
                 let window_changed = match (&last_quick_info, &current_info) {
                     (Some(last), Some(curr)) => last != curr,
@@ -219,30 +395,9 @@ pub fn start_window_watcher() {
                     _ => false,
                 };
 
-                // Only scan if jendela/aplikasi active correct-correct berpindah.
-                // No more force_periodic 30s overwriting visual vision_perception results.
+                // Only scan if active window actually changed
                 if window_changed {
-                    #[cfg(target_os = "linux")]
-                    {
-                        // Lightweight window list scan: updates active_window_app.json
-                        // without waking up AT-SPI or D-Bus!
-                        if let Ok(snap) = linux::scan_window_list_quick_linux() {
-                            let _ = snap.save_to_file();
-                        }
-                    }
-
-                    #[cfg(target_os = "windows")]
-                    {
-                        let _ = windows::scan_active_window_windows();
-                    }
-
-                    #[cfg(target_os = "macos")]
-                    {
-                        if let Ok(snap) = pollster::block_on(macos::scan_active_window_macos()) {
-                            let _ = snap.save_to_file();
-                        }
-                    }
-
+                    let _ = scan_active_window_ipc();
                     last_quick_info = current_info;
                 }
             }

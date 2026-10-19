@@ -69,6 +69,7 @@ pub fn get_engine() -> Option<&'static SupertonicEngine> {
     ENGINE.get()
 }
 
+#[allow(dead_code)]
 pub fn init_engine_background() {
     let _ = std::thread::Builder::new()
         .name("ragasukma-tts-init".to_string())
@@ -1016,6 +1017,205 @@ pub fn samples_to_wav_bytes(samples: &[f32], sample_rate: u32) -> Vec<u8> {
     }
 
     out
+}
+
+pub fn wav_bytes_to_samples(wav: &[u8]) -> (Vec<f32>, u32) {
+    if wav.len() < 44 {
+        return (Vec::new(), 44100);
+    }
+    let sample_rate = u32::from_le_bytes([wav[24], wav[25], wav[26], wav[27]]);
+    let pcm_data = &wav[44..];
+    let samples: Vec<f32> = pcm_data
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|c| {
+            let val = i16::from_le_bytes(*c);
+            val as f32 / 32768.0
+        })
+        .collect();
+    (samples, sample_rate)
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[serde(tag = "cmd")]
+pub enum TtsIpcCmd {
+    #[serde(rename = "synthesize")]
+    Synthesize {
+        text: String,
+        voice: String,
+        lang: String,
+        speed: f32,
+    },
+    #[serde(rename = "ping")]
+    Ping,
+    #[serde(rename = "quit")]
+    Quit,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct TtsIpcResp {
+    pub success: bool,
+    pub wav_base64: Option<String>,
+    pub error: Option<String>,
+}
+
+pub static TTS_SUPERVISOR: crate::services::ManagedWorkerProcess =
+    crate::services::ManagedWorkerProcess::new(
+        "--worker-tts",
+        std::time::Duration::from_secs(45),
+    );
+
+/// Dedicated Child Process Entry Point for TTS Neural Engine.
+/// Keeps heavy ONNX models in an isolated worker process.
+/// Automatically terminates after 45 seconds of inactivity to return ~300MB RAM to the OS.
+pub fn run_tts_worker_process() -> anyhow::Result<()> {
+    use std::io::{BufRead, Write};
+    use base64::Engine;
+
+    crate::term_log!("[TTS Worker Process] Initializing isolated ONNX Neural Engine...");
+    let engine = init_engine()?;
+    let stdin = std::io::stdin();
+    let mut stdout = std::io::stdout();
+
+    let (tx_line, rx_line) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("tts-ipc-stdin".to_string())
+        .spawn(move || {
+            let mut line = String::new();
+            let mut handle = stdin.lock();
+            while let Ok(n) = handle.read_line(&mut line) {
+                if n == 0 {
+                    break;
+                }
+                if tx_line.send(line.trim().to_string()).is_err() {
+                    break;
+                }
+                line.clear();
+            }
+        })?;
+
+    loop {
+        // Idle timeout: 45 seconds of inactivity -> exit process to release memory!
+        let line = match rx_line.recv_timeout(std::time::Duration::from_secs(45)) {
+            Ok(l) => l,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                crate::term_log!(
+                    "[TTS Worker Process] 45s idle timeout reached without speech. Exiting process to free RAM."
+                );
+                std::process::exit(0);
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => std::process::exit(0),
+        };
+
+        if line.is_empty() {
+            continue;
+        }
+
+        let cmd: TtsIpcCmd = match serde_json::from_str(&line) {
+            Ok(c) => c,
+            Err(e) => {
+                let err_resp = TtsIpcResp {
+                    success: false,
+                    wav_base64: None,
+                    error: Some(format!("Invalid command: {e}")),
+                };
+                let _ = writeln!(stdout, "{}", serde_json::to_string(&err_resp)?);
+                let _ = stdout.flush();
+                continue;
+            }
+        };
+
+        match cmd {
+            TtsIpcCmd::Synthesize {
+                text,
+                voice,
+                lang,
+                speed,
+            } => {
+                match engine.synthesize(&text, &voice, &lang, speed) {
+                    Ok(wav_bytes) => {
+                        let b64 = base64::engine::general_purpose::STANDARD.encode(&wav_bytes);
+                        let resp = TtsIpcResp {
+                            success: true,
+                            wav_base64: Some(b64),
+                            error: None,
+                        };
+                        let _ = writeln!(stdout, "{}", serde_json::to_string(&resp)?);
+                    }
+                    Err(e) => {
+                        let resp = TtsIpcResp {
+                            success: false,
+                            wav_base64: None,
+                            error: Some(e.to_string()),
+                        };
+                        let _ = writeln!(stdout, "{}", serde_json::to_string(&resp)?);
+                    }
+                }
+                let _ = stdout.flush();
+            }
+            TtsIpcCmd::Ping => {
+                let resp = TtsIpcResp {
+                    success: true,
+                    wav_base64: None,
+                    error: None,
+                };
+                let _ = writeln!(stdout, "{}", serde_json::to_string(&resp)?);
+                let _ = stdout.flush();
+            }
+            TtsIpcCmd::Quit => break,
+        }
+    }
+
+    Ok(())
+}
+
+/// Synthesize speech via isolated worker process with automatic fallback to local engine
+pub fn synthesize_via_worker(
+    text: &str,
+    voice: &str,
+    lang: &str,
+    speed: f32,
+) -> anyhow::Result<Vec<u8>> {
+    use base64::Engine;
+    let cmd = TtsIpcCmd::Synthesize {
+        text: text.to_string(),
+        voice: voice.to_string(),
+        lang: lang.to_string(),
+        speed,
+    };
+    let json_cmd = serde_json::to_string(&cmd)?;
+    let resp_str = TTS_SUPERVISOR
+        .send_command(&json_cmd, std::time::Duration::from_secs(35))
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let resp: TtsIpcResp = serde_json::from_str(&resp_str)?;
+    if resp.success {
+        if let Some(b64) = resp.wav_base64 {
+            let bytes = base64::engine::general_purpose::STANDARD.decode(b64)?;
+            return Ok(bytes);
+        }
+    }
+    Err(anyhow::anyhow!(
+        resp.error
+            .unwrap_or_else(|| "TTS synthesis failed".to_string())
+    ))
+}
+
+#[allow(dead_code)]
+pub fn synthesize_auto(
+    text: &str,
+    voice: &str,
+    lang: &str,
+    speed: f32,
+) -> anyhow::Result<Vec<u8>> {
+    match synthesize_via_worker(text, voice, lang, speed) {
+        Ok(wav) => Ok(wav),
+        Err(e) => {
+            crate::term_err!("[TTS Supervisor] Worker error ({e}), falling back to direct engine...");
+            let engine = init_engine()?;
+            engine.synthesize(text, voice, lang, speed)
+        }
+    }
 }
 
 #[cfg(test)]

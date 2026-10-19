@@ -102,7 +102,8 @@ pub fn ensure_model_ready_background() {
             message: "Model already installed".to_string(),
             model_name: None,
         });
-        crate::audio::supertonic::init_engine_background();
+        // Note: TTS engine is now isolated in on-demand worker process (--worker-tts)
+        // to prevent allocating ~400MB ONNX models in the host process memory.
         return;
     }
 
@@ -135,7 +136,6 @@ pub fn ensure_model_ready_background() {
                     message: "Model ready".to_string(),
                     model_name: None,
                 });
-                crate::audio::supertonic::init_engine_background();
             }
             IS_DOWNLOADING.store(false, Ordering::SeqCst);
         })

@@ -173,123 +173,210 @@ pub enum VisionRequest {
     },
 }
 
-static VISION_SENDER: Mutex<Option<std::sync::mpsc::Sender<VisionRequest>>> = Mutex::new(None);
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "cmd")]
+pub enum VisionIpcCmd {
+    #[serde(rename = "scan")]
+    Scan { save_snapshot: bool },
+    #[serde(rename = "ping")]
+    Ping,
+    #[serde(rename = "quit")]
+    Quit,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VisionIpcResp {
+    pub success: bool,
+    pub result: Option<PerceptionResult>,
+    pub error: Option<String>,
+}
+
+pub static VISION_SUPERVISOR: crate::services::ManagedWorkerProcess =
+    crate::services::ManagedWorkerProcess::new(
+        "--worker-vision",
+        std::time::Duration::from_secs(60),
+    );
+
 static IS_SCANNING_ASYNC: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// Initialize Vision Worker in thread background terpisah.
-/// This thread is 100% idle (0% CPU, 0 MB model load) when there are no scan requests.
-pub fn start_vision_worker() {
-    let mut sender_lock = VISION_SENDER.lock().unwrap_or_else(|e| e.into_inner());
-    if sender_lock.is_some() {
-        return; // Already running
+/// Dedicated Child Process Entry Point for Vision & OCR Worker.
+/// Runs in an isolated OS process. If idle for 60 seconds, terminates itself to reclaim memory.
+pub fn run_vision_worker_process() -> anyhow::Result<()> {
+    use std::io::{BufRead, Write};
+    let mut engine = PerceptionEngine::new().unwrap_or(PerceptionEngine {});
+    let stdin = std::io::stdin();
+    let mut stdout = std::io::stdout();
+
+    let (tx_line, rx_line) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("vision-ipc-stdin".to_string())
+        .spawn(move || {
+            let mut line = String::new();
+            let mut handle = stdin.lock();
+            while let Ok(n) = handle.read_line(&mut line) {
+                if n == 0 {
+                    break;
+                }
+                if tx_line.send(line.trim().to_string()).is_err() {
+                    break;
+                }
+                line.clear();
+            }
+        })?;
+
+    loop {
+        // Idle timeout: terminate process if no scan request arrives within 60s
+        let line = match rx_line.recv_timeout(std::time::Duration::from_secs(60)) {
+            Ok(l) => l,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                eprintln!(
+                    "[Vision Worker Process] 60s idle timeout reached without requests. Exiting process to release memory."
+                );
+                break;
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                break; // Parent process closed stdin
+            }
+        };
+
+        if line.is_empty() {
+            continue;
+        }
+
+        let cmd: VisionIpcCmd = match serde_json::from_str(&line) {
+            Ok(c) => c,
+            Err(e) => {
+                let err_resp = VisionIpcResp {
+                    success: false,
+                    result: None,
+                    error: Some(format!("Invalid command JSON: {e}")),
+                };
+                let _ = writeln!(stdout, "{}", serde_json::to_string(&err_resp)?);
+                let _ = stdout.flush();
+                continue;
+            }
+        };
+
+        match cmd {
+            VisionIpcCmd::Scan { save_snapshot } => {
+                let res = match capture_screen_image() {
+                    Ok(img) => engine.analyze_image(&img),
+                    Err(e) => {
+                        eprintln!("[Vision Worker Process] Failed to capture screen: {e}");
+                        PerceptionResult::default()
+                    }
+                };
+
+                if save_snapshot {
+                    apply_perception_to_snapshot(&res);
+                }
+
+                let resp = VisionIpcResp {
+                    success: true,
+                    result: Some(res),
+                    error: None,
+                };
+                let _ = writeln!(stdout, "{}", serde_json::to_string(&resp)?);
+                let _ = stdout.flush();
+            }
+            VisionIpcCmd::Ping => {
+                let resp = VisionIpcResp {
+                    success: true,
+                    result: None,
+                    error: None,
+                };
+                let _ = writeln!(stdout, "{}", serde_json::to_string(&resp)?);
+                let _ = stdout.flush();
+            }
+            VisionIpcCmd::Quit => {
+                break;
+            }
+        }
     }
 
-    let (tx, rx) = std::sync::mpsc::channel::<VisionRequest>();
-    *sender_lock = Some(tx);
+    Ok(())
+}
 
-    let _ = std::thread::Builder::new()
-        .name("ragasukma-vision-worker".to_string())
-        .stack_size(1024 * 1024)
-        .spawn(move || {
-            let mut engine = PerceptionEngine::new().unwrap_or(PerceptionEngine {});
+/// Initialize Vision Worker in supervisor manager.
+/// Checks idle state to drop process if idle > 60s.
+pub fn start_vision_worker() {
+    VISION_SUPERVISOR.drop_if_idle();
+}
 
-            while let Ok(request) = rx.recv() {
-                match request {
-                    VisionRequest::ScanActiveScreen { save_snapshot, respond_to } => {
-                        let res = match capture_screen_image() {
-                            Ok(img) => engine.analyze_image(&img),
-                            Err(e) => {
-                                eprintln!("[Vision Worker] Failed to capture screen: {e}");
-                                PerceptionResult::default()
-                            }
-                        };
+/// Helper sync for requesting scan from dedicated Vision worker process
+pub fn request_vision_scan_sync() -> PerceptionResult {
+    let cmd = VisionIpcCmd::Scan {
+        save_snapshot: true,
+    };
+    let cmd_json = match serde_json::to_string(&cmd) {
+        Ok(j) => j,
+        Err(_) => return scan_screen_visual_elements(),
+    };
 
-                        if save_snapshot {
-                            apply_perception_to_snapshot(&res);
-
-                            // Get active window info for assistant voice status report
-                            let active_app = if let Ok(snap) = crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file() {
-                                if !snap.window_title.is_empty() {
-                                    snap.window_title
-                                } else if !snap.app_name.is_empty() {
-                                    snap.app_name
-                                } else {
-                                    "desktop screen".to_string()
-                                }
+    match VISION_SUPERVISOR.send_command(&cmd_json, std::time::Duration::from_secs(25)) {
+        Ok(resp_str) => {
+            if let Ok(resp) = serde_json::from_str::<VisionIpcResp>(&resp_str) {
+                if resp.success {
+                    if let Some(res) = resp.result {
+                        // Notify assistant status update
+                        let active_app = if let Ok(snap) =
+                            crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file()
+                        {
+                            if !snap.window_title.is_empty() {
+                                snap.window_title
+                            } else if !snap.app_name.is_empty() {
+                                snap.app_name
                             } else {
                                 "desktop screen".to_string()
-                            };
+                            }
+                        } else {
+                            "desktop screen".to_string()
+                        };
 
-                            let summary_info = if !res.texts.is_empty() || !res.buttons.is_empty() {
-                                format!(
-                                    "[SYSTEM STATUS: Screen scan for window '{}' complete. Data is ready. Inform the user briefly that the screen has been scanned and you're ready to help.]",
-                                    active_app
-                                )
-                            } else {
-                                format!(
-                                    "[SYSTEM STATUS: Screen scan for window '{}' complete, but no text or buttons were detected. Inform the user briefly and casually.]",
-                                    active_app
-                                )
-                            };
+                        let summary_info = if !res.texts.is_empty() || !res.buttons.is_empty() {
+                            format!(
+                                "[SYSTEM STATUS: Screen scan for window '{}' complete. Data is ready. Inform the user briefly that the screen has been scanned and you're ready to help.]",
+                                active_app
+                            )
+                        } else {
+                            format!(
+                                "[SYSTEM STATUS: Screen scan for window '{}' complete, but no text or buttons were detected. Inform the user briefly and casually.]",
+                                active_app
+                            )
+                        };
 
-                            crate::engine::remote_text::inject_remote_text(summary_info);
-                        }
-
-                        IS_SCANNING_ASYNC.store(false, std::sync::atomic::Ordering::SeqCst);
-
-                        if let Some(resp) = respond_to {
-                            let _ = resp.send(res);
-                        }
+                        crate::engine::remote_text::inject_remote_text(summary_info);
+                        return res;
                     }
                 }
             }
-        });
-}
-
-/// Helper sync for meminta scan from vision worker
-pub fn request_vision_scan_sync() -> PerceptionResult {
-    start_vision_worker();
-
-    let (tx_resp, rx_resp) = std::sync::mpsc::channel();
-    let req = VisionRequest::ScanActiveScreen {
-        save_snapshot: true,
-        respond_to: Some(tx_resp),
-    };
-
-    if let Ok(guard) = VISION_SENDER.lock() {
-        if let Some(ref sender) = *guard {
-            let _ = sender.send(req);
-            return rx_resp
-                .recv_timeout(std::time::Duration::from_secs(15))
-                .unwrap_or_else(|_| scan_screen_visual_elements());
+        }
+        Err(e) => {
+            crate::term_err!(
+                "[Vision Supervisor] Child process error ({e}), falling back to direct scan..."
+            );
         }
     }
 
     scan_screen_visual_elements()
 }
 
-/// Asynchronous fire-and-forget helper to trigger vision scan in background
+/// Asynchronous fire-and-forget helper to trigger vision scan in background process
 pub fn trigger_vision_scan_async() {
     if IS_SCANNING_ASYNC.swap(true, std::sync::atomic::Ordering::SeqCst) {
-        crate::term_log!("[Vision Worker] Screen scan already running in background. Skipping duplicate request.");
+        crate::term_log!(
+            "[Vision Worker] Screen scan already running in background. Skipping duplicate request."
+        );
         return;
     }
 
-    start_vision_worker();
-
-    let req = VisionRequest::ScanActiveScreen {
-        save_snapshot: true,
-        respond_to: None,
-    };
-
-    if let Ok(guard) = VISION_SENDER.lock() {
-        if let Some(ref sender) = *guard {
-            let _ = sender.send(req);
-            return;
-        }
-    }
-
-    IS_SCANNING_ASYNC.store(false, std::sync::atomic::Ordering::SeqCst);
+    std::thread::Builder::new()
+        .name("vision-async-trigger".to_string())
+        .spawn(|| {
+            let _ = request_vision_scan_sync();
+            IS_SCANNING_ASYNC.store(false, std::sync::atomic::Ordering::SeqCst);
+        })
+        .ok();
 }
 
 /// Synchronizes perception results to `active_window_app.json`

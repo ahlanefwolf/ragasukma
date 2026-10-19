@@ -228,8 +228,8 @@ pub fn click_desktop_button(label_or_id: &str) -> bool {
     let snap = super::load_snapshot()
         .filter(|s| !s.buttons.is_empty())
         .or_else(|| {
-            // Lazy on-demand scan if snapshot has no buttons yet
-            crate::engine::window_scanner::scan_active_window_sync().ok().inspect(|s| {
+            // Lazy on-demand scan via isolated IPC worker if snapshot has no buttons yet
+            crate::engine::window_scanner::scan_active_window_auto().ok().inspect(|s| {
                 let _ = s.save_to_file();
             })
         });

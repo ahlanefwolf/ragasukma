@@ -52,6 +52,21 @@ fn main() -> Result<()> {
 
     init_dpi_awareness();
     let args: Vec<String> = std::env::args().collect();
+
+    // Isolated Microservice Subprocess Dispatchers (drop & spawn on demand)
+    if args.iter().any(|a| a == "--worker-vision") {
+        return engine::perception::run_vision_worker_process();
+    }
+    if args.iter().any(|a| a == "--worker-window-scanner") {
+        return engine::window_scanner::run_window_scanner_worker_process();
+    }
+    if args.iter().any(|a| a == "--worker-tts") {
+        return audio::supertonic::run_tts_worker_process();
+    }
+    if args.iter().any(|a| a == "--worker-task") {
+        return engine::tasks::run_task_worker_process();
+    }
+
     if args.iter().any(|a| a == "--scan-vision") {
         println!(
             " Running local perception scan via dedicated Vision Worker (PP-OCR + OmniParser Icon Detection)..."
@@ -149,14 +164,17 @@ fn main() -> Result<()> {
     // Initialize dedicated BrowserSessionWorker for non-blocking active_tab_browser.json synchronization
     crate::services::browser_session_service::init_browser_session_worker();
 
-    // Initialize reactive native OS active window watcher for active_window_app.json
-    crate::engine::window_scanner::start_window_watcher();
+    // Note: Periodic window polling disabled to eliminate CPU overhead & context switching.
+    // Window scanning is now purely on-demand via isolated IPC worker when actions/skills need it.
 
     // Initialize standby dedicated vision worker thread (0% CPU idle)
     crate::engine::perception::start_vision_worker();
 
     // Initialize dedicated background task worker thread
     crate::engine::init_background_task_worker();
+
+    // Initialize global process reaper to automatically drop idle worker subprocesses & reap zombies
+    crate::services::start_global_reaper_worker();
 
     // Check & download Supertonic-3 TTS model if missing, then init engine
     crate::services::model_manager_service::ensure_model_ready_background();

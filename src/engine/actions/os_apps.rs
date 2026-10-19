@@ -67,7 +67,7 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
 
     // Context-Aware App Switcher: If a matching window is already running, switch focus to it
     // Always scan fresh active windows so we don't rely on stale cached snapshots
-    let snapshot = crate::engine::window_scanner::scan_active_window_sync()
+    let snapshot = crate::engine::window_scanner::scan_active_window_auto()
         .ok()
         .or_else(crate::engine::actions::desktop::load_snapshot);
 
@@ -107,7 +107,7 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
             // Poll for up to 3 seconds (30 * 100ms) for the window to appear
             for _ in 0..30 {
                 std::thread::sleep(std::time::Duration::from_millis(100));
-                if let Ok(snap) = crate::engine::window_scanner::scan_active_window_sync() {
+                if let Ok(snap) = crate::engine::window_scanner::scan_active_window_auto() {
                     if let Some(w) = find_matching_window(&q, app_clone.as_ref(), &snap.windows) {
                         let _ = try_focus_window(w);
                         let _ = snap.save_to_file();

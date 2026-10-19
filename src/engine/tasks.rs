@@ -4,17 +4,141 @@ use std::thread;
 
 use crate::app_state::push_client_action;
 use crate::engine::ytdlp::download_audio;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 pub enum BackgroundTask {
     DownloadAndPlayMusic { query: String },
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackgroundTaskState {
     pub is_busy: bool,
     pub task_type: String,
     pub description: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "cmd")]
+pub enum TaskIpcCmd {
+    #[serde(rename = "download_audio")]
+    DownloadAudio { query: String },
+    #[serde(rename = "ping")]
+    Ping,
+    #[serde(rename = "quit")]
+    Quit,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TaskIpcResp {
+    pub success: bool,
+    pub title: Option<String>,
+    pub filename: Option<String>,
+    pub error: Option<String>,
+}
+
+pub static TASK_SUPERVISOR: crate::services::ManagedWorkerProcess =
+    crate::services::ManagedWorkerProcess::new(
+        "--worker-task",
+        std::time::Duration::from_secs(10),
+    );
+
+/// Dedicated Child Process Entry Point for Background Task & Action Runner.
+/// Runs heavy or cancellation-prone workloads in an isolated process.
+/// Automatically terminates after 10 seconds of idle inactivity.
+pub fn run_task_worker_process() -> anyhow::Result<()> {
+    use std::io::{BufRead, Write};
+    let stdin = std::io::stdin();
+    let mut stdout = std::io::stdout();
+
+    let (tx_line, rx_line) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("task-ipc-stdin".to_string())
+        .spawn(move || {
+            let mut line = String::new();
+            let mut handle = stdin.lock();
+            while let Ok(n) = handle.read_line(&mut line) {
+                if n == 0 {
+                    break;
+                }
+                if tx_line.send(line.trim().to_string()).is_err() {
+                    break;
+                }
+                line.clear();
+            }
+        })?;
+
+    loop {
+        // Idle timeout: 10 seconds after task completion -> exit process!
+        let line = match rx_line.recv_timeout(std::time::Duration::from_secs(10)) {
+            Ok(l) => l,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                crate::term_log!(
+                    "[Task Worker Process] 10s idle timeout reached. Exiting process to free memory."
+                );
+                std::process::exit(0);
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => std::process::exit(0),
+        };
+
+        if line.is_empty() {
+            continue;
+        }
+
+        let cmd: TaskIpcCmd = match serde_json::from_str(&line) {
+            Ok(c) => c,
+            Err(e) => {
+                let err_resp = TaskIpcResp {
+                    success: false,
+                    title: None,
+                    filename: None,
+                    error: Some(format!("Invalid task command: {e}")),
+                };
+                let _ = writeln!(stdout, "{}", serde_json::to_string(&err_resp)?);
+                let _ = stdout.flush();
+                continue;
+            }
+        };
+
+        match cmd {
+            TaskIpcCmd::DownloadAudio { query } => {
+                let music_dir = crate::config::get_music_dir();
+                match download_audio(&query, &music_dir) {
+                    Ok(track) => {
+                        let resp = TaskIpcResp {
+                            success: true,
+                            title: Some(track.title),
+                            filename: Some(track.filename),
+                            error: None,
+                        };
+                        let _ = writeln!(stdout, "{}", serde_json::to_string(&resp)?);
+                    }
+                    Err(e) => {
+                        let resp = TaskIpcResp {
+                            success: false,
+                            title: None,
+                            filename: None,
+                            error: Some(e.to_string()),
+                        };
+                        let _ = writeln!(stdout, "{}", serde_json::to_string(&resp)?);
+                    }
+                }
+                let _ = stdout.flush();
+            }
+            TaskIpcCmd::Ping => {
+                let resp = TaskIpcResp {
+                    success: true,
+                    title: None,
+                    filename: None,
+                    error: None,
+                };
+                let _ = writeln!(stdout, "{}", serde_json::to_string(&resp)?);
+                let _ = stdout.flush();
+            }
+            TaskIpcCmd::Quit => break,
+        }
+    }
+    Ok(())
 }
 
 static TASK_SENDER: Mutex<Option<Sender<BackgroundTask>>> = Mutex::new(None);
@@ -33,6 +157,12 @@ impl Drop for DownloadGuard {
     }
 }
 
+/// Cancel / kill currently running background task process immediately
+pub fn cancel_current_task() {
+    TASK_SUPERVISOR.kill_now();
+    set_current_task(None);
+}
+
 /// Initialize dedicated background worker thread for yt-dlp & other heavy asynchronous tasks
 pub fn init_background_task_worker() {
     let mut sender_lock = match TASK_SENDER.lock() {
@@ -46,7 +176,6 @@ pub fn init_background_task_worker() {
     let (tx, rx) = channel::<BackgroundTask>();
     *sender_lock = Some(tx);
 
-    // Dedicated worker thread with 2 MB stack allocation
     let builder = thread::Builder::new()
         .name("ragasukma-task-worker".to_string())
         .stack_size(2 * 1024 * 1024);
@@ -64,39 +193,66 @@ pub fn init_background_task_worker() {
                         description: format!("Downloading song: {query}"),
                     }));
 
-                    crate::term_log!(" [Task Worker: yt-dlp] Downloading in background: '{}'...", query);
+                    crate::term_log!(" [Task Worker: yt-dlp] Downloading via isolated process: '{}'...", query);
 
-                    let music_dir = crate::config::get_music_dir();
-                    match download_audio(&query, &music_dir) {
-                        Ok(track) => {
-                            crate::term_log!(
-                                " [Task Worker: yt-dlp] Done: '{}' -> Playing directly to speaker!",
-                                track.title
-                            );
+                    let cmd = TaskIpcCmd::DownloadAudio {
+                        query: query.clone(),
+                    };
+                    let cmd_json = match serde_json::to_string(&cmd) {
+                        Ok(j) => j,
+                        Err(e) => {
+                            crate::term_err!("Failed to serialize task cmd: {e}");
+                            continue;
+                        }
+                    };
 
-                            // 1. Play directly via desktop speakers (Native Audio Player)
-                            let file_path = music_dir.join(&track.filename);
-                            crate::audio::player::play_file(&file_path, &track.title);
+                    // Execute download via isolated child process (up to 3 min timeout)
+                    match TASK_SUPERVISOR.send_command(&cmd_json, std::time::Duration::from_secs(180)) {
+                        Ok(resp_str) => {
+                            if let Ok(resp) = serde_json::from_str::<TaskIpcResp>(&resp_str) {
+                                if resp.success {
+                                    let title = resp.title.unwrap_or_else(|| query.clone());
+                                    let filename = resp.filename.unwrap_or_default();
+                                    crate::term_log!(
+                                        " [Task Worker: yt-dlp] Done: '{}' -> Playing directly to speaker!",
+                                        title
+                                    );
 
-                            // 2. Sync to Web Dashboard
-                            push_client_action("music:play", Some(&track.title));
+                                    let music_dir = crate::config::get_music_dir();
+                                    let file_path = music_dir.join(&filename);
+                                    crate::audio::player::play_file(&file_path, &title);
 
-                            // 3. Send a signal to the assistant so that it speaks to inform the user that the song has finished downloading & playing
-                            let notify_msg = format!(
-                                "[SYSTEM STATUS: Song '{}' has been downloaded and is now playing automatically. Inform the user briefly and warmly. DO NOT include any [CMD:media:play] or other commands — music is already playing.]",
-                                track.title
-                            );
-                            crate::engine::remote_text::inject_remote_text(notify_msg);
+                                    push_client_action("music:play", Some(&title));
+
+                                    let notify_msg = format!(
+                                        "[SYSTEM STATUS: Song '{}' has been downloaded and is now playing automatically. Inform the user briefly and warmly. DO NOT include any [CMD:media:play] or other commands — music is already playing.]",
+                                        title
+                                    );
+                                    crate::engine::remote_text::inject_remote_text(notify_msg);
+
+                                    // Immediately drop task child process to release RAM to OS
+                                    TASK_SUPERVISOR.kill_now();
+                                } else {
+                                    let err = resp.error.unwrap_or_else(|| "Unknown error".to_string());
+                                    crate::term_err!(" [Task Worker: yt-dlp] Failed: {err}");
+                                    let err_msg = format!(
+                                        "[SYSTEM STATUS: Failed to download song '{}'. Detail: {}. Inform the user briefly and warmly.]",
+                                        query, err
+                                    );
+                                    crate::engine::remote_text::inject_remote_text(err_msg);
+
+                                    TASK_SUPERVISOR.kill_now();
+                                }
+                            }
                         }
                         Err(e) => {
-                            crate::term_err!(" [Task Worker: yt-dlp] Failed to download '{}': {e}", query);
-
-                            // Send a signal to assistant so that notifies the user that the download failed
+                            crate::term_err!(" [Task Worker: yt-dlp] Process error: {e}");
                             let err_msg = format!(
-                                "[SYSTEM STATUS: Failed to download song '{}'. Detail: {}. Inform the user briefly and warmly. DO NOT include any commands.]",
-                                query, e
+                                "[SYSTEM STATUS: Song download timed out or failed: {}. Inform user briefly.]",
+                                e
                             );
                             crate::engine::remote_text::inject_remote_text(err_msg);
+                            TASK_SUPERVISOR.kill_now();
                         }
                     }
                 }

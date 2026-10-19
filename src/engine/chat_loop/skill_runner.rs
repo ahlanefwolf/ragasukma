@@ -144,13 +144,13 @@ fn handle_skill_execution_inner(
                 // Update snapshot when switching window or browser
                 let id_lower = id.to_lowercase();
                 if id_lower == "desktop:scan_visual" {
-                    if let Ok(snap) = crate::engine::window_scanner::scan_active_window_sync() {
+                    if let Ok(snap) = crate::engine::window_scanner::scan_active_window_auto() {
                         let _ = snap.save_to_file();
                     }
                 } else if id_lower.starts_with("desktop:focus") || id_lower.starts_with("app:open")
                 {
                     std::thread::sleep(std::time::Duration::from_millis(500));
-                    if let Ok(snap) = crate::engine::window_scanner::scan_active_window_sync() {
+                    if let Ok(snap) = crate::engine::window_scanner::scan_active_window_auto() {
                         let _ = snap.save_to_file();
                     }
                 }
