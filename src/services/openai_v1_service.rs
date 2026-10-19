@@ -1,6 +1,5 @@
 use crate::llm::providers::antigravity::AntigravityProvider;
 use crate::llm::providers::codex::CodexProvider;
-use crate::llm::providers::codex::constants::CODEX_DEFAULT_MODELS;
 use crate::llm::v1_engine::{V1ChatRequest, V1StreamEvent, V1ToolCall};
 use serde::{Deserialize, Serialize};
 
@@ -102,14 +101,17 @@ pub fn get_v1_models() -> ModelListResponse {
         })
         .collect::<Vec<ModelItem>>();
 
-    // Append OpenAI Codex models (cx/ prefix)
-    for (model_id, _) in CODEX_DEFAULT_MODELS {
-        data.push(ModelItem {
-            id: format!("cx/{}", model_id),
-            object: "model".to_string(),
-            created: now,
-            owned_by: "codex".to_string(),
-        });
+    // Append OpenAI Codex models (cx/ prefix) dynamically from active accounts (no fallback)
+    let mut cx_provider = CodexProvider::new();
+    if let Ok(cx_models) = cx_provider.get_dynamic_available_models() {
+        for m in cx_models {
+            data.push(ModelItem {
+                id: m.id,
+                object: "model".to_string(),
+                created: now,
+                owned_by: "codex".to_string(),
+            });
+        }
     }
 
     ModelListResponse {
@@ -545,12 +547,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_get_v1_models_includes_antigravity_and_codex() {
+    fn test_get_v1_models() {
         let resp = get_v1_models();
         assert_eq!(resp.object, "list");
         assert!(!resp.data.is_empty());
         assert!(resp.data.iter().any(|m| m.id.starts_with("ag/")));
-        assert!(resp.data.iter().any(|m| m.id.starts_with("cx/")));
     }
 
     #[tokio::test]

@@ -222,31 +222,52 @@ pub fn get_active_intents() -> Arc<CompiledLocaleIntents> {
 // ============================================================================
 
 pub fn is_music_intent(query: &str) -> bool {
-    get_active_intents().re_music.is_match(query)
+    let active = get_active_intents();
+    active.re_music.is_match(query)
+        || get_compiled_intents_for_lang("en").re_music.is_match(query)
+        || get_compiled_intents_for_lang("id").re_music.is_match(query)
 }
 
 pub fn is_recipe_intent(query: &str) -> bool {
-    get_active_intents().re_recipe.is_match(query)
+    let active = get_active_intents();
+    active.re_recipe.is_match(query)
+        || get_compiled_intents_for_lang("en").re_recipe.is_match(query)
+        || get_compiled_intents_for_lang("id").re_recipe.is_match(query)
 }
 
 pub fn is_todo_intent(query: &str) -> bool {
-    get_active_intents().re_todo.is_match(query)
+    let active = get_active_intents();
+    active.re_todo.is_match(query)
+        || get_compiled_intents_for_lang("en").re_todo.is_match(query)
+        || get_compiled_intents_for_lang("id").re_todo.is_match(query)
 }
 
 pub fn is_skill_intent(query: &str) -> bool {
-    get_active_intents().re_skill.is_match(query)
+    let active = get_active_intents();
+    active.re_skill.is_match(query)
+        || get_compiled_intents_for_lang("en").re_skill.is_match(query)
+        || get_compiled_intents_for_lang("id").re_skill.is_match(query)
 }
 
 pub fn is_browser_intent(query: &str) -> bool {
-    get_active_intents().re_browser.is_match(query)
+    let active = get_active_intents();
+    active.re_browser.is_match(query)
+        || get_compiled_intents_for_lang("en").re_browser.is_match(query)
+        || get_compiled_intents_for_lang("id").re_browser.is_match(query)
 }
 
 pub fn is_desktop_intent(query: &str) -> bool {
-    get_active_intents().re_desktop.is_match(query)
+    let active = get_active_intents();
+    active.re_desktop.is_match(query)
+        || get_compiled_intents_for_lang("en").re_desktop.is_match(query)
+        || get_compiled_intents_for_lang("id").re_desktop.is_match(query)
 }
 
 pub fn is_app_query_intent(query: &str) -> bool {
-    get_active_intents().re_app_query.is_match(query)
+    let active = get_active_intents();
+    active.re_app_query.is_match(query)
+        || get_compiled_intents_for_lang("en").re_app_query.is_match(query)
+        || get_compiled_intents_for_lang("id").re_app_query.is_match(query)
 }
 
 /// Natural conjunction check for TTS clause splitting

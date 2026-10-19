@@ -1,6 +1,4 @@
 {
   "$schema": "https://unpkg.com/knip@5/overview/config.json",
-  "entry": ["src/index.tsx"],
-  "project": ["src/**/*.{ts,tsx}"],
-  "ignore": ["eslint.config.js"]
+  "project": ["src/**/*.{ts,tsx}"]
 }

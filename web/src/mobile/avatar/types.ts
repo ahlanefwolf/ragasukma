@@ -14,11 +14,11 @@ export interface AvatarViewerProps {
   arBottomSlot?: () => any;
 }
 
-export interface PoseKeyframe {
+interface PoseKeyframe {
   bones?: Record<string, [number, number, number] | number[]>;
 }
 
-export interface PoseStateConfig {
+interface PoseStateConfig {
   speed?: number;
   poses?: PoseKeyframe[];
 }

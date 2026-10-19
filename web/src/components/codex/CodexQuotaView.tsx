@@ -1,6 +1,7 @@
-import { Component, For, Show } from 'solid-js';
+import { Component, For, Show, createSignal, onMount } from 'solid-js';
 import { Gauge, RefreshCw, AlertTriangle, Clock, Copy, Check, Sparkles } from 'lucide-solid';
 import { CodexQuotaResponse, CodexQuotaWindow } from '../../api';
+import { CodexModelItem, codexService } from '../../services/codexService';
 
 interface CodexQuotaViewProps {
   accountId: string;
@@ -11,19 +12,25 @@ interface CodexQuotaViewProps {
   onCopyModel: (id: string, label?: string) => void;
 }
 
-const CODEX_MODELS = [
-  'cx/gpt-6.1-sol',
-  'cx/gpt-6-astra',
-  'cx/gpt-6-sol',
-  'cx/gpt-6-luna',
-  'cx/gpt-5.6-sol',
-  'cx/gpt-5.6-terra',
-  'cx/gpt-5.6-luna',
-  'cx/gpt-daybreak-blue-latest',
-  'cx/codex-auto-review',
-];
-
 export const CodexQuotaView: Component<CodexQuotaViewProps> = (props) => {
+  const [liveModels, setLiveModels] = createSignal<CodexModelItem[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = createSignal<boolean>(false);
+
+  const fetchLiveModels = async () => {
+    setIsLoadingModels(true);
+    try {
+      const models = await codexService.getModels();
+      setLiveModels(Array.isArray(models) ? models : []);
+    } catch {
+      setLiveModels([]);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
+
+  onMount(() => {
+    fetchLiveModels();
+  });
   const formatResetTime = (isoString?: string): string => {
     if (!isoString) return '';
     try {
@@ -158,34 +165,50 @@ export const CodexQuotaView: Component<CodexQuotaViewProps> = (props) => {
         </div>
       </Show>
 
-      {/* Codex Models Grid */}
-      <div class="space-y-1.5 pt-1">
-        <h3 class="text-theme-text/80 flex items-center gap-1.5">
-          <Sparkles size={14} class="text-theme-cyan" />
-          <span>Available Codex Models (Click to copy ID)</span>
-        </h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          <For each={CODEX_MODELS}>
-            {(modelId) => {
-              const isCopied = () => props.copiedModelId === modelId;
-              return (
-                <div
-                  onClick={() => props.onCopyModel(modelId, `Model ID ${modelId}`)}
-                  class="p-2.5 bg-theme-card/90 border border-theme-border/80 hover:border-theme-cyan/50 cursor-pointer transition-all flex items-center justify-between gap-2 shadow-sm group"
-                  title="Click to copy Model ID"
-                >
-                  <code class="text-xs font-mono font-bold text-theme-cyan truncate select-all">{modelId}</code>
-                  <button type="button" class="text-theme-text/40 group-hover:text-theme-cyan transition-colors shrink-0">
-                    <Show when={isCopied()} fallback={<Copy size={13} />}>
-                      <Check size={13} class="text-gi-status-success" />
-                    </Show>
-                  </button>
-                </div>
-              );
-            }}
-          </For>
+      {/* Codex Live Models Grid (Dynamically fetched, no fallback) */}
+      <Show when={liveModels().length > 0}>
+        <div class="space-y-1.5 pt-1">
+          <div class="flex items-center justify-between">
+            <h3 class="text-theme-text/80 flex items-center gap-1.5">
+              <Sparkles size={14} class="text-theme-cyan" />
+              <span>Available Codex Models (Click to copy ID)</span>
+            </h3>
+            <button
+              onClick={fetchLiveModels}
+              disabled={isLoadingModels()}
+              class="text-[10px] text-theme-text/50 hover:text-theme-cyan flex items-center gap-1 transition-colors"
+              title="Refresh models list"
+            >
+              <RefreshCw size={10} class={isLoadingModels() ? 'animate-spin text-theme-cyan' : ''} />
+              <span>Refresh Models</span>
+            </button>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            <For each={liveModels()}>
+              {(model) => {
+                const isCopied = () => props.copiedModelId === model.id;
+                return (
+                  <div
+                    onClick={() => props.onCopyModel(model.id, `Model ID ${model.id}`)}
+                    class="p-2.5 bg-theme-card/90 border border-theme-border/80 hover:border-theme-cyan/50 cursor-pointer transition-all flex items-center justify-between gap-2 shadow-sm group"
+                    title={`Click to copy ${model.id} (${model.display_name})`}
+                  >
+                    <div class="truncate">
+                      <code class="text-xs font-mono font-bold text-theme-cyan truncate select-all block">{model.id}</code>
+                      <span class="text-[10px] text-theme-text/50 truncate block">{model.display_name}</span>
+                    </div>
+                    <button type="button" class="text-theme-text/40 group-hover:text-theme-cyan transition-colors shrink-0">
+                      <Show when={isCopied()} fallback={<Copy size={13} />}>
+                        <Check size={13} class="text-gi-status-success" />
+                      </Show>
+                    </button>
+                  </div>
+                );
+              }}
+            </For>
+          </div>
         </div>
-      </div>
+      </Show>
     </div>
   );
 };

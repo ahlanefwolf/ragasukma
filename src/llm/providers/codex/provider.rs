@@ -1,7 +1,7 @@
 use super::constants::*;
 use super::oauth::refresh_account_token;
 use super::types::{
-    CodexAccount, CodexAccountInfo, CodexQuotaResponse, current_timestamp_secs,
+    CodexAccount, CodexAccountInfo, CodexModelInfo, CodexQuotaResponse, current_timestamp_secs,
 };
 use super::v1_adapter::{
     build_codex_payload_from_messages, build_codex_payload_from_v1, parse_codex_sse_line,
@@ -320,8 +320,112 @@ impl CodexProvider {
         Ok(res)
     }
 
-    pub fn get_models(&self) -> Vec<(&'static str, &'static str)> {
-        CODEX_DEFAULT_MODELS.to_vec()
+    pub fn get_dynamic_available_models(&mut self) -> Result<Vec<CodexModelInfo>> {
+        let total = self.accounts.len();
+        if total == 0 {
+            bail!("No OpenAI Codex accounts available. Please connect an account first.");
+        }
+
+        let mut last_err = None;
+        for i in 0..total {
+            if !self.accounts[i].is_active {
+                continue;
+            }
+
+            let now = current_timestamp_secs();
+            let need_token = {
+                let acc = &self.accounts[i];
+                acc.access_token.is_none() || acc.expires_at <= now
+            };
+
+            if need_token {
+                if let Err(e) = refresh_account_token(&self.client, &mut self.accounts[i]) {
+                    last_err = Some(e);
+                    continue;
+                }
+                let _ = self.save_accounts();
+            }
+
+            let access_token = match self.accounts[i].access_token.as_deref() {
+                Some(tok) if !tok.trim().is_empty() => tok,
+                _ => continue,
+            };
+
+            let mut req = self
+                .client
+                .get(CODEX_MODELS_URL)
+                .header("Authorization", format!("Bearer {access_token}"))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .header("originator", CODEX_ORIGINATOR)
+                .header("User-Agent", format!("codex_cli_rs/{CODEX_CLI_VERSION}"))
+                .header("version", CODEX_CLI_VERSION);
+
+            if let Some(ref act_id) = self.accounts[i].chatgpt_account_id {
+                req = req.header("ChatGPT-Account-ID", act_id);
+            }
+
+            match req.send() {
+                Ok(res) => {
+                    let status = res.status();
+                    if status.is_success() {
+                        match res.json::<serde_json::Value>() {
+                            Ok(val) => {
+                                let items = val
+                                    .get("models")
+                                    .or_else(|| val.get("data"))
+                                    .and_then(|v| v.as_array());
+
+                                if let Some(arr) = items {
+                                    let mut models = Vec::with_capacity(arr.len());
+                                    for item in arr {
+                                        let id = item
+                                            .get("id")
+                                            .or_else(|| item.get("slug"))
+                                            .or_else(|| item.get("model"))
+                                            .or_else(|| item.get("name"))
+                                            .and_then(|v| v.as_str());
+
+                                        if let Some(m_id) = id {
+                                            let name = item
+                                                .get("display_name")
+                                                .or_else(|| item.get("displayName"))
+                                                .or_else(|| item.get("name"))
+                                                .and_then(|v| v.as_str())
+                                                .unwrap_or(m_id);
+
+                                            models.push(CodexModelInfo {
+                                                id: format!("cx/{m_id}"),
+                                                model_id: m_id.to_string(),
+                                                display_name: name.to_string(),
+                                                provider: "codex".to_string(),
+                                            });
+                                        }
+                                    }
+                                    if !models.is_empty() {
+                                        return Ok(models);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                last_err = Some(e.into());
+                            }
+                        }
+                    } else {
+                        let err_text = res.text().unwrap_or_default();
+                        last_err = Some(anyhow::anyhow!("Codex Models API returned HTTP {status}: {err_text}"));
+                    }
+                }
+                Err(e) => {
+                    last_err = Some(e.into());
+                }
+            }
+        }
+
+        if let Some(e) = last_err {
+            bail!("Failed to fetch Codex models from active accounts: {e}");
+        }
+        bail!("No models returned from active Codex accounts")
     }
 
     fn select_available_account_index(&self, model: Option<&str>) -> Option<usize> {
@@ -629,5 +733,25 @@ impl CodexProvider {
         }
 
         Ok(full_reply)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_codex_get_dynamic_available_models_no_accounts() {
+        let mut provider = CodexProvider {
+            accounts: Vec::new(),
+            current_index: 0,
+            client: reqwest::blocking::Client::new(),
+            config_file: PathBuf::from("/tmp/nonexistent_codex_test.json"),
+        };
+
+        let res = provider.get_dynamic_available_models();
+        assert!(res.is_err(), "Should return error without fallback when no accounts exist");
+        let err_msg = res.unwrap_err().to_string();
+        assert!(err_msg.contains("No OpenAI Codex accounts available"));
     }
 }

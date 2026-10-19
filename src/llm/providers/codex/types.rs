@@ -153,3 +153,11 @@ pub struct CodexQuotaResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodexModelInfo {
+    pub id: String,
+    pub model_id: String,
+    pub display_name: String,
+    pub provider: String,
+}

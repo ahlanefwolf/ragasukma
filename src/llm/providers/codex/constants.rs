@@ -16,17 +16,5 @@ pub const CODEX_SCOPES: &[&str] = &[
 pub const CODEX_MODELS_URL: &str =
     "https://chatgpt.com/backend-api/codex/models?client_version=0.159.0";
 
-pub const CODEX_DEFAULT_MODELS: &[(&str, &str)] = &[
-    ("gpt-6.1-sol", "GPT 6.1 Sol (Fast Reasoning)"),
-    ("gpt-6-astra", "GPT 6.0 Astra"),
-    ("gpt-6-sol", "GPT 6.0 Sol"),
-    ("gpt-6-luna", "GPT 6.0 Luna"),
-    ("gpt-5.6-terra", "GPT 5.6 Terra"),
-    ("gpt-5.6-luna", "GPT 5.6 Luna"),
-    ("gpt-daybreak-blue-latest", "GPT Daybreak Blue"),
-    ("gpt-reserve", "GPT Reserve"),
-    ("codex-auto-review", "Codex Auto Review"),
-];
-
 pub const CODEX_DEFAULT_INSTRUCTIONS: &str =
     "You are an AI assistant in Ragasukma.";

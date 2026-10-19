@@ -9,7 +9,7 @@ export interface MobileTrackState {
   duration: number;
 }
 
-export interface MobileLipWeights {
+interface MobileLipWeights {
   aa: number;
   ih: number;
   ou: number;
@@ -22,7 +22,7 @@ export interface MobileLipWeights {
  * MobileAudioSyncManager
  * Manage audio unlock and direct streaming music playback on smartphone browser.
  */
-export class MobileAudioSyncManager {
+class MobileAudioSyncManager {
   private isUnlocked = false;
   private audioCtx: AudioContext | null = null;
   private musicAudio: HTMLAudioElement | null = null;

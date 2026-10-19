@@ -121,5 +121,5 @@ export const api = {
 };
 
 export type { AntigravityAccount, AntigravityQuotaResponse } from './services/antigravityService';
-export type { CodexAccount, CodexQuotaResponse, CodexQuotaWindow, CodexModelItem } from './services/codexService';
-export type { LlmUsageRecord, LlmUsageSummary, LlmUsagePaginatedResponse } from './services/usageService';
+export type { CodexAccount, CodexQuotaResponse, CodexQuotaWindow } from './services/codexService';
+export type { LlmUsageRecord, LlmUsageSummary } from './services/usageService';
