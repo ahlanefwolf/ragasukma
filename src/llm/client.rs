@@ -29,7 +29,7 @@ impl LlmClient {
         let model = u.llm_model;
 
         let client = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_secs(8)) // Max timeout 8s agar cepat auto-recover jika model offline/hang
+            .timeout(std::time::Duration::from_secs(60))
             .build()
             .unwrap_or_default();
 
@@ -40,8 +40,8 @@ impl LlmClient {
             content: system_prompt,
         }];
 
-        let antigravity = AntigravityProvider::new();
-        let codex = CodexProvider::new();
+        let antigravity = AntigravityProvider::new_with_client(client.clone());
+        let codex = CodexProvider::new_with_client(client.clone());
 
         Self {
             provider,

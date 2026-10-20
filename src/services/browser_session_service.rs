@@ -475,7 +475,9 @@ pub fn get_active_tab_browser_path() -> PathBuf {
     if local.exists() || PathBuf::from("Cargo.toml").exists() {
         return local;
     }
-    crate::assets::get_assets_dir().join("active_tab_browser.json")
+    let cache_dir = crate::config::get_app_cache_dir();
+    let _ = fs::create_dir_all(&cache_dir);
+    cache_dir.join("active_tab_browser.json")
 }
 
 pub fn get_latest_snapshot() -> Option<BrowserDomSnapshot> {

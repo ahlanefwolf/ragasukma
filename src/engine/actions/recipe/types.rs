@@ -85,26 +85,54 @@ pub enum ClickTarget {
     Text(String),   // Fallback text string found in snapshot.texts
 }
 
-/// Gets storage directory for recipes: assets/recipes/
+/// Gets storage directory for recipes: assets/recipes/ or ~/.config/ragasukma/recipes/
 pub fn get_recipes_dir() -> PathBuf {
-    crate::assets::get_assets_dir().join("recipes")
+    let local = PathBuf::from("assets/recipes");
+    if local.exists() || PathBuf::from("Cargo.toml").exists() {
+        let _ = fs::create_dir_all(&local);
+        return local;
+    }
+    let cfg = crate::config::get_app_config_dir().join("recipes");
+    if cfg.exists() {
+        return cfg;
+    }
+    let legacy = crate::config::get_app_config_dir().join("assets").join("recipes");
+    if legacy.exists() {
+        return legacy;
+    }
+    let _ = fs::create_dir_all(&cfg);
+    cfg
 }
 
-/// Load all recipes stored in assets/recipes/*.json
+/// Load all recipes stored in recipes/*.json
 pub fn load_all_recipes() -> Vec<AutomationRecipe> {
-    let dir = get_recipes_dir();
-    if !dir.exists() {
-        return Vec::new();
+    let mut dirs_to_scan = Vec::new();
+    let local = PathBuf::from("assets/recipes");
+    if local.exists() {
+        dirs_to_scan.push(local);
+    }
+    let cfg = crate::config::get_app_config_dir().join("recipes");
+    if cfg.exists() && !dirs_to_scan.contains(&cfg) {
+        dirs_to_scan.push(cfg);
+    }
+    let legacy = crate::config::get_app_config_dir().join("assets").join("recipes");
+    if legacy.exists() && !dirs_to_scan.contains(&legacy) {
+        dirs_to_scan.push(legacy);
     }
 
     let mut recipes = Vec::new();
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
-                if let Ok(content) = fs::read_to_string(&path) {
-                    if let Ok(recipe) = serde_json::from_str::<AutomationRecipe>(&content) {
-                        recipes.push(recipe);
+    let mut seen_ids = std::collections::HashSet::new();
+    for dir in dirs_to_scan {
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
+                    if let Ok(content) = fs::read_to_string(&path) {
+                        if let Ok(recipe) = serde_json::from_str::<AutomationRecipe>(&content) {
+                            if seen_ids.insert(recipe.recipe_id.clone()) {
+                                recipes.push(recipe);
+                            }
+                        }
                     }
                 }
             }

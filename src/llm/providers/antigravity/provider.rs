@@ -27,18 +27,11 @@ impl AntigravityProvider {
         if candidate.exists() {
             return candidate;
         }
-        crate::config::get_app_config_dir()
-            .join("assets")
-            .join("antigravity_accounts.json")
+        crate::config::get_app_config_dir().join("antigravity_accounts.json")
     }
 
-    pub fn new() -> Self {
+    pub fn new_with_client(client: reqwest::blocking::Client) -> Self {
         let config_file = Self::get_accounts_file_path();
-
-        let client = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_secs(60))
-            .build()
-            .unwrap_or_default();
 
         let mut provider = Self {
             accounts: Vec::new(),
@@ -53,6 +46,14 @@ impl AntigravityProvider {
             provider.accounts.len()
         );
         provider
+    }
+
+    pub fn new() -> Self {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .build()
+            .unwrap_or_default();
+        Self::new_with_client(client)
     }
 
     pub fn load_accounts(&mut self) -> Result<()> {

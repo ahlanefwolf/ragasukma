@@ -8,9 +8,12 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 pub struct OpenVoiceEngine {
-    ref_enc_sess: Mutex<Session>,
+    ref_enc_sess: Mutex<Option<Session>>,
     tone_conv_sess: Mutex<Session>,
     ref_se_cache: Mutex<Option<(String, Vec<f32>)>>,
+    base_se_cache: Mutex<Option<Vec<f32>>>,
+    model_dir: PathBuf,
+    intra_threads: usize,
 }
 
 static OPENVOICE_ENGINE: OnceLock<Option<OpenVoiceEngine>> = OnceLock::new();
@@ -19,6 +22,8 @@ fn find_openvoice_model_dir() -> Option<PathBuf> {
     let mut candidates = vec![
         PathBuf::from("models/openvoice-v2"),
         PathBuf::from("../models/openvoice-v2"),
+        crate::config::get_models_dir().join("openvoice-v2"),
+        crate::config::get_app_data_dir().join("models/openvoice-v2"),
         crate::config::get_app_config_dir().join("models/openvoice-v2"),
     ];
 
@@ -51,31 +56,14 @@ pub fn init_engine() -> Result<OpenVoiceEngine> {
         anyhow!("OpenVoice model directory not found (models/openvoice-v2/openvoice_tone_converter.onnx)")
     })?;
 
-    let available_threads = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(4);
-    let intra_threads = available_threads.min(8);
+    let budget = crate::engine::hardware_probe::get_recommended_tts_threads();
+    let intra_threads = budget.openvoice_threads;
 
     crate::term_log!(
-        "[OpenVoice Engine] Loading ONNX models from {:?} (threads: {})",
+        "[OpenVoice Engine] Loading Tone Color Converter from {:?} (threads: {})",
         model_dir,
         intra_threads
     );
-
-    let ref_enc_sess = Session::builder()
-        .map_err(|e| anyhow!("{e}"))?
-        .with_execution_providers([CPU::default().with_arena_allocator(false).build()])
-        .map_err(|e| anyhow!("{e}"))?
-        .with_intra_threads(intra_threads)
-        .map_err(|e| anyhow!("{e}"))?
-        .with_inter_threads(1)
-        .map_err(|e| anyhow!("{e}"))?
-        .with_optimization_level(GraphOptimizationLevel::Level3)
-        .map_err(|e| anyhow!("{e}"))?
-        .with_memory_pattern(false)
-        .map_err(|e| anyhow!("{e}"))?
-        .commit_from_file(model_dir.join("openvoice_ref_encoder.onnx"))
-        .map_err(|e| anyhow!("{e}"))?;
 
     let tone_conv_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
@@ -93,32 +81,72 @@ pub fn init_engine() -> Result<OpenVoiceEngine> {
         .map_err(|e| anyhow!("{e}"))?;
 
     Ok(OpenVoiceEngine {
-        ref_enc_sess: Mutex::new(ref_enc_sess),
+        ref_enc_sess: Mutex::new(None), // Loaded lazily on-demand only when .se.bin needs computation
         tone_conv_sess: Mutex::new(tone_conv_sess),
         ref_se_cache: Mutex::new(None),
+        base_se_cache: Mutex::new(None),
+        model_dir,
+        intra_threads,
     })
 }
 
-/// Cari file audio referensi standar di folder assets (`assets/refvoice.*`)
+/// Cari file audio referensi standar di folder assets (`assets/refvoice.*` / candidates)
 pub fn find_ref_voice_path() -> Option<PathBuf> {
-    let assets_dir = crate::assets::get_assets_dir();
     let supported_exts = ["wav", "mp3", "ogg", "flac", "m4a", "aac"];
     for ext in &supported_exts {
-        let p = assets_dir.join(format!("refvoice.{ext}"));
-        if p.exists() && p.is_file() {
-            return Some(p);
+        let filename = format!("refvoice.{ext}");
+        let candidate = crate::assets::find_file_in_candidates(&filename);
+        if candidate.exists() && candidate.is_file() {
+            return Some(candidate);
         }
     }
     None
 }
 
-/// Reset in-memory cache jika user mengupload audio referensi baru
+/// Reset in-memory cache dan hapus disk cache (.se.bin) jika user mengupload audio referensi baru.
+/// Tidak memanggil get_engine() agar tidak memicu inisialisasi ONNX di main process.
 pub fn invalidate_ref_cache() {
-    if let Some(engine) = get_engine() {
+    if let Some(Some(engine)) = OPENVOICE_ENGINE.get() {
         if let Ok(mut lock) = engine.ref_se_cache.lock() {
             *lock = None;
         }
     }
+
+    if let Some(ref_path) = find_ref_voice_path() {
+        let _ = std::fs::remove_file(ref_path.with_extension("se.bin"));
+    }
+    let fallback_cache = crate::config::get_app_cache_dir().join("refvoice.se.bin");
+    let _ = std::fs::remove_file(fallback_cache);
+}
+
+fn load_se_from_disk(cache_path: &Path, audio_mtime: Option<std::time::SystemTime>) -> Option<Vec<f32>> {
+    let cache_meta = std::fs::metadata(cache_path).ok()?;
+    if let (Some(audio_mt), Ok(cache_mt)) = (audio_mtime, cache_meta.modified()) {
+        if cache_mt < audio_mt {
+            return None; // audio referensi lebih baru daripada cache
+        }
+    }
+    let bytes = std::fs::read(cache_path).ok()?;
+    if bytes.len() != 256 * 4 {
+        return None;
+    }
+    let (chunks, _) = bytes.as_chunks::<4>();
+    let mut se = Vec::with_capacity(256);
+    for &arr in chunks {
+        se.push(f32::from_le_bytes(arr));
+    }
+    Some(se)
+}
+
+fn save_se_to_disk(cache_path: &Path, se: &[f32]) {
+    if let Some(parent) = cache_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let mut bytes = Vec::with_capacity(se.len() * 4);
+    for &val in se {
+        bytes.extend_from_slice(&val.to_le_bytes());
+    }
+    let _ = std::fs::write(cache_path, bytes);
 }
 
 // ---------------------------------------------------------------------------
@@ -272,7 +300,12 @@ pub fn compute_linear_spectrogram(
     (spec_data, n_frames)
 }
 
-/// Decode any supported audio file on disk to 22.05kHz mono f32 samples
+/// Batasi durasi audio referensi maksimal hanya 8.0 detik pertama (5-10 detik).
+/// OpenVoice V2 hanya butuh 3-5 detik audio bersih untuk mengekstrak embedding [1, 256, 1].
+pub const MAX_REF_AUDIO_DURATION_SECS: f32 = 8.0;
+
+/// Decode any supported audio file on disk to 22.05kHz mono f32 samples,
+/// dipotong maksimal hanya 5–10 detik pertama untuk menghemat RAM dan waktu STFT.
 pub fn load_audio_file_22k(file_path: &Path) -> Result<Vec<f32>> {
     let file = std::fs::File::open(file_path)?;
     let cursor = std::io::BufReader::new(file);
@@ -281,7 +314,10 @@ pub fn load_audio_file_22k(file_path: &Path) -> Result<Vec<f32>> {
     use rodio::Source;
     let channels = source.channels() as usize;
     let sample_rate = source.sample_rate();
-    let samples_raw: Vec<f32> = source.convert_samples::<f32>().collect();
+
+    // Batasi pembacaan samples maksimal hanya 5–10 detik pertama dari decoder untuk mencegah RAM bloat
+    let max_raw_samples = (sample_rate as f32 * channels as f32 * MAX_REF_AUDIO_DURATION_SECS).ceil() as usize;
+    let samples_raw: Vec<f32> = source.convert_samples::<f32>().take(max_raw_samples).collect();
 
     // Convert to mono
     let mut mono = Vec::with_capacity(samples_raw.len() / channels);
@@ -290,15 +326,75 @@ pub fn load_audio_file_22k(file_path: &Path) -> Result<Vec<f32>> {
         mono.push(sum / channels as f32);
     }
 
+    // Lewati hening/silence di awal audio (threshold amplitude 0.01) agar encoder menangkap vokal murni
+    let speech_start = mono.iter().position(|&s| s.abs() > 0.01).unwrap_or(0);
+    let active_mono = if speech_start < mono.len() {
+        &mono[speech_start..]
+    } else {
+        &mono[..]
+    };
+
     // Resample to 22050 Hz
-    let resampled = resample_linear(&mono, sample_rate, 22050);
+    let mut resampled = resample_linear(active_mono, sample_rate, 22050);
+
+    // Hard limit hasil resample maksimal 22050 * MAX_REF_AUDIO_DURATION_SECS
+    let max_22k_samples = (22050.0 * MAX_REF_AUDIO_DURATION_SECS).round() as usize;
+    if resampled.len() > max_22k_samples {
+        resampled.truncate(max_22k_samples);
+    }
+
     Ok(resampled)
 }
 
 impl OpenVoiceEngine {
+    /// Load `openvoice_ref_encoder.onnx` on demand jika .se.bin belum ada dan perlu dihitung
+    fn get_or_load_ref_encoder(&self) -> Result<std::sync::MutexGuard<'_, Option<Session>>> {
+        let mut guard = self.ref_enc_sess.lock().map_err(|e| anyhow!("{e}"))?;
+        if guard.is_none() {
+            crate::term_log!(
+                "[OpenVoice Engine] Loading openvoice_ref_encoder.onnx on-demand (threads: {})...",
+                self.intra_threads
+            );
+            let sess = Session::builder()
+                .map_err(|e| anyhow!("{e}"))?
+                .with_execution_providers([CPU::default().with_arena_allocator(false).build()])
+                .map_err(|e| anyhow!("{e}"))?
+                .with_intra_threads(self.intra_threads)
+                .map_err(|e| anyhow!("{e}"))?
+                .with_inter_threads(1)
+                .map_err(|e| anyhow!("{e}"))?
+                .with_optimization_level(GraphOptimizationLevel::Level3)
+                .map_err(|e| anyhow!("{e}"))?
+                .with_memory_pattern(false)
+                .map_err(|e| anyhow!("{e}"))?
+                .commit_from_file(self.model_dir.join("openvoice_ref_encoder.onnx"))
+                .map_err(|e| anyhow!("{e}"))?;
+            *guard = Some(sess);
+        }
+        Ok(guard)
+    }
+
+    /// Segera lepaskan `openvoice_ref_encoder.onnx` dari RAM setelah ekstraksi embedding selesai
+    pub fn unload_ref_encoder(&self) {
+        if let Ok(mut guard) = self.ref_enc_sess.lock() {
+            if guard.is_some() {
+                crate::term_log!("[OpenVoice Engine] Unloading openvoice_ref_encoder.onnx from RAM");
+                *guard = None;
+            }
+        }
+    }
+
     /// Extract Speaker Embedding `g` [1, 256, 1] from 22.05kHz mono samples
     pub fn extract_se_from_samples(&self, samples_22k: &[f32]) -> Result<Vec<f32>> {
-        let (spec, n_frames) = compute_linear_spectrogram(samples_22k, 1024, 256, 1024);
+        // Capping tambahan maksimal 10 detik audio (220500 samples)
+        let max_samples = 22050 * 10;
+        let samples_slice = if samples_22k.len() > max_samples {
+            &samples_22k[..max_samples]
+        } else {
+            samples_22k
+        };
+
+        let (spec, n_frames) = compute_linear_spectrogram(samples_slice, 1024, 256, 1024);
 
         // Transpose [1, 513, n_frames] to [1, n_frames, 513]
         let mut spec_transposed = vec![0.0f32; n_frames * 513];
@@ -312,7 +408,8 @@ impl OpenVoiceEngine {
             .map_err(|e| anyhow!("{e}"))?;
 
         let inputs = ort::inputs!["spec_transposed" => input_tensor];
-        let mut ref_sess = self.ref_enc_sess.lock().map_err(|e| anyhow!("{e}"))?;
+        let mut ref_sess_guard = self.get_or_load_ref_encoder()?;
+        let ref_sess = ref_sess_guard.as_mut().ok_or_else(|| anyhow!("Ref encoder session not loaded"))?;
         let outputs = ref_sess.run(inputs)?;
 
         let (out_shape, out_slice) = outputs["g"].try_extract_tensor::<f32>()?;
@@ -324,7 +421,9 @@ impl OpenVoiceEngine {
         Ok(out_slice.to_vec())
     }
 
-    /// Ambil target SE dari file referensi disk (dengan in-memory cache)
+    /// Ambil target SE dari file referensi disk (dengan in-memory cache & persistent disk cache).
+    /// Jika disk cache .se.bin (1 KB) sudah ada, file bin langsung dibaca tanpa perlu decode audio
+    /// maupun load openvoice_ref_encoder.onnx.
     pub fn get_target_se(&self, ref_path: &Path) -> Result<Vec<f32>> {
         let path_str = ref_path.to_string_lossy().to_string();
         if let Ok(lock) = self.ref_se_cache.lock() {
@@ -335,12 +434,80 @@ impl OpenVoiceEngine {
             }
         }
 
-        crate::term_log!("[OpenVoice Engine] Extracting speaker embedding from {:?}", ref_path);
+        let audio_mtime = std::fs::metadata(ref_path).and_then(|m| m.modified()).ok();
+        let cache_file = ref_path.with_extension("se.bin");
+        let fallback_cache = crate::config::get_app_cache_dir().join("refvoice.se.bin");
+
+        // 1. Coba load dari disk cache (.se.bin) agar instant tanpa inference ulang & tanpa load ref encoder
+        if let Some(se) = load_se_from_disk(&cache_file, audio_mtime)
+            .or_else(|| load_se_from_disk(&fallback_cache, audio_mtime))
+        {
+            crate::term_log!("[OpenVoice Engine] Loaded cached speaker embedding from disk (1 KB): {:?}", cache_file);
+            if let Ok(mut lock) = self.ref_se_cache.lock() {
+                *lock = Some((path_str, se.clone()));
+            }
+            return Ok(se);
+        }
+
+        // 2. Jika disk cache belum ada, potong audio maksimal 5-10 detik pertama, hitung .se.bin sekali simpan
+        crate::term_log!("[OpenVoice Engine] Extracting speaker embedding from {:?} (capped to first {}s)", ref_path, MAX_REF_AUDIO_DURATION_SECS);
         let samples = load_audio_file_22k(ref_path)?;
         let se = self.extract_se_from_samples(&samples)?;
 
+        // Simpan ke disk cache (.se.bin) langsung sekali simpan agar re-spawn worker selanjutnya instant (1 KB)
+        save_se_to_disk(&cache_file, &se);
+        save_se_to_disk(&fallback_cache, &se);
+        crate::term_log!("[OpenVoice Engine] Saved speaker embedding (.se.bin) to disk: {:?}", cache_file);
+
+        // Segera unload openvoice_ref_encoder.onnx dari RAM
+        self.unload_ref_encoder();
+
         if let Ok(mut lock) = self.ref_se_cache.lock() {
             *lock = Some((path_str, se.clone()));
+        }
+        Ok(se)
+    }
+
+    /// Ambil base speaker embedding (Supertonic source voice).
+    /// Disimpan di cache memori dan disk (1 KB) agar tone conversion tidak membebani ekstraksi ulang.
+    fn get_or_extract_base_se(&self, src_22k: &[f32]) -> Result<Vec<f32>> {
+        if let Ok(lock) = self.base_se_cache.lock() {
+            if let Some(ref se) = *lock {
+                return Ok(se.clone());
+            }
+        }
+
+        let base_cache_file = crate::config::get_app_cache_dir().join("base_speaker.se.bin");
+        let model_base_cache = self.model_dir.join("base_speaker.se.bin");
+
+        if let Some(se) = load_se_from_disk(&base_cache_file, None)
+            .or_else(|| load_se_from_disk(&model_base_cache, None))
+        {
+            if let Ok(mut lock) = self.base_se_cache.lock() {
+                *lock = Some(se.clone());
+            }
+            return Ok(se);
+        }
+
+        // OpenVoice ref encoder butuh minimal 2.5-3 detik audio untuk ekstraksi timbre yang stabil dan akurat.
+        // Jika chunk kata pertama terlalu pendek (misal "Halo" < 1s), repeat hingga ~3 detik agar profil suara jernih.
+        let min_samples = 22050 * 3;
+        let mut padded = Vec::new();
+        let samples_to_encode = if src_22k.len() < min_samples && !src_22k.is_empty() {
+            while padded.len() < min_samples {
+                padded.extend_from_slice(src_22k);
+            }
+            &padded[..min_samples]
+        } else {
+            src_22k
+        };
+
+        let se = self.extract_se_from_samples(samples_to_encode)?;
+        save_se_to_disk(&base_cache_file, &se);
+        self.unload_ref_encoder();
+
+        if let Ok(mut lock) = self.base_se_cache.lock() {
+            *lock = Some(se.clone());
         }
         Ok(se)
     }
@@ -356,8 +523,8 @@ impl OpenVoiceEngine {
         // 1. Resample source audio ke 22.05kHz
         let src_22k = resample_linear(src_samples, src_sample_rate, 22050);
 
-        // 2. Extract Source SE
-        let sid_src = self.extract_se_from_samples(&src_22k)?;
+        // 2. Base speaker embedding (cached di RAM & disk 1 KB, tanpa extract berulang pada setiap chunk)
+        let sid_src = self.get_or_extract_base_se(&src_22k)?;
 
         // 3. Compute Linear Spectrogram untuk Tone Converter
         let (spec, n_frames) = compute_linear_spectrogram(&src_22k, 1024, 256, 1024);
@@ -412,6 +579,49 @@ mod tests {
         if find_openvoice_model_dir().is_some() {
             let engine = init_engine();
             assert!(engine.is_ok(), "OpenVoice ONNX engine failed to load: {:?}", engine.err());
+            let engine = engine.unwrap();
+
+            // Verify ref encoder is lazy (not loaded immediately upon init)
+            assert!(engine.ref_enc_sess.lock().unwrap().is_none(), "Ref encoder should not be loaded on init");
+
+            let dummy_samples = vec![0.0f32; 22050 * 3]; // 3s
+            let se = engine.extract_se_from_samples(&dummy_samples);
+            assert!(se.is_ok(), "SE extraction failed: {:?}", se.err());
+            let se = se.unwrap();
+            assert_eq!(se.len(), 256, "Speaker embedding must have 256 dimensions");
+
+            let target_se = se.clone();
+            let res = engine.convert_voice_with_target_se(&dummy_samples, 22050, &target_se, 0.3);
+            assert!(res.is_ok(), "convert failed: {:?}", res.err());
+            let converted = res.unwrap();
+            assert!(!converted.is_empty());
         }
+    }
+
+    #[test]
+    fn test_se_bin_caching_roundtrip() {
+        let temp_dir = std::env::temp_dir().join("ragasukma_test_se_bin");
+        let temp_file = temp_dir.join("test.se.bin");
+        let fake_se = (0..256).map(|i| (i as f32) * 0.01).collect::<Vec<f32>>();
+
+        save_se_to_disk(&temp_file, &fake_se);
+        let loaded = load_se_from_disk(&temp_file, None);
+        assert!(loaded.is_some());
+        let loaded_se = loaded.unwrap();
+        assert_eq!(loaded_se.len(), 256);
+        assert_eq!(loaded_se, fake_se);
+        let _ = std::fs::remove_file(temp_file);
+    }
+
+    #[test]
+    fn test_ref_audio_duration_capping() {
+        let max_samples = (22050.0 * MAX_REF_AUDIO_DURATION_SECS).round() as usize;
+        let long_samples = vec![0.1f32; 22050 * 30]; // 30 seconds
+        let capped = if long_samples.len() > max_samples {
+            &long_samples[..max_samples]
+        } else {
+            &long_samples[..]
+        };
+        assert_eq!(capped.len(), max_samples);
     }
 }

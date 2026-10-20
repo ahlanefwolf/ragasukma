@@ -139,12 +139,9 @@ pub fn get_snapshot_path() -> PathBuf {
         return local;
     }
 
-    let base_dir = crate::config::get_app_config_dir();
-    let assets_dir = base_dir.join("assets");
-    if !assets_dir.exists() {
-        let _ = fs::create_dir_all(&assets_dir);
-    }
-    assets_dir.join("active_window_app.json")
+    let cache_dir = crate::config::get_app_cache_dir();
+    let _ = fs::create_dir_all(&cache_dir);
+    cache_dir.join("active_window_app.json")
 }
 
 pub fn current_epoch_ms() -> u64 {

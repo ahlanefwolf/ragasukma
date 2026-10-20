@@ -290,5 +290,8 @@ pub fn start_global_reaper_worker() {
             crate::engine::tasks::TASK_SUPERVISOR.drop_if_idle();
             crate::engine::perception::VISION_SUPERVISOR.drop_if_idle();
             crate::engine::window_scanner::WINDOW_SCANNER_SUPERVISOR.drop_if_idle();
+
+            #[cfg(target_os = "linux")]
+            crate::engine::window_scanner::linux::cleanup_idle_atspi_connection();
         });
 }

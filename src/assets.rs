@@ -40,9 +40,21 @@ pub fn get_assets_dir() -> PathBuf {
     if parent.exists() {
         return parent;
     }
-    let cfg_dir = crate::config::get_app_config_dir().join("assets");
-    let _ = fs::create_dir_all(&cfg_dir);
-    cfg_dir
+
+    // 1. Standard persistent data directory (~/.local/share/ragasukma/assets or Application Support/ragasukma/assets)
+    let data_dir = crate::config::get_app_data_dir().join("assets");
+    if data_dir.exists() {
+        return data_dir;
+    }
+
+    // 2. Backward compatibility: legacy config assets directory (~/.config/ragasukma/assets)
+    let legacy_cfg = crate::config::get_app_config_dir().join("assets");
+    if legacy_cfg.exists() {
+        return legacy_cfg;
+    }
+
+    let _ = fs::create_dir_all(&data_dir);
+    data_dir
 }
 
 pub fn find_file_in_candidates(filename: &str) -> PathBuf {
@@ -63,18 +75,24 @@ pub fn find_file_in_candidates(filename: &str) -> PathBuf {
     candidates.push(PathBuf::from(format!("../assets/{}", filename)));
     candidates.push(PathBuf::from(format!("../{}", filename)));
 
+    // Cache directory candidate (e.g. active_window_app.json, active_tab_browser.json)
+    candidates.push(crate::config::get_app_cache_dir().join(filename));
+
+    // Persistent data directory candidates (e.g. char.vrm, models, db)
+    candidates.push(
+        crate::config::get_app_data_dir()
+            .join("assets")
+            .join(filename),
+    );
+    candidates.push(crate::config::get_app_data_dir().join(filename));
+
+    // Config directory candidates (e.g. config-ai.json, accounts, poses)
+    candidates.push(crate::config::get_app_config_dir().join(filename));
     candidates.push(
         crate::config::get_app_config_dir()
             .join("assets")
             .join(filename),
     );
-    candidates.push(crate::config::get_app_config_dir().join(filename));
-
-    for c in &candidates {
-        if c.exists() {
-            return c.clone();
-        }
-    }
 
     #[cfg(target_os = "windows")]
     if let Ok(appdata) = std::env::var("LOCALAPPDATA").or_else(|_| std::env::var("APPDATA")) {
@@ -86,6 +104,12 @@ pub fn find_file_in_candidates(filename: &str) -> PathBuf {
         let p_root = appdata_path.join("ragasukma").join(filename);
         if p_root.exists() {
             return p_root;
+        }
+    }
+
+    for c in &candidates {
+        if c.exists() {
+            return c.clone();
         }
     }
 
@@ -110,12 +134,21 @@ pub fn find_all_file_candidates(filename: &str) -> Vec<PathBuf> {
     candidates.push(PathBuf::from(format!("../assets/{}", filename)));
     candidates.push(PathBuf::from(format!("../{}", filename)));
 
+    candidates.push(crate::config::get_app_cache_dir().join(filename));
+
+    candidates.push(
+        crate::config::get_app_data_dir()
+            .join("assets")
+            .join(filename),
+    );
+    candidates.push(crate::config::get_app_data_dir().join(filename));
+
+    candidates.push(crate::config::get_app_config_dir().join(filename));
     candidates.push(
         crate::config::get_app_config_dir()
             .join("assets")
             .join(filename),
     );
-    candidates.push(crate::config::get_app_config_dir().join(filename));
 
     #[cfg(target_os = "windows")]
     if let Ok(appdata) = std::env::var("LOCALAPPDATA").or_else(|_| std::env::var("APPDATA")) {
@@ -173,25 +206,39 @@ pub fn load_poses() -> PosesConfig {
 }
 
 pub fn save_poses(poses: &PosesConfig) -> Result<(), String> {
-    let path = find_file_in_candidates("poses.json");
+    let mut path = find_file_in_candidates("poses.json");
+    if !path.exists() {
+        path = crate::config::get_app_config_dir().join("poses.json");
+    }
     let json = serde_json::to_string_pretty(poses).map_err(|e| e.to_string())?;
     fs::write(path, json).map_err(|e| e.to_string())?;
     Ok(())
 }
 
-/// Ensures all default asset files (char.vrm, poses.json, avatar PNG, skill-command.md, config-ai.json, todo.md, etc.)
-/// automatically extracted to the user config directory (~/.config/ragasukma/assets) when first installed/run.
+/// Ensures default config files (config-ai.json, poses.json) go to user config directory (~/.config/ragasukma)
+/// and large media assets (char.vrm, avatars, companion zip, i18n) go to user data directory (~/.local/share/ragasukma/assets).
 pub fn ensure_default_user_assets() {
-    let cfg_assets_dir = crate::config::get_app_config_dir().join("assets");
-    let _ = fs::create_dir_all(&cfg_assets_dir);
-    let _ = fs::create_dir_all(cfg_assets_dir.join("recipes"));
+    let assets_dir = get_assets_dir();
+    let _ = fs::create_dir_all(&assets_dir);
+
+    let config_dir = crate::config::get_app_config_dir();
+    let _ = fs::create_dir_all(&config_dir);
+
+    let recipes_dir = crate::engine::actions::recipe::types::get_recipes_dir();
+    let _ = fs::create_dir_all(&recipes_dir);
 
     // Dynamically extract all asset files embedded in the binary
     for file_path in EmbeddedAssets::iter() {
         let file_name = file_path.as_ref();
-        let target_path = cfg_assets_dir.join(file_name);
+        let is_config_file = file_name == "config-ai.json" || file_name == "poses.json";
+        let target_path = if is_config_file {
+            config_dir.join(file_name)
+        } else {
+            assets_dir.join(file_name)
+        };
 
-        if !target_path.exists() {
+        let existing = find_file_in_candidates(file_name);
+        if !target_path.exists() && !existing.exists() {
             if let Some(parent) = target_path.parent() {
                 let _ = fs::create_dir_all(parent);
             }
@@ -211,10 +258,29 @@ pub fn ensure_default_user_assets() {
         }
     }
 
-    // Ensure initial runtime snapshots and empty account registries exist on fresh install
-    let initial_files: &[(&str, &str)] = &[
+    // Ensure initial account registries exist in config directory
+    let config_initial_files: &[(&str, &str)] = &[
         ("antigravity_accounts.json", "[]\n"),
         ("codex_accounts.json", "[]\n"),
+    ];
+
+    for (filename, default_content) in config_initial_files {
+        let existing = find_file_in_candidates(filename);
+        if !existing.exists() {
+            let target_path = config_dir.join(filename);
+            let _ = fs::write(&target_path, default_content);
+        }
+        let local_path = PathBuf::from("assets").join(filename);
+        if PathBuf::from("Cargo.toml").exists() && !local_path.exists() {
+            let _ = fs::write(&local_path, default_content);
+        }
+    }
+
+    // Ensure initial runtime snapshots exist in cache directory (or local dev assets)
+    let cache_dir = crate::config::get_app_cache_dir();
+    let _ = fs::create_dir_all(&cache_dir);
+
+    let cache_initial_files: &[(&str, &str)] = &[
         (
             "active_window_app.json",
             "{\n  \"app_name\": \"\",\n  \"window_title\": \"\",\n  \"window_id\": \"\",\n  \"source\": \"desktop_window\",\n  \"timestamp\": 0,\n  \"windows\": [],\n  \"buttons\": [],\n  \"inputs\": [],\n  \"texts\": [],\n  \"text_summary\": \"\"\n}\n",
@@ -225,14 +291,17 @@ pub fn ensure_default_user_assets() {
         ),
     ];
 
-    for (filename, default_content) in initial_files {
-        let target_path = cfg_assets_dir.join(filename);
-        if !target_path.exists() {
-            let _ = fs::write(&target_path, default_content);
-        }
+    for (filename, default_content) in cache_initial_files {
         let local_path = PathBuf::from("assets").join(filename);
-        if PathBuf::from("Cargo.toml").exists() && !local_path.exists() {
-            let _ = fs::write(&local_path, default_content);
+        if PathBuf::from("Cargo.toml").exists() {
+            if !local_path.exists() {
+                let _ = fs::write(&local_path, default_content);
+            }
+        } else {
+            let target_path = cache_dir.join(filename);
+            if !target_path.exists() {
+                let _ = fs::write(&target_path, default_content);
+            }
         }
     }
 
@@ -245,7 +314,12 @@ pub fn ensure_default_user_assets() {
 
         let exe_path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("ragasukma"));
         let exec_str = exe_path.to_string_lossy();
-        let icon_path = find_file_in_candidates("avatar.png");
+        let icon_cand = find_file_in_candidates("icon.png");
+        let icon_path = if icon_cand.exists() {
+            icon_cand
+        } else {
+            find_file_in_candidates("avatar.png")
+        };
 
         let content = format!(
             "[Desktop Entry]\n\

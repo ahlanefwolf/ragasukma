@@ -50,7 +50,7 @@ pub fn get_db_path() -> PathBuf {
         return candidate;
     }
 
-    let dir = crate::assets::get_assets_dir();
+    let dir = crate::config::get_app_data_dir();
     let _ = std::fs::create_dir_all(&dir);
     dir.join("ragasukma.db")
 }
@@ -201,26 +201,6 @@ pub fn record_usage(
                 &status,
             )
             .await;
-        });
-    } else {
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build();
-            if let Ok(rt) = rt {
-                let _ = rt.block_on(async {
-                    record_usage_async(
-                        &provider,
-                        &model,
-                        input_tokens,
-                        cached_tokens,
-                        output_tokens,
-                        duration_ms,
-                        &status,
-                    )
-                    .await
-                });
-            }
         });
     }
 }

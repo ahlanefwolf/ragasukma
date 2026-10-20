@@ -57,6 +57,8 @@ pub fn check_supertonic_exists() -> bool {
     let mut candidates = vec![
         PathBuf::from("models/supertonic-3"),
         PathBuf::from("../models/supertonic-3"),
+        crate::config::get_models_dir().join("supertonic-3"),
+        crate::config::get_app_data_dir().join("models/supertonic-3"),
         crate::config::get_app_config_dir().join("models/supertonic-3"),
     ];
     if let Ok(exe) = std::env::current_exe() {
@@ -74,6 +76,8 @@ pub fn check_openvoice_exists() -> bool {
     let mut candidates = vec![
         PathBuf::from("models/openvoice-v2"),
         PathBuf::from("../models/openvoice-v2"),
+        crate::config::get_models_dir().join("openvoice-v2"),
+        crate::config::get_app_data_dir().join("models/openvoice-v2"),
         crate::config::get_app_config_dir().join("models/openvoice-v2"),
     ];
     if let Ok(exe) = std::env::current_exe() {
@@ -143,16 +147,7 @@ pub fn ensure_model_ready_background() {
 }
 
 fn get_target_models_dir() -> PathBuf {
-    // 1. Jika di folder lokal/portable/project sudah ada models, tetap hormati agar portable
-    let local_models = PathBuf::from("models");
-    if local_models.exists() {
-        return local_models;
-    }
-
-    // 2. Default target download resmi: AppLocalData (misal: %LOCALAPPDATA%\ragasukma\models)
-    let appdata_models = crate::config::get_app_config_dir().join("models");
-    let _ = std::fs::create_dir_all(&appdata_models);
-    appdata_models
+    crate::config::get_models_dir()
 }
 
 fn run_download_and_extract() -> anyhow::Result<()> {

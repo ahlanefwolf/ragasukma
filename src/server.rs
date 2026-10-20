@@ -1,6 +1,6 @@
 use rust_embed::RustEmbed;
 use std::sync::{Arc, Mutex};
-use std::thread;
+
 
 use crate::app_state::*;
 
@@ -318,35 +318,23 @@ async fn handle_axum_fallback(
 }
 
 pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
-    thread::spawn(move || {
+    let rt = crate::app_state::get_global_tokio_runtime();
+    let handle = rt.handle().clone();
+    crate::app_state::set_tokio_handle(handle.clone());
+
+    handle.spawn(async move {
         let addr_str = "127.0.0.1:42128";
 
-        let rt = match tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4)
-            .enable_all()
-            .build()
-        {
-            Ok(r) => {
-                crate::app_state::set_tokio_handle(r.handle().clone());
-                r
+        let tokio_listener = match tokio::net::TcpListener::bind(addr_str).await {
+            Ok(l) => {
+                println!(" [Web Dashboard & API Server] Running at http://{}", addr_str);
+                l
             }
             Err(e) => {
-                eprintln!("[Web Server] Failed to initialize Tokio runtime: {}", e);
+                eprintln!("[Web Server] Failed to bind Tokio TcpListener to {}: {}", addr_str, e);
                 return;
             }
         };
-
-        rt.block_on(async move {
-            let tokio_listener = match tokio::net::TcpListener::bind(addr_str).await {
-                Ok(l) => {
-                    println!(" [Web Dashboard & API Server] Running at http://{}", addr_str);
-                    l
-                }
-                Err(e) => {
-                    eprintln!("[Web Server] Failed to bind Tokio TcpListener to {}: {}", addr_str, e);
-                    return;
-                }
-            };
 
             let cors = tower_http::cors::CorsLayer::permissive();
 
@@ -421,6 +409,5 @@ pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
             if let Err(e) = axum::serve(tokio_listener, app).await {
                 eprintln!("[Web Server] Axum server error: {}", e);
             }
-        });
     });
 }

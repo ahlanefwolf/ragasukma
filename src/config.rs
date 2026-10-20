@@ -159,7 +159,7 @@ impl Default for UserConfig {
             llm_api_key: "".to_string(),
             lang: "id".to_string(),
             tts_voice_name: "F4".to_string(),
-            tts_speed: 1.05,
+            tts_speed: 1.0,
             tts_volume: 1.6,
             avatar_type: "2d".to_string(),
             always_on_top: true,
@@ -182,8 +182,18 @@ pub fn get_music_dir() -> PathBuf {
         return parent_local;
     }
 
-    // 2. If it doesn't exist, use the AppData / .config user folder so that it is permanent and not lost during the update
-    let user_music = get_app_config_dir().join("assets").join("music");
+    // 2. Persistent user data folder: ~/.local/share/ragasukma/music or ~/Library/Application Support/ragasukma/music
+    let user_music = get_app_data_dir().join("music");
+    if user_music.exists() {
+        return user_music;
+    }
+
+    // 3. Backward compatibility: legacy config assets folder
+    let legacy_music = get_app_config_dir().join("assets").join("music");
+    if legacy_music.exists() {
+        return legacy_music;
+    }
+
     let _ = fs::create_dir_all(&user_music);
     user_music
 }
@@ -198,6 +208,34 @@ pub fn get_app_config_dir() -> PathBuf {
         }
     }
 
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(home) = env::var("HOME") {
+            // Respect existing config in ~/.config/ragasukma if already present
+            let legacy_p = PathBuf::from(&home).join(".config").join("ragasukma");
+            if legacy_p.exists() {
+                return legacy_p;
+            }
+            let p = PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join("ragasukma");
+            let _ = fs::create_dir_all(&p);
+            return p;
+        }
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        if let Ok(xdg_config) = env::var("XDG_CONFIG_HOME") {
+            if !xdg_config.trim().is_empty() {
+                let p = PathBuf::from(xdg_config).join("ragasukma");
+                let _ = fs::create_dir_all(&p);
+                return p;
+            }
+        }
+    }
+
     if let Ok(home) = env::var("HOME").or_else(|_| env::var("USERPROFILE")) {
         let p = PathBuf::from(home).join(".config").join("ragasukma");
         let _ = fs::create_dir_all(&p);
@@ -209,15 +247,125 @@ pub fn get_app_config_dir() -> PathBuf {
     }
 }
 
+pub fn get_app_data_dir() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(local_appdata) = env::var("LOCALAPPDATA").or_else(|_| env::var("APPDATA")) {
+            let p = PathBuf::from(local_appdata).join("ragasukma");
+            let _ = fs::create_dir_all(&p);
+            return p;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(home) = env::var("HOME") {
+            let p = PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join("ragasukma");
+            let _ = fs::create_dir_all(&p);
+            return p;
+        }
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        if let Ok(xdg_data) = env::var("XDG_DATA_HOME") {
+            if !xdg_data.trim().is_empty() {
+                let p = PathBuf::from(xdg_data).join("ragasukma");
+                let _ = fs::create_dir_all(&p);
+                return p;
+            }
+        }
+        if let Ok(home) = env::var("HOME") {
+            let p = PathBuf::from(home).join(".local").join("share").join("ragasukma");
+            let _ = fs::create_dir_all(&p);
+            return p;
+        }
+    }
+
+    get_app_config_dir()
+}
+
+pub fn get_app_cache_dir() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(local_appdata) = env::var("LOCALAPPDATA").or_else(|_| env::var("APPDATA")) {
+            let p = PathBuf::from(local_appdata).join("ragasukma").join("cache");
+            let _ = fs::create_dir_all(&p);
+            return p;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(home) = env::var("HOME") {
+            let p = PathBuf::from(home).join("Library").join("Caches").join("ragasukma");
+            let _ = fs::create_dir_all(&p);
+            return p;
+        }
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        if let Ok(xdg_cache) = env::var("XDG_CACHE_HOME") {
+            if !xdg_cache.trim().is_empty() {
+                let p = PathBuf::from(xdg_cache).join("ragasukma");
+                let _ = fs::create_dir_all(&p);
+                return p;
+            }
+        }
+        if let Ok(home) = env::var("HOME") {
+            let p = PathBuf::from(home).join(".cache").join("ragasukma");
+            let _ = fs::create_dir_all(&p);
+            return p;
+        }
+    }
+
+    get_app_config_dir().join("cache")
+}
+
+pub fn get_models_dir() -> PathBuf {
+    // 1. Portable / local development folder
+    let local = PathBuf::from("models");
+    if local.exists() {
+        return local;
+    }
+    let parent = PathBuf::from("../models");
+    if parent.exists() {
+        return parent;
+    }
+
+    // 2. Standard persistent data directory (~/.local/share/ragasukma/models, etc.)
+    let data_models = get_app_data_dir().join("models");
+    if data_models.exists() {
+        return data_models;
+    }
+
+    // 3. Backward compatibility: legacy config directory (~/.config/ragasukma/models)
+    let legacy_models = get_app_config_dir().join("models");
+    if legacy_models.exists() {
+        return legacy_models;
+    }
+
+    let _ = fs::create_dir_all(&data_models);
+    data_models
+}
+
 pub fn get_config_file_path() -> PathBuf {
-    // 1. Check via standard candidate (Local project assets/ -> beside exe -> Resources macOS -> AppData/Roaming)
+    // 1. Check via standard candidate (Local project assets/ -> beside exe -> Resources macOS -> AppData/Roaming -> ~/.config)
     let candidate = crate::assets::find_file_in_candidates("config-ai.json");
     if candidate.exists() {
         return candidate;
     }
 
-    // 2. Default target if it doesn't already exist: always in the user's assets folder
-    get_app_config_dir().join("assets").join("config-ai.json")
+    // 2. Default target if it doesn't already exist: ~/.config/ragasukma/config-ai.json (or config dir)
+    let p = get_app_config_dir().join("config-ai.json");
+    if let Some(parent) = p.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    p
 }
 
 static CONFIG_MUTEX: Mutex<()> = Mutex::new(());

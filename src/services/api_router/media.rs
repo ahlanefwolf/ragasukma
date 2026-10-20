@@ -724,8 +724,8 @@ pub(crate) async fn axum_upload_refvoice(
     let assets_dir = crate::assets::get_assets_dir();
     let _ = std::fs::create_dir_all(&assets_dir);
 
-    // Remove old refvoice files
-    for old_ext in &["wav", "mp3", "ogg", "flac", "m4a"] {
+    // Remove old refvoice files & cached embeddings
+    for old_ext in &["wav", "mp3", "ogg", "flac", "m4a", "aac", "se.bin"] {
         let old = assets_dir.join(format!("refvoice.{}", old_ext));
         let _ = std::fs::remove_file(old);
     }
@@ -761,7 +761,7 @@ pub(crate) async fn axum_upload_refvoice(
 pub(crate) async fn axum_delete_refvoice() -> impl IntoResponse {
     let assets_dir = crate::assets::get_assets_dir();
     let mut deleted = false;
-    for ext in &["wav", "mp3", "ogg", "flac", "m4a"] {
+    for ext in &["wav", "mp3", "ogg", "flac", "m4a", "aac", "se.bin"] {
         let file = assets_dir.join(format!("refvoice.{}", ext));
         if file.exists() {
             let _ = std::fs::remove_file(file);

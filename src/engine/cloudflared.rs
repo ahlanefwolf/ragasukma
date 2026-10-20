@@ -101,6 +101,19 @@ fn resolve_cloudflared_bin() -> std::path::PathBuf {
         }
     }
 
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            let local_bin = std::path::PathBuf::from(home)
+                .join(".local")
+                .join("bin")
+                .join("cloudflared");
+            if local_bin.is_file() {
+                return local_bin;
+            }
+        }
+    }
+
     if let Ok(path_var) = std::env::var("PATH") {
         for dir in std::env::split_paths(&path_var) {
             let candidate = dir.join(if cfg!(windows) {

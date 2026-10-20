@@ -31,6 +31,22 @@ pub struct ActiveWebSession {
     pub last_seen: Instant,
 }
 
+static GLOBAL_TOKIO_RT: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
+
+/// Returns reference to the unified application Tokio runtime.
+/// Capped at 2 worker threads and 8 max blocking threads to prevent thread bloat.
+pub fn get_global_tokio_runtime() -> &'static tokio::runtime::Runtime {
+    GLOBAL_TOKIO_RT.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .max_blocking_threads(8)
+            .thread_name("ragasukma-async")
+            .enable_all()
+            .build()
+            .expect("Failed to build unified Tokio runtime")
+    })
+}
+
 pub static ACTIVE_WEB_SESSION: Mutex<Option<ActiveWebSession>> = Mutex::new(None);
 static TOKIO_HANDLE: Mutex<Option<tokio::runtime::Handle>> = Mutex::new(None);
 
@@ -41,10 +57,13 @@ pub fn set_tokio_handle(handle: tokio::runtime::Handle) {
 }
 
 pub fn get_tokio_handle() -> Option<tokio::runtime::Handle> {
-    TOKIO_HANDLE.lock().ok().and_then(|guard| guard.clone())
+    if let Ok(guard) = TOKIO_HANDLE.lock() {
+        if let Some(ref h) = *guard {
+            return Some(h.clone());
+        }
+    }
+    Some(get_global_tokio_runtime().handle().clone())
 }
-
-static FALLBACK_DB_RT: std::sync::OnceLock<Option<tokio::runtime::Runtime>> = std::sync::OnceLock::new();
 
 pub fn spawn_db_task<F>(fut: F)
 where
@@ -56,17 +75,6 @@ where
 
     if let Some(h) = handle {
         h.spawn(fut);
-    } else {
-        let rt_opt = FALLBACK_DB_RT.get_or_init(|| {
-            tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(1)
-                .enable_all()
-                .build()
-                .ok()
-        });
-        if let Some(rt) = rt_opt.as_ref() {
-            rt.spawn(fut);
-        }
     }
 }
 

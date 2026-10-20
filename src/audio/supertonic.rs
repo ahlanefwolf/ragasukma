@@ -97,19 +97,11 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
     File::open(&idx_path)?.read_to_string(&mut idx_str)?;
     let indexer: Vec<i64> = serde_json::from_str(&idx_str)?;
 
-    let available_threads = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(4);
-
-    // Multi-platform thread budgeting:
-    // - duration_predictor: microscopic model (1 float output), 1 thread has zero scheduling overhead
-    // - vector_estimator: runs 6 times per chunk in a tight loop; 1-2 threads eliminates Windows ThreadPool contention
-    // - text_encoder: 1-2 threads for text token matrix multiplies
-    // - vocoder: heaviest model (full conv synthesis), scales well with up to 4 threads
-    let threads_text_enc = available_threads.min(4);
-    let threads_dp = 1;
-    let threads_vec_est = available_threads.min(4);
-    let threads_vocoder = available_threads.min(8);
+    let budget = crate::engine::hardware_probe::get_recommended_tts_threads();
+    let threads_text_enc = budget.text_enc_threads;
+    let threads_dp = budget.dp_threads;
+    let threads_vec_est = budget.vec_est_threads;
+    let threads_vocoder = budget.vocoder_threads;
 
     // 3. ONNX Sessions - Selective Hybrid Memory Budgeting:
     // - text_encoder: runs once per chunk, uses standard allocator to prevent holding static arena memory
@@ -252,6 +244,8 @@ fn find_model_dir() -> Option<PathBuf> {
     let mut candidates = vec![
         PathBuf::from("models/supertonic-3"),
         PathBuf::from("../models/supertonic-3"),
+        crate::config::get_models_dir().join("supertonic-3"),
+        crate::config::get_app_data_dir().join("models/supertonic-3"),
         crate::config::get_app_config_dir().join("models/supertonic-3"),
     ];
 
@@ -545,7 +539,8 @@ impl SupertonicEngine {
 }
 
 /// Computes natural, expressive prosody variations (tempo & inter-chunk pause)
-/// analyzing sentence punctuation, ellipsis, word density, and utterance position.
+/// Calculates natural breathing pauses between chunks based on sentence punctuation
+/// while maintaining 100% RAW tempo without artificial speed distortion.
 fn compute_chunk_prosody(
     chunk: &str,
     base_speed: f32,
@@ -555,57 +550,31 @@ fn compute_chunk_prosody(
 ) -> (f32, usize) {
     let trimmed = chunk.trim();
     if trimmed.is_empty() {
-        return (base_speed, (0.08 * out_sample_rate as f32) as usize);
+        return (base_speed.clamp(0.5, 2.0), (0.08 * out_sample_rate as f32) as usize);
     }
 
-    let char_count = trimmed.chars().count();
-    let is_first = chunk_idx == 0;
     let is_last = chunk_idx + 1 >= total_chunks;
 
-    // 1. Position-aware Base Tempo:
-    // Opening phrase speaks with crisp clarity, mid-phrase flows naturally, ending phrase gently slows down.
-    let mut speed_mult = if is_first && total_chunks > 1 {
-        1.01
-    } else if is_last && total_chunks > 1 {
-        0.97
-    } else {
-        1.00
-    };
-
-    // 2. Length & Word Density modulation:
-    // Short exclamation/greeting gets expressive pace; dense long sentence gets slight speedup for fluid delivery.
-    if char_count < 15 {
-        speed_mult *= 0.96; // more deliberate, expressive cadence
-    } else if char_count > 60 {
-        speed_mult *= 1.03; // slight momentum for long sentences
-    }
-
-    // 3. Punctuation & Emotion Parsing:
-    let (punct_mult, pause_secs) = if trimmed.ends_with("...") || trimmed.ends_with('…') {
-        // Hesitation / trailing thought / suspense
-        (0.92, 0.22)
+    // Natural punctuation pauses:
+    let pause_secs = if trimmed.ends_with("...") || trimmed.ends_with('…') {
+        0.22
     } else if trimmed.ends_with("?!") || trimmed.ends_with("!?") {
-        // Shock / excited question
-        (1.08, 0.16)
+        0.16
     } else if trimmed.ends_with('?') || trimmed.ends_with('？') {
-        // Question intonation
-        (1.04, 0.13)
+        0.13
     } else if trimmed.ends_with('!') || trimmed.ends_with('！') {
-        // Exclamation / excitement
-        (1.06, 0.14)
+        0.14
     } else if trimmed.ends_with(',') || trimmed.ends_with('，') || trimmed.ends_with(';') || trimmed.ends_with('；') {
-        // Intra-sentence breathing pause
-        (1.00, 0.07)
+        0.08
     } else if trimmed.ends_with(':') || trimmed.ends_with('：') {
-        // Colon explanation pause
-        (0.98, 0.12)
+        0.12
+    } else if is_last {
+        0.05
     } else {
-        // Standard period / sentence closure
-        let final_pause = if is_last { 0.05 } else { 0.11 };
-        (1.00, final_pause)
+        0.11
     };
 
-    let final_speed = (base_speed * speed_mult * punct_mult).clamp(0.5, 2.0);
+    let final_speed = base_speed.clamp(0.5, 2.0);
     let pause_samples = (pause_secs * out_sample_rate as f32) as usize;
 
     (final_speed, pause_samples)
