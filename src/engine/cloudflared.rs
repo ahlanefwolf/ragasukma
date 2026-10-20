@@ -38,7 +38,7 @@ impl CloudflaredTunnelManager {
 static CLOUDFLARED_URL_REGEX: std::sync::LazyLock<regex::Regex> =
     std::sync::LazyLock::new(|| {
         regex::Regex::new(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
-            .unwrap_or_else(|_| regex::Regex::new("trycloudflare").unwrap())
+            .unwrap_or_else(|_| regex::Regex::new("trycloudflare").expect("valid fallback cloudflare regex"))
     });
 
 pub static TUNNEL_MANAGER: Mutex<Option<CloudflaredTunnelManager>> = Mutex::new(None);

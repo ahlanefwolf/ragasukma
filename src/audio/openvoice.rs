@@ -54,7 +54,7 @@ pub fn init_engine() -> Result<OpenVoiceEngine> {
     let available_threads = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4);
-    let intra_threads = available_threads.min(4);
+    let intra_threads = available_threads.min(8);
 
     crate::term_log!(
         "[OpenVoice Engine] Loading ONNX models from {:?} (threads: {})",
@@ -260,12 +260,12 @@ pub fn compute_linear_spectrogram(
         // Run O(N log N) in-place FFT in ~1 microsecond
         fft.forward(&mut real_buf, &mut imag_buf);
 
-        // Compute magnitude for positive frequencies [0..513]
+        // Compute magnitude for positive frequencies [0..513] directly into continuous slice
+        let out_offset = frame_idx;
         for k in 0..num_bins {
             let r = real_buf[k];
             let im = imag_buf[k];
-            let magnitude = (r * r + im * im).sqrt();
-            spec_data[k * n_frames + frame_idx] = magnitude;
+            spec_data[k * n_frames + out_offset] = (r * r + im * im).sqrt();
         }
     }
 
@@ -390,6 +390,7 @@ impl OpenVoiceEngine {
     }
 
     /// Mengonversi timbre audio WAV (44.1k/24k) ke target voice reference
+    #[allow(dead_code)]
     pub fn convert_voice(
         &self,
         src_samples: &[f32],

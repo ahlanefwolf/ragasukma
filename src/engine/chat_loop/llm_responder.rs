@@ -22,6 +22,9 @@ pub fn process_llm_response_with_role(
     let mut first_token_time = None;
     let mut printed_header = false;
 
+    // Pre-warm isolated TTS worker asynchronously while LLM processes first token
+    crate::audio::supertonic::prewarm_tts_worker();
+
     // Inisialisasi streaming voice session untuk sintesis & playback paralel per kalimat
     let mut voice_session = tts.start_streaming_session(asst_name);
 

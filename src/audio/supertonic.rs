@@ -65,29 +65,12 @@ static LAST_AUDIO_WAV_LIST: std::sync::LazyLock<AudioByteQueue> =
     std::sync::LazyLock::new(|| Mutex::new(std::collections::VecDeque::new()));
 static LATEST_AUDIO_ID: Mutex<Option<String>> = Mutex::new(None);
 
+#[allow(dead_code)]
 pub fn get_engine() -> Option<&'static SupertonicEngine> {
     ENGINE.get()
 }
 
-#[allow(dead_code)]
-pub fn init_engine_background() {
-    let _ = std::thread::Builder::new()
-        .name("ragasukma-tts-init".to_string())
-        .stack_size(2 * 1024 * 1024)
-        .spawn(|| {
-            match init_engine() {
-                Ok(engine) => {
-                    // Background warm-up: run 1 micro-inference so that ONNX graphs,
-                    // kernels, Level3 optimizations, and memory arenas are compiled
-                    // and cached in RAM before user interaction.
-                    let _ = engine.synthesize("Halo", "F4", "id", 1.0);
-                }
-                Err(e) => {
-                    crate::term_err!("[Supertonic TTS] Failed to initialize model: {e}");
-                }
-            }
-        });
-}
+
 
 pub fn init_engine() -> Result<&'static SupertonicEngine> {
     if let Some(engine) = ENGINE.get() {
@@ -123,10 +106,10 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
     // - vector_estimator: runs 6 times per chunk in a tight loop; 1-2 threads eliminates Windows ThreadPool contention
     // - text_encoder: 1-2 threads for text token matrix multiplies
     // - vocoder: heaviest model (full conv synthesis), scales well with up to 4 threads
-    let threads_text_enc = available_threads.min(2);
+    let threads_text_enc = available_threads.min(4);
     let threads_dp = 1;
-    let threads_vec_est = available_threads.min(2);
-    let threads_vocoder = available_threads.min(4);
+    let threads_vec_est = available_threads.min(4);
+    let threads_vocoder = available_threads.min(8);
 
     // 3. ONNX Sessions - Selective Hybrid Memory Budgeting:
     // - text_encoder: runs once per chunk, uses standard allocator to prevent holding static arena memory
@@ -165,10 +148,11 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
         .commit_from_file(model_dir.join("onnx/duration_predictor.onnx"))
         .map_err(|e| anyhow!("{e}"))?;
 
-    // - vector_estimator: runs 6x in flow-matching loop; non-arena releases scratch tensors after synthesis
+    // - vector_estimator: CRUCIAL FOR PERFORMANCE - runs 6x in a tight flow-matching loop;
+    //   keeping arena enabled ensures all 6 iterative steps run 100% in-memory with zero OS heap locks.
     let vec_est_sess = Session::builder()
         .map_err(|e| anyhow!("{e}"))?
-        .with_execution_providers([CPU::default().with_arena_allocator(false).build()])
+        .with_execution_providers([CPU::default().with_arena_allocator(true).build()])
         .map_err(|e| anyhow!("{e}"))?
         .with_intra_threads(threads_vec_est)
         .map_err(|e| anyhow!("{e}"))?
@@ -265,11 +249,19 @@ pub fn init_engine() -> Result<&'static SupertonicEngine> {
 }
 
 fn find_model_dir() -> Option<PathBuf> {
-    let candidates = [
+    let mut candidates = vec![
         PathBuf::from("models/supertonic-3"),
         PathBuf::from("../models/supertonic-3"),
-        PathBuf::from("/home/headway/MyWork/project/node/ai-voice/models/supertonic-3"),
+        crate::config::get_app_config_dir().join("models/supertonic-3"),
     ];
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            candidates.push(parent.join("models/supertonic-3"));
+            candidates.push(parent.join("../models/supertonic-3"));
+        }
+    }
+
     candidates
         .into_iter()
         .find(|c| c.join("onnx/vocoder.onnx").exists())
@@ -396,7 +388,7 @@ impl SupertonicEngine {
         }
         let latent_mask_data = vec![1.0f32; latent_len];
 
-        let total_steps = 6;
+        let total_steps = 8;
         let total_step_data = vec![total_steps as f32];
 
         {
@@ -478,7 +470,8 @@ impl SupertonicEngine {
             let samples = self.synthesize_chunk(&chunks[0], style, &lang_code, speed)?;
             let (final_samples, out_sample_rate) = match (openvoice_opt, ref_voice_opt.as_ref()) {
                 (Some(ov), Some(ref_path)) => {
-                    match ov.convert_voice(&samples, self.cfg.ae.sample_rate, ref_path, 0.3) {
+                    let target_se = ov.get_target_se(ref_path)?;
+                    match ov.convert_voice_with_target_se(&samples, self.cfg.ae.sample_rate, &target_se, 0.3) {
                         Ok(converted) => (converted, 22050),
                         Err(e) => {
                             crate::term_err!("[OpenVoice] Tone conversion failed: {e}");
@@ -734,7 +727,8 @@ pub fn split_into_tts_chunks(text: &str) -> Vec<String> {
     // Normalize multiple consecutive dots ("...", "..", "…") into a comma pause
     // so the TTS engine produces a natural breathing pause instead of reading "titik titik"
     static RE_ELLIPSIS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-        regex::Regex::new(r"\.{2,}|…").unwrap_or_else(|_| regex::Regex::new(r"\.\.").unwrap())
+        regex::Regex::new(r"\.{2,}|…")
+            .unwrap_or_else(|_| regex::Regex::new(r"\.\.").expect("valid fallback ellipsis regex"))
     });
     let cleaned = RE_ELLIPSIS.replace_all(text, ", ");
 
@@ -908,7 +902,8 @@ fn preprocess_text(text: &str, lang: &str) -> String {
 
     // Normalize multiple dots / ellipsis to comma pause so neural TTS does not pronounce "titik titik"
     static RE_ELLIPSIS_PRE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-        regex::Regex::new(r"\.{2,}|…").unwrap_or_else(|_| regex::Regex::new(r"\.\.").unwrap())
+        regex::Regex::new(r"\.{2,}|…")
+            .unwrap_or_else(|_| regex::Regex::new(r"\.\.").expect("valid fallback ellipsis regex"))
     });
     t = RE_ELLIPSIS_PRE.replace_all(&t, ", ").to_string();
 
@@ -927,8 +922,10 @@ fn preprocess_text(text: &str, lang: &str) -> String {
     t = t.replace("e.g.,", "for example, ");
     t = t.replace("i.e.,", "that is, ");
 
-    static RE_SP: std::sync::LazyLock<regex::Regex> =
-        std::sync::LazyLock::new(|| regex::Regex::new(r"\s+").unwrap_or_else(|_| regex::Regex::new(" ").unwrap()));
+    static RE_SP: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"\s+")
+            .unwrap_or_else(|_| regex::Regex::new(" ").expect("valid fallback space regex"))
+    });
     t = RE_SP.replace_all(&t, " ").trim().to_string();
 
     let ends_with_punct = t.ends_with('.')
@@ -1019,6 +1016,7 @@ pub fn samples_to_wav_bytes(samples: &[f32], sample_rate: u32) -> Vec<u8> {
     out
 }
 
+#[allow(dead_code)]
 pub fn wav_bytes_to_samples(wav: &[u8]) -> (Vec<f32>, u32) {
     if wav.len() < 44 {
         return (Vec::new(), 44100);
@@ -1047,6 +1045,13 @@ pub enum TtsIpcCmd {
         lang: String,
         speed: f32,
     },
+    #[serde(rename = "synthesize_stream")]
+    SynthesizeStream {
+        text: String,
+        voice: String,
+        lang: String,
+        speed: f32,
+    },
     #[serde(rename = "ping")]
     Ping,
     #[serde(rename = "quit")]
@@ -1058,6 +1063,27 @@ pub struct TtsIpcResp {
     pub success: bool,
     pub wav_base64: Option<String>,
     pub error: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[serde(tag = "event")]
+pub enum TtsIpcStreamEvent {
+    #[serde(rename = "chunk")]
+    Chunk {
+        chunk_idx: usize,
+        total_chunks: usize,
+        sample_rate: u32,
+        pcm: Vec<f32>,
+        wav_base64: String,
+    },
+    #[serde(rename = "done")]
+    Done {
+        total_wav_base64: String,
+    },
+    #[serde(rename = "error")]
+    Error {
+        error: String,
+    },
 }
 
 pub static TTS_SUPERVISOR: crate::services::ManagedWorkerProcess =
@@ -1154,6 +1180,55 @@ pub fn run_tts_worker_process() -> anyhow::Result<()> {
                 }
                 let _ = stdout.flush();
             }
+            TtsIpcCmd::SynthesizeStream {
+                text,
+                voice,
+                lang,
+                speed,
+            } => {
+                let stream_res = engine.synthesize_stream(
+                    &text,
+                    &voice,
+                    &lang,
+                    speed,
+                    |chunk_idx, total_chunks, pcm, sample_rate, wav_bytes| {
+                        let b64 = base64::engine::general_purpose::STANDARD.encode(&wav_bytes);
+                        let ev = TtsIpcStreamEvent::Chunk {
+                            chunk_idx,
+                            total_chunks,
+                            sample_rate,
+                            pcm,
+                            wav_base64: b64,
+                        };
+                        if let Ok(j) = serde_json::to_string(&ev) {
+                            let _ = writeln!(stdout, "{}", j);
+                            let _ = stdout.flush();
+                        }
+                    },
+                );
+
+                match stream_res {
+                    Ok(total_wav) => {
+                        let b64 = base64::engine::general_purpose::STANDARD.encode(&total_wav);
+                        let ev = TtsIpcStreamEvent::Done {
+                            total_wav_base64: b64,
+                        };
+                        if let Ok(j) = serde_json::to_string(&ev) {
+                            let _ = writeln!(stdout, "{}", j);
+                            let _ = stdout.flush();
+                        }
+                    }
+                    Err(e) => {
+                        let ev = TtsIpcStreamEvent::Error {
+                            error: e.to_string(),
+                        };
+                        if let Ok(j) = serde_json::to_string(&ev) {
+                            let _ = writeln!(stdout, "{}", j);
+                            let _ = stdout.flush();
+                        }
+                    }
+                }
+            }
             TtsIpcCmd::Ping => {
                 let resp = TtsIpcResp {
                     success: true,
@@ -1199,6 +1274,93 @@ pub fn synthesize_via_worker(
         resp.error
             .unwrap_or_else(|| "TTS synthesis failed".to_string())
     ))
+}
+
+/// Pre-warms the isolated TTS worker process in the background.
+/// This prevents cold-start latency when speech is triggered.
+pub fn prewarm_tts_worker() {
+    std::thread::Builder::new()
+        .name("tts-prewarm".to_string())
+        .spawn(|| {
+            let cmd = TtsIpcCmd::Ping;
+            if let Ok(json) = serde_json::to_string(&cmd) {
+                let _ = TTS_SUPERVISOR.send_command(&json, std::time::Duration::from_secs(10));
+            }
+        })
+        .ok();
+}
+
+/// Streams speech synthesis chunk-by-chunk via isolated worker process.
+/// As each sub-chunk finishes tone-conversion, `on_chunk` is immediately invoked.
+pub fn synthesize_stream_via_worker<F>(
+    text: &str,
+    voice: &str,
+    lang: &str,
+    speed: f32,
+    mut on_chunk: F,
+) -> anyhow::Result<Vec<u8>>
+where
+    F: FnMut(usize, usize, Vec<f32>, u32, Vec<u8>),
+{
+    use base64::Engine;
+    let cmd = TtsIpcCmd::SynthesizeStream {
+        text: text.to_string(),
+        voice: voice.to_string(),
+        lang: lang.to_string(),
+        speed,
+    };
+    let json_cmd = serde_json::to_string(&cmd)?;
+
+    let mut total_wav_bytes = Vec::new();
+    let mut err_msg = None;
+
+    let stream_res = TTS_SUPERVISOR.send_command_streaming(
+        &json_cmd,
+        std::time::Duration::from_secs(35),
+        |line| {
+            let ev: TtsIpcStreamEvent = serde_json::from_str(line)
+                .map_err(|e| format!("Invalid stream event ({e}): {line}"))?;
+
+            match ev {
+                TtsIpcStreamEvent::Chunk {
+                    chunk_idx,
+                    total_chunks,
+                    sample_rate,
+                    pcm,
+                    wav_base64,
+                } => {
+                    if let Ok(chunk_wav) =
+                        base64::engine::general_purpose::STANDARD.decode(wav_base64)
+                    {
+                        on_chunk(chunk_idx, total_chunks, pcm, sample_rate, chunk_wav);
+                    }
+                    Ok(false)
+                }
+                TtsIpcStreamEvent::Done { total_wav_base64 } => {
+                    if let Ok(bytes) =
+                        base64::engine::general_purpose::STANDARD.decode(total_wav_base64)
+                    {
+                        total_wav_bytes = bytes;
+                    }
+                    Ok(true)
+                }
+                TtsIpcStreamEvent::Error { error } => {
+                    err_msg = Some(error);
+                    Ok(true)
+                }
+            }
+        },
+    );
+
+    if let Err(e) = stream_res {
+        return Err(anyhow::anyhow!("Worker streaming failed: {e}"));
+    }
+
+    if let Some(e) = err_msg {
+        return Err(anyhow::anyhow!("Worker synthesis error: {e}"));
+    }
+
+    Ok(total_wav_bytes)
 }
 
 #[allow(dead_code)]

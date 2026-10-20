@@ -42,10 +42,15 @@ fn check_and_apply_efficiency() {
         .map(|d| d.as_secs())
         .unwrap_or(0);
 
-    // If 10 seconds of idle have passed since last activity, trigger OS memory cleanup & efficiency trim
-    if now.saturating_sub(last) >= 10 {
-        // Reset last activity to 0 so we only trim once per idle window
+    // 2-tier cleanup:
+    // Tier 1 (10s): Soft trim (mimalloc collect / malloc_trim)
+    // Tier 2 (300s / 5 mins): Deep OS physical trim (EmptyWorkingSet on Windows)
+    let idle_secs = now.saturating_sub(last);
+
+    if idle_secs >= 300 {
         LAST_ACTIVITY_TIME.store(0, Ordering::Relaxed);
+        deep_trim_process_memory();
+    } else if (10..15).contains(&idle_secs) {
         trim_process_memory();
     }
 }
@@ -87,5 +92,20 @@ pub fn trim_process_memory() {
     {
         // On macOS, mimalloc will purge free pages back to the kernel.
         // Darwin also automatically compresses or pages out unreferenced physical pages.
+    }
+}
+
+/// Deep trim: forcefully releases physical working set back to OS kernel (after ~5 mins true idle).
+pub fn deep_trim_process_memory() {
+    trim_process_memory();
+
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::System::ProcessStatus::EmptyWorkingSet;
+        use windows::Win32::System::Threading::GetCurrentProcess;
+
+        unsafe {
+            let _ = EmptyWorkingSet(GetCurrentProcess());
+        }
     }
 }

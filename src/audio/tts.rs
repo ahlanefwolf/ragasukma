@@ -145,16 +145,70 @@ impl TextToSpeech {
                             let cur_sent_idx = sentence_count;
                             let sess_id_closure = session_id.clone();
 
-                            let synth_res = match crate::audio::supertonic::synthesize_via_worker(
+                            let synth_res = match crate::audio::supertonic::synthesize_stream_via_worker(
                                 &clean_text,
                                 &voice,
                                 &lang,
                                 speed,
+                                |sub_idx, sub_total, chunk_samples, chunk_rate, chunk_wav| {
+                                    if !crate::app_state::is_interruption_requested() {
+                                        if let Some(pc_stream) = pc_stream_ref {
+                                            pc_stream.push_chunk_pcm(chunk_samples, chunk_rate);
+                                        }
+
+                                        let chunk_global_idx = global_chunk_counter;
+                                        global_chunk_counter += 1;
+
+                                        let chunk_id = format!(
+                                            "{:x}_{}_{}",
+                                            simple_hash_u64(&clean_for_closure),
+                                            cur_sent_idx,
+                                            sub_idx
+                                        );
+                                        crate::audio::supertonic::set_last_audio_wav(
+                                            chunk_id.clone(),
+                                            chunk_wav.clone(),
+                                        );
+
+                                        let chunk_audio_url =
+                                            format!("/api/tts/audio?id={}", chunk_id);
+                                        let chunk_dur =
+                                            wav_duration_secs(&chunk_wav).unwrap_or(0.0);
+
+                                        let chunk_payload = serde_json::json!({
+                                            "text": clean_for_closure,
+                                            "emotion": emo_for_closure,
+                                            "audio_url": Some(chunk_audio_url),
+                                            "duration": chunk_dur,
+                                            "voice": voice_for_closure,
+                                            "lang": lang_for_closure,
+                                            "chunk_index": chunk_global_idx,
+                                            "sentence_index": cur_sent_idx,
+                                            "session_id": sess_id_closure,
+                                            "sub_chunk_index": sub_idx,
+                                            "sub_total_chunks": sub_total,
+                                            "total_chunks": chunk_global_idx + 1,
+                                            "is_chunk": true,
+                                            "native_played": !crate::app_state::is_voice_muted()
+                                        })
+                                        .to_string();
+                                        crate::app_state::push_client_action(
+                                            "assistant:speak",
+                                            Some(&chunk_payload),
+                                        );
+                                    }
+                                },
                             ) {
-                                    Ok(wav_bytes) => {
-                                        let (chunk_samples, chunk_rate) =
-                                            crate::audio::supertonic::wav_bytes_to_samples(&wav_bytes);
-                                        if !crate::app_state::is_interruption_requested() {
+                                Ok(wav_bytes) => Ok(wav_bytes),
+                                Err(err) => {
+                                    crate::term_err!("[TTS Supervisor] Worker synthesis failed ({err}), retrying once...");
+                                    crate::audio::supertonic::TTS_SUPERVISOR.kill_now();
+                                    crate::audio::supertonic::synthesize_stream_via_worker(
+                                        &clean_text,
+                                        &voice,
+                                        &lang,
+                                        speed,
+                                        |sub_idx, sub_total, chunk_samples, chunk_rate, chunk_wav| {
                                             if let Some(pc_stream) = pc_stream_ref {
                                                 pc_stream.push_chunk_pcm(chunk_samples, chunk_rate);
                                             }
@@ -166,16 +220,17 @@ impl TextToSpeech {
                                                 "{:x}_{}_{}",
                                                 simple_hash_u64(&clean_for_closure),
                                                 cur_sent_idx,
-                                                0
+                                                sub_idx
                                             );
                                             crate::audio::supertonic::set_last_audio_wav(
                                                 chunk_id.clone(),
-                                                wav_bytes.clone(),
+                                                chunk_wav.clone(),
                                             );
 
                                             let chunk_audio_url =
                                                 format!("/api/tts/audio?id={}", chunk_id);
-                                            let chunk_dur = wav_duration_secs(&wav_bytes).unwrap_or(0.0);
+                                            let chunk_dur =
+                                                wav_duration_secs(&chunk_wav).unwrap_or(0.0);
 
                                             let chunk_payload = serde_json::json!({
                                                 "text": clean_for_closure,
@@ -187,8 +242,8 @@ impl TextToSpeech {
                                                 "chunk_index": chunk_global_idx,
                                                 "sentence_index": cur_sent_idx,
                                                 "session_id": sess_id_closure,
-                                                "sub_chunk_index": 0,
-                                                "sub_total_chunks": 1,
+                                                "sub_chunk_index": sub_idx,
+                                                "sub_total_chunks": sub_total,
                                                 "total_chunks": chunk_global_idx + 1,
                                                 "is_chunk": true,
                                                 "native_played": !crate::app_state::is_voice_muted()
@@ -198,79 +253,14 @@ impl TextToSpeech {
                                                 "assistant:speak",
                                                 Some(&chunk_payload),
                                             );
-                                        }
-                                        Ok(wav_bytes)
-                                    }
-                                    Err(_) => {
-                                        // Fallback to local in-process engine only if worker process failed
-                                        if let Some(engine) = crate::audio::supertonic::get_engine()
-                                            .or_else(|| crate::audio::supertonic::init_engine().ok())
-                                        {
-                                            engine.synthesize_stream(
-                                                &clean_text,
-                                                &voice,
-                                                &lang,
-                                                speed,
-                                                &mut |chunk_idx: usize,
-                                                      total_chunks: usize,
-                                                      chunk_samples: Vec<f32>,
-                                                      chunk_rate: u32,
-                                                      chunk_wav: Vec<u8>| {
-                                                    if crate::app_state::is_interruption_requested() {
-                                                        return;
-                                                    }
-
-                                                    if let Some(pc_stream) = pc_stream_ref {
-                                                        pc_stream.push_chunk_pcm(chunk_samples, chunk_rate);
-                                                    }
-
-                                                    let chunk_global_idx = global_chunk_counter;
-                                                    global_chunk_counter += 1;
-
-                                                    let chunk_id = format!(
-                                                        "{:x}_{}_{}",
-                                                        simple_hash_u64(&clean_for_closure),
-                                                        cur_sent_idx,
-                                                        chunk_idx
-                                                    );
-                                                    crate::audio::supertonic::set_last_audio_wav(
-                                                        chunk_id.clone(),
-                                                        chunk_wav.clone(),
-                                                    );
-
-                                                    let chunk_audio_url =
-                                                        format!("/api/tts/audio?id={}", chunk_id);
-                                                    let chunk_dur =
-                                                        wav_duration_secs(&chunk_wav).unwrap_or(0.0);
-
-                                                    let chunk_payload = serde_json::json!({
-                                                        "text": clean_for_closure,
-                                                        "emotion": emo_for_closure,
-                                                        "audio_url": Some(chunk_audio_url),
-                                                        "duration": chunk_dur,
-                                                        "voice": voice_for_closure,
-                                                        "lang": lang_for_closure,
-                                                        "chunk_index": chunk_global_idx,
-                                                        "sentence_index": cur_sent_idx,
-                                                        "session_id": sess_id_closure,
-                                                        "sub_chunk_index": chunk_idx,
-                                                        "sub_total_chunks": total_chunks,
-                                                        "total_chunks": chunk_global_idx + 1,
-                                                        "is_chunk": true,
-                                                        "native_played": !crate::app_state::is_voice_muted()
-                                                    })
-                                                    .to_string();
-                                                    crate::app_state::push_client_action(
-                                                        "assistant:speak",
-                                                        Some(&chunk_payload),
-                                                    );
-                                                },
-                                            )
-                                        } else {
-                                            Err(anyhow::anyhow!("TTS engine not available"))
-                                        }
-                                    }
-                                };
+                                        },
+                                    )
+                                    .map_err(|e| {
+                                        crate::term_err!("[TTS Supervisor] Retry also failed: {e}");
+                                        anyhow::anyhow!("TTS worker unavailable: {e}")
+                                    })
+                                }
+                            };
 
                                 if let Ok(wav_bytes) = synth_res {
                                     if let Some(dur) = wav_duration_secs(&wav_bytes) {
@@ -437,7 +427,7 @@ impl TextToSpeech {
         // ---------------------------------------------------------------------
         // Worker 1 (Chunk Inference Producer): Generate WAV Chunks via ONNX
         // ---------------------------------------------------------------------
-        let mut on_chunk = |chunk_idx: usize, total_chunks: usize, chunk_samples: Vec<f32>, chunk_rate: u32, chunk_wav: Vec<u8>| {
+        let on_chunk = |chunk_idx: usize, total_chunks: usize, chunk_samples: Vec<f32>, chunk_rate: u32, chunk_wav: Vec<u8>| {
             // Jika ada interupsi dari user, jangan teruskan chunk ke player/mobile
             if crate::app_state::is_interruption_requested() {
                 return;
@@ -463,17 +453,18 @@ impl TextToSpeech {
             });
         };
 
-        let synthesized = match crate::audio::supertonic::synthesize_via_worker(
+        let synthesized = match crate::audio::supertonic::synthesize_stream_via_worker(
             &clean_text,
             &voice,
             &lang,
             speed,
+            |sub_idx, sub_total, samples, rate, bytes| {
+                crate::engine::os_efficiency::notify_active();
+                on_chunk(sub_idx, sub_total, samples, rate, bytes);
+            },
         ) {
             Ok(bytes) => {
                 crate::engine::os_efficiency::notify_active();
-                let (samples, rate) = crate::audio::supertonic::wav_bytes_to_samples(&bytes);
-                on_chunk(0, 1, samples, rate, bytes.clone());
-
                 drop(mobile_tx);
                 if let Some(ref pc_stream) = native_pc_stream {
                     pc_stream.finish();
@@ -483,40 +474,38 @@ impl TextToSpeech {
                 audio_bytes_opt = Some(bytes);
                 true
             }
-            Err(_) => {
-                let engine_opt = crate::audio::supertonic::get_engine()
-                    .or_else(|| crate::audio::supertonic::init_engine().ok());
-
-                if let Some(engine) = engine_opt {
-                    crate::engine::os_efficiency::notify_active();
-                    match engine.synthesize_stream(&clean_text, &voice, &lang, speed, &mut on_chunk) {
-                        Ok(bytes) => {
-                            crate::engine::os_efficiency::notify_active();
-                            drop(mobile_tx);
-
-                            if let Some(ref pc_stream) = native_pc_stream {
-                                pc_stream.finish();
-                            }
-
-                            crate::audio::supertonic::set_last_audio_wav(audio_id.clone(), bytes.clone());
-                            audio_bytes_opt = Some(bytes);
-                            true
+            Err(err) => {
+                crate::term_err!("[TTS Supervisor] Worker synthesis failed ({err}), retrying once...");
+                crate::audio::supertonic::TTS_SUPERVISOR.kill_now();
+                match crate::audio::supertonic::synthesize_stream_via_worker(
+                    &clean_text,
+                    &voice,
+                    &lang,
+                    speed,
+                    |sub_idx, sub_total, samples, rate, bytes| {
+                        crate::engine::os_efficiency::notify_active();
+                        on_chunk(sub_idx, sub_total, samples, rate, bytes);
+                    },
+                ) {
+                    Ok(bytes) => {
+                        crate::engine::os_efficiency::notify_active();
+                        drop(mobile_tx);
+                        if let Some(ref pc_stream) = native_pc_stream {
+                            pc_stream.finish();
                         }
-                        Err(e) => {
-                            drop(mobile_tx);
-                            if let Some(ref pc_stream) = native_pc_stream {
-                                pc_stream.finish();
-                            }
-                            crate::term_err!("[Supertonic TTS] Failed to synthesize audio: {e}");
-                            false
+
+                        crate::audio::supertonic::set_last_audio_wav(audio_id.clone(), bytes.clone());
+                        audio_bytes_opt = Some(bytes);
+                        true
+                    }
+                    Err(e) => {
+                        drop(mobile_tx);
+                        if let Some(ref pc_stream) = native_pc_stream {
+                            pc_stream.finish();
                         }
+                        crate::term_err!("[TTS Supervisor] Retry worker synthesis also failed: {e}");
+                        false
                     }
-                } else {
-                    drop(mobile_tx);
-                    if let Some(ref pc_stream) = native_pc_stream {
-                        pc_stream.finish();
-                    }
-                    false
                 }
             }
         };

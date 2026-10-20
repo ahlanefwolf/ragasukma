@@ -260,6 +260,7 @@ pub(crate) async fn axum_stt_transcript(
     let clean = payload.text.trim();
     if !clean.is_empty() {
         println!("[Mobile STT -> Remote Text] Transcript received: {}", clean);
+        crate::audio::supertonic::prewarm_tts_worker();
         crate::engine::remote_text::inject_remote_text(clean.to_string());
     }
     Json(json!({ "success": true }))
@@ -317,6 +318,9 @@ pub(crate) async fn axum_tts_state(
     };
 
     if !target_state.is_empty() {
+        if target_state == "listening" {
+            crate::audio::supertonic::prewarm_tts_worker();
+        }
         if target_state == "speaking" {
             crate::app_state::set_ai_speaking(true);
             crate::app_state::touch_speech_activity();
@@ -431,17 +435,9 @@ pub(crate) async fn axum_tts_synthesize(Json(req): Json<SynthesizePayload>) -> i
 
     let text_clone = req.text.clone();
     let res = tokio::task::spawn_blocking(move || {
-        let engine = match crate::audio::supertonic::get_engine() {
-            Some(e) => e,
-            None => match crate::audio::supertonic::init_engine() {
-                Ok(e) => e,
-                Err(e) => {
-                    return Err(format!("Failed to initialize Supertonic engine: {e}"));
-                }
-            },
-        };
         crate::engine::os_efficiency::notify_active();
-        engine.synthesize(&text_clone, &voice, &lang, speed).map_err(|e| format!("Synthesis failed: {e}"))
+        crate::audio::supertonic::synthesize_auto(&text_clone, &voice, &lang, speed)
+            .map_err(|e| format!("Synthesis failed: {e}"))
     })
     .await;
 
@@ -743,6 +739,8 @@ pub(crate) async fn axum_upload_refvoice(
                 target_path
             );
             crate::audio::openvoice::invalidate_ref_cache();
+            crate::audio::supertonic::clear_all_audio_cache();
+            crate::audio::supertonic::TTS_SUPERVISOR.kill_now();
             Json(json!({
                 "success": true,
                 "message": format!("Reference voice uploaded as refvoice.{}", clean_ext)
@@ -771,6 +769,8 @@ pub(crate) async fn axum_delete_refvoice() -> impl IntoResponse {
         }
     }
     crate::audio::openvoice::invalidate_ref_cache();
+    crate::audio::supertonic::clear_all_audio_cache();
+    crate::audio::supertonic::TTS_SUPERVISOR.kill_now();
     if deleted {
         Json(json!({ "success": true, "message": "Reference voice deleted, restored to Supertonic default" })).into_response()
     } else {

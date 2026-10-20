@@ -153,6 +153,69 @@ impl ManagedWorkerProcess {
         }
     }
 
+    /// Sends a JSON command to the worker and streams line responses until `on_line` returns Ok(true).
+    pub fn send_command_streaming<F>(
+        &self,
+        json_cmd: &str,
+        timeout_per_line: Duration,
+        mut on_line: F,
+    ) -> Result<(), String>
+    where
+        F: FnMut(&str) -> Result<bool, String>,
+    {
+        self.ensure_spawned()?;
+
+        let mut guard = self.state.lock().map_err(|e| e.to_string())?;
+        let active = guard
+            .as_mut()
+            .ok_or_else(|| "Active worker not found".to_string())?;
+
+        active.last_active = Instant::now();
+
+        // Write command line
+        if let Err(e) = writeln!(active.stdin, "{}", json_cmd) {
+            let _ = active.child.kill();
+            *guard = None;
+            return Err(format!("Failed to write to worker stdin: {e}"));
+        }
+        let _ = active.stdin.flush();
+
+        loop {
+            match active.rx.recv_timeout(timeout_per_line) {
+                Ok(response) => {
+                    active.last_active = Instant::now();
+                    let finished = on_line(&response)?;
+                    if finished {
+                        return Ok(());
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    eprintln!(
+                        "[Supervisor Watchdog] Worker '{}' stream timed out after {:?}. Force killing process!",
+                        self.flag, timeout_per_line
+                    );
+                    let _ = active.child.kill();
+                    let _ = active.child.wait();
+                    *guard = None;
+                    return Err(format!(
+                        "Worker '{}' stream timeout ({:?})",
+                        self.flag, timeout_per_line
+                    ));
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    eprintln!(
+                        "[Supervisor Watchdog] Worker '{}' process disconnected unexpectedly during streaming.",
+                        self.flag
+                    );
+                    let _ = active.child.kill();
+                    let _ = active.child.wait();
+                    *guard = None;
+                    return Err(format!("Worker '{}' disconnected unexpectedly", self.flag));
+                }
+            }
+        }
+    }
+
     /// Checks if the worker has been idle longer than its configured timeout, and terminates it if so.
     /// Also reaps any terminated child processes to prevent zombie (<defunct>) processes.
     pub fn drop_if_idle(&self) -> bool {

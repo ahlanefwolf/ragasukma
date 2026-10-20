@@ -191,8 +191,8 @@ pub fn get_music_dir() -> PathBuf {
 pub fn get_app_config_dir() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
-        if let Ok(appdata) = env::var("APPDATA") {
-            let p = PathBuf::from(appdata).join("ragasukma");
+        if let Ok(local_appdata) = env::var("LOCALAPPDATA").or_else(|_| env::var("APPDATA")) {
+            let p = PathBuf::from(local_appdata).join("ragasukma");
             let _ = fs::create_dir_all(&p);
             return p;
         }

@@ -1,84 +1,58 @@
-# ------------------------------------------------------------------------------
-# Rust & Cargo build artifacts
-# ------------------------------------------------------------------------------
-/target/
+# ==============================================================================
+# Rust & Cargo Build Artifacts
+# ==============================================================================
 target/
-*.rs.bk
 *.pdb
 
-# ------------------------------------------------------------------------------
-# Frontend & Web artifacts
-# ------------------------------------------------------------------------------
+# ==============================================================================
+# Frontend & Web Artifacts
+# ==============================================================================
 node_modules/
-.npm/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
 web/node_modules/
+.npm/
 
-# ------------------------------------------------------------------------------
-# Models, AI Weights & Large Binaries
-# ------------------------------------------------------------------------------
-/models/
-/assets/models/
-*.bin
+# ==============================================================================
+# AI Models & Binaries (ONNX / Weights)
+# ==============================================================================
+models/
+assets/models/
 *.onnx
-*.gguf
-*.safetensors
-*.pth
-*.pt
-*.ckpt
 
-# ------------------------------------------------------------------------------
-# Audio recordings, downloaded music & Temporary runtime files
-# ------------------------------------------------------------------------------
+# ==============================================================================
+# User Media, Music & Recordings
+# ==============================================================================
 assets/music/
-/assets/music/
-*.wav
-*.mp3
-*.ogg
-*.opus
-*.m4a
-*.webm
-*.flac
-*.pcm
-*.log
-nohup.out
-*.tmp
-*.pem
-ai_voice_cmd.json
-ai_voice_state.json
-overlay_pos.json
-assets/active_window_app.json
-/assets/active_window_app.json
-assets/active_tab_browser.json
-/assets/active_tab_browser.json
-assets/antigravity_accounts.json
-/assets/antigravity_accounts.json
-assets/codex_accounts.json
-/assets/codex_accounts.json
-active_window_app.json
-active_tab_browser.json
-antigravity_accounts.json
-codex_accounts.json
-assets/histories/
-/assets/histories/
-assets/recipes/
-/assets/recipes/
+*refvoice.*
+
+# ==============================================================================
+# Databases & Automations
+# ==============================================================================
 *.db
 *.db-wal
 *.db-shm
-*.sqlite
+assets/recipes/
 
-# ------------------------------------------------------------------------------
-# OS, IDE & Editor metadata
-# ------------------------------------------------------------------------------
+# ==============================================================================
+# Runtime State & User Accounts
+# ==============================================================================
+*antigravity_accounts.json
+*codex_accounts.json
+*active_window_app.json
+*active_tab_browser.json
+
+# ==============================================================================
+# Logs & Temporary Files
+# ==============================================================================
+*.log
+*.tmp
+*.pem
+
+# ==============================================================================
+# IDE & OS Metadata
+# ==============================================================================
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
 .zed/
-9router
-fine-tuning
-*.pem
+9router/

@@ -45,18 +45,14 @@ pub struct LlmUsageSummary {
 static POOL: OnceCell<SqlitePool> = OnceCell::const_new();
 
 pub fn get_db_path() -> PathBuf {
-    let candidate = crate::assets::find_file_in_candidates("histories/llm_usage.db");
+    let candidate = crate::assets::find_file_in_candidates("ragasukma.db");
     if candidate.exists() {
         return candidate;
     }
-    let alt = crate::assets::find_file_in_candidates("llm_usage.db");
-    if alt.exists() {
-        return alt;
-    }
 
-    let dir = crate::assets::get_assets_dir().join("histories");
+    let dir = crate::assets::get_assets_dir();
     let _ = std::fs::create_dir_all(&dir);
-    dir.join("llm_usage.db")
+    dir.join("ragasukma.db")
 }
 
 pub async fn get_pool() -> &'static SqlitePool {

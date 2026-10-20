@@ -8,8 +8,13 @@ use crate::ui::pose_system::PosesConfig;
 
 #[derive(RustEmbed)]
 #[folder = "assets/"]
-#[exclude = "histories/*"]
-#[exclude = "recipes/*"]
+#[include = "i18n/*"]
+#[include = "char.vrm"]
+#[include = "char-avatar-*.png"]
+#[include = "config-ai.json"]
+#[include = "icon.png"]
+#[include = "poses.json"]
+#[include = "ragasukma-companion.zip"]
 pub struct EmbeddedAssets;
 
 pub fn get_assets_dir() -> PathBuf {
@@ -72,7 +77,7 @@ pub fn find_file_in_candidates(filename: &str) -> PathBuf {
     }
 
     #[cfg(target_os = "windows")]
-    if let Ok(appdata) = std::env::var("APPDATA") {
+    if let Ok(appdata) = std::env::var("LOCALAPPDATA").or_else(|_| std::env::var("APPDATA")) {
         let appdata_path = PathBuf::from(appdata);
         let p = appdata_path.join("ragasukma").join("assets").join(filename);
         if p.exists() {
@@ -113,7 +118,7 @@ pub fn find_all_file_candidates(filename: &str) -> Vec<PathBuf> {
     candidates.push(crate::config::get_app_config_dir().join(filename));
 
     #[cfg(target_os = "windows")]
-    if let Ok(appdata) = std::env::var("APPDATA") {
+    if let Ok(appdata) = std::env::var("LOCALAPPDATA").or_else(|_| std::env::var("APPDATA")) {
         let appdata_path = PathBuf::from(appdata);
         candidates.push(appdata_path.join("ragasukma").join("assets").join(filename));
         candidates.push(appdata_path.join("ragasukma").join(filename));
@@ -179,7 +184,6 @@ pub fn save_poses(poses: &PosesConfig) -> Result<(), String> {
 pub fn ensure_default_user_assets() {
     let cfg_assets_dir = crate::config::get_app_config_dir().join("assets");
     let _ = fs::create_dir_all(&cfg_assets_dir);
-    let _ = fs::create_dir_all(cfg_assets_dir.join("histories"));
     let _ = fs::create_dir_all(cfg_assets_dir.join("recipes"));
 
     // Dynamically extract all asset files embedded in the binary

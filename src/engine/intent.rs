@@ -147,7 +147,8 @@ fn build_regex_from_words(words: &[String]) -> Regex {
 
     // Add universal domain extension matches for browser intent if relevant
     let joined = patterns.join("|");
-    Regex::new(&format!(r"(?i)(?:{joined})")).unwrap_or_else(|_| Regex::new(r"$^").unwrap())
+    Regex::new(&format!(r"(?i)(?:{joined})"))
+        .unwrap_or_else(|_| Regex::new(r"$^").expect("valid fallback impossible match regex"))
 }
 
 /// Retrieve or lazily compile the locale regex engine for a specific language
@@ -162,7 +163,9 @@ pub fn get_compiled_intents_for_lang(lang: &str) -> Arc<CompiledLocaleIntents> {
     }
 
     // Write lock compile
-    let mut guard = COMPILED_CACHE.write().unwrap();
+    let mut guard = COMPILED_CACHE
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     if let Some(engine) = guard.get(&norm) {
         return engine.clone();
     }

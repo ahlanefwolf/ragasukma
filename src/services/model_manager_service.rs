@@ -142,27 +142,40 @@ pub fn ensure_model_ready_background() {
         .expect("Failed to spawn model-downloader thread");
 }
 
+fn get_target_models_dir() -> PathBuf {
+    // 1. Jika di folder lokal/portable/project sudah ada models, tetap hormati agar portable
+    let local_models = PathBuf::from("models");
+    if local_models.exists() {
+        return local_models;
+    }
+
+    // 2. Default target download resmi: AppLocalData (misal: %LOCALAPPDATA%\ragasukma\models)
+    let appdata_models = crate::config::get_app_config_dir().join("models");
+    let _ = std::fs::create_dir_all(&appdata_models);
+    appdata_models
+}
+
 fn run_download_and_extract() -> anyhow::Result<()> {
-    let models_dir = Path::new("models");
+    let models_dir = get_target_models_dir();
     if !models_dir.exists() {
-        std::fs::create_dir_all(models_dir)?;
+        std::fs::create_dir_all(&models_dir)?;
     }
 
     // 1. Check and download Supertonic-3 if missing
     if !check_supertonic_exists() {
-        crate::term_log!("[Model Manager] Supertonic-3 model missing. Starting automated download...");
+        crate::term_log!("[Model Manager] Supertonic-3 model missing. Starting automated download to {:?}...", models_dir);
         download_and_extract_item(
             "Supertonic-3",
             SUPERTONIC_DOWNLOAD_URL,
             &models_dir.join("supertonic-3.zip"),
-            models_dir,
+            &models_dir,
         )?;
         crate::term_log!("[Model Manager] Supertonic-3 model successfully installed!");
     }
 
     // 2. Check and download OpenVoice-V2 if missing
     if !check_openvoice_exists() {
-        crate::term_log!("[Model Manager] OpenVoice-V2 model missing. Starting automated download...");
+        crate::term_log!("[Model Manager] OpenVoice-V2 model missing. Starting automated download to {:?}...", models_dir);
         let openvoice_dir = models_dir.join("openvoice-v2");
         if !openvoice_dir.exists() {
             std::fs::create_dir_all(&openvoice_dir)?;
