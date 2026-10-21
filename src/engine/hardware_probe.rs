@@ -34,7 +34,7 @@ pub fn get_free_ram_mb() -> Option<usize> {
     #[cfg(target_os = "windows")]
     {
         #[repr(C)]
-        #[allow(non_snake_case)]
+        #[allow(non_snake_case, clippy::upper_case_acronyms)]
         struct MEMORYSTATUSEX {
             dwLength: u32,
             dwMemoryLoad: u32,
@@ -46,7 +46,7 @@ pub fn get_free_ram_mb() -> Option<usize> {
             ullAvailVirtual: u64,
             ullAvailExtendedVirtual: u64,
         }
-        extern "system" {
+        unsafe extern "system" {
             fn GlobalMemoryStatusEx(lpBuffer: *mut MEMORYSTATUSEX) -> i32;
         }
         let mut mem = MEMORYSTATUSEX {
