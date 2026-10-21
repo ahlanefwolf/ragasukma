@@ -885,6 +885,11 @@ where
                                 }
 
                                 if is_thought {
+                                    if let Some(txt) = part.get("text").and_then(|t| t.as_str()) {
+                                        if !txt.is_empty() {
+                                            on_event(V1StreamEvent::ThoughtDelta(txt.to_string()))?;
+                                        }
+                                    }
                                     // Keep client connection active during thinking phase
                                     on_event(V1StreamEvent::KeepAlive)?;
                                     continue;

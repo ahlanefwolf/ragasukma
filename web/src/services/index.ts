@@ -13,3 +13,4 @@ export * from './remoteService';
 export * from './recipeService';
 export * from './historyService';
 export * from './usageService';
+export * from './agentService';

@@ -12,6 +12,7 @@ import { LogsTab } from './components/LogsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { AntigravityTab } from './components/AntigravityTab';
 import { CodexTab } from './components/CodexTab';
+import { AgentTab } from './components/agent/AgentTab';
 import { RemoteTab } from './components/RemoteTab';
 import { MobileClientView } from './components/MobileClientView';
 import { BottomPlayer } from './components/BottomPlayer';
@@ -44,6 +45,8 @@ const TAB_HASH_ALIASES: Record<string, string> = {
   '#logs': 'logs',
   '#settings': 'settings',
   '#remote': 'remote',
+  '#agent': 'agent',
+  '#workspace': 'agent',
   '#provider-antigravity': 'provider-antigravity',
   '#antigravity': 'provider-antigravity',
   '#provider-codex': 'provider-codex',
@@ -402,8 +405,14 @@ const App: Component = () => {
                 </div>
               </header>
 
-              {/* Scrollable View Content */}
-              <div class="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 max-w-5xl w-full mx-auto pb-12">
+              {/* Main View Content (Agent Workspace uses full height single scroll inside chat) */}
+              <div
+                class={`flex-1 w-full mx-auto ${
+                  activeTab() === 'agent'
+                    ? 'h-[calc(100vh-3.75rem)] overflow-hidden px-3 pt-2 pb-2 max-w-7xl flex flex-col'
+                    : 'overflow-y-auto p-4 sm:p-6 md:p-8 max-w-5xl pb-12'
+                }`}
+              >
                 <Show when={activeTab() === 'menu'}>
                   <MenuTab
                     currentState={currentState()}
@@ -411,6 +420,10 @@ const App: Component = () => {
                     showToast={showToast}
                     onNavigateTab={handleTabChange}
                   />
+                </Show>
+
+                <Show when={activeTab() === 'agent'}>
+                  <AgentTab showToast={showToast} />
                 </Show>
 
                 <Show when={activeTab() === 'recipes'}>

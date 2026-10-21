@@ -3,6 +3,7 @@ use axum::Router;
 
 use crate::app_state::ServerSharedState;
 
+pub mod agent;
 pub mod automation;
 pub mod llm;
 pub mod media;
@@ -19,6 +20,7 @@ pub fn register_api_routes(
     let router = system::register_system_routes(router);
     let router = automation::register_automation_routes(router);
     let router = media::register_media_routes(router);
+    let router = agent::register_agent_routes(router);
     llm::register_llm_routes(router)
 }
 

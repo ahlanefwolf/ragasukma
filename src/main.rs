@@ -5,6 +5,7 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+pub mod agent;
 pub mod app_state;
 pub mod assets;
 mod audio;

@@ -33,6 +33,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
 
   const menuItems = () => [
     { id: 'menu', label: 'Main Menu', icon: MenuIcon },
+    { id: 'agent', label: 'Agent Workspace', icon: Bot },
     { id: 'recipes', label: 'Recipes', icon: Workflow },
     { id: 'history', label: 'Chat History', icon: MessageSquare },
     { id: 'usage', label: 'Token Usage', icon: BarChart3 },

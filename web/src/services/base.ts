@@ -17,13 +17,19 @@ export async function fetchWithTimeout(url: string, options: RequestInit = {}, t
     throw new Error('Session is killed in this tab');
   }
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
+  const id = timeoutMs > 0 ? setTimeout(() => {
+    controller.abort(new Error(`Permintaan timeout setelah ${timeoutMs / 1000} detik`));
+  }, timeoutMs) : null;
+
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(id);
+    if (id) clearTimeout(id);
     return res;
-  } catch (err) {
-    clearTimeout(id);
+  } catch (err: any) {
+    if (id) clearTimeout(id);
+    if (err?.name === 'AbortError' && controller.signal.reason instanceof Error) {
+      throw controller.signal.reason;
+    }
     throw err;
   }
 }

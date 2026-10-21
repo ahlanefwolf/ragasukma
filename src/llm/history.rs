@@ -150,6 +150,8 @@ pub struct ChatTurnItem {
     pub time: String,
     pub speaker: String,
     pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -278,11 +280,13 @@ pub async fn get_history_by_date_paginated(
             time: r.time_str.clone(),
             speaker: r.callsign,
             message: r.user_msg,
+            id: Some(r.id.clone()),
         });
         turns.push(ChatTurnItem {
             time: r.time_str,
             speaker: r.assistant_name,
             message: r.assistant_msg,
+            id: Some(r.id),
         });
     }
 

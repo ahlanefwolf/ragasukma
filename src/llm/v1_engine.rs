@@ -76,6 +76,7 @@ pub struct V1ChatRequest {
 #[derive(Debug, Clone)]
 pub enum V1StreamEvent {
     ContentDelta(String),
+    ThoughtDelta(String),
     ToolCallDelta {
         index: usize,
         id: Option<String>,

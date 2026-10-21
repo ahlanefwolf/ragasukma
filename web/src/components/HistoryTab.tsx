@@ -9,9 +9,14 @@ import {
   Bot,
   ChevronRight,
   ChevronLeft,
-  Download
+  Download,
+  FolderGit2,
+  X,
+  Layers,
+  Loader2
 } from 'lucide-solid';
 import { api, ChatHistoryDay, ChatTurnItem } from '../api';
+import { agentService, Project } from '../services/agentService';
 
 interface HistoryTabProps {
   showToast: (msg: string) => void;
@@ -27,6 +32,62 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
   // Pagination Signals
   const [page, setPage] = createSignal(1);
   const [limit] = createSignal(20);
+
+  // Bridge to Agent Workspace modal state
+  const [showProjectModal, setShowProjectModal] = createSignal(false);
+  const [availableProjects, setAvailableProjects] = createSignal<Project[]>([]);
+  const [selectedBridgeProjectId, setSelectedBridgeProjectId] = createSignal<string>('');
+  const [bridgeChatId, setBridgeChatId] = createSignal<string>('');
+  const [bridgeTitle, setBridgeTitle] = createSignal<string>('');
+  const [creatingTask, setCreatingTask] = createSignal(false);
+
+  const handleSendToProject = async (chatId: string, messagePreview: string) => {
+    try {
+      const pList = await agentService.getProjects();
+      if (pList.length === 0) {
+        props.showToast('Belum ada project workspace. Buat project terlebih dahulu di menu Agent Workspace.');
+        return;
+      }
+      setAvailableProjects(pList);
+      setSelectedBridgeProjectId(pList[0].id);
+      setBridgeChatId(chatId);
+
+      const firstLine = messagePreview.split('\n')[0].trim();
+      const title = firstLine.length > 50 ? firstLine.slice(0, 50) + '...' : firstLine;
+      setBridgeTitle(title || 'Task dari Main Chat');
+      setShowProjectModal(true);
+    } catch {
+      props.showToast('Gagal memuat daftar project');
+    }
+  };
+
+  const handleConfirmCreateTask = async () => {
+    const pId = selectedBridgeProjectId();
+    const cId = bridgeChatId();
+    if (!pId || !cId || creatingTask()) return;
+
+    setCreatingTask(true);
+    try {
+      const res = await agentService.createSessionFromChat({
+        project_id: pId,
+        chat_id: cId,
+        title: bridgeTitle().trim(),
+      });
+
+      if (res.ok && res.session) {
+        props.showToast(`Task "${res.session.title}" berhasil dibuat di Workspace! Mengalihkan...`);
+        setShowProjectModal(false);
+        // Switch to Agent Workspace tab
+        window.location.hash = '#agent';
+      } else {
+        props.showToast(res.error || 'Gagal membuat sesi task');
+      }
+    } catch (e: any) {
+      props.showToast(e.message || 'Gagal membuat task');
+    } finally {
+      setCreatingTask(false);
+    }
+  };
 
   const loadDates = async (selectFirst = true) => {
     setLoadingDates(true);
@@ -167,7 +228,7 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
           <Show when={selectedDate() && currentHistory() && currentHistory()!.turns.length > 0}>
             <button
               onClick={handleExportMarkdown}
-              class="px-3 py-1.5 text-xs font-semibold bg-theme-cyan text-theme-card border border-theme-cyan shadow-sm hover:brightness-110 transition-all flex items-center gap-1.5 font-bold"
+              class="px-3 py-1.5 text-xs bg-theme-cyan text-theme-card border border-theme-cyan shadow-sm hover:brightness-110 transition-all flex items-center gap-1.5 font-bold"
               title="Download chat history as Markdown file"
             >
               <Download size={13} />
@@ -322,6 +383,20 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
                           <p class="text-xs leading-relaxed text-theme-text/90 font-sans whitespace-pre-wrap select-text">
                             {turn.message}
                           </p>
+
+                          {/* On-Demand Bridge to Project Workspace Button */}
+                          <Show when={turn.id}>
+                            <div class="mt-2.5 pt-2 border-t border-theme-border/30 flex justify-end">
+                              <button
+                                onClick={() => handleSendToProject(turn.id!, turn.message)}
+                                class="text-[11px] font-mono text-theme-cyan/80 hover:text-theme-cyan hover:bg-theme-cyan/10 px-2 py-1 rounded transition-colors flex items-center gap-1.5"
+                                title="Jadikan percakapan ini sebagai sesi task di Project Workspace"
+                              >
+                                <FolderGit2 size={12} />
+                                <span>Jadikan Task di Project</span>
+                              </button>
+                            </div>
+                          </Show>
                         </div>
                       );
                     }}
@@ -362,6 +437,76 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
           </Show>
         </div>
       </div>
+
+      {/* ── Modal: Kirim ke Project Workspace ───────────────────────────── */}
+      <Show when={showProjectModal()}>
+        <div class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div class="bg-theme-surface border border-theme-border max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-theme-border pb-3">
+              <div class="flex items-center gap-2">
+                <FolderGit2 class="w-4 h-4 text-theme-cyan" />
+                <h3 class="text-sm font-bold text-theme-text font-heading">Jadikan Task di Project Workspace</h3>
+              </div>
+              <button
+                onClick={() => setShowProjectModal(false)}
+                class="text-theme-text/50 hover:text-theme-text"
+              >
+                <X class="w-4 h-4" />
+              </button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+              <div>
+                <label class="block text-theme-text/70 mb-1 font-mono">Pilih Project Workspace Tujuan:</label>
+                <select
+                  value={selectedBridgeProjectId()}
+                  onChange={(e) => setSelectedBridgeProjectId(e.currentTarget.value)}
+                  class="w-full px-3 py-2 bg-theme-card border border-theme-border text-theme-text font-mono focus:outline-none focus:border-theme-cyan"
+                >
+                  <For each={availableProjects()}>
+                    {(proj) => (
+                      <option value={proj.id}>{proj.name}</option>
+                    )}
+                  </For>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-theme-text/70 mb-1 font-mono">Judul Task / Sasaran Kerja:</label>
+                <input
+                  type="text"
+                  value={bridgeTitle()}
+                  onInput={(e) => setBridgeTitle(e.currentTarget.value)}
+                  class="w-full px-3 py-2 bg-theme-card border border-theme-border text-theme-text font-mono focus:outline-none focus:border-theme-cyan"
+                />
+              </div>
+
+              <div class="p-2.5 bg-theme-card/60 border border-theme-border text-[11px] text-theme-text/60 leading-relaxed">
+                Task baru akan dibuat di dalam project terpilih dengan menyertakan seluruh konteks percakapan ini ke sesi agent secara terisolasi.
+              </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 border-t border-theme-border pt-3">
+              <button
+                onClick={() => setShowProjectModal(false)}
+                class="px-3.5 py-1.5 text-xs text-theme-text/60 hover:text-theme-text"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleConfirmCreateTask}
+                disabled={creatingTask() || !selectedBridgeProjectId()}
+                class="px-4 py-1.5 text-xs bg-theme-cyan hover:bg-theme-cyan/90 disabled:opacity-50 text-theme-card font-bold font-mono flex items-center gap-1.5"
+              >
+                <Show when={creatingTask()} fallback={<FolderGit2 size={13} />}>
+                  <Loader2 size={13} class="animate-spin" />
+                </Show>
+                Buat Sesi Task
+              </button>
+            </div>
+          </div>
+        </div>
+      </Show>
     </div>
   );
 };

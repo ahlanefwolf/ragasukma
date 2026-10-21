@@ -311,6 +311,25 @@ pub async fn axum_v1_chat_completions_handler(
                                 }
                             }
                         }
+                        V1StreamEvent::ThoughtDelta(thought_text) => {
+                            let chunk = StreamChunk {
+                                id: cmpl_id_clone.clone(),
+                                object: "chat.completion.chunk".to_string(),
+                                created: now,
+                                model: model_clone.clone(),
+                                choices: vec![StreamChoice {
+                                    index: 0,
+                                    delta: serde_json::json!({ "reasoning_content": thought_text }),
+                                    finish_reason: None,
+                                }],
+                            };
+                            if let Ok(json) = serde_json::to_string(&chunk) {
+                                let msg = format!("data: {}\n\n", json);
+                                if tx_clone.blocking_send(axum::body::Bytes::from(msg)).is_err() {
+                                    return Err(anyhow::anyhow!("Client disconnected"));
+                                }
+                            }
+                        }
                         V1StreamEvent::ToolCallDelta {
                             index,
                             id,
