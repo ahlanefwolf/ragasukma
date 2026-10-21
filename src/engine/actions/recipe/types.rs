@@ -87,8 +87,8 @@ pub enum ClickTarget {
 
 /// Gets storage directory for recipes: assets/recipes/ or ~/.config/ragasukma/recipes/
 pub fn get_recipes_dir() -> PathBuf {
-    let local = PathBuf::from("assets/recipes");
-    if local.exists() || PathBuf::from("Cargo.toml").exists() {
+    if PathBuf::from("Cargo.toml").exists() {
+        let local = PathBuf::from("assets/recipes");
         let _ = fs::create_dir_all(&local);
         return local;
     }
@@ -99,6 +99,10 @@ pub fn get_recipes_dir() -> PathBuf {
     let legacy = crate::config::get_app_config_dir().join("assets").join("recipes");
     if legacy.exists() {
         return legacy;
+    }
+    let data_recipes = crate::config::get_app_data_dir().join("recipes");
+    if data_recipes.exists() {
+        return data_recipes;
     }
     let _ = fs::create_dir_all(&cfg);
     cfg

@@ -439,10 +439,10 @@ impl OpenVoiceEngine {
         let fallback_cache = crate::config::get_app_cache_dir().join("refvoice.se.bin");
 
         // 1. Coba load dari disk cache (.se.bin) agar instant tanpa inference ulang & tanpa load ref encoder
-        if let Some(se) = load_se_from_disk(&cache_file, audio_mtime)
-            .or_else(|| load_se_from_disk(&fallback_cache, audio_mtime))
+        if let Some(se) = load_se_from_disk(&fallback_cache, audio_mtime)
+            .or_else(|| load_se_from_disk(&cache_file, audio_mtime))
         {
-            crate::term_log!("[OpenVoice Engine] Loaded cached speaker embedding from disk (1 KB): {:?}", cache_file);
+            crate::term_log!("[OpenVoice Engine] Loaded cached speaker embedding from cache (1 KB): {:?}", fallback_cache);
             if let Ok(mut lock) = self.ref_se_cache.lock() {
                 *lock = Some((path_str, se.clone()));
             }
@@ -454,10 +454,12 @@ impl OpenVoiceEngine {
         let samples = load_audio_file_22k(ref_path)?;
         let se = self.extract_se_from_samples(&samples)?;
 
-        // Simpan ke disk cache (.se.bin) langsung sekali simpan agar re-spawn worker selanjutnya instant (1 KB)
-        save_se_to_disk(&cache_file, &se);
+        // Simpan ke app cache directory (~/.cache/ragasukma/refvoice.se.bin)
         save_se_to_disk(&fallback_cache, &se);
-        crate::term_log!("[OpenVoice Engine] Saved speaker embedding (.se.bin) to disk: {:?}", cache_file);
+        if PathBuf::from("Cargo.toml").exists() {
+            save_se_to_disk(&cache_file, &se);
+        }
+        crate::term_log!("[OpenVoice Engine] Saved speaker embedding (.se.bin) to cache: {:?}", fallback_cache);
 
         // Segera unload openvoice_ref_encoder.onnx dari RAM
         self.unload_ref_encoder();

@@ -135,6 +135,9 @@ pub fn execute_desktop_action(action: &str, payload: &str) -> Option<(String, St
 }
 
 pub(crate) fn load_snapshot() -> Option<ActiveWindowSnapshot> {
+    if let Ok(snap) = crate::engine::window_scanner::ActiveWindowSnapshot::load_from_file() {
+        return Some(snap);
+    }
     let path = crate::assets::find_file_in_candidates("active_window_app.json");
     if let Ok(content) = fs::read_to_string(&path) {
         if let Ok(snap) = serde_json::from_str::<ActiveWindowSnapshot>(&content) {

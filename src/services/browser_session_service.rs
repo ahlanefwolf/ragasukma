@@ -462,18 +462,19 @@ pub fn cleanup_browser_sessions_on_startup() {
     };
     if let Ok(json_pretty) = serde_json::to_string_pretty(&initial_snap) {
         let _ = fs::write(&file, &json_pretty);
-        let local = PathBuf::from("assets/active_tab_browser.json");
-        if local != file {
-            let _ = fs::write(&local, &json_pretty);
+        if PathBuf::from("Cargo.toml").exists() {
+            let local = PathBuf::from("assets/active_tab_browser.json");
+            if local != file {
+                let _ = fs::write(&local, &json_pretty);
+            }
         }
     }
-    println!("[Active Tab] Initializing 'assets/active_tab_browser.json' for new session.");
+    println!("[Active Tab] Initializing active tab snapshot at: {:?}", file);
 }
 
 pub fn get_active_tab_browser_path() -> PathBuf {
-    let local = PathBuf::from("assets/active_tab_browser.json");
-    if local.exists() || PathBuf::from("Cargo.toml").exists() {
-        return local;
+    if PathBuf::from("Cargo.toml").exists() {
+        return PathBuf::from("assets/active_tab_browser.json");
     }
     let cache_dir = crate::config::get_app_cache_dir();
     let _ = fs::create_dir_all(&cache_dir);

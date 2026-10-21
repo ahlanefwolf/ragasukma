@@ -106,12 +106,15 @@ impl ActiveWindowSnapshot {
 
         fs::write(&path, &json).map_err(|e| format!("Failed to write to {path:?}: {e}"))?;
 
-        let local = PathBuf::from("assets/active_window_app.json");
-        if local != path {
-            if let Some(parent) = local.parent() {
-                let _ = fs::create_dir_all(parent);
+        // In dev mode only: mirror to local assets/ for quick inspection
+        if PathBuf::from("Cargo.toml").exists() {
+            let local = PathBuf::from("assets/active_window_app.json");
+            if local != path {
+                if let Some(parent) = local.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                let _ = fs::write(&local, &json);
             }
-            let _ = fs::write(&local, &json);
         }
 
         Ok(())
@@ -131,8 +134,8 @@ impl ActiveWindowSnapshot {
 }
 
 pub fn get_snapshot_path() -> PathBuf {
-    let local = PathBuf::from("assets/active_window_app.json");
-    if local.exists() || PathBuf::from("Cargo.toml").exists() {
+    if PathBuf::from("Cargo.toml").exists() {
+        let local = PathBuf::from("assets/active_window_app.json");
         if let Some(parent) = local.parent() {
             let _ = fs::create_dir_all(parent);
         }

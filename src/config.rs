@@ -171,18 +171,21 @@ impl Default for UserConfig {
 }
 
 pub fn get_music_dir() -> PathBuf {
-    // 1. If there is a local folder assets/music (development mode / portable), use it
-    let local = PathBuf::from("assets").join("music");
-    if local.exists() {
-        return local;
+    // 1. If running in development mode (Cargo.toml exists) and local assets/music exists, use it
+    if PathBuf::from("Cargo.toml").exists() {
+        let local = PathBuf::from("assets").join("music");
+        if local.exists() {
+            return local;
+        }
+
+        let parent_local = PathBuf::from("../assets").join("music");
+        if parent_local.exists() {
+            return parent_local;
+        }
     }
 
-    let parent_local = PathBuf::from("../assets").join("music");
-    if parent_local.exists() {
-        return parent_local;
-    }
-
-    // 2. Persistent user data folder: ~/.local/share/ragasukma/music or ~/Library/Application Support/ragasukma/music
+    // 2. Persistent user data folder: ~/.local/share/ragasukma/music (Linux),
+    //    ~/Library/Application Support/ragasukma/music (macOS), %LOCALAPPDATA%\ragasukma\music (Windows)
     let user_music = get_app_data_dir().join("music");
     if user_music.exists() {
         return user_music;
@@ -327,14 +330,16 @@ pub fn get_app_cache_dir() -> PathBuf {
 }
 
 pub fn get_models_dir() -> PathBuf {
-    // 1. Portable / local development folder
-    let local = PathBuf::from("models");
-    if local.exists() {
-        return local;
-    }
-    let parent = PathBuf::from("../models");
-    if parent.exists() {
-        return parent;
+    // 1. Portable / local development folder (only in repo/dev mode)
+    if PathBuf::from("Cargo.toml").exists() {
+        let local = PathBuf::from("models");
+        if local.exists() {
+            return local;
+        }
+        let parent = PathBuf::from("../models");
+        if parent.exists() {
+            return parent;
+        }
     }
 
     // 2. Standard persistent data directory (~/.local/share/ragasukma/models, etc.)
