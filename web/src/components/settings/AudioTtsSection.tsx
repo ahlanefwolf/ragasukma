@@ -1,6 +1,7 @@
 import { Component, createSignal, onCleanup, createEffect, onMount } from 'solid-js';
 import { Mic, Volume2, Play, Square, Sparkles, Zap, Shield, Flame, User, Upload, Trash2, Music, CheckCircle2 } from 'lucide-solid';
 import { API_BASE } from '../../services/base';
+import { SearchableSelect } from '../SearchableSelect';
 
 interface SupertonicVoice {
   id: string; // M1..M5, F1..F5
@@ -441,18 +442,18 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 </button>
               </div>
             </div>
-            <select
-              ref={langSelectRef}
+            <SearchableSelect
               value={currentLangCode()}
-              onChange={(e) => handleLanguageChange(e.currentTarget.value)}
-              class="w-full bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm text-theme-text outline-none focus:border-theme-cyan transition-colors"
-            >
-              {SUPPORTED_LANGUAGES.map((l) => (
-                <option value={l.code}>
-                  {l.label} ({l.code} · STT {l.chromeCode})
-                </option>
-              ))}
-            </select>
+              onChange={(code) => handleLanguageChange(code)}
+              options={SUPPORTED_LANGUAGES.map((l) => ({
+                value: l.code,
+                label: `${l.label} (${l.code})`,
+                sublabel: `STT Chrome Code: ${l.chromeCode}`,
+              }))}
+              searchPlaceholder="Search language name or code..."
+              buttonClass="w-full flex items-center justify-between px-3.5 py-2.5 bg-theme-card border border-theme-border text-sm text-theme-text font-mono hover:border-theme-cyan transition-colors"
+              dropdownClass="absolute left-0 mt-1.5 w-full bg-theme-surface border border-theme-border shadow-2xl z-50 overflow-hidden flex flex-col max-h-72"
+            />
           </div>
 
           <div class="p-3 bg-theme-card border border-theme-border flex items-center justify-between gap-4">

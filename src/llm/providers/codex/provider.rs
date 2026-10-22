@@ -600,15 +600,13 @@ impl CodexProvider {
 
             let payload = build_codex_payload_from_v1(req);
 
-            match self.execute_codex_stream_internal(&access_token, chatgpt_account_id.as_deref(), &payload, |delta| {
-                on_event(crate::llm::v1_engine::V1StreamEvent::ContentDelta(delta.to_string()))
-            }) {
-                Ok(full_reply) => {
+            match self.execute_codex_stream_internal_v1(&access_token, chatgpt_account_id.as_deref(), &payload, &mut on_event) {
+                Ok((full_reply, tool_calls)) => {
                     self.accounts[acc_idx].consecutive_errors = 0;
                     let _ = self.save_accounts();
                     return Ok(crate::llm::v1_engine::V1Response {
                         content: full_reply,
-                        tool_calls: None,
+                        tool_calls,
                         finish_reason: "stop".to_string(),
                     });
                 }
@@ -629,6 +627,94 @@ impl CodexProvider {
         }
 
         bail!("Failed to execute Codex stream request after trying all available accounts.");
+    }
+
+    fn execute_codex_stream_internal_v1<F>(
+        &self,
+        access_token: &str,
+        chatgpt_account_id: Option<&str>,
+        payload: &serde_json::Value,
+        on_event: &mut F,
+    ) -> Result<(String, Option<Vec<crate::llm::v1_engine::V1ToolCall>>)>
+    where
+        F: FnMut(crate::llm::v1_engine::V1StreamEvent) -> Result<()>,
+    {
+        let mut req = self
+            .client
+            .post(CODEX_RESPONSES_URL)
+            .header("Authorization", format!("Bearer {access_token}"))
+            .header("Content-Type", "application/json")
+            .header("Accept", "text/event-stream")
+            .header("originator", CODEX_ORIGINATOR)
+            .header("User-Agent", format!("codex_cli_rs/{}", CODEX_CLI_VERSION))
+            .header("version", CODEX_CLI_VERSION);
+
+        if let Some(account_id) = chatgpt_account_id {
+            req = req.header("ChatGPT-Account-ID", account_id);
+        }
+
+        let res = req.json(payload).send().context("Failed to connect to Codex Responses API")?;
+
+        let status = res.status();
+        if !status.is_success() {
+            let err_body = res.text().unwrap_or_default();
+            bail!("Codex Responses API returned HTTP {}: {}", status, err_body);
+        }
+
+        let mut full_content = String::new();
+        let mut collected_tool_calls: Vec<crate::llm::v1_engine::V1ToolCall> = Vec::new();
+        let mut sse_parser = super::v1_adapter::CodexSseParserState::new();
+        let reader = std::io::BufReader::new(res);
+
+        for line_result in reader.lines() {
+            let line = line_result?;
+            let events = sse_parser.parse_line(&line);
+            for ev in events {
+                match &ev {
+                    crate::llm::v1_engine::V1StreamEvent::ContentDelta(c) => {
+                        full_content.push_str(c);
+                    }
+                    crate::llm::v1_engine::V1StreamEvent::ToolCallDelta { index, id, name, arguments } => {
+                        let idx = *index;
+                        if idx >= collected_tool_calls.len() {
+                            collected_tool_calls.resize(
+                                idx + 1,
+                                crate::llm::v1_engine::V1ToolCall {
+                                    id: id.clone().unwrap_or_else(|| format!("call_{}", idx)),
+                                    call_type: "function".to_string(),
+                                    function: crate::llm::v1_engine::V1ToolCallFunction {
+                                        name: name.clone().unwrap_or_default(),
+                                        arguments: String::new(),
+                                    },
+                                    thought_signature: None,
+                                    extra_content: None,
+                                    provider_specific_fields: None,
+                                },
+                            );
+                        }
+                        if let Some(tc_id) = id {
+                            collected_tool_calls[idx].id = tc_id.clone();
+                        }
+                        if let Some(tc_name) = name {
+                            if !tc_name.is_empty() {
+                                collected_tool_calls[idx].function.name = tc_name.clone();
+                            }
+                        }
+                        collected_tool_calls[idx].function.arguments.push_str(arguments);
+                    }
+                    _ => {}
+                }
+                let _ = on_event(ev);
+            }
+        }
+
+        let tc = if !collected_tool_calls.is_empty() {
+            Some(collected_tool_calls)
+        } else {
+            None
+        };
+
+        Ok((full_content, tc))
     }
 
     fn execute_codex_stream_internal<F>(

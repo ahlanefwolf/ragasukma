@@ -221,7 +221,7 @@ export const agentService = {
       );
       return await res.json();
     } catch (e: any) {
-      return { ok: false, error: e?.message || 'Gagal membuka file manager' };
+      return { ok: false, error: e?.message || 'Failed to open file manager' };
     }
   },
 
@@ -238,7 +238,7 @@ export const agentService = {
       );
       return await res.json();
     } catch (e: any) {
-      return { ok: false, error: e?.message || 'Gagal membuka file manager' };
+      return { ok: false, error: e?.message || 'Failed to open file manager' };
     }
   },
 
@@ -310,6 +310,18 @@ export const agentService = {
       return { ok: true, reply: data?.reply };
     } catch (e: any) {
       return { ok: false, error: e?.message || 'Network error' };
+    }
+  },
+
+  async stopSession(sessionId: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/api/agent/sessions/${sessionId}/stop`, {
+        method: 'POST',
+      });
+      return res.ok;
+    } catch (e) {
+      console.error('Failed to stop session', e);
+      return false;
     }
   },
 
@@ -416,6 +428,31 @@ export const agentService = {
       return res.ok;
     } catch (e) {
       console.error('Failed to delete prompt skill:', e);
+      return false;
+    }
+  },
+
+  async getProjectSkills(projectId: string): Promise<PromptSkill[]> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/projects/${projectId}/skills`);
+      if (!res.ok) return [];
+      return await res.json();
+    } catch (e) {
+      console.error('Failed to get project skills:', e);
+      return [];
+    }
+  },
+
+  async setProjectSkills(projectId: string, skillIds: string[]): Promise<boolean> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/projects/${projectId}/skills`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill_ids: skillIds }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.error('Failed to set project skills:', e);
       return false;
     }
   },

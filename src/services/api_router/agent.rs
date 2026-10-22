@@ -30,6 +30,7 @@ pub fn register_agent_routes(
         .route("/api/agent/projects/:id/sessions", get(list_sessions).post(create_session))
         .route("/api/agent/sessions/:id/delete", post(delete_session))
         .route("/api/agent/sessions/:id/run", post(run_session))
+        .route("/api/agent/sessions/:id/stop", post(stop_session))
         .route("/api/agent/sessions/:id/events", get(session_events_sse))
         .route("/api/agent/sessions/from-chat", post(create_session_from_chat))
         // Messages
@@ -66,7 +67,7 @@ async fn validate_folder(Json(payload): Json<ValidateFolderPayload>) -> impl Int
     if raw_path.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
-            Json(json!({"valid": false, "error": "Path folder tidak boleh kosong"})),
+            Json(json!({"valid": false, "error": "Folder path cannot be empty"})),
         );
     }
 
@@ -74,13 +75,13 @@ async fn validate_folder(Json(payload): Json<ValidateFolderPayload>) -> impl Int
     if !p.exists() {
         return (
             StatusCode::OK,
-            Json(json!({"valid": false, "error": format!("Folder tidak ditemukan di disk: {}", raw_path)})),
+            Json(json!({"valid": false, "error": format!("Folder not found on disk: {}", raw_path)})),
         );
     }
     if !p.is_dir() {
         return (
             StatusCode::OK,
-            Json(json!({"valid": false, "error": format!("Path bukan merupakan direktori/folder: {}", raw_path)})),
+            Json(json!({"valid": false, "error": format!("Path is not a directory/folder: {}", raw_path)})),
         );
     }
 
@@ -149,7 +150,7 @@ async fn open_in_file_manager(body: axum::body::Bytes) -> impl IntoResponse {
     if path.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
-            Json(json!({ "ok": false, "error": "Path tidak boleh kosong" })),
+            Json(json!({ "ok": false, "error": "Path cannot be empty" })),
         );
     }
 
@@ -212,10 +213,10 @@ fn resolve_and_validate_folders(
     for path_str in &collected {
         let p = std::path::Path::new(path_str);
         if !p.exists() {
-            return Err(format!("Folder tidak ditemukan di disk: {}", path_str));
+            return Err(format!("Folder not found on disk: {}", path_str));
         }
         if !p.is_dir() {
-            return Err(format!("Path bukan direktori/folder: {}", path_str));
+            return Err(format!("Path is not a directory/folder: {}", path_str));
         }
     }
 
@@ -327,7 +328,7 @@ async fn get_project_files(Path(id): Path<String>) -> impl IntoResponse {
         Ok(None) => {
             return (
                 StatusCode::NOT_FOUND,
-                Json(json!({"error": "Project tidak ditemukan"})),
+                Json(json!({"error": "Project not found"})),
             )
         }
         Err(e) => {
@@ -357,7 +358,7 @@ async fn get_project_file_content(
         Ok(None) => {
             return (
                 StatusCode::NOT_FOUND,
-                Json(json!({"error": "Project tidak ditemukan"})),
+                Json(json!({"error": "Project not found"})),
             )
         }
         Err(e) => {
@@ -374,7 +375,7 @@ async fn get_project_file_content(
         Err(e) => {
             return (
                 StatusCode::FORBIDDEN,
-                Json(json!({"error": format!("Akses path ditolak: {}", e)})),
+                Json(json!({"error": format!("Path access forbidden: {}", e)})),
             )
         }
     };
@@ -382,7 +383,7 @@ async fn get_project_file_content(
     if !resolved.exists() || !resolved.is_file() {
         return (
             StatusCode::NOT_FOUND,
-            Json(json!({"error": "File tidak ditemukan"})),
+            Json(json!({"error": "File not found"})),
         );
     }
 
@@ -415,7 +416,7 @@ async fn get_project_file_content(
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": format!("Gagal membaca file: {}", e)})),
+            Json(json!({"error": format!("Failed to read file: {}", e)})),
         ),
     }
 }
@@ -501,6 +502,25 @@ async fn run_session(
     (StatusCode::OK, Json(json!({"status": "started", "session_id": id})))
 }
 
+async fn stop_session(
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let _ = crate::agent::repository::update_session_status(&id, "idle").await;
+    crate::agent::executor::broadcast_session_event(
+        &id,
+        crate::agent::models::AgentSessionEvent::StatusChange {
+            status: "idle".to_string(),
+        },
+    );
+    crate::agent::executor::broadcast_session_event(
+        &id,
+        crate::agent::models::AgentSessionEvent::Done {
+            reply: "Task execution stopped by user.".to_string(),
+        },
+    );
+    (StatusCode::OK, Json(json!({"status": "stopped", "session_id": id})))
+}
+
 async fn session_events_sse(
     Path(session_id): Path<String>,
 ) -> impl IntoResponse {
@@ -526,7 +546,8 @@ async fn session_events_sse(
                                 yield Ok(format!("data: {}\n\n", json_str));
                             }
                         }
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(missed)) => {
+                            eprintln!("[Agent SSE] Recv lagged by {} messages for session {}", missed, session_id);
                             continue;
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => {
@@ -534,7 +555,8 @@ async fn session_events_sse(
                         }
                     }
                 }
-                _ = tokio::time::sleep(std::time::Duration::from_secs(15)) => {
+                _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {
+                    // Send periodic keep-alive comment every 5s to prevent browser/OS connection drop
                     yield Ok(":\n\n".to_string());
                 }
             }
@@ -582,12 +604,12 @@ async fn create_session_from_chat(
     let Some((user_msg, assistant_msg)) = turn else {
         return (
             StatusCode::NOT_FOUND,
-            Json(json!({"error": "Percakapan chat tidak ditemukan"})),
+            Json(json!({"error": "Chat conversation turn not found"})),
         );
     };
 
     let title = payload.title.unwrap_or_else(|| {
-        let first_line = user_msg.lines().next().unwrap_or("Task dari Chat").trim();
+        let first_line = user_msg.lines().next().unwrap_or("Task from Chat").trim();
         if first_line.chars().count() > 40 {
             format!("{}...", first_line.chars().take(40).collect::<String>())
         } else {
@@ -616,7 +638,7 @@ async fn create_session_from_chat(
 
     // Insert initial context message derived from main chat turn
     let initial_content = format!(
-        "Task diturunkan dari Main Chat:\n\n[User]: {}\n\n[Assistant]: {}",
+        "Task derived from Main Chat:\n\n[User]: {}\n\n[Assistant]: {}",
         user_msg, assistant_msg
     );
 

@@ -70,7 +70,7 @@ customRenderer.code = function ({ text, lang }: Tokens.Code) {
           type="button"
           class="copy-code-btn px-2 py-0.5 rounded bg-white/5 hover:bg-white/15 text-white/60 hover:text-white transition-all flex items-center gap-1 cursor-pointer font-sans text-[10px]"
         >
-          Salin Kode
+          Copy Code
         </button>
       </div>
       <pre class="p-3 overflow-x-auto text-[11px] leading-relaxed custom-scrollbar whitespace-pre"><code class="language-${cleanLang}">${highlighted}</code></pre>
@@ -196,7 +196,7 @@ export const MarkdownView: Component<MarkdownViewProps> = (props) => {
             if (codeEl) {
               navigator.clipboard.writeText(codeEl.textContent || '');
               const prevText = btn.textContent;
-              btn.textContent = '✓ Tersalin!';
+              btn.textContent = '✓ Copied!';
               btn.classList.add('text-emerald-400');
               setTimeout(() => {
                 btn.textContent = prevText;

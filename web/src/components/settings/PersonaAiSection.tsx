@@ -1,6 +1,7 @@
 import { Component, For, createEffect, createSignal } from 'solid-js';
 import { Brain, UserCheck, Cpu, RefreshCw } from 'lucide-solid';
 import { antigravityService, codexService, CodexModelItem } from '../../services';
+import { SearchableSelect } from '../SearchableSelect';
 
 interface PersonaAiSectionProps {
   assistantName: string;
@@ -251,20 +252,25 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
                 </span>
               </label>
               <div class="flex items-center gap-2">
-                <select
-                  ref={modelSelectRef}
-                  value={props.llmModel}
-                  onChange={(e) => props.setLlmModel(e.currentTarget.value)}
-                  class="flex-1 bg-theme-card border border-theme-border px-3.5 py-2.5 text-sm font-mono text-theme-text font-medium outline-none focus:border-theme-cyan transition-colors"
-                >
-                  <For each={availableModels()}>
-                    {(m) => (
-                      <option value={m.id} selected={m.id === props.llmModel}>
-                        {m.label}
-                      </option>
-                    )}
-                  </For>
-                </select>
+                <div class="flex-1 min-w-0">
+                  <SearchableSelect
+                    value={props.llmModel}
+                    onChange={(val) => props.setLlmModel(val)}
+                    options={availableModels().map((m) => ({
+                      value: m.id,
+                      label: m.label,
+                      badge: m.id.startsWith('ag/')
+                        ? 'Antigravity'
+                        : m.id.startsWith('cx/')
+                        ? 'Codex'
+                        : undefined,
+                    }))}
+                    placeholder="Select or search Assistant Model..."
+                    searchPlaceholder="Filter AI model..."
+                    buttonClass="w-full flex items-center justify-between px-3.5 py-2.5 bg-theme-card border border-theme-border text-sm font-mono text-theme-text font-medium hover:border-theme-cyan transition-colors"
+                    dropdownClass="absolute left-0 mt-1.5 w-full bg-theme-surface border border-theme-border shadow-2xl z-50 overflow-hidden flex flex-col max-h-72"
+                  />
+                </div>
 
                 <button
                   type="button"

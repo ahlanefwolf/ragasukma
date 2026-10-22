@@ -10,13 +10,13 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
             "type": "function",
             "function": {
                 "name": "workspace_list_dir",
-                "description": "Daftar file dan subdirektori di dalam folder workspace yang ditentukan.",
+                "description": "List files and subdirectories in the specified workspace directory.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "path": {
                             "type": "string",
-                            "description": "Path relatif atau absolut ke direktori di dalam workspace"
+                            "description": "Relative or absolute path to the directory within the workspace"
                         }
                     },
                     "required": ["path"]
@@ -27,21 +27,21 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
             "type": "function",
             "function": {
                 "name": "workspace_read_file",
-                "description": "Membaca isi teks dari sebuah file di dalam workspace.",
+                "description": "Read text content of a file in the workspace.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "file_path": {
                             "type": "string",
-                            "description": "Path file yang ingin dibaca"
+                            "description": "Path to the file to read"
                         },
                         "start_line": {
                             "type": "integer",
-                            "description": "Nomor baris awal (1-indexed, opsional)"
+                            "description": "Start line number (1-indexed, optional)"
                         },
                         "end_line": {
                             "type": "integer",
-                            "description": "Nomor baris akhir (1-indexed, opsional)"
+                            "description": "End line number (1-indexed, optional)"
                         }
                     },
                     "required": ["file_path"]
@@ -52,17 +52,17 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
             "type": "function",
             "function": {
                 "name": "workspace_write_file",
-                "description": "Menulis atau membuat file baru di dalam workspace.",
+                "description": "Write or create a file in the workspace.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "file_path": {
                             "type": "string",
-                            "description": "Path file tujuan penulisan"
+                            "description": "Target file path to write"
                         },
                         "content": {
                             "type": "string",
-                            "description": "Seluruh isi teks yang akan ditulis ke file"
+                            "description": "Full text content to write to the file"
                         }
                     },
                     "required": ["file_path", "content"]
@@ -73,20 +73,41 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
             "type": "function",
             "function": {
                 "name": "workspace_grep",
-                "description": "Mencari string atau regex di dalam file-file workspace.",
+                "description": "Search for string or regex across workspace files.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "String atau kata kunci yang dicari"
+                            "description": "Search query or regex string"
                         },
                         "path": {
                             "type": "string",
-                            "description": "Subdirektori pencarian (opsional, default ke root folder pertama)"
+                            "description": "Subdirectory to search (optional, defaults to first root folder)"
                         }
                     },
                     "required": ["query"]
+                }
+            }
+        }),
+        json!({
+            "type": "function",
+            "function": {
+                "name": "workspace_run_command",
+                "description": "Execute a terminal/shell command (e.g. `cargo check`, `npm run build`, `npm test`, `git status`, etc.) in the workspace directory.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "type": "string",
+                            "description": "Full shell command to execute"
+                        },
+                        "cwd": {
+                            "type": "string",
+                            "description": "Working subdirectory relative to workspace (optional, defaults to workspace root)"
+                        }
+                    },
+                    "required": ["command"]
                 }
             }
         }),
@@ -96,7 +117,7 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
 /// Verify that a target path is allowed within one of the project's root folders
 pub fn resolve_allowed_path(raw_path: &str, allowed_roots: &[String]) -> Result<PathBuf> {
     if allowed_roots.is_empty() {
-        bail!("Workspace tidak memiliki folder root yang terdaftar.");
+        bail!("Workspace has no registered root folders.");
     }
 
     let input_path = Path::new(raw_path);
@@ -132,7 +153,7 @@ pub fn resolve_allowed_path(raw_path: &str, allowed_roots: &[String]) -> Result<
 
     if !is_inside_allowed {
         bail!(
-            "Akses ditolak: path '{}' berada di luar folder workspace yang diizinkan ({:?})",
+            "Access denied: path '{}' is outside allowed workspace folders ({:?})",
             raw_path,
             allowed_roots
         );
@@ -156,10 +177,10 @@ pub fn execute_tool_call(
             let resolved = resolve_allowed_path(path_str, allowed_roots)?;
 
             if !resolved.exists() {
-                bail!("Direktori '{}' tidak ditemukan", path_str);
+                bail!("Directory '{}' not found", path_str);
             }
             if !resolved.is_dir() {
-                bail!("'{}' bukan direktori", path_str);
+                bail!("'{}' is not a directory", path_str);
             }
 
             let mut entries = Vec::new();
@@ -177,18 +198,18 @@ pub fn execute_tool_call(
             let file_path = args
                 .get("file_path")
                 .and_then(|v| v.as_str())
-                .context("Parameter 'file_path' diperlukan")?;
+                .context("Parameter 'file_path' is required")?;
             let resolved = resolve_allowed_path(file_path, allowed_roots)?;
 
             if !resolved.exists() {
-                bail!("File '{}' tidak ditemukan", file_path);
+                bail!("File '{}' not found", file_path);
             }
             if resolved.is_dir() {
-                bail!("'{}' adalah direktori, bukan file", file_path);
+                bail!("'{}' is a directory, not a file", file_path);
             }
 
             let content = fs::read_to_string(&resolved)
-                .context(format!("Gagal membaca file '{}'", file_path))?;
+                .context(format!("Failed to read file '{}'", file_path))?;
 
             let start = args.get("start_line").and_then(|v| v.as_u64()).map(|n| n as usize);
             let end = args.get("end_line").and_then(|v| v.as_u64()).map(|n| n as usize);
@@ -212,11 +233,11 @@ pub fn execute_tool_call(
             let file_path = args
                 .get("file_path")
                 .and_then(|v| v.as_str())
-                .context("Parameter 'file_path' diperlukan")?;
+                .context("Parameter 'file_path' is required")?;
             let content = args
                 .get("content")
                 .and_then(|v| v.as_str())
-                .context("Parameter 'content' diperlukan")?;
+                .context("Parameter 'content' is required")?;
             let resolved = resolve_allowed_path(file_path, allowed_roots)?;
 
             let old_content = fs::read_to_string(&resolved).ok();
@@ -245,7 +266,7 @@ pub fn execute_tool_call(
             let query = args
                 .get("query")
                 .and_then(|v| v.as_str())
-                .context("Parameter 'query' diperlukan")?;
+                .context("Parameter 'query' is required")?;
             let sub_path = args
                 .get("path")
                 .and_then(|v| v.as_str())
@@ -256,6 +277,71 @@ pub fn execute_tool_call(
             grep_dir_recursive(&resolved, query, &mut matches, 50)?;
 
             Ok(json!({ "query": query, "matches_found": matches.len(), "results": matches }).to_string())
+        }
+
+        "workspace_run_command" => {
+            let command_str = args
+                .get("command")
+                .and_then(|v| v.as_str())
+                .context("Parameter 'command' is required")?;
+            let sub_path = args
+                .get("cwd")
+                .and_then(|v| v.as_str())
+                .unwrap_or(".");
+            let work_dir = resolve_allowed_path(sub_path, allowed_roots)?;
+
+            if !work_dir.exists() || !work_dir.is_dir() {
+                bail!("Working directory '{}' not found", sub_path);
+            }
+
+            #[cfg(target_os = "windows")]
+            let mut proc = {
+                let mut cmd = std::process::Command::new("powershell");
+                cmd.arg("-NoProfile").arg("-Command").arg(command_str);
+                cmd
+            };
+
+            #[cfg(not(target_os = "windows"))]
+            let mut proc = {
+                let mut cmd = std::process::Command::new("sh");
+                cmd.arg("-c").arg(command_str);
+                cmd
+            };
+
+            proc.current_dir(&work_dir);
+
+            // Execute command with output capture
+            let output = proc.output().with_context(|| {
+                format!("Failed to execute shell command: '{}'", command_str)
+            })?;
+
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let exit_code = output.status.code().unwrap_or(-1);
+
+            // Limit output size to prevent context overflow (max 20,000 characters)
+            let trimmed_stdout = if stdout.len() > 20_000 {
+                format!("{}... [Output truncated, too long]", &stdout[..20_000])
+            } else {
+                stdout
+            };
+
+            let trimmed_stderr = if stderr.len() > 10_000 {
+                format!("{}... [Error output truncated]", &stderr[..10_000])
+            } else {
+                stderr
+            };
+
+            let res_json = serde_json::json!({
+                "command": command_str,
+                "cwd": work_dir.display().to_string(),
+                "exit_code": exit_code,
+                "success": output.status.success(),
+                "stdout": trimmed_stdout,
+                "stderr": trimmed_stderr,
+            });
+
+            Ok(res_json.to_string())
         }
 
         _ => bail!("Unknown tool '{}'", name),
@@ -374,8 +460,8 @@ fn collect_files_recursive(
 
             let rel_path = path
                 .strip_prefix(base_root)
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|_| name.clone());
+                .map(|p| p.to_string_lossy().replace('\\', "/"))
+                .unwrap_or_else(|_| name.clone().replace('\\', "/"));
 
             let is_dir = path.is_dir();
             let size = if is_dir {
@@ -578,13 +664,14 @@ pub fn expand_file_tags(text: &str, allowed_roots: &[String]) -> String {
 
 /// Open native OS folder selection dialog (File Manager)
 pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> {
+    let _ = &initial_path;
     #[cfg(target_os = "linux")]
     {
         // 1. Try zenity (standard on GNOME, Fedora, Ubuntu, Sway/Wayland, etc.)
         let mut cmd = std::process::Command::new("zenity");
         cmd.arg("--file-selection")
             .arg("--directory")
-            .arg("--title=Pilih Folder Workspace")
+            .arg("--title=Select Workspace Folder")
             .arg("--modal")
             .arg("--width=700")
             .arg("--height=500");
@@ -636,20 +723,35 @@ pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> 
             }
         }
 
-        bail!("Tidak dapat membuka dialog file manager (zenity atau kdialog). Pastikan sistem GUI aktif atau masukkan path folder manual.")
+        bail!("Unable to open file manager dialog (zenity or kdialog). Ensure GUI is available or enter the folder path manually.")
     }
 
     #[cfg(target_os = "windows")]
     {
-        let ps_script = r#"
+        let selected_path_init = if let Some(init) = initial_path {
+            let trimmed = init.trim().replace('"', "`\"");
+            if !trimmed.is_empty() {
+                format!("$dialog.SelectedPath = \"{}\"", trimmed)
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        let ps_script = format!(
+            r#"
         Add-Type -AssemblyName System.Windows.Forms
         $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-        $dialog.Description = "Pilih Folder Workspace"
+        $dialog.Description = "Select Workspace Folder"
         $dialog.ShowNewFolderButton = $true
-        if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+        {}
+        if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{
             Write-Output $dialog.SelectedPath
-        }
-        "#;
+        }}
+        "#,
+            selected_path_init
+        );
         let output = std::process::Command::new("powershell")
             .arg("-NoProfile")
             .arg("-Command")
@@ -666,10 +768,22 @@ pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> 
 
     #[cfg(target_os = "macos")]
     {
-        let script = r#"POSIX path of (choose folder with prompt "Pilih Folder Workspace")"#;
+        let script = if let Some(init) = initial_path {
+            let trimmed = init.trim().replace('"', "\\\"");
+            if !trimmed.is_empty() {
+                format!(
+                    r#"POSIX path of (choose folder with prompt "Select Workspace Folder" default location (POSIX file "{}"))"#,
+                    trimmed
+                )
+            } else {
+                r#"POSIX path of (choose folder with prompt "Select Workspace Folder")"#.to_string()
+            }
+        } else {
+            r#"POSIX path of (choose folder with prompt "Select Workspace Folder")"#.to_string()
+        };
         let output = std::process::Command::new("osascript")
             .arg("-e")
-            .arg(script)
+            .arg(&script)
             .output()?;
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -682,7 +796,7 @@ pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> 
 
     #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     {
-        bail!("Platform sistem operasi ini belum mendukung native folder dialog.")
+        bail!("This operating system does not support native folder dialogs yet.")
     }
 }
 
@@ -690,7 +804,7 @@ pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> 
 pub fn open_path_in_file_manager(path_str: &str) -> Result<()> {
     let p = std::path::Path::new(path_str);
     if !p.exists() {
-        bail!("Folder atau file tidak ditemukan di disk: {}", path_str);
+        bail!("Folder or file not found on disk: {}", path_str);
     }
 
     #[cfg(target_os = "linux")]
@@ -722,7 +836,7 @@ pub fn open_path_in_file_manager(path_str: &str) -> Result<()> {
 
     #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     {
-        bail!("Platform ini belum mendukung membuka file manager secara native.")
+        bail!("This platform does not support opening file manager natively yet.")
     }
 }
 

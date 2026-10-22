@@ -78,7 +78,12 @@ npm run build
 ```
 
 ---
-
+```bash
+npx tsc --noEmit
+npx eslint .
+npx knip
+npm run build
+```
 ## 3. Checklist Sebelum Release / Commit Besar
 
 - [ ] `cargo test` lulus semua test suite.
