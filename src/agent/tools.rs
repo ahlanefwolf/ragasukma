@@ -2,10 +2,39 @@ use anyhow::{bail, Context, Result};
 use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
-/// Returns tool definitions for OpenAI / Antigravity / Codex V1 tool calling
+/// Smartly truncates output keeping both the head and tail, omitting the middle.
+/// Perfectly Unicode/char-safe without mid-character slice panics.
+pub fn truncate_smart(s: &str, max_head: usize, max_tail: usize) -> String {
+    let char_count = s.chars().count();
+    if char_count <= max_head + max_tail {
+        return s.to_string();
+    }
+    let head: String = s.chars().take(max_head).collect();
+    let tail_skip = char_count.saturating_sub(max_tail);
+    let tail: String = s.chars().skip(tail_skip).collect();
+    let omitted = char_count - max_head - max_tail;
+    format!(
+        "{}\n\n... [{} characters omitted to preserve token budget] ...\n\n{}",
+        head, omitted, tail
+    )
+}
+
+/// Checks if a tool is strictly read-only and free of side effects.
+pub fn is_read_only_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "workspace_read_file" | "workspace_list_dir" | "workspace_grep"
+    )
+}
+
+/// Returns tool definitions for OpenAI / Antigravity / Codex V1 tool calling (cached)
 pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
-    vec![
+    static CACHED_SCHEMA: OnceLock<Vec<serde_json::Value>> = OnceLock::new();
+    CACHED_SCHEMA
+        .get_or_init(|| {
+            vec![
         json!({
             "type": "function",
             "function": {
@@ -137,6 +166,8 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
             }
         }),
     ]
+    })
+    .clone()
 }
 
 /// Verify that a target path is allowed within one of the project's root folders
@@ -587,10 +618,15 @@ pub fn expand_file_tags(text: &str, allowed_roots: &[String]) -> String {
         return text.to_string();
     }
 
-    // Match @filepath or @filepath:start or @filepath:start-end
-    let re = match regex::Regex::new(r#"@([a-zA-Z0-9_\-\./\\]+)(?::(\d+)(?:-(\d+))?)?"#) {
-        Ok(r) => r,
-        Err(_) => return text.to_string(),
+    // Match @filepath or @filepath:start or @filepath:start-end (cached regex)
+    static FILE_TAG_RE: OnceLock<Option<regex::Regex>> = OnceLock::new();
+    let re_opt = FILE_TAG_RE.get_or_init(|| {
+        regex::Regex::new(r#"@([a-zA-Z0-9_\-\./\\]+)(?::(\d+)(?:-(\d+))?)?"#).ok()
+    });
+
+    let re = match re_opt.as_ref() {
+        Some(r) => r,
+        None => return text.to_string(),
     };
 
     let mut attached_snippets: Vec<String> = Vec::new();

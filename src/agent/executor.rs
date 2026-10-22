@@ -75,31 +75,11 @@ fn sanitize_tool_output_for_db(content: &str) -> String {
 /// inspired by the `oh-my-pi` context pruning & shake architecture.
 fn compact_tool_output(content: &str, is_recent_tail: bool) -> String {
     if is_recent_tail {
-        // Even for recent tail, if single tool output is ridiculously huge (> 12,000 chars), truncate slightly
-        if content.len() > 12_000 {
-            let prefix: String = content.chars().take(6_000).collect();
-            let suffix: String = content.chars().rev().take(3_000).collect::<Vec<_>>().into_iter().rev().collect();
-            return format!(
-                "{}\n\n[... Large output truncated for latency optimization ({} bytes total) ...]\n\n{}",
-                prefix,
-                content.len(),
-                suffix
-            );
-        }
-        return content.to_string();
-    }
-    // For older turns: prune aggressively (> 300 chars)
-    if content.len() > 300 {
-        let prefix: String = content.chars().take(120).collect();
-        let suffix: String = content.chars().rev().take(80).collect::<Vec<_>>().into_iter().rev().collect();
-        format!(
-            "{}\n\n[... Tool output pruned ({} bytes) ...]\n\n{}",
-            prefix,
-            content.len(),
-            suffix
-        )
+        // Even for recent tail, if single tool output is ridiculously huge (> 9,000 chars), truncate smartly
+        super::tools::truncate_smart(content, 6_000, 3_000)
     } else {
-        content.to_string()
+        // For older turns: prune aggressively to save tokens while keeping context of success/failure
+        super::tools::truncate_smart(content, 120, 80)
     }
 }
 
@@ -193,12 +173,16 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
     let _ = repository::update_session_model(session_id, &model).await;
     let is_codex = model.starts_with("cx/") || model.to_lowercase().contains("codex");
 
+    // Load initial message history once, then incrementally maintain in-memory state
+    let mut db_messages = repository::list_messages(session_id).await?;
+
     while iteration < max_safety_iterations {
         iteration += 1;
 
-        // Check if session was stopped or aborted externally
-        if let Ok(Some(current_sess)) = repository::get_session(session_id).await {
-            if current_sess.status != "running" {
+        // Check if session was stopped or aborted externally via lightweight single-column query
+        if let Ok(Some(status)) = repository::get_session_status(session_id).await {
+            if status != "running" {
+                println!("[Agent] Session {} status changed to '{}', breaking iteration loop.", session_id, status);
                 break;
             }
         }
@@ -215,8 +199,7 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
             },
         );
 
-        // Fetch latest messages from DB and apply tool result pruning (oh-my-pi compaction)
-        let db_messages = repository::list_messages(session_id).await?;
+        // Calculate total tool messages from in-memory history
         let total_tool_msgs = db_messages.iter().filter(|m| m.role == "tool").count();
         let mut tool_counter = 0;
 
@@ -532,8 +515,9 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
 
                 broadcast_session_event(
                     session_id,
-                    AgentSessionEvent::MessageCreated(assistant_msg),
+                    AgentSessionEvent::MessageCreated(assistant_msg.clone()),
                 );
+                db_messages.push(assistant_msg);
 
                 // 2. Execute each tool call and save results
                 for tc in &tool_calls {
@@ -591,8 +575,9 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
 
                     broadcast_session_event(
                         session_id,
-                        AgentSessionEvent::MessageCreated(tool_msg),
+                        AgentSessionEvent::MessageCreated(tool_msg.clone()),
                     );
+                    db_messages.push(tool_msg);
                 }
 
                 // Loop again with tool results

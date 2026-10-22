@@ -184,6 +184,15 @@ pub async fn create_session(
     })
 }
 
+pub async fn get_session_status(id: &str) -> Result<Option<String>> {
+    let pool = crate::llm::usage::get_pool().await;
+    let row: Option<(String,)> = sqlx::query_as("SELECT status FROM sessions WHERE id = ?1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row.map(|r| r.0))
+}
+
 pub async fn update_session_status(id: &str, status: &str) -> Result<()> {
     let pool = crate::llm::usage::get_pool().await;
     let now = now_secs();
