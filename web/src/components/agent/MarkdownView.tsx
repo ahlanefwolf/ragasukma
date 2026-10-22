@@ -78,14 +78,19 @@ customRenderer.code = function ({ text, lang }: Tokens.Code) {
   `;
 };
 
-// Inline code
+// Inline code (escape html to prevent rendering raw HTML tags like <textarea> or <script>)
 customRenderer.codespan = function ({ text }: Tokens.Codespan) {
-  return `<code class="px-1.5 py-0.5 mx-0.5 rounded bg-white/10 text-indigo-300 font-mono text-[11px] border border-white/10">${text}</code>`;
+  return `<code class="px-1.5 py-0.5 mx-0.5 rounded bg-theme-cyan/10 text-theme-cyan font-mono text-[11px] border border-theme-cyan/20">${escapeHtml(text)}</code>`;
+};
+
+// Raw HTML blocks/tags inside markdown should be escaped to prevent UI breaking
+customRenderer.html = function ({ text }: Tokens.HTML) {
+  return escapeHtml(text);
 };
 
 // Links
 customRenderer.link = function ({ href, text }: Tokens.Link) {
-  return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">${text}</a>`;
+  return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-theme-cyan hover:opacity-80 underline underline-offset-2">${text}</a>`;
 };
 
 export const MarkdownView: Component<MarkdownViewProps> = (props) => {
@@ -106,7 +111,7 @@ export const MarkdownView: Component<MarkdownViewProps> = (props) => {
     <div class="markdown-view-wrapper">
       <style>{`
         .markdown-view-wrapper .markdown-content {
-          color: rgba(255, 255, 255, 0.9);
+          color: var(--text);
           font-size: 0.75rem;
           line-height: 1.625;
         }
@@ -117,23 +122,23 @@ export const MarkdownView: Component<MarkdownViewProps> = (props) => {
         .markdown-view-wrapper .markdown-content h1 {
           font-size: 0.95rem;
           font-weight: 700;
-          color: #ffffff;
+          color: var(--text);
           margin-top: 0.85rem;
           margin-bottom: 0.35rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          border-bottom: 1px solid var(--border);
           padding-bottom: 0.25rem;
         }
         .markdown-view-wrapper .markdown-content h2 {
           font-size: 0.85rem;
           font-weight: 700;
-          color: #ffffff;
+          color: var(--text);
           margin-top: 0.75rem;
           margin-bottom: 0.3rem;
         }
         .markdown-view-wrapper .markdown-content h3 {
           font-size: 0.8rem;
           font-weight: 600;
-          color: #c7d2fe;
+          color: var(--cyan);
           margin-top: 0.65rem;
           margin-bottom: 0.25rem;
         }
@@ -154,11 +159,11 @@ export const MarkdownView: Component<MarkdownViewProps> = (props) => {
           margin-bottom: 0.15rem;
         }
         .markdown-view-wrapper .markdown-content blockquote {
-          border-left: 3px solid rgba(129, 140, 248, 0.7);
+          border-left: 3px solid var(--cyan);
           padding-left: 0.75rem;
           margin-top: 0.5rem;
           margin-bottom: 0.5rem;
-          color: rgba(255, 255, 255, 0.7);
+          color: var(--muted);
           font-style: italic;
         }
         .markdown-view-wrapper .markdown-content table {
@@ -170,17 +175,17 @@ export const MarkdownView: Component<MarkdownViewProps> = (props) => {
         }
         .markdown-view-wrapper .markdown-content th,
         .markdown-view-wrapper .markdown-content td {
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border: 1px solid var(--border);
           padding: 0.35rem 0.6rem;
         }
         .markdown-view-wrapper .markdown-content th {
-          background-color: rgba(255, 255, 255, 0.05);
+          background-color: var(--surface);
           font-weight: 600;
-          color: #ffffff;
+          color: var(--text);
         }
         .markdown-view-wrapper .markdown-content hr {
           border: 0;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          border-top: 1px solid var(--border);
           margin: 0.75rem 0;
         }
       `}</style>

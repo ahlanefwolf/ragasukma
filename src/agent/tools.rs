@@ -72,6 +72,31 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
         json!({
             "type": "function",
             "function": {
+                "name": "workspace_edit_file",
+                "description": "Precisely replace specific lines or sections in an existing file using search and replace. Preferred over writing the whole file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Path to the file to edit"
+                        },
+                        "old_text": {
+                            "type": "string",
+                            "description": "Exact text or lines to find and replace"
+                        },
+                        "new_text": {
+                            "type": "string",
+                            "description": "Replacement text"
+                        }
+                    },
+                    "required": ["file_path", "old_text", "new_text"]
+                }
+            }
+        }),
+        json!({
+            "type": "function",
+            "function": {
                 "name": "workspace_grep",
                 "description": "Search for string or regex across workspace files.",
                 "parameters": {
@@ -262,6 +287,55 @@ pub fn execute_tool_call(
             Ok(result_json.to_string())
         }
 
+        "workspace_edit_file" => {
+            let file_path = args
+                .get("file_path")
+                .and_then(|v| v.as_str())
+                .context("Parameter 'file_path' is required")?;
+            let old_text = args
+                .get("old_text")
+                .and_then(|v| v.as_str())
+                .context("Parameter 'old_text' is required")?;
+            let new_text = args
+                .get("new_text")
+                .and_then(|v| v.as_str())
+                .context("Parameter 'new_text' is required")?;
+            let resolved = resolve_allowed_path(file_path, allowed_roots)?;
+
+            if !resolved.exists() {
+                bail!("File '{}' not found to edit", file_path);
+            }
+            if resolved.is_dir() {
+                bail!("'{}' is a directory, not a file", file_path);
+            }
+
+            let content = fs::read_to_string(&resolved)
+                .context(format!("Failed to read file '{}' for editing", file_path))?;
+
+            if !content.contains(old_text) {
+                bail!("'old_text' not found in file '{}'. Ensure exact match including whitespace/indentation.", file_path);
+            }
+
+            let occurrences = content.matches(old_text).count();
+            if occurrences > 1 {
+                bail!("'old_text' matches {} times in file '{}'. Provide more surrounding lines/context to make it uniquely identifiable.", occurrences, file_path);
+            }
+
+            let updated_content = content.replacen(old_text, new_text, 1);
+            fs::write(&resolved, &updated_content)?;
+
+            let result_json = serde_json::json!({
+                "status": "ok",
+                "path": resolved.display().to_string(),
+                "file_path": file_path,
+                "bytes_written": updated_content.len(),
+                "old_text_len": old_text.len(),
+                "new_text_len": new_text.len(),
+            });
+
+            Ok(result_json.to_string())
+        }
+
         "workspace_grep" => {
             let query = args
                 .get("query")
@@ -403,12 +477,13 @@ pub struct WorkspaceFileInfo {
 /// Recursively list files across all allowed root folders in the project
 pub fn list_workspace_files(allowed_roots: &[String]) -> Result<Vec<WorkspaceFileInfo>> {
     let mut files = Vec::new();
+    let max_items = 1500;
     for root in allowed_roots {
         let r_path = Path::new(root);
         if !r_path.exists() || !r_path.is_dir() {
             continue;
         }
-        collect_files_recursive(r_path, r_path, &mut files, 0, 500)?;
+        collect_files_recursive(r_path, r_path, &mut files, 0, max_items)?;
     }
 
     files.sort_by(|a, b| {
@@ -445,17 +520,31 @@ fn collect_files_recursive(
             }
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().to_string();
+            let is_dir = path.is_dir();
 
-            // Skip noisy folders and files
-            if name.starts_with('.')
-                || name == "node_modules"
-                || name == "target"
-                || name == "dist"
-                || name == "build"
-                || name == "vendor"
-                || name == ".git"
-            {
-                continue;
+            // Skip heavy build artifact, cache, and VCS folders
+            if is_dir {
+                if name == ".git"
+                    || name == ".cache"
+                    || name == ".turbo"
+                    || name == ".next"
+                    || name == ".nuxt"
+                    || name == ".venv"
+                    || name == "venv"
+                    || name == "__pycache__"
+                    || name == "node_modules"
+                    || name == "target"
+                    || name == "dist"
+                    || name == "build"
+                    || name == "vendor"
+                {
+                    continue;
+                }
+            } else {
+                // Skip OS junk files, but keep important dotfiles like .gitignore, .env, .editorconfig
+                if name == ".DS_Store" || name == "Thumbs.db" || name == "desktop.ini" {
+                    continue;
+                }
             }
 
             let rel_path = path
@@ -463,7 +552,6 @@ fn collect_files_recursive(
                 .map(|p| p.to_string_lossy().replace('\\', "/"))
                 .unwrap_or_else(|_| name.clone().replace('\\', "/"));
 
-            let is_dir = path.is_dir();
             let size = if is_dir {
                 0
             } else {

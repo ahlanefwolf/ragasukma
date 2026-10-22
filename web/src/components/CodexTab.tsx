@@ -207,7 +207,7 @@ export const CodexTab: Component<CodexTabProps> = (props) => {
       {/* Header Banner */}
       <div class="bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg p-5 sm:p-6 border border-theme-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
         <div class="flex items-start gap-4">
-          <div class="w-14 h-14 bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0 shadow-sm mt-0.5">
+          <div class="w-14 h-14 bg-theme-cyan/15 border border-theme-cyan/40 flex items-center justify-center text-theme-cyan shrink-0 shadow-sm mt-0.5">
             <Terminal size={28} />
           </div>
           <div>
@@ -215,7 +215,7 @@ export const CodexTab: Component<CodexTabProps> = (props) => {
               <h2 class="font-heading tracking-tight text-theme-text">
                 OpenAI Codex Pool
               </h2>
-              <span class="text-xs font-mono px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold uppercase">
+              <span class="text-xs font-mono px-2 py-0.5 bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30 font-bold uppercase">
                 Multi-OAuth
               </span>
             </div>
@@ -228,17 +228,17 @@ export const CodexTab: Component<CodexTabProps> = (props) => {
         <div class="flex items-center gap-2.5 w-full md:w-auto shrink-0 flex-nowrap">
           <button
             onClick={() => loadAccounts()}
-            class="p-2.5 bg-theme-bg border border-theme-border text-theme-text hover:text-emerald-400 hover:border-emerald-500/50 transition-all flex items-center justify-center shrink-0"
+            class="p-2.5 bg-theme-bg border border-theme-border text-theme-text hover:text-theme-cyan hover:border-theme-cyan/50 transition-all flex items-center justify-center shrink-0"
             title="Reload Accounts"
           >
-            <RefreshCw size={18} class={loading() ? 'animate-spin text-emerald-400' : ''} />
+            <RefreshCw size={18} class={loading() ? 'animate-spin text-theme-cyan' : ''} />
           </button>
 
           {/* 1-Click OpenAI OAuth Button */}
           <button
             onClick={handleOAuthLogin}
             disabled={isOAuthLoading()}
-            class="whitespace-nowrap shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all active:scale-95"
+            class="whitespace-nowrap shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card font-bold text-xs shadow-md transition-all active:scale-95"
           >
             <Show when={isOAuthLoading()} fallback={<LogIn size={16} />}>
               <RefreshCw size={16} class="animate-spin" />
@@ -259,7 +259,7 @@ export const CodexTab: Component<CodexTabProps> = (props) => {
       <div class="space-y-3">
         <div class="flex items-center justify-between px-1">
           <h3 class="text-theme-text flex items-center gap-2">
-            <ShieldCheck size={16} class="text-emerald-400" />
+            <ShieldCheck size={16} class="text-theme-cyan" />
             OpenAI Codex Accounts Pool
           </h3>
           <span class="text-xs text-theme-text/40 font-mono">
@@ -279,7 +279,7 @@ export const CodexTab: Component<CodexTabProps> = (props) => {
             when={accounts().length > 0}
             fallback={
               <div class="p-12 text-center bg-theme-card border border-theme-border/60 space-y-4">
-                <div class="w-14 h-14 mx-auto bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <div class="w-14 h-14 mx-auto bg-theme-cyan/15 border border-theme-cyan/30 flex items-center justify-center text-theme-cyan">
                   <Terminal size={28} />
                 </div>
                 <div class="space-y-1">
@@ -291,7 +291,7 @@ export const CodexTab: Component<CodexTabProps> = (props) => {
                 <button
                   onClick={handleOAuthLogin}
                   disabled={isOAuthLoading()}
-                  class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all inline-flex items-center gap-2"
+                  class="px-5 py-2.5 bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card font-bold text-xs shadow-md transition-all inline-flex items-center gap-2"
                 >
                   <LogIn size={16} />
                   <span>Login with OpenAI Now</span>
@@ -324,28 +324,28 @@ export const CodexTab: Component<CodexTabProps> = (props) => {
       </div>
 
       {/* OpenAI-Compatible API Endpoint Info Card */}
-      <div class="p-5 bg-theme-card/80 border border-emerald-500/30 text-xs text-theme-text/80 space-y-3 shadow-lg">
+      <div class="p-5 bg-theme-card/80 border border-theme-cyan/30 text-xs text-theme-text/80 space-y-3 shadow-lg">
         <div class="flex items-center justify-between">
           <div class="font-bold text-theme-text flex items-center gap-2">
-            <span class="p-1 bg-emerald-500/10 text-emerald-400 font-mono text-xs font-extrabold uppercase tracking-wider border border-emerald-500/30">Codex API</span>
+            <span class="p-1 bg-theme-cyan/10 text-theme-cyan font-mono text-xs font-extrabold uppercase tracking-wider border border-theme-cyan/30">Codex API</span>
             <span>Local Endpoint (OpenAI-Compatible with cx/ prefix)</span>
           </div>
-          <span class="text-xs font-mono px-2 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+          <span class="text-xs font-mono px-2 py-0.5 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30">
             Port 42128 Ready
           </span>
         </div>
 
         <p class="leading-relaxed text-theme-text/60">
-          Use this endpoint in any AI tool (Cursor, Zed Editor, Cline, Continue, Aider, Claude Code, Python SDK, etc.) with models like <span class="font-mono text-emerald-400 font-bold">cx/gpt-6.1-sol</span>:
+          Use this endpoint in any AI tool (Cursor, Zed Editor, Cline, Continue, Aider, Claude Code, Python OpenAI SDK, etc.):
         </p>
 
         <div class="p-3 bg-theme-bg/80 border border-theme-border font-mono text-xs flex items-center justify-between gap-2 overflow-x-auto">
-          <div class="text-emerald-400 select-all">
+          <div class="text-theme-cyan select-all">
             Base URL: <span class="text-theme-text font-bold">http://127.0.0.1:42128/v1</span>
           </div>
           <button
             onClick={() => copyToClipboard('http://127.0.0.1:42128/v1', 'Base URL')}
-            class="px-2.5 py-1 bg-theme-card border border-theme-border text-theme-text/70 hover:text-emerald-400 hover:border-emerald-500 text-xs font-sans font-semibold shrink-0 transition-all"
+            class="px-2.5 py-1 bg-theme-card border border-theme-border text-theme-text/70 hover:text-theme-cyan hover:border-theme-cyan text-xs font-sans font-semibold shrink-0 transition-all"
           >
             Copy URL
           </button>

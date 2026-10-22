@@ -327,8 +327,8 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
       <div class="p-5 bg-theme-card/80 border border-theme-cyan/30 text-xs text-theme-text/80 space-y-3 shadow-lg">
         <div class="flex items-center justify-between">
           <div class="font-bold text-theme-text flex items-center gap-2">
-            <span class="p-1 bg-theme-cyan/10 text-theme-cyan font-mono text-xs font-extrabold uppercase tracking-wider border border-theme-cyan/30">OpenAI API</span>
-            <span>Local Endpoint (OpenAI-Compatible)</span>
+            <span class="p-1 bg-theme-cyan/10 text-theme-cyan font-mono text-xs font-extrabold uppercase tracking-wider border border-theme-cyan/30">Antigravity API</span>
+            <span>Local Endpoint (OpenAI-Compatible with ag/ prefix)</span>
           </div>
           <span class="text-xs font-mono px-2 py-0.5 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30">
             Port 42128 Ready
@@ -336,7 +336,7 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
         </div>
 
         <p class="leading-relaxed text-theme-text/60">
-          Use this endpoint in any AI tool (Zed Editor, Cline, Continue, Cursor, Aider, Claude Code, Python OpenAI SDK, etc.) to leverage Antigravity models:
+          Use this endpoint in any AI tool (Cursor, Zed Editor, Cline, Continue, Aider, Claude Code, Python OpenAI SDK, etc.):
         </p>
 
         <div class="p-3 bg-theme-bg/80 border border-theme-border font-mono text-xs flex items-center justify-between gap-2 overflow-x-auto">

@@ -212,6 +212,9 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
                 }}
               </For>
             </div>
+            <div class="text-xs text-theme-text/40 italic">
+              Prefix model ID with <span class="font-mono text-theme-cyan">ag/</span> when configuring tools if not auto-detected.
+            </div>
           </div>
         </Show>
       </Show>

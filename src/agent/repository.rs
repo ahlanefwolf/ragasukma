@@ -349,6 +349,43 @@ pub async fn create_prompt_skill(
     })
 }
 
+pub async fn update_prompt_skill(
+    id: &str,
+    name: &str,
+    slug: &str,
+    description: &str,
+    system_prompt: &str,
+    tags_json: &str,
+) -> Result<PromptSkill> {
+    let pool = crate::llm::usage::get_pool().await;
+    let now = now_secs();
+
+    sqlx::query(
+        "UPDATE prompt_skills \
+         SET name = ?1, slug = ?2, description = ?3, system_prompt = ?4, tags = ?5, updated_at = ?6 \
+         WHERE id = ?7",
+    )
+    .bind(name)
+    .bind(slug)
+    .bind(description)
+    .bind(system_prompt)
+    .bind(tags_json)
+    .bind(now)
+    .bind(id)
+    .execute(pool)
+    .await?;
+
+    let row = sqlx::query_as::<_, PromptSkill>(
+        "SELECT id, name, slug, description, system_prompt, tags, is_active, created_at, updated_at \
+         FROM prompt_skills WHERE id = ?1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(row)
+}
+
 pub async fn delete_prompt_skill(id: &str) -> Result<()> {
     let pool = crate::llm::usage::get_pool().await;
     sqlx::query("DELETE FROM prompt_skills WHERE id = ?1")

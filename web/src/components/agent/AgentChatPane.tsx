@@ -1,4 +1,4 @@
-import { Component, For, Show } from 'solid-js';
+import { Component, For, Show, createMemo, createSignal, createEffect } from 'solid-js';
 import { 
   MessageSquare, 
   Cpu, 
@@ -15,13 +15,47 @@ import {
   Folder, 
   Send, 
   Loader2,
-  Square 
+  Square,
+  History,
+  ArrowDown
 } from 'lucide-solid';
 import { Project, AgentSession, AgentMessage, WorkspaceFileItem } from '../../services';
 import { MarkdownView } from './MarkdownView';
 import { ToolCallCard, ToolResultCard } from './ToolCards';
 import { countMessageLines } from './highlightUtils';
 import { SearchableSelect } from '../SearchableSelect';
+
+// Compact & Collapsible Reasoning / Chain of Thought Component
+const ThoughtBubble: Component<{ thought: string }> = (props) => {
+  const [isExpanded, setIsExpanded] = createSignal(false);
+  const charCount = () => props.thought?.length ?? 0;
+
+  return (
+    <div class="w-full max-w-full mb-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 font-mono overflow-hidden transition-all">
+      <button
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded())}
+        class="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-amber-500/15 cursor-pointer text-left transition-colors select-none"
+      >
+        <div class="flex items-center gap-1.5 font-semibold text-[10px] text-amber-400 uppercase tracking-wider">
+          <Brain class="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span>Reasoning / Thought Process</span>
+          <span class="text-[9px] lowercase font-normal opacity-70">({charCount()} chars)</span>
+        </div>
+        <div class="flex items-center gap-1 text-[10px] text-amber-400/80">
+          <span>{isExpanded() ? 'Hide' : 'Show'}</span>
+          <ChevronDown class={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded() ? 'rotate-180' : ''}`} />
+        </div>
+      </button>
+
+      <Show when={isExpanded()}>
+        <div class="p-2.5 pt-1.5 border-t border-amber-500/15 whitespace-pre-wrap text-[11px] leading-relaxed opacity-90 max-h-80 overflow-y-auto custom-scrollbar">
+          {props.thought}
+        </div>
+      </Show>
+    </div>
+  );
+};
 
 export const AgentChatPane: Component<{
   currentProject: Project | null | undefined;
@@ -54,8 +88,149 @@ export const AgentChatPane: Component<{
   onSendMessage: () => void;
   onStopSession: () => void;
 }> = (props) => {
+  let backdropRef: HTMLDivElement | undefined;
+
+  const tokens = createMemo(() => {
+    const text = props.userInput || '';
+    if (!text) return [];
+    const regex = /(?:^|\s)(@[a-zA-Z0-9_\-\./\\]*(?::\d+(?:-\d+)?)?)/g;
+    const result: { text: string; isTag: boolean }[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(text)) !== null) {
+      const fullMatch = match[0];
+      const tag = match[1];
+      const tagIndex = match.index + fullMatch.indexOf(tag);
+
+      if (tagIndex > lastIndex) {
+        result.push({ text: text.substring(lastIndex, tagIndex), isTag: false });
+      }
+
+      result.push({ text: tag, isTag: true });
+      lastIndex = tagIndex + tag.length;
+    }
+
+    if (lastIndex < text.length) {
+      result.push({ text: text.substring(lastIndex), isTag: false });
+    }
+
+    return result;
+  });
+
+  const hasTags = createMemo(() => tokens().some((t) => t.isTag));
+
+  // Upward Lazy Loading / Windowing for Long Conversation Tasks
+  const INITIAL_VISIBLE_COUNT = 25;
+  const [visibleWindowCount, setVisibleWindowCount] = createSignal(INITIAL_VISIBLE_COUNT);
+  const [isScrolledUp, setIsScrolledUp] = createSignal(false);
+
+  let messagesContainerEl: HTMLDivElement | undefined;
+  let trackedSessionId: string | null = null;
+  let lastKnownMsgCount = 0;
+
+  // Track session change & initial loading accurately
+  createEffect(() => {
+    const sId = props.currentSession?.id ?? null;
+    const isLoading = props.loadingMessages;
+    const currentLen = props.visibleMessages?.length ?? 0;
+
+    if (sId !== trackedSessionId) {
+      // Switched session or initial session mount
+      trackedSessionId = sId;
+      setVisibleWindowCount(INITIAL_VISIBLE_COUNT);
+      lastKnownMsgCount = currentLen;
+      return;
+    }
+
+    if (isLoading) {
+      // When backend is fetching messages for session, ensure window count is clamped to initial
+      setVisibleWindowCount(INITIAL_VISIBLE_COUNT);
+      return;
+    }
+
+    // When initial fetch finishes (transitioned from 0 messages to loaded list)
+    if (lastKnownMsgCount === 0 && currentLen > 0) {
+      lastKnownMsgCount = currentLen;
+      setVisibleWindowCount(INITIAL_VISIBLE_COUNT);
+      return;
+    }
+
+    // Live message additions during active chat session
+    if (currentLen > lastKnownMsgCount) {
+      const added = currentLen - lastKnownMsgCount;
+      if (added <= 10) {
+        setVisibleWindowCount((prev) => prev + added);
+      }
+      lastKnownMsgCount = currentLen;
+    } else if (currentLen < lastKnownMsgCount) {
+      lastKnownMsgCount = currentLen;
+    }
+  });
+
+  const totalMessagesCount = () => props.visibleMessages?.length ?? 0;
+  const hasEarlierMessages = () => totalMessagesCount() > visibleWindowCount();
+  const hiddenEarlierCount = () => Math.max(0, totalMessagesCount() - visibleWindowCount());
+
+  const renderedMessages = createMemo(() => {
+    const msgs = props.visibleMessages || [];
+    if (msgs.length <= visibleWindowCount()) {
+      return msgs;
+    }
+    return msgs.slice(msgs.length - visibleWindowCount());
+  });
+
+  const loadEarlierMessages = () => {
+    if (!messagesContainerEl) {
+      setVisibleWindowCount((c) => c + 25);
+      return;
+    }
+    const prevScrollHeight = messagesContainerEl.scrollHeight;
+    const prevScrollTop = messagesContainerEl.scrollTop;
+
+    setVisibleWindowCount((c) => c + 25);
+
+    requestAnimationFrame(() => {
+      if (messagesContainerEl) {
+        const heightDiff = messagesContainerEl.scrollHeight - prevScrollHeight;
+        messagesContainerEl.scrollTop = prevScrollTop + heightDiff;
+      }
+    });
+  };
+
+  const loadAllMessages = () => {
+    if (!messagesContainerEl) {
+      setVisibleWindowCount(totalMessagesCount());
+      return;
+    }
+    const prevScrollHeight = messagesContainerEl.scrollHeight;
+    const prevScrollTop = messagesContainerEl.scrollTop;
+
+    setVisibleWindowCount(totalMessagesCount());
+
+    requestAnimationFrame(() => {
+      if (messagesContainerEl) {
+        const heightDiff = messagesContainerEl.scrollHeight - prevScrollHeight;
+        messagesContainerEl.scrollTop = prevScrollTop + heightDiff;
+      }
+    });
+  };
+
+  const handleScroll = (e: Event) => {
+    const el = e.currentTarget as HTMLDivElement;
+    const distanceToBottom = el.scrollHeight - (el.scrollTop + el.clientHeight);
+    setIsScrolledUp(distanceToBottom > 150);
+    props.onMessagesScroll();
+  };
+
+  const scrollToBottom = () => {
+    if (messagesContainerEl) {
+      messagesContainerEl.scrollTo({ top: messagesContainerEl.scrollHeight, behavior: 'smooth' });
+    }
+  };
+
   return (
-    <div class="bg-white/[0.03] border border-white/10 rounded-xl flex-1 flex flex-col min-h-0 overflow-hidden shadow-lg">
+    <div class="bg-white/[0.03] border border-white/10 rounded-xl flex-1 flex flex-col min-h-0 overflow-hidden shadow-lg relative">
       {/* Session Header */}
       <div class="px-4 py-2.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-2 bg-white/[0.01]">
         <div class="flex items-center gap-2 min-w-0">
@@ -120,10 +295,35 @@ export const AgentChatPane: Component<{
 
       {/* Messages Stream */}
       <div 
-        ref={props.setMessagesContainerRef}
-        onScroll={props.onMessagesScroll}
+        ref={(el) => {
+          messagesContainerEl = el;
+          props.setMessagesContainerRef(el);
+        }}
+        onScroll={handleScroll}
         class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar"
       >
+        {/* Upward Lazy Load Banner for Earlier Messages */}
+        <Show when={props.currentSession && hasEarlierMessages()}>
+          <div class="flex items-center justify-center gap-2 py-2 mb-1 border-b border-white/[0.06] bg-white/[0.02] rounded-lg select-none">
+            <button
+              type="button"
+              onClick={loadEarlierMessages}
+              class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 active:scale-95 text-white/80 hover:text-white text-xs flex items-center gap-1.5 border border-white/10 transition-colors shadow-sm font-sans"
+            >
+              <History class="w-3.5 h-3.5 text-indigo-400" />
+              <span>Load 25 Earlier Messages ({hiddenEarlierCount()} hidden)</span>
+            </button>
+            <button
+              type="button"
+              onClick={loadAllMessages}
+              class="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 active:scale-95 text-white/50 hover:text-white/80 text-xs transition-colors font-sans"
+              title="Load all earlier messages in this session"
+            >
+              Show All
+            </button>
+          </div>
+        </Show>
+
         <Show when={!props.currentSession}>
           <div class="h-full flex flex-col items-center justify-center text-center text-white/40 py-12">
             <Bot class="w-10 h-10 mb-2 text-white/20" />
@@ -148,13 +348,13 @@ export const AgentChatPane: Component<{
           </div>
         </Show>
 
-        <For each={props.visibleMessages}>
+        <For each={renderedMessages()}>
           {(msg) => (
             <div class={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-              <div class="text-[10px] text-white/40 mb-1 px-1 flex items-center gap-1.5">
+              <div class="text-[10px] text-theme-text/40 mb-1 px-1 flex items-center gap-1.5">
                 <Show when={msg.role === 'user'} fallback={
                   <Show when={msg.role === 'tool'} fallback={
-                    <div class="flex items-center gap-1 text-indigo-400">
+                    <div class="flex items-center gap-1 text-theme-cyan">
                       <Bot class="w-3 h-3" />
                       <span>Agent</span>
                     </div>
@@ -165,49 +365,43 @@ export const AgentChatPane: Component<{
                     </div>
                   </Show>
                 }>
-                  <span>You</span>
+                  <span class="font-medium text-theme-text/70">You</span>
                 </Show>
                 <span>• #{msg.sequence_num}</span>
               </div>
 
               {/* Tool Calls badge if present on assistant */}
               <Show when={msg.tool_calls}>
-                <div class="w-full max-w-3xl min-w-0 overflow-hidden">
+                <div class="w-full max-w-full min-w-0 overflow-hidden">
                   <ToolCallCard toolCalls={msg.tool_calls!} />
                 </div>
               </Show>
 
               {/* Reasoning Thought Collapse if present */}
               <Show when={msg.thought}>
-                <div class="w-full max-w-3xl mb-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 font-mono">
-                  <div class="flex items-center gap-1 font-semibold text-[10px] text-amber-400 uppercase tracking-wider mb-1">
-                    <Brain class="w-3 h-3" />
-                    Reasoning Process / Chain of Thought
-                  </div>
-                  <div class="whitespace-pre-wrap text-[11px] leading-relaxed opacity-80">{msg.thought}</div>
-                </div>
+                <ThoughtBubble thought={msg.thought!} />
               </Show>
 
               {/* Tool Result Bubble if role == 'tool' */}
               <Show when={msg.role === 'tool'}>
-                <div class="w-full max-w-3xl min-w-0 overflow-hidden">
+                <div class="w-full max-w-full min-w-0 overflow-hidden">
                   <ToolResultCard toolCallId={msg.tool_call_id} content={msg.content} />
                 </div>
               </Show>
 
               {/* Standard Message Bubble */}
               <Show when={msg.role !== 'tool' && msg.content}>
-                <div class={`flex flex-col space-y-1 w-full max-w-3xl ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <div class={`flex flex-col space-y-1 w-full max-w-full ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                   <Show when={msg.role === 'assistant'}>
-                    <div class="flex items-center justify-between text-[10px] text-white/40 px-1">
+                    <div class="flex items-center justify-between text-[10px] text-theme-text/40 px-1">
                       <span class="font-mono flex items-center gap-1">
-                        <Bot class="w-3 h-3 text-indigo-400" />
+                        <Bot class="w-3 h-3 text-theme-cyan" />
                         Generative Assistant ({countMessageLines(msg.content)} {countMessageLines(msg.content) === 1 ? 'line' : 'lines'})
                       </span>
                       <button
                         type="button"
                         onClick={() => props.toggleCollapseMessage(msg.id)}
-                        class="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 hover:text-indigo-300 transition-colors text-[10px]"
+                        class="flex items-center gap-1 px-2 py-0.5 rounded bg-theme-bg/60 hover:bg-theme-card border border-theme-border/60 hover:text-theme-cyan transition-colors text-[10px]"
                         title={props.isMessageCollapsed(msg.id) ? "Show full message" : "Collapse generative output"}
                       >
                         <Show when={props.isMessageCollapsed(msg.id)} fallback={<><ChevronUp class="w-3 h-3" /> Collapse</>}>
@@ -220,10 +414,10 @@ export const AgentChatPane: Component<{
                   <Show when={props.isMessageCollapsed(msg.id)}>
                     <div
                       onClick={() => props.toggleCollapseMessage(msg.id)}
-                      class="cursor-pointer w-full rounded-xl p-2.5 bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300/90 hover:bg-indigo-500/15 transition-all flex items-center justify-between"
+                      class="cursor-pointer w-full rounded-xl p-2.5 bg-theme-cyan/10 border border-theme-cyan/20 text-xs text-theme-cyan/90 hover:bg-theme-cyan/15 transition-all flex items-center justify-between"
                     >
                       <span class="truncate italic text-[11px]">Generative output collapsed ({countMessageLines(msg.content)} {countMessageLines(msg.content) === 1 ? 'line' : 'lines'})</span>
-                      <span class="text-[10px] font-semibold text-indigo-400 underline ml-2 shrink-0">Expand</span>
+                      <span class="text-[10px] font-semibold text-theme-cyan underline ml-2 shrink-0">Expand</span>
                     </div>
                   </Show>
 
@@ -231,13 +425,13 @@ export const AgentChatPane: Component<{
                     <div
                       class={`w-fit max-w-full rounded-xl px-4 py-3 text-xs leading-relaxed ${
                         msg.role === 'user'
-                          ? 'bg-indigo-600 text-white rounded-br-none whitespace-pre-wrap'
-                          : 'bg-white/[0.04] border border-white/10 text-white/90 rounded-bl-none shadow-sm'
+                          ? 'bg-theme-card border border-theme-border text-theme-text rounded-br-none whitespace-pre-wrap shadow-sm'
+                          : 'bg-theme-bg/80 border border-theme-border text-theme-text/90 rounded-bl-none shadow-sm'
                       }`}
                     >
                       <Show
                         when={msg.role === 'assistant'}
-                        fallback={<div>{msg.content || ''}</div>}
+                        fallback={<div class="select-text">{msg.content || ''}</div>}
                       >
                         <MarkdownView content={msg.content || ''} />
                       </Show>
@@ -251,7 +445,7 @@ export const AgentChatPane: Component<{
 
         {/* Live Streaming Assistant Output */}
         <Show when={props.streamingText && props.streamingText.trim().length > 0}>
-          <div class="flex flex-col items-start w-full max-w-3xl">
+          <div class="flex flex-col items-start w-full max-w-full">
             <div class="text-[10px] text-white/40 mb-1 px-1 flex items-center gap-1.5">
               <div class="flex items-center gap-1 text-indigo-400">
                 <Bot class="w-3 h-3 animate-pulse" />
@@ -280,6 +474,19 @@ export const AgentChatPane: Component<{
           </div>
         </Show>
       </div>
+
+      {/* Floating Jump to Bottom Button */}
+      <Show when={isScrolledUp()}>
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          class="absolute right-6 bottom-24 z-30 flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/90 hover:bg-indigo-600 active:scale-95 text-white text-xs font-medium rounded-full shadow-xl border border-indigo-400/40 backdrop-blur-md transition-all hover:scale-105 select-none"
+          title="Jump to latest message"
+        >
+          <ArrowDown class="w-3.5 h-3.5" />
+          <span>Jump to bottom</span>
+        </button>
+      </Show>
 
       {/* Chat Input Bar (Unified Modern Card) */}
       <Show when={props.currentSession}>
@@ -322,27 +529,70 @@ export const AgentChatPane: Component<{
               </div>
             </Show>
 
-            {/* Seamless Auto-Expanding Textarea */}
-            <textarea
-              ref={(el) => {
-                props.setChatInputRef(el);
-                if (el) {
-                  el.style.height = 'auto';
-                  el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
-                }
-              }}
-              rows={1}
-              placeholder={`Send instructions to agent for workspace "${props.currentProject?.name}" (type @ to tag files)...`}
-              value={props.userInput}
-              onInput={(e) => {
-                const target = e.currentTarget;
-                target.style.height = 'auto';
-                target.style.height = `${Math.min(target.scrollHeight, 200)}px`;
-                props.onChatInput(e);
-              }}
-              onKeyDown={props.onChatKeyDown}
-              class="w-full bg-transparent border-0 px-1 py-0.5 text-xs text-white placeholder-white/35 focus:outline-none focus:ring-0 resize-none min-h-[38px] max-h-52 custom-scrollbar leading-relaxed"
-            />
+            {/* Seamless Auto-Expanding Textarea with Tag Highlighting */}
+            <div class="relative w-full">
+              {/* Highlight Backdrop Mirror */}
+              <div
+                ref={(el) => (backdropRef = el)}
+                aria-hidden="true"
+                class={`absolute inset-0 pointer-events-none whitespace-pre-wrap break-words overflow-y-auto px-1 py-0.5 text-xs font-sans leading-relaxed select-none ${
+                  hasTags() ? 'block' : 'hidden'
+                }`}
+                style={{
+                  "word-break": "break-word",
+                  "overflow-wrap": "break-word",
+                  "scrollbar-width": "none",
+                }}
+              >
+                <For each={tokens()}>
+                  {(token) => (
+                    <Show
+                      when={token.isTag}
+                      fallback={<span class="text-white">{token.text}</span>}
+                    >
+                      <span class="text-cyan-400 bg-cyan-500/20 rounded-[2px]">{token.text}</span>
+                    </Show>
+                  )}
+                </For>
+                {props.userInput.endsWith('\n') ? '\n' : ''}
+              </div>
+
+              {/* Seamless Auto-Expanding Textarea */}
+              <textarea
+                ref={(el) => {
+                  props.setChatInputRef(el);
+                  if (el) {
+                    el.style.height = 'auto';
+                    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+                  }
+                }}
+                rows={1}
+                placeholder={`Send instructions to agent for workspace "${props.currentProject?.name}" (type @ to tag files)...`}
+                value={props.userInput}
+                onInput={(e) => {
+                  const target = e.currentTarget;
+                  target.style.height = 'auto';
+                  target.style.height = `${Math.min(target.scrollHeight, 200)}px`;
+                  if (backdropRef) {
+                    backdropRef.scrollTop = target.scrollTop;
+                  }
+                  props.onChatInput(e);
+                }}
+                onScroll={(e) => {
+                  if (backdropRef) {
+                    backdropRef.scrollTop = e.currentTarget.scrollTop;
+                  }
+                }}
+                onKeyDown={props.onChatKeyDown}
+                class={`relative z-10 w-full bg-transparent border-0 px-1 py-0.5 text-xs focus:outline-none focus:ring-0 resize-none min-h-[38px] max-h-52 custom-scrollbar leading-relaxed font-sans ${
+                  hasTags() ? 'text-transparent caret-cyan-400 selection:bg-cyan-500/30 selection:text-white' : 'text-white placeholder-white/35'
+                }`}
+                style={{
+                  "word-break": "break-word",
+                  "overflow-wrap": "break-word",
+                }}
+              />
+            </div>
 
             {/* Action Bar inside the card */}
             <div class="flex items-center justify-between pt-2 border-t border-white/[0.06] mt-1">

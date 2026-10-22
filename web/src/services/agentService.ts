@@ -420,6 +420,29 @@ export const agentService = {
     }
   },
 
+  async updatePromptSkill(id: string, payload: {
+    name: string;
+    slug: string;
+    description?: string;
+    system_prompt: string;
+    tags?: string[];
+  }): Promise<{ ok: boolean; skill?: PromptSkill; error?: string }> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/skills/${id}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { ok: false, error: data?.error || 'Failed to update skill' };
+      }
+      return { ok: true, skill: data };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'Network error' };
+    }
+  },
+
   async deletePromptSkill(id: string): Promise<boolean> {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/agent/skills/${id}/delete`, {

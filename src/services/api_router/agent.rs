@@ -37,6 +37,7 @@ pub fn register_agent_routes(
         .route("/api/agent/sessions/:id/messages", get(list_messages).post(create_message))
         // Prompt Skills
         .route("/api/agent/skills", get(list_skills).post(create_skill))
+        .route("/api/agent/skills/:id/update", post(update_skill))
         .route("/api/agent/skills/:id/delete", post(delete_skill))
         .route("/api/agent/projects/:id/skills", get(get_project_skills).post(set_project_skills))
         // MCP Servers
@@ -752,6 +753,32 @@ async fn create_skill(Json(payload): Json<CreateSkillPayload>) -> impl IntoRespo
     .await
     {
         Ok(s) => (StatusCode::CREATED, Json(json!(s))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        ),
+    }
+}
+
+async fn update_skill(
+    Path(id): Path<String>,
+    Json(payload): Json<CreateSkillPayload>,
+) -> impl IntoResponse {
+    let desc = payload.description.unwrap_or_default();
+    let tags_json = serde_json::to_string(&payload.tags.unwrap_or_default())
+        .unwrap_or_else(|_| "[]".to_string());
+
+    match repository::update_prompt_skill(
+        &id,
+        &payload.name,
+        &payload.slug,
+        &desc,
+        &payload.system_prompt,
+        &tags_json,
+    )
+    .await
+    {
+        Ok(s) => (StatusCode::OK, Json(json!(s))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"error": e.to_string()})),

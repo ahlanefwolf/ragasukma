@@ -12,7 +12,8 @@ import {
 } from '../../services';
 
 import { SkillsSubTab, McpSubTab } from './SkillsAndMcpTabs';
-import { CreateProjectModal, CreateSkillModal, LineRangePickerModal } from './AgentModals';
+import { CreateProjectModal, CreateSkillModal } from './AgentModals';
+import { AgentCodePanel } from './AgentCodePanel';
 import { AgentSidebar } from './AgentSidebar';
 import { AgentWorkspaceHeader } from './AgentWorkspaceHeader';
 import { AgentChatPane } from './AgentChatPane';
@@ -221,8 +222,8 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
             onClick={() => ws.setActiveSubTab('projects')}
             class={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
               ws.activeSubTab() === 'projects'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-white/60 hover:text-white hover:bg-white/5'
+                ? 'bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 font-semibold shadow-sm'
+                : 'text-theme-text/60 hover:text-theme-text hover:bg-theme-bg/60'
             }`}
           >
             <FolderGit2 class="w-3.5 h-3.5" />
@@ -232,8 +233,8 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
             onClick={() => ws.setActiveSubTab('skills')}
             class={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
               ws.activeSubTab() === 'skills'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-white/60 hover:text-white hover:bg-white/5'
+                ? 'bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 font-semibold shadow-sm'
+                : 'text-theme-text/60 hover:text-theme-text hover:bg-theme-bg/60'
             }`}
           >
             <Sparkles class="w-3.5 h-3.5" />
@@ -243,8 +244,8 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
             onClick={() => ws.setActiveSubTab('mcp')}
             class={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
               ws.activeSubTab() === 'mcp'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-white/60 hover:text-white hover:bg-white/5'
+                ? 'bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 font-semibold shadow-sm'
+                : 'text-theme-text/60 hover:text-theme-text hover:bg-theme-bg/60'
             }`}
           >
             <Server class="w-3.5 h-3.5" />
@@ -255,74 +256,78 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
 
       {/* ── SUB-TAB: PROJECTS & WORKSPACES ─────────────────────────────── */}
       <Show when={ws.activeSubTab() === 'projects'}>
-        <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-0 overflow-hidden">
+        <div class="flex-1 flex flex-row gap-2.5 min-h-0 overflow-hidden">
           {/* Left Column: Projects List & Sessions */}
-          <AgentSidebar
-            projects={ws.projects()}
-            selectedProjectId={ws.selectedProjectId()}
-            onSelectProject={(id) => {
-              ws.setSelectedProjectId(id);
-              localStorage.setItem('ragasukma_active_project_id', id);
-              chat.loadSessions(id);
-              files.loadProjectFiles(id);
-              ws.loadProjectSkills(id);
-            }}
-            onNewProject={() => {
-              ws.setProjFolders([]);
-              ws.setFolderInput('');
-              ws.setFolderValidationMsg(null);
-              ws.setShowNewProjectModal(true);
-            }}
-            onDeleteProject={(id, name) => ws.handleDeleteProject(id, name, async (fallbackId) => {
-              if (fallbackId) {
-                await chat.loadSessions(fallbackId);
-                files.loadProjectFiles(fallbackId);
-              } else {
-                chat.setSessions([]);
-                chat.setSelectedSessionId(null);
-                chat.setMessages([]);
-              }
-            })}
-            currentProject={ws.currentProject()}
-            sidebarTab={sidebarTab()}
-            setSidebarTab={setSidebarTab}
-            sessions={chat.sessions()}
-            selectedSessionId={chat.selectedSessionId()}
-            onSelectSession={chat.selectSession}
-            onQuickCreateSession={() => chat.handleQuickCreateSession(() => chatInputRef?.focus())}
-            onDeleteSession={chat.handleDeleteSession}
-            isSessionRunning={chat.isSessionRunning}
-            fileSearch={files.fileSearch()}
-            setFileSearch={files.setFileSearch}
-            workspaceFiles={files.workspaceFiles()}
-            filteredWorkspaceFiles={files.filteredWorkspaceFiles()}
-            fileTree={files.fileTree()}
-            loadingFiles={files.loadingFiles()}
-            onRefreshFiles={() => {
-              const pId = ws.selectedProjectId();
-              if (pId) files.loadProjectFiles(pId);
-            }}
-            onExpandAllDirs={files.expandAllDirs}
-            onCollapseAllDirs={files.collapseAllDirs}
-            onOpenFolderInOs={() => {
-              const proj = ws.currentProject();
-              if (!proj) return;
-              const folders = parseProjectFolders(proj.root_path);
-              if (folders.length > 0) {
-                ws.handleOpenFolderInFileManager(folders[0]);
-              } else {
-                props.showToast('No folders attached to workspace');
-              }
-            }}
-            isDirExpanded={files.isDirExpanded}
-            onToggleDir={files.toggleDir}
-            onInsertFileTag={(path) => files.insertFileTag(path)}
-            onOpenRangePicker={files.openLineRangePicker}
-            onCopyFileTag={(path) => files.copyFileTag(path)}
-          />
+          <div class={`transition-all duration-200 flex flex-col min-h-0 h-full overflow-hidden ${
+            files.selectedFileForTag() ? 'w-64 xl:w-72 shrink-0' : 'w-72 xl:w-80 shrink-0'
+          }`}>
+            <AgentSidebar
+              projects={ws.projects()}
+              selectedProjectId={ws.selectedProjectId()}
+              onSelectProject={(id) => {
+                ws.setSelectedProjectId(id);
+                localStorage.setItem('ragasukma_active_project_id', id);
+                chat.loadSessions(id);
+                files.loadProjectFiles(id);
+                ws.loadProjectSkills(id);
+              }}
+              onNewProject={() => {
+                ws.setProjFolders([]);
+                ws.setFolderInput('');
+                ws.setFolderValidationMsg(null);
+                ws.setShowNewProjectModal(true);
+              }}
+              onDeleteProject={(id, name) => ws.handleDeleteProject(id, name, async (fallbackId) => {
+                if (fallbackId) {
+                  await chat.loadSessions(fallbackId);
+                  files.loadProjectFiles(fallbackId);
+                } else {
+                  chat.setSessions([]);
+                  chat.setSelectedSessionId(null);
+                  chat.setMessages([]);
+                }
+              })}
+              currentProject={ws.currentProject()}
+              sidebarTab={sidebarTab()}
+              setSidebarTab={setSidebarTab}
+              sessions={chat.sessions()}
+              selectedSessionId={chat.selectedSessionId()}
+              onSelectSession={chat.selectSession}
+              onQuickCreateSession={() => chat.handleQuickCreateSession(() => chatInputRef?.focus())}
+              onDeleteSession={chat.handleDeleteSession}
+              isSessionRunning={chat.isSessionRunning}
+              fileSearch={files.fileSearch()}
+              setFileSearch={files.setFileSearch}
+              workspaceFiles={files.workspaceFiles()}
+              filteredWorkspaceFiles={files.filteredWorkspaceFiles()}
+              fileTree={files.fileTree()}
+              loadingFiles={files.loadingFiles()}
+              onRefreshFiles={() => {
+                const pId = ws.selectedProjectId();
+                if (pId) files.loadProjectFiles(pId);
+              }}
+              onExpandAllDirs={files.expandAllDirs}
+              onCollapseAllDirs={files.collapseAllDirs}
+              onOpenFolderInOs={() => {
+                const proj = ws.currentProject();
+                if (!proj) return;
+                const folders = parseProjectFolders(proj.root_path);
+                if (folders.length > 0) {
+                  ws.handleOpenFolderInFileManager(folders[0]);
+                } else {
+                  props.showToast('No folders attached to workspace');
+                }
+              }}
+              isDirExpanded={files.isDirExpanded}
+              onToggleDir={files.toggleDir}
+              onInsertFileTag={(path) => files.insertFileTag(path)}
+              onOpenRangePicker={files.openLineRangePicker}
+              onCopyFileTag={(path) => files.copyFileTag(path)}
+            />
+          </div>
 
-          {/* Right Column: Execution Pane */}
-          <div class="lg:col-span-8 flex flex-col space-y-2.5 min-h-0 h-full overflow-hidden">
+          {/* Center Column: Execution / Chat Pane */}
+          <div class="flex-1 min-w-[340px] flex flex-col space-y-2.5 min-h-0 h-full overflow-hidden">
             <Show when={ws.currentProject()} fallback={
               <div class="h-full bg-white/[0.02] border border-white/10 rounded-xl p-8 flex flex-col items-center justify-center text-center">
                 <FolderGit2 class="w-12 h-12 text-white/20 mb-3" />
@@ -393,6 +398,36 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
               />
             </Show>
           </div>
+
+          {/* Right Column: Docked Side Code Panel (Split Pane - Tidak Pakai Modal) */}
+          <Show when={files.selectedFileForTag()}>
+            <div class="w-1/2 min-w-[380px] xl:min-w-[480px] max-w-[50%] flex flex-col min-h-0 h-full overflow-hidden animate-in slide-in-from-right-4 duration-200">
+              <AgentCodePanel
+                file={files.selectedFileForTag()}
+                onClose={() => files.setSelectedFileForTag(null)}
+                tagStartLine={files.tagStartLine()}
+                tagEndLine={files.tagEndLine()}
+                loadingFilePreview={files.loadingFilePreview()}
+                highlightedCodeLines={files.highlightedCodeLines()}
+                currentSelectedTag={files.currentSelectedTag()}
+                onResetSelection={files.handleResetSelection}
+                onLineClick={files.handleLineClick}
+                onGutterMouseDown={files.handleGutterMouseDown}
+                onGutterMouseEnter={files.handleGutterMouseEnter}
+                onGutterMouseUp={files.handleGutterMouseUp}
+                onCodeTextMouseUp={files.handleCodeTextMouseUp}
+                isLineSelected={files.isLineSelected}
+                onInsertTag={(relPath, s, e) => files.insertFileTag(relPath, s, e)}
+                onCopyTag={() => {
+                  const tag = files.currentSelectedTag();
+                  if (tag) {
+                    navigator.clipboard.writeText(tag);
+                    props.showToast(`Tag ${tag} disalin ke clipboard!`);
+                  }
+                }}
+              />
+            </div>
+          </Show>
         </div>
       </Show>
 
@@ -400,7 +435,8 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
       <Show when={ws.activeSubTab() === 'skills'}>
         <SkillsSubTab
           skills={ws.skills()}
-          onNewSkill={() => ws.setShowNewSkillModal(true)}
+          onNewSkill={ws.handleOpenNewSkill}
+          onEditSkill={ws.handleOpenEditSkill}
           onDeleteSkill={ws.handleDeleteSkill}
         />
       </Show>
@@ -440,36 +476,15 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
 
       <CreateSkillModal
         isOpen={ws.showNewSkillModal()}
-        onClose={() => ws.setShowNewSkillModal(false)}
+        isEditing={!!ws.editingSkillId()}
+        onClose={() => {
+          ws.setShowNewSkillModal(false);
+          ws.setEditingSkillId(null);
+        }}
         skillMarkdown={ws.skillMarkdown()}
         setSkillMarkdown={ws.setSkillMarkdown}
         parseSkillMarkdown={ws.parseSkillMarkdown}
         onCreateSkill={ws.handleCreateSkill}
-      />
-
-      <LineRangePickerModal
-        file={files.selectedFileForTag()}
-        onClose={() => files.setSelectedFileForTag(null)}
-        tagStartLine={files.tagStartLine()}
-        tagEndLine={files.tagEndLine()}
-        loadingFilePreview={files.loadingFilePreview()}
-        highlightedCodeLines={files.highlightedCodeLines()}
-        currentSelectedTag={files.currentSelectedTag()}
-        onResetSelection={files.handleResetSelection}
-        onLineClick={files.handleLineClick}
-        onGutterMouseDown={files.handleGutterMouseDown}
-        onGutterMouseEnter={files.handleGutterMouseEnter}
-        onGutterMouseUp={files.handleGutterMouseUp}
-        onCodeTextMouseUp={files.handleCodeTextMouseUp}
-        isLineSelected={files.isLineSelected}
-        onInsertTag={files.insertFileTag}
-        onCopyTag={() => {
-          const tag = files.currentSelectedTag();
-          if (tag) {
-            navigator.clipboard.writeText(tag);
-            props.showToast(`Tag ${tag} disalin ke clipboard!`);
-          }
-        }}
       />
     </div>
   );

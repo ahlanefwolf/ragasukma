@@ -13,10 +13,8 @@ import {
 } from 'lucide-solid';
 import { pipManager } from '../services/pipService';
 import {
-  globalStatus,
   currentTrack,
   isPlaying,
-  isPaused,
   currentTime,
   duration,
   volume,
@@ -39,8 +37,6 @@ interface BottomPlayerProps {
 export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
   const isVisible = () =>
     props.activeTab !== 'music' && !!currentTrack();
-
-  const isPlayingTrack = () => isPlaying();
 
   const progressPercent = () => {
     const dur = duration() || currentTrack()?.duration || 100;
@@ -71,7 +67,7 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
             </div>
           </div>
 
-          <div class="max-w-5xl mx-auto px-4 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-3 sm:gap-6">
+          <div class="max-w-[1600px] mx-auto px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-3 sm:gap-6">
             
             {/* Left: Album Art & Title */}
             <div

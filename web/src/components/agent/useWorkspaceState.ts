@@ -22,6 +22,7 @@ export function useWorkspaceState(showToast: (msg: string) => void) {
   // Modals
   const [showNewProjectModal, setShowNewProjectModal] = createSignal(false);
   const [showNewSkillModal, setShowNewSkillModal] = createSignal(false);
+  const [editingSkillId, setEditingSkillId] = createSignal<string | null>(null);
 
   // New Project Form
   const [projName, setProjName] = createSignal('');
@@ -342,6 +343,35 @@ Write idiomatic code, prioritize zero-cost abstractions, and maintain uncompromi
     return { name, description, tags, systemPrompt, slug };
   };
 
+  const skillToMarkdown = (skill: PromptSkill) => {
+    let tagsStr = '';
+    try {
+      const parsed = typeof skill.tags === 'string' ? JSON.parse(skill.tags) : skill.tags;
+      if (Array.isArray(parsed)) tagsStr = parsed.join(', ');
+    } catch {}
+
+    return `---
+name: ${skill.name}
+description: ${skill.description || ''}
+tags: ${tagsStr}
+---
+
+${skill.system_prompt}
+`.trim();
+  };
+
+  const handleOpenNewSkill = () => {
+    setEditingSkillId(null);
+    setSkillMarkdown(defaultSkillTemplate);
+    setShowNewSkillModal(true);
+  };
+
+  const handleOpenEditSkill = (skill: PromptSkill) => {
+    setEditingSkillId(skill.id);
+    setSkillMarkdown(skillToMarkdown(skill));
+    setShowNewSkillModal(true);
+  };
+
   const handleCreateSkill = async () => {
     const raw = skillMarkdown().trim();
     if (!raw) {
@@ -355,22 +385,45 @@ Write idiomatic code, prioritize zero-cost abstractions, and maintain uncompromi
       return;
     }
 
-    const res = await agentService.createPromptSkill({
-      name: parsed.name,
-      slug: parsed.slug,
-      description: parsed.description,
-      system_prompt: parsed.systemPrompt,
-      tags: parsed.tags,
-    });
+    const editId = editingSkillId();
+    if (editId) {
+      const res = await agentService.updatePromptSkill(editId, {
+        name: parsed.name,
+        slug: parsed.slug,
+        description: parsed.description,
+        system_prompt: parsed.systemPrompt,
+        tags: parsed.tags,
+      });
 
-    if (res.ok && res.skill) {
-      showToast(`Prompt skill "${res.skill.name}" added!`);
-      setShowNewSkillModal(false);
-      setSkillMarkdown(defaultSkillTemplate);
-      const sList = await agentService.getPromptSkills();
-      setSkills(sList);
+      if (res.ok && res.skill) {
+        showToast(`Prompt skill "${res.skill.name}" updated!`);
+        setShowNewSkillModal(false);
+        setEditingSkillId(null);
+        setSkillMarkdown(defaultSkillTemplate);
+        const sList = await agentService.getPromptSkills();
+        setSkills(sList);
+      } else {
+        showToast(res.error || 'Failed to update skill');
+      }
     } else {
-      showToast(res.error || 'Failed to add skill');
+      const res = await agentService.createPromptSkill({
+        name: parsed.name,
+        slug: parsed.slug,
+        description: parsed.description,
+        system_prompt: parsed.systemPrompt,
+        tags: parsed.tags,
+      });
+
+      if (res.ok && res.skill) {
+        showToast(`Prompt skill "${res.skill.name}" added!`);
+        setShowNewSkillModal(false);
+        setEditingSkillId(null);
+        setSkillMarkdown(defaultSkillTemplate);
+        const sList = await agentService.getPromptSkills();
+        setSkills(sList);
+      } else {
+        showToast(res.error || 'Failed to add skill');
+      }
     }
   };
 
@@ -409,6 +462,10 @@ Write idiomatic code, prioritize zero-cost abstractions, and maintain uncompromi
     setShowNewProjectModal,
     showNewSkillModal,
     setShowNewSkillModal,
+    editingSkillId,
+    setEditingSkillId,
+    handleOpenNewSkill,
+    handleOpenEditSkill,
     projName,
     setProjName,
     projDesc,

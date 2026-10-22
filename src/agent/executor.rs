@@ -52,19 +52,48 @@ pub fn parse_project_folders(root_path: Option<&str>) -> Vec<String> {
     }
 }
 
+/// Sanitizes tool output for persistent storage in database.
+/// If tool output is extremely large (e.g. read_file > 4,000 chars), we truncate the middle
+/// to keep SQLite and frontend state lightweight, while keeping live buffer intact in memory.
+fn sanitize_tool_output_for_db(content: &str) -> String {
+    if content.len() > 4_000 {
+        let prefix: String = content.chars().take(2_000).collect();
+        let suffix: String = content.chars().rev().take(1_000).collect::<Vec<_>>().into_iter().rev().collect();
+        format!(
+            "{}\n\n[... Output truncated for database efficiency ({} total bytes) ...]\n\n{}",
+            prefix,
+            content.len(),
+            suffix
+        )
+    } else {
+        content.to_string()
+    }
+}
+
 /// Prunes older tool output results to optimize context window, token cost, and LLM inference latency.
 /// Preserves the live tail (the most recent 3 tool results) intact while eliding bulky older outputs,
 /// inspired by the `oh-my-pi` context pruning & shake architecture.
 fn compact_tool_output(content: &str, is_recent_tail: bool) -> String {
     if is_recent_tail {
+        // Even for recent tail, if single tool output is ridiculously huge (> 12,000 chars), truncate slightly
+        if content.len() > 12_000 {
+            let prefix: String = content.chars().take(6_000).collect();
+            let suffix: String = content.chars().rev().take(3_000).collect::<Vec<_>>().into_iter().rev().collect();
+            return format!(
+                "{}\n\n[... Large output truncated for latency optimization ({} bytes total) ...]\n\n{}",
+                prefix,
+                content.len(),
+                suffix
+            );
+        }
         return content.to_string();
     }
-    // For older turns: if content is large (> 600 chars), prune the middle
-    if content.len() > 600 {
-        let prefix: String = content.chars().take(200).collect();
-        let suffix: String = content.chars().rev().take(150).collect::<Vec<_>>().into_iter().rev().collect();
+    // For older turns: prune aggressively (> 300 chars)
+    if content.len() > 300 {
+        let prefix: String = content.chars().take(120).collect();
+        let suffix: String = content.chars().rev().take(80).collect::<Vec<_>>().into_iter().rev().collect();
         format!(
-            "{}\n\n[... Tool output pruned for speed & context optimization ({} bytes total) ...]\n\n{}",
+            "{}\n\n[... Tool output pruned ({} bytes) ...]\n\n{}",
             prefix,
             content.len(),
             suffix
@@ -106,12 +135,14 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
          You read code, explore directories, search patterns, run terminal commands, and create/modify files using provided workspace tools.\n\
          </role>\n\n\
          <critical>\n\
-         1. ACTION OVER PASSIVITY: When asked to build, fix, modify, or generate code, you MUST immediately call `workspace_write_file` or edit tools. NEVER just describe what to do.\n\
-         2. NEVER STOP PREMATURELY: Never inspect or list files with `workspace_list_dir` and halt. If directories are empty or missing targets, PROCEED IMMEDIATELY to create and write the files.\n\
-         3. VERIFICATION & COMMANDS: Use `workspace_run_command` to inspect repo state, verify build/tests (`cargo check`, `npm test`, etc.), or list directory items when needed.\n\
-         4. COMPLETE IMPLEMENTATION: Always write complete, production-ready, clean code. NEVER emit placeholders, TODO comments, or truncated snippets.\n\
-         5. CONVERSATIONAL QUERIES: If the user asks a conceptual question or clarification, respond thoroughly and conversationally in Markdown. NEVER reply with empty content or a generic one-liner.\n\
-         6. COMPREHENSIVE FINAL SUMMARY: Once all tool calls conclude, you MUST provide a clear, concise report in English summarizing tasks completed, modified files, and usage tips.\n\
+         <critical>
+         1. ACTION OVER PASSIVITY: When asked to build, fix, modify, or generate code, you MUST immediately call `workspace_edit_file` (for edits) or `workspace_write_file` (for new files). NEVER just read without acting.
+         2. DO NOT OVER-READ: If you already know what to write or change, apply the change immediately using `workspace_edit_file` or `workspace_write_file`. Do NOT repeatedly read or grep the same files.
+         3. NEVER STOP PREMATURELY: Never inspect or list files with `workspace_list_dir` and halt. If directories are empty or missing targets, PROCEED IMMEDIATELY to create and write the files.
+         4. VERIFICATION & COMMANDS: Use `workspace_run_command` only when necessary to inspect repo state, verify build/tests (`cargo check`, `npm test`, etc.).
+         5. COMPLETE IMPLEMENTATION: Always write complete, production-ready, clean code. NEVER emit placeholders, TODO comments, or truncated snippets.
+         6. CONVERSATIONAL QUERIES: If the user asks a conceptual question or clarification, respond thoroughly and conversationally in Markdown. NEVER reply with empty content or a generic one-liner.
+         7. COMPREHENSIVE FINAL SUMMARY: Once all tool calls conclude, you MUST provide a clear, concise report in English summarizing tasks completed, modified files, and usage tips.
          </critical>\n\n"
     );
 
@@ -519,8 +550,8 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                         .unwrap_or_else(|_| json!({}));
 
                     // Track operations for automatic summary report
-                    if tc.function.name == "workspace_write_file" {
-                        if let Some(path) = args_val.get("path").and_then(|p| p.as_str()) {
+                    if tc.function.name == "workspace_write_file" || tc.function.name == "workspace_edit_file" {
+                        if let Some(path) = args_val.get("file_path").or_else(|| args_val.get("path")).and_then(|p| p.as_str()) {
                             if !modified_files.contains(&path.to_string()) {
                                 modified_files.push(path.to_string());
                             }
@@ -542,10 +573,13 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                         Err(e) => format!("Tool execution error: {}", e),
                     };
 
+                    // Sanitize large tool output before DB persistence so SQLite stays lean
+                    let tool_output_for_db = sanitize_tool_output_for_db(&tool_output);
+
                     let tool_msg = repository::create_message(
                         session_id,
                         "tool",
-                        Some(&tool_output),
+                        Some(&tool_output_for_db),
                         None,
                         None,
                         Some(&tc.id),

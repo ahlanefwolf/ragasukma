@@ -405,12 +405,12 @@ const App: Component = () => {
                 </div>
               </header>
 
-              {/* Main View Content (Agent Workspace uses full height single scroll inside chat) */}
+              {/* Main View Content (Edge-to-edge for Agent, 1600px max for dashboard tabs) */}
               <div
-                class={`flex-1 w-full mx-auto ${
+                class={`flex-1 w-full ${
                   activeTab() === 'agent'
-                    ? 'h-[calc(100vh-3.75rem)] overflow-hidden px-3 pt-2 pb-2 max-w-7xl flex flex-col'
-                    : 'overflow-y-auto p-4 sm:p-6 md:p-8 max-w-5xl pb-12'
+                    ? 'h-[calc(100vh-3.5rem)] overflow-hidden px-2 sm:px-3 pt-2 pb-2 max-w-full flex flex-col'
+                    : 'overflow-y-auto p-4 sm:p-6 md:p-8 max-w-[1600px] mx-auto pb-12'
                 }`}
               >
                 <Show when={activeTab() === 'menu'}>
