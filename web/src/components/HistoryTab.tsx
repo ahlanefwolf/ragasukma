@@ -17,6 +17,7 @@ import {
 } from 'lucide-solid';
 import { api, ChatHistoryDay, ChatTurnItem } from '../api';
 import { agentService, Project } from '../services/agentService';
+import { showConfirm } from './ConfirmModal';
 
 interface HistoryTabProps {
   showToast: (msg: string) => void;
@@ -145,24 +146,31 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
   });
 
   const handleDeleteDate = async (date: string) => {
-    if (confirm(`Delete conversation history for ${date}?`)) {
-      const res = await api.deleteHistory(date);
-      if (res.success) {
-        props.showToast(`History for ${date} deleted`);
-        const remaining = dates().filter(d => d !== date);
-        setDates(remaining);
-        if (selectedDate() === date) {
-          if (remaining.length > 0) {
-            setPage(1);
-            loadHistoryDay(remaining[0], 1);
-          } else {
-            setSelectedDate('');
-            setCurrentHistory(null);
-          }
+    const ok = await showConfirm({
+      title: 'Hapus Riwayat Chat',
+      message: `Hapus seluruh log percakapan pada tanggal ${date} dari database SQLite? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      isDanger: true,
+    });
+    if (!ok) return;
+
+    const res = await api.deleteHistory(date);
+    if (res.success) {
+      props.showToast(`History for ${date} deleted`);
+      const remaining = dates().filter(d => d !== date);
+      setDates(remaining);
+      if (selectedDate() === date) {
+        if (remaining.length > 0) {
+          setPage(1);
+          loadHistoryDay(remaining[0], 1);
+        } else {
+          setSelectedDate('');
+          setCurrentHistory(null);
         }
-      } else {
-        props.showToast(`Failed to delete history: ${res.error || 'Error'}`);
       }
+    } else {
+      props.showToast(`Failed to delete history: ${res.error || 'Error'}`);
     }
   };
 

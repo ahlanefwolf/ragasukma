@@ -8,6 +8,7 @@ import {
 import { api, CodexAccount, CodexQuotaResponse } from '../api';
 import { CodexStats } from './codex/CodexStats';
 import { CodexAccountCard } from './codex/CodexAccountCard';
+import { showConfirm } from './ConfirmModal';
 
 interface CodexTabProps {
   showToast: (msg: string) => void;
@@ -148,7 +149,14 @@ export const CodexTab: Component<CodexTabProps> = (props) => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this account from the OpenAI Codex pool?')) return;
+    const ok = await showConfirm({
+      title: 'Hapus Akun Codex',
+      message: 'Apakah Anda yakin ingin menghapus akun ini dari pool OpenAI Codex? Token yang tersimpan akan dihapus.',
+      confirmText: 'Hapus Akun',
+      cancelText: 'Batal',
+      isDanger: true,
+    });
+    if (!ok) return;
     setActionLoading(id);
     try {
       const res = await api.deleteCodexAccount(id);

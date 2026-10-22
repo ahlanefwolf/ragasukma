@@ -11,6 +11,7 @@ import {
   API_BASE 
 } from '../../services';
 import { highlightCode } from './highlightUtils';
+import { showConfirm } from '../ConfirmModal';
 
 export function useChatSession(
   showToast: (msg: string) => void,
@@ -366,9 +367,16 @@ export function useChatSession(
   };
 
   const handleDeleteSession = async (id: string, title: string) => {
-    if (!confirm(`Delete task session "${title}"?`)) return;
-    const ok = await agentService.deleteSession(id);
-    if (ok) {
+    const ok = await showConfirm({
+      title: 'Hapus Sesi Task',
+      message: `Hapus sesi task "${title}" beserta seluruh riwayat iterasi agent dan perubahannya?`,
+      confirmText: 'Hapus Sesi',
+      cancelText: 'Batal',
+      isDanger: true,
+    });
+    if (!ok) return;
+    const deleted = await agentService.deleteSession(id);
+    if (deleted) {
       showToast(`Session "${title}" deleted`);
       const projId = selectedProjectId();
       if (projId) await loadSessions(projId);

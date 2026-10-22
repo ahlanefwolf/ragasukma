@@ -2,6 +2,7 @@ import { Component, createSignal, onMount, onCleanup } from 'solid-js';
 import { Music } from 'lucide-solid';
 import { api, YtDlpInfo, YtTrackInfo } from '../api';
 import { playTrack } from '../playerStore';
+import { showConfirm } from './ConfirmModal';
 import { YtDlpStatusCard } from './music/YtDlpStatusCard';
 import { MusicDownloadCard } from './music/MusicDownloadCard';
 import { NowPlayingHeroCard } from './music/NowPlayingHeroCard';
@@ -120,7 +121,14 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
   };
 
   const handleDelete = async (filename: string, title: string) => {
-    if (!confirm(`Delete track "${title}" from library?`)) return;
+    const confirmed = await showConfirm({
+      title: 'Hapus Musik',
+      message: `Hapus track "${title}" dari library audio? File di disk akan dihapus permanen.`,
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      isDanger: true,
+    });
+    if (!confirmed) return;
     const ok = await api.deleteMusic(filename);
     if (ok) {
       props.showToast('Track successfully deleted');

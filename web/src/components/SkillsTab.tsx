@@ -11,6 +11,7 @@ import {
   Loader,
 } from 'lucide-solid';
 import { api, SkillItem } from '../api';
+import { showConfirm } from './ConfirmModal';
 
 interface SkillsTabProps {
   showToast: (msg: string) => void;
@@ -77,14 +78,21 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
   };
 
   const handleDeleteSkill = async (name: string) => {
-    if (confirm(`Delete skill "${name}" from registry?`)) {
-      const ok = await api.deleteSkill(name);
-      if (ok) {
-        setSkills(skills().filter(s => s.name !== name));
-        props.showToast(`Skill "${name}" successfully deleted`);
-      } else {
-        props.showToast(`Failed to delete skill "${name}"`);
-      }
+    const ok = await showConfirm({
+      title: 'Hapus Custom Skill',
+      message: `Hapus skill "${name}" dari registry sistem? Perintah terminal ini tidak akan dapat dipanggil kembali.`,
+      confirmText: 'Hapus Skill',
+      cancelText: 'Batal',
+      isDanger: true,
+    });
+    if (!ok) return;
+
+    const success = await api.deleteSkill(name);
+    if (success) {
+      setSkills(skills().filter(s => s.name !== name));
+      props.showToast(`Skill "${name}" successfully deleted`);
+    } else {
+      props.showToast(`Failed to delete skill "${name}"`);
     }
   };
 

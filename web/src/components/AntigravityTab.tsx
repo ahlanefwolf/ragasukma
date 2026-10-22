@@ -8,6 +8,7 @@ import {
 import { api, AntigravityAccount, AntigravityQuotaResponse } from '../api';
 import { AntigravityStats } from './antigravity/AntigravityStats';
 import { AntigravityAccountCard } from './antigravity/AntigravityAccountCard';
+import { showConfirm } from './ConfirmModal';
 
 interface AntigravityTabProps {
   showToast: (msg: string) => void;
@@ -148,7 +149,14 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this account from the Antigravity pool?')) return;
+    const ok = await showConfirm({
+      title: 'Hapus Akun Antigravity',
+      message: 'Apakah Anda yakin ingin menghapus akun ini dari Antigravity pool? Sesi aktif untuk akun ini akan dihentikan.',
+      confirmText: 'Hapus Akun',
+      cancelText: 'Batal',
+      isDanger: true,
+    });
+    if (!ok) return;
     setActionLoading(id);
     try {
       const res = await api.deleteAntigravityAccount(id);

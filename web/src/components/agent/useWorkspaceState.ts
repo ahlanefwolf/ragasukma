@@ -6,6 +6,7 @@ import {
   McpServerConfig, 
   parseProjectFolders 
 } from '../../services';
+import { showConfirm } from '../ConfirmModal';
 
 export function useWorkspaceState(showToast: (msg: string) => void) {
   const [activeSubTab, setActiveSubTab] = createSignal<'projects' | 'skills' | 'mcp'>('projects');
@@ -286,9 +287,16 @@ Write idiomatic code, prioritize zero-cost abstractions, and maintain uncompromi
   };
 
   const handleDeleteProject = async (id: string, name: string, onDeleted: (fallbackId: string | null) => Promise<void>) => {
-    if (!confirm(`Delete workspace "${name}" and all its task sessions?`)) return;
-    const ok = await agentService.deleteProject(id);
-    if (ok) {
+    const ok = await showConfirm({
+      title: 'Hapus Project Workspace',
+      message: `Hapus workspace "${name}" dan seluruh sesi task di dalamnya? Folder fisik di disk tetap aman.`,
+      confirmText: 'Hapus Workspace',
+      cancelText: 'Batal',
+      isDanger: true,
+    });
+    if (!ok) return;
+    const okDel = await agentService.deleteProject(id);
+    if (okDel) {
       showToast(`Workspace "${name}" deleted`);
       const pList = await agentService.getProjects();
       setProjects(pList);
@@ -428,9 +436,16 @@ ${skill.system_prompt}
   };
 
   const handleDeleteSkill = async (id: string, name: string) => {
-    if (!confirm(`Delete prompt skill "${name}"?`)) return;
-    const ok = await agentService.deletePromptSkill(id);
-    if (ok) {
+    const ok = await showConfirm({
+      title: 'Hapus Prompt Skill',
+      message: `Hapus prompt skill preset "${name}"? Aturan persona ini tidak akan diinjeksikan lagi ke agent.`,
+      confirmText: 'Hapus Skill',
+      cancelText: 'Batal',
+      isDanger: true,
+    });
+    if (!ok) return;
+    const okDel = await agentService.deletePromptSkill(id);
+    if (okDel) {
       showToast(`Prompt skill "${name}" deleted`);
       const sList = await agentService.getPromptSkills();
       setSkills(sList);

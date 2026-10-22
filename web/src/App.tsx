@@ -17,6 +17,7 @@ import { RemoteTab } from './components/RemoteTab';
 import { MobileClientView } from './components/MobileClientView';
 import { BottomPlayer } from './components/BottomPlayer';
 import { ModelLoadingOverlay } from './components/ModelLoadingOverlay';
+import { ConfirmModal } from './components/ConfirmModal';
 import { ModelDownloadStatus } from './services/eventsService';
 import { initGlobalAudio, killGlobalAudio, currentTrack, isPlaying, isPaused } from './playerStore';
 import { Menu as MenuIcon } from 'lucide-solid';
@@ -491,6 +492,9 @@ const App: Component = () => {
           }}
         />
       </Show>
+
+      {/* Global Theme-Consistent Confirm Modal */}
+      <ConfirmModal />
 
       {/* Toast */}
       <div

@@ -16,6 +16,7 @@ import {
   ArrowDown
 } from 'lucide-solid';
 import { api, AutomationRecipe, RecipeStep } from '../api';
+import { showConfirm } from './ConfirmModal';
 
 interface RecipesTabProps {
   showToast: (msg: string) => void;
@@ -106,14 +107,21 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
   };
 
   const handleDeleteRecipe = async (recipe: AutomationRecipe) => {
-    if (confirm(`Delete automation recipe "${recipe.name}" (${recipe.recipe_id})?`)) {
-      const res = await api.deleteRecipe(recipe.recipe_id);
-      if (res.success) {
-        props.showToast(`Recipe "${recipe.name}" deleted`);
-        setRecipes(recipes().filter(r => r.recipe_id !== recipe.recipe_id));
-      } else {
-        props.showToast(`Failed to delete recipe: ${res.error || 'Unknown error'}`);
-      }
+    const ok = await showConfirm({
+      title: 'Hapus Recipe',
+      message: `Hapus automation recipe "${recipe.name}" (${recipe.recipe_id})? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      isDanger: true,
+    });
+    if (!ok) return;
+
+    const res = await api.deleteRecipe(recipe.recipe_id);
+    if (res.success) {
+      props.showToast(`Recipe "${recipe.name}" deleted`);
+      setRecipes(recipes().filter(r => r.recipe_id !== recipe.recipe_id));
+    } else {
+      props.showToast(`Failed to delete recipe: ${res.error || 'Unknown error'}`);
     }
   };
 
