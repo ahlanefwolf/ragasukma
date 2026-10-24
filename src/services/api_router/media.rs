@@ -25,6 +25,7 @@ pub fn register_media_routes(
         .route("/api/music/check", get(axum_music_check))
         .route("/api/music/install-ytdlp", post(axum_music_install_ytdlp))
         .route("/api/music/list", get(axum_music_list))
+        .route("/api/music/status", get(axum_music_status))
         .route("/api/music/control", post(axum_music_control))
         .route("/api/music/download", post(axum_music_download))
         .route("/api/music/delete", post(axum_music_delete))
@@ -171,7 +172,40 @@ pub(crate) async fn axum_music_list() -> impl IntoResponse {
     Json(json!({
         "music_dir": music_dir.to_string_lossy(),
         "tracks": tracks,
-        "volume": crate::audio::player::get_music_volume()
+    }))
+}
+
+pub(crate) async fn axum_music_status() -> impl IntoResponse {
+    let status = crate::audio::player::get_status();
+    let music_dir = crate::config::get_music_dir();
+    let tracks = crate::engine::ytdlp::list_downloaded(&music_dir);
+    
+    // Find matching track metadata
+    let matched_track = status.title.as_ref().and_then(|title| {
+        let clean = |s: &str| -> String {
+            s.chars()
+                .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+                .collect::<String>()
+                .to_lowercase()
+        };
+        let q_clean = clean(title);
+
+        tracks.iter().find(|t| {
+            t.title == *title
+                || t.filename == *title
+                || clean(&t.title) == q_clean
+                || clean(&t.filename) == q_clean
+                || (!q_clean.is_empty() && (clean(&t.title).contains(&q_clean) || q_clean.contains(&clean(&t.title))))
+        }).cloned()
+    });
+
+    Json(json!({
+        "is_playing": status.is_playing,
+        "title": status.title,
+        "position_secs": status.position_secs,
+        "duration_secs": status.duration_secs,
+        "track": matched_track,
+        "volume": crate::audio::player::get_music_volume(),
     }))
 }
 

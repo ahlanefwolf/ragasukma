@@ -66,6 +66,8 @@ export const api = {
   installYtDlp: musicService.installYtDlp,
   checkYtDlp: musicService.checkYtDlp,
   listMusic: musicService.listMusic,
+  getMusicList: musicService.listMusic,
+  getMusicStatus: musicService.getMusicStatus,
   downloadMusic: musicService.downloadMusic,
   controlMusic: musicService.controlMusic,
   getMusicUrl: musicService.getMusicUrl,

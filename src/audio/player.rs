@@ -9,6 +9,28 @@ static CURRENT_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 static CURRENT_MUSIC_VOLUME: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(100);
 static CURRENT_VOICE_VOLUME: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(160);
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MusicStatus {
+    pub is_playing: bool,
+    pub title: Option<String>,
+    pub position_secs: f64,
+    pub duration_secs: f64,
+}
+
+struct MusicPlayState {
+    started_at: Option<std::time::Instant>,
+    accumulated_secs: f64,
+    duration_secs: f64,
+    is_playing: bool,
+}
+
+static PLAYBACK_STATE: Mutex<MusicPlayState> = Mutex::new(MusicPlayState {
+    started_at: None,
+    accumulated_secs: 0.0,
+    duration_secs: 0.0,
+    is_playing: false,
+});
+
 static AUDIO_HANDLE: OnceLock<Option<rodio::OutputStreamHandle>> = OnceLock::new();
 static NATIVE_MUSIC_SINK: Mutex<Option<rodio::Sink>> = Mutex::new(None);
 static NATIVE_VOICE_SINK: Mutex<Option<Arc<rodio::Sink>>> = Mutex::new(None);
@@ -348,6 +370,24 @@ pub fn play_file(path: impl AsRef<Path>, title: impl Into<String>) {
         t
     );
 
+    // Read duration if possible using rodio or standard decoder
+    let mut detected_duration = 0.0f64;
+    if let Ok(file) = std::fs::File::open(&path_buf) {
+        if let Ok(decoder) = rodio::Decoder::new(std::io::BufReader::new(file)) {
+            use rodio::Source;
+            if let Some(dur) = decoder.total_duration() {
+                detected_duration = dur.as_secs_f64();
+            }
+        }
+    }
+
+    if let Ok(mut state) = PLAYBACK_STATE.lock() {
+        state.started_at = Some(std::time::Instant::now());
+        state.accumulated_secs = 0.0;
+        state.duration_secs = detected_duration;
+        state.is_playing = true;
+    }
+
     // Play to PC hardware speakers in a separate thread isolated with catch_unwind
     // so internal rodio format parser bugs never crash the main conversation session thread
     let _ = std::thread::Builder::new()
@@ -389,6 +429,14 @@ pub fn pause() {
             sink.pause();
         }
     }
+    if let Ok(mut state) = PLAYBACK_STATE.lock() {
+        if state.is_playing {
+            if let Some(started) = state.started_at.take() {
+                state.accumulated_secs += started.elapsed().as_secs_f64();
+            }
+            state.is_playing = false;
+        }
+    }
     crate::term_log!("[Music Controller] Music paused.");
 }
 
@@ -399,10 +447,16 @@ pub fn resume() {
             sink.play();
         }
     }
+    if let Ok(mut state) = PLAYBACK_STATE.lock() {
+        if !state.is_playing {
+            state.started_at = Some(std::time::Instant::now());
+            state.is_playing = true;
+        }
+    }
     crate::term_log!("▶ [Music Controller] Music resumed.");
 }
 
-/// Stops music playback
+/// Stop music playback and clear sink
 pub fn stop() {
     if let Ok(mut lock) = CURRENT_TITLE.lock() {
         *lock = None;
@@ -415,13 +469,53 @@ pub fn stop() {
             sink.stop();
         }
     }
-    crate::term_log!("[Music Controller] Music stopped.");
+    if let Ok(mut state) = PLAYBACK_STATE.lock() {
+        state.started_at = None;
+        state.accumulated_secs = 0.0;
+        state.duration_secs = 0.0;
+        state.is_playing = false;
+    }
+    crate::term_log!("⏹ [Music Controller] Music stopped.");
+}
+
+/// Get current music playback status for clients
+#[allow(dead_code)]
+pub fn get_status() -> MusicStatus {
+    let title = CURRENT_TITLE.lock().ok().and_then(|t| t.clone());
+    let (is_playing, position_secs, duration_secs) = if let Ok(state) = PLAYBACK_STATE.lock() {
+        let current_pos = if state.is_playing {
+            let elapsed = state.started_at.map(|i| i.elapsed().as_secs_f64()).unwrap_or(0.0);
+            if state.duration_secs > 0.0 {
+                (state.accumulated_secs + elapsed).min(state.duration_secs)
+            } else {
+                state.accumulated_secs + elapsed
+            }
+        } else {
+            state.accumulated_secs
+        };
+        (state.is_playing, current_pos, state.duration_secs)
+    } else {
+        (false, 0.0, 0.0)
+    };
+
+    MusicStatus {
+        is_playing,
+        title,
+        position_secs,
+        duration_secs,
+    }
 }
 
 /// Seek playback time in seconds
 pub fn seek(seconds: f32) {
     if seconds < 0.0 {
         return;
+    }
+    if let Ok(mut state) = PLAYBACK_STATE.lock() {
+        state.accumulated_secs = seconds as f64;
+        if state.is_playing {
+            state.started_at = Some(std::time::Instant::now());
+        }
     }
     let dur = std::time::Duration::from_secs_f32(seconds);
 

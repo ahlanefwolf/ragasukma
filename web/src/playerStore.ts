@@ -392,9 +392,80 @@ export const changeVolume = (val: number) => {
 
 // Initial sync with backend music player volume
 api.listMusic().then((res) => {
-  if (res && typeof res.volume === 'number' && !isNaN(res.volume)) {
+  if (typeof res?.volume === 'number' && !isNaN(res.volume)) {
     const v = Math.max(0, Math.min(1, res.volume));
     setVolume(v);
     if (audioEl) audioEl.volume = v;
   }
 }).catch(() => {});
+
+// Synchronize state with backend on mount/refresh
+async function syncPlaybackState() {
+  try {
+    const status = await api.getMusicStatus();
+    if (!status || !status.title) return;
+
+    let matched: YtTrackInfo | undefined = (status.track as YtTrackInfo) || undefined;
+
+    if (!matched) {
+      const listRes = await api.getMusicList();
+      const list: YtTrackInfo[] = Array.isArray(listRes) ? listRes : (listRes as any)?.tracks || [];
+      if (Array.isArray(list) && list.length > 0) {
+        const clean = (s: string) =>
+          s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        const qClean = clean(status.title);
+
+        matched = list.find(
+          (t: YtTrackInfo) =>
+            t.title === status.title ||
+            t.filename === status.title ||
+            clean(t.title) === qClean ||
+            clean(t.filename) === qClean
+        );
+
+        if (!matched) {
+          matched = list.find((t: YtTrackInfo) => {
+            const tClean = clean(`${t.title} ${t.filename}`);
+            return tClean.includes(qClean) || qClean.includes(clean(t.title));
+          });
+        }
+      }
+    }
+
+    if (!matched) {
+      matched = {
+        id: status.title,
+        title: status.title,
+        filename: status.title,
+        duration: status.duration_secs || 0,
+      } as YtTrackInfo;
+    }
+
+    if (matched) {
+      setCurrentTrack(matched);
+      const trackDur = status.duration_secs > 0 ? status.duration_secs : matched.duration || 0;
+      setDuration(trackDur);
+      setCurrentTime(status.position_secs || 0);
+
+      if (typeof status.volume === 'number' && !isNaN(status.volume)) {
+        const v = Math.max(0, Math.min(1, status.volume));
+        setVolume(v);
+        if (audioEl) audioEl.volume = v;
+      }
+
+      if (status.is_playing) {
+        setIsPlaying(true);
+        setIsPaused(false);
+        startPlaybackTicker();
+      } else {
+        setIsPlaying(false);
+        setIsPaused(true);
+        stopPlaybackTicker();
+      }
+    }
+  } catch (_) {}
+}
+
+if (typeof window !== 'undefined') {
+  syncPlaybackState();
+}

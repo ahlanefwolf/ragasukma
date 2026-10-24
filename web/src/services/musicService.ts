@@ -103,14 +103,37 @@ export const musicService = {
 
   async deleteMusic(filename: string): Promise<boolean> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/music/delete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename }),
-      });
-      return res.ok;
+      const res = await fetchWithTimeout(
+        `${API_BASE}/api/music/delete`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename }),
+        },
+        10000
+      );
+      if (!res.ok) return false;
+      const data = await res.json();
+      return !!data.success;
     } catch {
       return false;
+    }
+  },
+
+  async getMusicStatus(): Promise<{
+    is_playing: boolean;
+    title: string | null;
+    position_secs: number;
+    duration_secs: number;
+    track?: YtTrackInfo | null;
+    volume?: number;
+  } | null> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/music/status`, {}, 8000);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
     }
   },
 };
