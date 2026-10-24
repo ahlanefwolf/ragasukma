@@ -534,6 +534,7 @@ fn apply_unified_diff_patch(content_lines: &[&str], diff_text: &str) -> Option<S
 }
 
 /// Computes Longest Common Subsequence of lines using line similarity
+/// Space-optimized to O(N) using two alternating rows instead of allocating full 2D matrices.
 fn compute_line_lcs(a: &[&str], b: &[&str]) -> usize {
     let m = a.len();
     let n = b.len();
@@ -541,18 +542,22 @@ fn compute_line_lcs(a: &[&str], b: &[&str]) -> usize {
         return 0;
     }
 
-    let mut dp = vec![vec![0u16; n + 1]; m + 1];
+    let mut prev = vec![0u16; n + 1];
+    let mut curr = vec![0u16; n + 1];
+
     for i in 1..=m {
         for j in 1..=n {
             if line_similarity(a[i - 1], b[j - 1]) >= 0.85 {
-                dp[i][j] = dp[i - 1][j - 1] + 1;
+                curr[j] = prev[j - 1] + 1;
             } else {
-                dp[i][j] = dp[i - 1][j].max(dp[i][j - 1]);
+                curr[j] = prev[j].max(curr[j - 1]);
             }
         }
+        std::mem::swap(&mut prev, &mut curr);
+        curr.fill(0);
     }
 
-    dp[m][n] as usize
+    prev[n] as usize
 }
 
 /// Git LCS Fuzzy Alignment: finds the window in content that has the highest LCS alignment with `old_lines`
@@ -566,26 +571,55 @@ fn apply_git_lcs_alignment(
     }
 
     let m = old_lines.len();
+
+    // PERFORMANCE GUARD: For large files (> 300 lines) or large old_lines (> 80 lines),
+    // avoid brute-force scanning every window of the entire file. Localize to candidate region or skip.
+    let (search_start, search_end) = if content_lines.len() > 300 {
+        // Find best candidate anchor line using fast keyword overlap
+        let mut best_center = None;
+        let mut max_hits = 0;
+        for (idx, line) in content_lines.iter().enumerate() {
+            let l_lower = line.to_lowercase();
+            let hits = old_lines
+                .iter()
+                .filter(|o| o.trim().len() >= 4 && l_lower.contains(&o.trim().to_lowercase()))
+                .count();
+            if hits > max_hits {
+                max_hits = hits;
+                best_center = Some(idx);
+            }
+        }
+
+        let center = best_center?;
+        // Localized window: 40 lines before and after center
+        let start = center.saturating_sub(40);
+        let end = (center + m + 40).min(content_lines.len());
+        (start, end)
+    } else {
+        (0, content_lines.len())
+    };
+
+    let slice = &content_lines[search_start..search_end];
     let min_win = m.saturating_sub(3).max(1);
-    let max_win = (m + 6).min(content_lines.len());
+    let max_win = (m + 6).min(slice.len());
 
     let mut best_score = 0.0f64;
     let mut second_best_score = 0.0f64;
     let mut best_window = None;
 
     for win_len in min_win..=max_win {
-        if content_lines.len() < win_len {
+        if slice.len() < win_len {
             continue;
         }
-        for i in 0..=(content_lines.len() - win_len) {
-            let win = &content_lines[i..i + win_len];
+        for i in 0..=(slice.len() - win_len) {
+            let win = &slice[i..i + win_len];
             let lcs = compute_line_lcs(win, old_lines);
             let score = (lcs as f64) / (m.max(win_len) as f64);
 
             if score > best_score {
                 second_best_score = best_score;
                 best_score = score;
-                best_window = Some((i, i + win_len));
+                best_window = Some((search_start + i, search_start + i + win_len));
             } else if score > second_best_score {
                 second_best_score = score;
             }

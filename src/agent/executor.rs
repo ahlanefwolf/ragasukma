@@ -503,10 +503,52 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
         }
 
         // Ephemeral in-memory prodding directive without polluting DB messages
-        if let Some(directive) = ephemeral_directive.take() {
+        let mut final_directive = ephemeral_directive.take();
+
+        // Check if there is an active compiler/diagnostic queue in RAM for this session
+        if let Some(diag_queue) = crate::agent::diagnostics::get_session_diagnostic_queue(session_id) {
+            let unresolved: Vec<_> = diag_queue.items.iter().filter(|i| !i.resolved).collect();
+            if !unresolved.is_empty() {
+                let mut diag_msg = format!(
+                    "⚠️ ACTIVE DIAGNOSTIC REPAIR QUEUE ({} broken file(s) remaining out of {} total):\n",
+                    unresolved.len(),
+                    diag_queue.items.len()
+                );
+                diag_msg.push_str("CRITICAL: Each file below contains multiple error lines. You MUST fix ALL error lines in each file in a SINGLE PASS (read once, edit once per file) before running re-compile:\n\n");
+                for (idx, item) in unresolved.iter().take(8).enumerate() {
+                    let lines_display = if item.lines.is_empty() {
+                        "unspecified lines".to_string()
+                    } else {
+                        format!("lines [{}]", item.lines.iter().map(|l| l.to_string()).collect::<Vec<_>>().join(", "))
+                    };
+                    diag_msg.push_str(&format!("{}. `{}` ({})\n", idx + 1, item.file_path, lines_display));
+                    for msg in item.error_messages.iter().take(4) {
+                        diag_msg.push_str(&format!("   - {}\n", msg));
+                    }
+                }
+                diag_msg.push_str("\nINSTRUCTION: Formulate all line fixes for each target file and apply them in ONE `workspace_edit_file` or `workspace_write_file` call per file. Only re-run verification once all files are fixed.");
+
+                final_directive = Some(match final_directive {
+                    Some(prev) => format!("{}\n\n{}", prev, diag_msg),
+                    None => diag_msg,
+                });
+            } else if let Some(cmd) = diag_queue.pending_compile_cmd {
+                let verify_msg = format!(
+                    "✅ ALL DIAGNOSTIC ITEMS IN QUEUE ARE MARKED REPAIRED!\nNow execute verification command: `{}` via `workspace_run_command` to verify the build.",
+                    cmd
+                );
+                crate::agent::diagnostics::clear_session_diagnostic_queue(session_id);
+                final_directive = Some(match final_directive {
+                    Some(prev) => format!("{}\n\n{}", prev, verify_msg),
+                    None => verify_msg,
+                });
+            }
+        }
+
+        if let Some(directive) = final_directive {
             v1_messages.push(V1Message {
                 role: "user".to_string(),
-                content: Some(json!(directive)),
+                content: Some(serde_json::Value::String(directive)),
                 tool_calls: None,
                 tool_call_id: None,
                 name: None,
@@ -833,6 +875,12 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                         });
 
                     let target_arg_file = args_val.get("file_path").or_else(|| args_val.get("path")).and_then(|p| p.as_str()).map(|s| s.to_string());
+                    if is_edit_op {
+                        if let Some(ref path) = target_arg_file {
+                            let clean = path.trim_start_matches("./").to_string();
+                            crate::agent::diagnostics::mark_diagnostic_file_resolved(session_id, &clean);
+                        }
+                    }
                     let is_target_in_error_list = target_arg_file.as_ref().map(|p| {
                         let clean = p.trim_start_matches("./");
                         pending_error_files.iter().any(|ef| ef == clean || clean.ends_with(ef) || ef.ends_with(clean))
@@ -1034,6 +1082,23 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                                 for g in &grouped_diags {
                                     pending_error_files.insert(g.file_path.clone());
                                 }
+
+                                // Populate deterministic Diagnostic Queue in RAM for this session
+                                let parsed_items = crate::agent::diagnostics::parse_diagnostic_items_from_output(&tool_output);
+                                if !parsed_items.is_empty() {
+                                    crate::agent::diagnostics::set_session_diagnostic_queue(
+                                        session_id,
+                                        parsed_items,
+                                        Some(cmd.to_string()),
+                                    );
+                                }
+
+                                let raw_compiler_head: String = tool_output
+                                    .lines()
+                                    .take(45)
+                                    .collect::<Vec<_>>()
+                                    .join("\n");
+
                                 let mut diag_bulletin = String::new();
 
                                 if !grouped_diags.is_empty() {
@@ -1064,7 +1129,15 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                                 }
 
                                 ephemeral_directive = Some(format!(
-                                    "COMMAND FAILED: Command `{cmd}` reported errors or a non-zero exit code.{diag_bulletin}\n\nCRITICAL BATCH-ACTION REQUIRED:\n1. Read the target files listed above (or use the lines indicated).\n2. Apply ALL fixes for each target file in ONE comprehensive `workspace_edit_file` or `workspace_write_file` call.\n3. You may call `workspace_edit_file` multiple times in parallel for multiple files in this same turn.\n4. Do NOT fix line-by-line in separate turns. Resolve all errors before re-running verification."
+                                    "🚨 COMPILATION / TEST FAILURE DETECTED for command `{cmd}`!\n\n\
+                                     RAW COMPILER ERROR OUTPUT:\n```\n{raw_compiler_head}\n```\
+                                     {diag_bulletin}\n\n\
+                                     CRITICAL BATCH-ACTION REQUIRED:\n\
+                                     1. Read the target files listed above in full (or use the lines indicated).\n\
+                                     2. Apply ALL fixes for each target file in ONE comprehensive `workspace_edit_file` or `workspace_write_file` call.\n\
+                                     3. You may call `workspace_edit_file` multiple times in parallel for multiple files in this same turn.\n\
+                                     4. DO NOT re-run compiler or verification commands until ALL broken target files have been edited!\n\
+                                     5. Once all target files are updated, run `{cmd}` to verify."
                                 ));
                             }
 

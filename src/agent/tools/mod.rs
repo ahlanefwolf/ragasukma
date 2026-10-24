@@ -96,7 +96,7 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
                     "type": "function",
                     "function": {
                         "name": "workspace_write_file",
-                        "description": "Write or create a file in the workspace.",
+                        "description": "Write or create a file in the workspace. TIP: Prefer this tool over workspace_edit_file for small files (< 100 lines) or major rewrites to ensure 100% accuracy and speed.",
                         "parameters": {
                             "type": "object",
                             "properties": {
@@ -117,7 +117,7 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
                     "type": "function",
                     "function": {
                         "name": "workspace_edit_file",
-                        "description": "Replace a specific section or lines in an existing file. TIP: Keep 'old_text' short and unique (only 2-6 lines around the target change) so it matches reliably.",
+                        "description": "Replace a specific section or lines in an existing file. For small files (< 100 lines), prefer workspace_write_file directly. TIP: Keep 'old_text' short and unique (only 2-6 lines around the target change) so it matches instantly.",
                         "parameters": {
                             "type": "object",
                             "properties": {

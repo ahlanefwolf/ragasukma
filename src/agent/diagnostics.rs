@@ -1,5 +1,148 @@
 use std::collections::{HashMap, HashSet};
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DiagnosticTaskItem {
+    pub file_path: String,
+    pub lines: Vec<usize>,
+    pub error_messages: Vec<String>,
+    pub resolved: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SessionDiagnosticQueue {
+    pub items: Vec<DiagnosticTaskItem>,
+    pub pending_compile_cmd: Option<String>,
+}
+
+static SESSION_DIAGNOSTIC_STORE: std::sync::OnceLock<std::sync::RwLock<std::collections::HashMap<String, SessionDiagnosticQueue>>> = std::sync::OnceLock::new();
+
+fn get_diagnostic_store() -> &'static std::sync::RwLock<std::collections::HashMap<String, SessionDiagnosticQueue>> {
+    SESSION_DIAGNOSTIC_STORE.get_or_init(|| std::sync::RwLock::new(std::collections::HashMap::new()))
+}
+
+/// Stores or replaces the diagnostic queue for a specific task session in RAM.
+pub fn set_session_diagnostic_queue(session_id: &str, items: Vec<DiagnosticTaskItem>, compile_cmd: Option<String>) {
+    if let Ok(mut lock) = get_diagnostic_store().write() {
+        lock.insert(session_id.to_string(), SessionDiagnosticQueue {
+            items,
+            pending_compile_cmd: compile_cmd,
+        });
+    }
+}
+
+/// Retrieves the current diagnostic queue for a session.
+pub fn get_session_diagnostic_queue(session_id: &str) -> Option<SessionDiagnosticQueue> {
+    if let Ok(lock) = get_diagnostic_store().read() {
+        lock.get(session_id).cloned()
+    } else {
+        None
+    }
+}
+
+/// Marks all items associated with `file_path` as resolved (e.g. after editing the file).
+pub fn mark_diagnostic_file_resolved(session_id: &str, file_path: &str) -> (usize, usize) {
+    if let Ok(mut lock) = get_diagnostic_store().write() {
+        if let Some(queue) = lock.get_mut(session_id) {
+            let norm_target = file_path.trim_start_matches("./");
+            for item in &mut queue.items {
+                let norm_item = item.file_path.trim_start_matches("./");
+                if norm_item == norm_target || norm_target.ends_with(norm_item) || norm_item.ends_with(norm_target) {
+                    item.resolved = true;
+                }
+            }
+            let remaining = queue.items.iter().filter(|i| !i.resolved).count();
+            let total = queue.items.len();
+            return (remaining, total);
+        }
+    }
+    (0, 0)
+}
+
+/// Clears the session diagnostic queue in RAM.
+pub fn clear_session_diagnostic_queue(session_id: &str) {
+    if let Ok(mut lock) = get_diagnostic_store().write() {
+        lock.remove(session_id);
+    }
+}
+
+/// Parses command output and returns structured `DiagnosticTaskItem` list grouped by file.
+/// All error line numbers and error messages in the same file are aggregated into a single item
+/// to enable single-pass reading and single-pass editing per file.
+pub fn parse_diagnostic_items_from_output(output: &str) -> Vec<DiagnosticTaskItem> {
+    let mut file_order: Vec<String> = Vec::new();
+    let mut file_errors: std::collections::HashMap<String, (Vec<usize>, Vec<String>)> = std::collections::HashMap::new();
+    let mut file_warnings: std::collections::HashMap<String, (Vec<usize>, Vec<String>)> = std::collections::HashMap::new();
+    let mut warning_order: Vec<String> = Vec::new();
+
+    for line in output.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if let Some((fpath, line_no)) = parse_compiler_diagnostic_line(trimmed) {
+            let lower = trimmed.to_lowercase();
+            let is_warning = lower.contains("warning:") && !lower.contains("error");
+            let msg = if trimmed.len() > 160 {
+                format!("{}...", &trimmed[..157])
+            } else {
+                trimmed.to_string()
+            };
+
+            if is_warning {
+                let entry = file_warnings.entry(fpath.clone()).or_insert_with(|| {
+                    warning_order.push(fpath.clone());
+                    (Vec::new(), Vec::new())
+                });
+                if let Some(ln) = line_no {
+                    if !entry.0.contains(&ln) {
+                        entry.0.push(ln);
+                    }
+                }
+                if entry.1.len() < 5 && !entry.1.contains(&msg) {
+                    entry.1.push(msg);
+                }
+            } else {
+                let entry = file_errors.entry(fpath.clone()).or_insert_with(|| {
+                    file_order.push(fpath.clone());
+                    (Vec::new(), Vec::new())
+                });
+                if let Some(ln) = line_no {
+                    if !entry.0.contains(&ln) {
+                        entry.0.push(ln);
+                    }
+                }
+                if entry.1.len() < 5 && !entry.1.contains(&msg) {
+                    entry.1.push(msg);
+                }
+            }
+        }
+    }
+
+    // Root-cause prioritization: If hard errors exist, exclude warnings
+    let (target_order, mut target_map) = if !file_order.is_empty() {
+        (file_order, file_errors)
+    } else {
+        (warning_order, file_warnings)
+    };
+
+    let mut items = Vec::new();
+    for fpath in target_order {
+        if let Some((mut lines, messages)) = target_map.remove(&fpath) {
+            lines.sort();
+            items.push(DiagnosticTaskItem {
+                file_path: fpath,
+                lines,
+                error_messages: messages,
+                resolved: false,
+            });
+        }
+    }
+
+    items.truncate(15);
+    items
+}
+
 #[derive(Debug, Clone)]
 pub struct GroupedFileDiagnostic {
     pub file_path: String,
