@@ -157,4 +157,6 @@ pub enum AgentSessionEvent {
     Error { message: String },
     #[serde(rename = "delta")]
     Delta { delta: String },
+    #[serde(rename = "thought_delta")]
+    ThoughtDelta { delta: String },
 }

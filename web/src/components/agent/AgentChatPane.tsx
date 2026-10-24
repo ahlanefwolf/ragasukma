@@ -75,6 +75,7 @@ export const AgentChatPane: Component<{
   isCurrentSessionBusy: boolean;
   currentStepInfo: string | null;
   streamingText?: string;
+  streamingThought?: string;
   onQuickCreateSession: () => void;
   onOpenFilesTab: () => void;
   autocompleteOpen: boolean;
@@ -442,6 +443,20 @@ export const AgentChatPane: Component<{
             </div>
           )}
         </For>
+
+        {/* Live Streaming Reasoning / Thought Output */}
+        <Show when={props.streamingThought && props.streamingThought.trim().length > 0}>
+          <div class="flex flex-col items-start w-full max-w-full mb-3">
+            <div class="text-2xs text-amber-400 mb-1 px-1 flex items-center gap-1.5 font-semibold uppercase tracking-wider">
+              <Brain class="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+              <span>Reasoning (Live...)</span>
+            </div>
+            <div class="w-full max-w-full rounded-xl px-4 py-3 text-xs leading-relaxed bg-amber-500/10 border border-amber-500/25 text-amber-200/90 font-mono whitespace-pre-wrap max-h-56 overflow-y-auto custom-scrollbar shadow-sm">
+              {props.streamingThought}
+              <span class="inline-block w-1.5 h-3.5 bg-amber-400 animate-pulse ml-1 align-middle rounded-xs" />
+            </div>
+          </div>
+        </Show>
 
         {/* Live Streaming Assistant Output */}
         <Show when={props.streamingText && props.streamingText.trim().length > 0}>

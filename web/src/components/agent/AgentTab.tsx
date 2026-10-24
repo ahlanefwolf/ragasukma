@@ -376,6 +376,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
                 isCurrentSessionBusy={chat.isCurrentSessionBusy()}
                 currentStepInfo={chat.currentStepInfo()}
                 streamingText={chat.streamingText()}
+                streamingThought={chat.streamingThought()}
                 onQuickCreateSession={() => chat.handleQuickCreateSession(() => chatInputRef?.focus())}
                 onOpenFilesTab={() => {
                   setSidebarTab('files');

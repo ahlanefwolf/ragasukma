@@ -7,6 +7,7 @@ pub mod tags;
 use anyhow::{bail, Context, Result};
 use serde_json::json;
 use std::fs as std_fs;
+use std::path::Path;
 use std::sync::OnceLock;
 
 pub use dialogs::{open_path_in_file_manager, pick_folder_dialog};
@@ -172,7 +173,7 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
                             "properties": {
                                 "command": {
                                     "type": "string",
-                                    "description": "Full shell command to execute"
+                                    "description": "Full shell command to execute. Supports chaining multiple commands with '&&' (e.g. 'git add -A && git commit -m \"...\" && git push' or 'npm run build && npm test'). Always chain related sequential commands into a single call rather than running them across multiple turns."
                                 },
                                 "cwd": {
                                     "type": "string",
@@ -189,6 +190,46 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
 }
 
 /// Execute a tool call safely
+/// Normalizes terminal commands by stripping redundant root folder prefixes in `cd` calls.
+/// e.g. when `work_dir` is `/home/user/scenario`, `cd scenario/backend` is automatically normalized to `cd backend`.
+pub fn normalize_workspace_command(command: &str, work_dir: &Path, allowed_roots: &[String]) -> String {
+    let mut normalized = command.to_string();
+
+    let mut root_folder_names = Vec::new();
+    if let Some(name) = work_dir.file_name().and_then(|n| n.to_str()) {
+        root_folder_names.push(name.to_string());
+    }
+    for root in allowed_roots {
+        let p = Path::new(root);
+        if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
+            if !root_folder_names.contains(&name.to_string()) {
+                root_folder_names.push(name.to_string());
+            }
+        }
+    }
+
+    for folder_name in root_folder_names {
+        if !work_dir.join(&folder_name).exists() {
+            let pat1 = format!("cd {}/", folder_name);
+            let pat2 = format!("cd ./{}/", folder_name);
+            normalized = normalized.replace(&pat2, "cd ");
+            normalized = normalized.replace(&pat1, "cd ");
+
+            let pat3 = format!("cd {}", folder_name);
+            let pat4 = format!("cd ./{}", folder_name);
+            for delim in &[" ", ";", "&&", ")", "\n"] {
+                normalized = normalized.replace(&format!("{}{}", pat4, delim), &format!("cd .{}", delim));
+                normalized = normalized.replace(&format!("{}{}", pat3, delim), &format!("cd .{}", delim));
+            }
+            if normalized.trim() == pat3 || normalized.trim() == pat4 {
+                normalized = "cd .".to_string();
+            }
+        }
+    }
+
+    normalized
+}
+
 pub fn execute_tool_call(
     name: &str,
     args: &serde_json::Value,
@@ -261,8 +302,16 @@ pub fn execute_tool_call(
             let content = std_fs::read_to_string(&resolved)
                 .context(format!("Failed to read file '{}'", file_path))?;
 
-            let start = args.get("start_line").and_then(|v| v.as_u64()).map(|n| n as usize);
-            let end = args.get("end_line").and_then(|v| v.as_u64()).map(|n| n as usize);
+            let parse_line = |key: &str| -> Option<usize> {
+                args.get(key).and_then(|v| {
+                    v.as_u64()
+                        .map(|n| n as usize)
+                        .or_else(|| v.as_i64().filter(|&n| n > 0).map(|n| n as usize))
+                        .or_else(|| v.as_str().and_then(|s| s.trim().parse::<usize>().ok()))
+                })
+            };
+            let start = parse_line("start_line");
+            let end = parse_line("end_line");
 
             if start.is_some() || end.is_some() {
                 let lines: Vec<&str> = content.lines().collect();
@@ -385,7 +434,9 @@ pub fn execute_tool_call(
                 bail!("Working directory '{}' not found", sub_path);
             }
 
-            let mut proc = create_workspace_command(command_str);
+            let effective_command = normalize_workspace_command(command_str, &work_dir, allowed_roots);
+
+            let mut proc = create_workspace_command(&effective_command);
 
             proc.current_dir(&work_dir);
 
@@ -541,6 +592,24 @@ mod tests {
             to_workspace_folder_path(path, &roots),
             "my-project/src/components/Button.tsx"
         );
+    }
+
+    #[test]
+    fn test_normalize_workspace_command() {
+        let temp_dir = std::env::temp_dir().join(format!("ragasukma_cmd_norm_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let _ = fs::create_dir_all(&temp_dir);
+        let roots = vec![temp_dir.to_string_lossy().to_string()];
+        let folder_name = temp_dir.file_name().unwrap().to_str().unwrap();
+
+        let cmd = format!("(cd {}/backend && cargo test) && (cd {}/frontend && npm test)", folder_name, folder_name);
+        let normalized = normalize_workspace_command(&cmd, &temp_dir, &roots);
+        assert_eq!(normalized, "(cd backend && cargo test) && (cd frontend && npm test)");
+
+        let single_cmd = format!("cd {} && cargo test", folder_name);
+        let normalized_single = normalize_workspace_command(&single_cmd, &temp_dir, &roots);
+        assert_eq!(normalized_single, "cd . && cargo test");
+
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 
     #[test]

@@ -46,7 +46,8 @@ fn get_detectors() -> Vec<Box<dyn LanguageDetector>> {
     ]
 }
 
-/// Scans workspace roots and identifies all project languages present
+/// Scans workspace roots and identifies all project languages present,
+/// including root manifests and immediate 1-level subprojects (e.g. backend, frontend, server, client, web).
 pub fn detect_all_languages(allowed_folders: &[String]) -> Vec<ProjectLanguageInfo> {
     let detectors = get_detectors();
     let mut results = Vec::new();
@@ -57,10 +58,54 @@ pub fn detect_all_languages(allowed_folders: &[String]) -> Vec<ProjectLanguageIn
             continue;
         }
 
+        // 1. First, check root directory directly
         for detector in &detectors {
             if let Some(info) = detector.detect(root) {
-                if !results.iter().any(|r: &ProjectLanguageInfo| r.language == info.language) {
+                if !results.iter().any(|r: &ProjectLanguageInfo| r.primary_verifier == info.primary_verifier) {
                     results.push(info);
+                }
+            }
+        }
+
+        // 2. Scan immediate 1-level subdirectories (e.g. backend/, frontend/, client/, server/, web/, etc.)
+        // This is essential for monorepos, fullstack apps, and multi-component workspaces
+        if let Ok(entries) = std::fs::read_dir(root) {
+            let mut subdirs = Vec::new();
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    if !name.starts_with('.')
+                        && name != "node_modules"
+                        && name != "target"
+                        && name != "dist"
+                        && name != "build"
+                        && name != "vendor"
+                        && name != "venv"
+                        && name != ".venv"
+                        && name != "cache"
+                        && name != "tmp"
+                    {
+                        subdirs.push((name, path));
+                    }
+                }
+            }
+            subdirs.sort_by(|a, b| a.0.cmp(&b.0));
+
+            for (sub_name, sub_path) in subdirs {
+                for detector in &detectors {
+                    if let Some(mut info) = detector.detect(&sub_path) {
+                        info.primary_verifier = format!("cd {} && {}", sub_name, info.primary_verifier);
+                        info.secondary_verifiers = info
+                            .secondary_verifiers
+                            .into_iter()
+                            .map(|v| format!("cd {} && {}", sub_name, v))
+                            .collect();
+
+                        if !results.iter().any(|r: &ProjectLanguageInfo| r.primary_verifier == info.primary_verifier) {
+                            results.push(info);
+                        }
+                    }
                 }
             }
         }
@@ -69,10 +114,73 @@ pub fn detect_all_languages(allowed_folders: &[String]) -> Vec<ProjectLanguageIn
     results
 }
 
-/// Returns the primary verification command for the detected workspace
+/// Returns the primary verification command for the detected workspace.
+/// For multi-component workspaces, chains each component verifier in a subshell.
 pub fn detect_primary_verification_command(allowed_folders: &[String]) -> Option<String> {
     let languages = detect_all_languages(allowed_folders);
-    languages.first().map(|l| l.primary_verifier.clone())
+    if languages.is_empty() {
+        None
+    } else if languages.len() == 1 {
+        Some(languages[0].primary_verifier.clone())
+    } else {
+        // Multi-component: chain them together in subshells so cwd changes do not interfere
+        let chained = languages
+            .into_iter()
+            .map(|l| {
+                if l.primary_verifier.starts_with("cd ") {
+                    format!("({})", l.primary_verifier)
+                } else {
+                    l.primary_verifier
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" && ");
+        Some(chained)
+    }
+}
+
+/// Returns the verification commands relevant to the modified files, or all detected primary verifiers.
+pub fn detect_verifiers_for_modified_files(
+    allowed_folders: &[String],
+    modified_files: &[String],
+) -> Vec<String> {
+    let languages = detect_all_languages(allowed_folders);
+    if languages.is_empty() {
+        return Vec::new();
+    }
+
+    if modified_files.is_empty() {
+        return languages.into_iter().map(|l| l.primary_verifier).collect();
+    }
+
+    let mut relevant = Vec::new();
+    for lang in &languages {
+        if let Some(rest) = lang.primary_verifier.strip_prefix("cd ") {
+            if let Some((sub_name, _)) = rest.split_once(" && ") {
+                let sub_trimmed = sub_name.trim();
+                let is_modified = modified_files.iter().any(|f| {
+                    let clean = f.trim_start_matches("./");
+                    clean.starts_with(sub_trimmed)
+                        || clean.contains(&format!("/{}/", sub_trimmed))
+                        || clean.contains(&format!("{}/", sub_trimmed))
+                });
+                if is_modified && !relevant.contains(&lang.primary_verifier) {
+                    relevant.push(lang.primary_verifier.clone());
+                }
+            }
+        } else {
+            // Root project verifier
+            if !relevant.contains(&lang.primary_verifier) {
+                relevant.push(lang.primary_verifier.clone());
+            }
+        }
+    }
+
+    if relevant.is_empty() {
+        languages.into_iter().map(|l| l.primary_verifier).collect()
+    } else {
+        relevant
+    }
 }
 
 /// Checks if an executed shell command is a verification / test / typecheck command
@@ -87,17 +195,18 @@ pub fn is_verification_command(cmd: &str) -> bool {
         .collect();
 
     for sub in sub_commands {
-        let sub_trimmed = sub.trim_start_matches(|c: char| c == '(' || c.is_whitespace());
+        let sub_trimmed = sub.trim_matches(|c: char| c == '(' || c == ')' || c.is_whitespace());
 
         let known_prefixes = [
             "cargo test", "cargo check", "cargo clippy", "cargo build",
             "npm test", "npm run test", "npm run build", "npm run check", "npm run typecheck", "npm run lint",
             "pnpm test", "pnpm run test", "pnpm run build", "pnpm run typecheck",
             "yarn test", "yarn run test", "yarn run build", "yarn run typecheck",
-            "bun test", "bun run build",
+            "bun test", "bun run build", "bun run check",
             "deno test", "deno check", "deno lint",
             "node --test", "node --experimental-strip-types --test", "node test",
             "npx tsc", "tsc",
+            "vite build",
             "pytest",
             "python -m unittest", "python3 -m unittest", "py -m unittest",
             "python -m pytest", "python3 -m pytest", "py -m pytest",
@@ -163,6 +272,7 @@ mod tests {
         assert!(is_verification_command("go test ./..."));
         assert!(is_verification_command("flutter test"));
         assert!(is_verification_command("dotnet test"));
+        assert!(is_verification_command("(cd backend && cargo test) && (cd frontend && npm run build)"));
         assert!(!is_verification_command("git status"));
         assert!(!is_verification_command("ls -la"));
 
@@ -171,5 +281,50 @@ mod tests {
 
         let success_json = r#"{"command":"npx tsc --noEmit","cwd":"/home/headway/MyWork/project/portofolio","exit_code":0,"stderr":"","stdout":"","success":true}"#;
         assert!(!crate::agent::executor::is_command_output_error(success_json));
+    }
+
+    #[test]
+    fn test_multi_subproject_detection() {
+        let temp = std::env::temp_dir().join("test_agent_fullstack_proj");
+        let backend = temp.join("backend");
+        let frontend = temp.join("frontend");
+        let _ = fs::create_dir_all(&backend);
+        let _ = fs::create_dir_all(&frontend);
+
+        fs::write(backend.join("Cargo.toml"), "[package]\nname = \"backend\"").unwrap();
+        fs::write(
+            frontend.join("package.json"),
+            r#"{"name": "frontend", "scripts": {"check": "tsc --noEmit", "build": "vite build"}}"#,
+        )
+        .unwrap();
+
+        let allowed = vec![temp.to_string_lossy().to_string()];
+        let detected = detect_all_languages(&allowed);
+        assert_eq!(detected.len(), 2);
+        assert_eq!(detected[0].primary_verifier, "cd backend && cargo test");
+        assert_eq!(detected[1].primary_verifier, "cd frontend && npm run check && npm run build");
+
+        let primary_chained = detect_primary_verification_command(&allowed);
+        assert_eq!(
+            primary_chained,
+            Some("(cd backend && cargo test) && (cd frontend && npm run check && npm run build)".to_string())
+        );
+
+        // Test file scoping
+        let mod_frontend = vec!["frontend/src/App.tsx".to_string()];
+        let scoped_front = detect_verifiers_for_modified_files(&allowed, &mod_frontend);
+        assert_eq!(scoped_front, vec!["cd frontend && npm run check && npm run build".to_string()]);
+
+        let mod_both = vec!["backend/src/main.rs".to_string(), "frontend/src/App.tsx".to_string()];
+        let scoped_both = detect_verifiers_for_modified_files(&allowed, &mod_both);
+        assert_eq!(
+            scoped_both,
+            vec![
+                "cd backend && cargo test".to_string(),
+                "cd frontend && npm run check && npm run build".to_string()
+            ]
+        );
+
+        let _ = fs::remove_dir_all(&temp);
     }
 }

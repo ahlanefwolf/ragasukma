@@ -69,6 +69,7 @@ export function useChatSession(
   let sseRetryCount = 0;
   const [currentStepInfo, setCurrentStepInfo] = createSignal<string | null>(null);
   const [streamingText, setStreamingText] = createSignal('');
+  const [streamingThought, setStreamingThought] = createSignal('');
 
   // Dynamic Models
   const [activeSessionModel, setActiveSessionModel] = createSignal('');
@@ -133,8 +134,15 @@ export function useChatSession(
               setStreamingText((prev) => prev + delta);
               onMessageReceived?.();
             }
+          } else if (payload.type === 'thought_delta') {
+            const delta = payload.data?.delta || '';
+            if (delta) {
+              setStreamingThought((prev) => prev + delta);
+              onMessageReceived?.();
+            }
           } else if (payload.type === 'message') {
             setStreamingText('');
+            setStreamingThought('');
             const newMsg: AgentMessage = payload.data;
             setMessages((prev) => {
               const idx = prev.findIndex((m) => m.id === newMsg.id);
@@ -176,12 +184,14 @@ export function useChatSession(
             }
           } else if (payload.type === 'done') {
             setStreamingText('');
+            setStreamingThought('');
             markSessionRunning(sessionId, false);
             if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
             const pId = selectedProjectId();
             if (pId) loadProjectFiles(pId);
           } else if (payload.type === 'error') {
             setStreamingText('');
+            setStreamingThought('');
             markSessionRunning(sessionId, false);
             if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
             showToast(payload.data?.message || 'An error occurred in the agent execution');
@@ -390,6 +400,7 @@ export function useChatSession(
     markSessionRunning(sessId, false);
     setCurrentStepInfo(null);
     setStreamingText('');
+    setStreamingThought('');
     setSessions((prev) =>
       prev.map((s) => (s.id === sessId ? { ...s, status: 'idle' } : s))
     );
@@ -404,6 +415,8 @@ export function useChatSession(
 
     markSessionRunning(sessId, true);
     setCurrentStepInfo('Sending instructions to agent...');
+    setStreamingText('');
+    setStreamingThought('');
     try {
       const res = await agentService.createMessage(sessId, {
         role: 'user',
@@ -468,6 +481,8 @@ export function useChatSession(
     currentStepInfo,
     streamingText,
     setStreamingText,
+    streamingThought,
+    setStreamingThought,
     activeSessionModel,
     setActiveSessionModel,
     availableModels,

@@ -1,13 +1,16 @@
 use anyhow::{bail, Result};
+use std::collections::HashSet;
 
-/// Applies surgical edits to file content with a multi-tier resilient matcher:
-/// 1. Literal exact match
+/// Applies surgical edits to file content with a multi-tier resilient matcher inspired by Git's 3-way merge & fuzzy patch algorithms:
+/// 1. Exact literal match (`str::contains`)
 /// 2. Trimmed leading/trailing newline match
 /// 3. Whitespace & indentation tolerant line-by-line sliding window
 /// 4. Quote & semicolon relaxed matching (single quotes vs double quotes, trailing semicolons/commas)
-/// 5. Anchor matching (first and last non-empty line match uniquely)
-/// 6. High-similarity fuzzy window matching (similarity >= 0.85)
-/// 7. Detailed contextual diagnostic reporting exact file lines if all matchers fail.
+/// 5. Git 3-Way Hunk Decomposition (detects prefix & suffix context, replaces intermediate hunk)
+/// 6. Git Unified Diff / Patch Parser (applies `@@ -x,y +z,w @@` hunks with context)
+/// 7. Git LCS (Longest Common Subsequence) Fuzzy Alignment (dynamic programming line alignment)
+/// 8. Relaxed anchor matching (first and last non-trivial anchor lines)
+/// 9. Detailed contextual diagnostic reporting exact file lines if all matchers fail.
 pub fn apply_resilient_edit(
     content: &str,
     old_text: &str,
@@ -69,9 +72,14 @@ pub fn apply_resilient_edit(
 
         if match_indices.len() == 1 {
             let start_idx = match_indices[0];
+            let adapted_new = adapt_indentation(
+                &content_lines[start_idx..start_idx + old_lines.len()],
+                &old_lines,
+                &normalized_new,
+            );
             let mut result_lines = Vec::new();
             result_lines.extend_from_slice(&content_lines[..start_idx]);
-            result_lines.push(&normalized_new);
+            result_lines.push(&adapted_new);
             result_lines.extend_from_slice(&content_lines[start_idx + old_lines.len()..]);
             return Ok(result_lines.join("\n"));
         } else if match_indices.len() > 1 {
@@ -83,13 +91,6 @@ pub fn apply_resilient_edit(
     }
 
     // Tier 4: Punctuation & quote relaxed matching (single quotes vs double quotes, trailing semicolons/commas)
-    fn relax_line(s: &str) -> String {
-        s.chars()
-            .filter(|c| !c.is_whitespace() && *c != ';' && *c != ',')
-            .map(|c| if c == '\'' || c == '`' { '"' } else { c })
-            .collect()
-    }
-
     if content_lines.len() >= old_lines.len() {
         let relaxed_old: Vec<String> = old_lines.iter().map(|l| relax_line(l)).collect();
         let mut relaxed_matches = Vec::new();
@@ -106,17 +107,50 @@ pub fn apply_resilient_edit(
 
         if relaxed_matches.len() == 1 {
             let start_idx = relaxed_matches[0];
+            let adapted_new = adapt_indentation(
+                &content_lines[start_idx..start_idx + old_lines.len()],
+                &old_lines,
+                &normalized_new,
+            );
             let mut result_lines = Vec::new();
             result_lines.extend_from_slice(&content_lines[..start_idx]);
-            result_lines.push(&normalized_new);
+            result_lines.push(&adapted_new);
             result_lines.extend_from_slice(&content_lines[start_idx + old_lines.len()..]);
             return Ok(result_lines.join("\n"));
         }
     }
 
-    // Tier 5: Anchor matching with meaningful non-trivial anchors
+    // Tier 5: Git 3-Way Context & Hunk Decomposition
+    // Extracts common prefix context and suffix context between old_text and new_text.
+    // Replaces only the intermediate modified hunk between matched context boundaries.
+    let raw_new_lines: Vec<&str> = normalized_new.lines().collect();
+    if let Some(hunk) = decompose_3way_hunk(&old_lines, &raw_new_lines) {
+        if let Some(result) = apply_git_3way_hunk(&content_lines, &hunk) {
+            return Ok(result);
+        }
+    }
+
+    // Tier 6: Git Unified Diff / Patch Parser
+    // If the input was formatted as a unified diff with @@ hunk headers
+    if is_unified_diff(&normalized_old) || is_unified_diff(&normalized_new) {
+        let diff_payload = if is_unified_diff(&normalized_new) {
+            &normalized_new
+        } else {
+            &normalized_old
+        };
+        if let Some(result) = apply_unified_diff_patch(&content_lines, diff_payload) {
+            return Ok(result);
+        }
+    }
+
+    // Tier 7: Git LCS (Longest Common Subsequence) Fuzzy Alignment
+    // Uses dynamic programming to align lines even when comments, blank lines, or slight edits shifted indices
+    if let Some(result) = apply_git_lcs_alignment(&content_lines, &old_lines, &normalized_new) {
+        return Ok(result);
+    }
+
+    // Tier 8: Anchor matching with meaningful non-trivial anchors
     if old_lines.len() >= 3 {
-        // Find first non-trivial line (not just a solitary brace or tag like `</div>` or `}`)
         let first_meaningful = old_lines
             .iter()
             .find(|l| {
@@ -177,63 +211,7 @@ pub fn apply_resilient_edit(
         }
     }
 
-    // Tier 6: Elastic similarity window matching (handles line count variations +/- 3 lines)
-    if !content_lines.is_empty() && !old_lines.is_empty() {
-        let min_len = old_lines.len().saturating_sub(3).max(1);
-        let max_len = (old_lines.len() + 3).min(content_lines.len());
-
-        let mut best_score = 0.0f64;
-        let mut second_best_score = 0.0f64;
-        let mut best_range = None;
-
-        for window_len in min_len..=max_len {
-            if content_lines.len() < window_len {
-                continue;
-            }
-            for i in 0..=(content_lines.len() - window_len) {
-                let window = &content_lines[i..i + window_len];
-                let mut score_sum = 0.0;
-                let pair_count = window.len().min(old_lines.len());
-                for (c, o) in window.iter().take(pair_count).zip(old_lines.iter().take(pair_count)) {
-                    let c_trim = c.trim();
-                    let o_trim = o.trim();
-                    if c_trim == o_trim {
-                        score_sum += 1.0;
-                    } else if c_trim.to_lowercase() == o_trim.to_lowercase() {
-                        score_sum += 0.95;
-                    } else {
-                        let c_chars: std::collections::HashSet<char> = c_trim.chars().filter(|ch| !ch.is_whitespace()).collect();
-                        let o_chars: std::collections::HashSet<char> = o_trim.chars().filter(|ch| !ch.is_whitespace()).collect();
-                        let intersect = c_chars.intersection(&o_chars).count();
-                        let union = c_chars.union(&o_chars).count();
-                        if union > 0 {
-                            score_sum += (intersect as f64) / (union as f64);
-                        }
-                    }
-                }
-                let avg_score = score_sum / (old_lines.len().max(window_len) as f64);
-                if avg_score > best_score {
-                    second_best_score = best_score;
-                    best_score = avg_score;
-                    best_range = Some((i, i + window_len));
-                } else if avg_score > second_best_score {
-                    second_best_score = avg_score;
-                }
-            }
-        }
-
-        if best_score >= 0.65 && (best_score - second_best_score) >= 0.04 {
-            if let Some((start_idx, end_idx)) = best_range {
-                let mut result_lines = Vec::new();
-                result_lines.extend_from_slice(&content_lines[..start_idx]);
-                result_lines.push(&normalized_new);
-                result_lines.extend_from_slice(&content_lines[end_idx..]);
-                return Ok(result_lines.join("\n"));
-            }
-        }
-    }
-
-    // Tier 7: Diagnostics reporting exact file lines
+    // Tier 9: Diagnostics reporting exact file lines
     let mut best_hint_idx = None;
     let mut highest_keyword_match = 0;
 
@@ -270,4 +248,436 @@ pub fn apply_resilient_edit(
     };
 
     bail!("'old_text' not found in file '{}'.{}", file_path, hint_block)
+}
+
+// =========================================================================
+// Git 3-Way Fuzzy Patch & LCS Matching Helpers
+// =========================================================================
+
+#[derive(Debug, Clone)]
+pub struct Git3WayHunk {
+    pub context_before: Vec<String>,
+    pub to_delete: Vec<String>,
+    pub to_insert: Vec<String>,
+    pub context_after: Vec<String>,
+}
+
+/// Normalizes punctuation, quotes, and whitespace for fuzzy comparison
+pub fn relax_line(s: &str) -> String {
+    s.chars()
+        .filter(|c| !c.is_whitespace() && *c != ';' && *c != ',')
+        .map(|c| if c == '\'' || c == '`' { '"' } else { c })
+        .collect()
+}
+
+/// Computes line similarity between 0.0 and 1.0
+pub fn line_similarity(a: &str, b: &str) -> f64 {
+    let at = a.trim();
+    let bt = b.trim();
+    if at == bt {
+        return 1.0;
+    }
+    if relax_line(at) == relax_line(bt) {
+        return 0.95;
+    }
+    if at.eq_ignore_ascii_case(bt) {
+        return 0.90;
+    }
+
+    let a_chars: HashSet<char> = at.chars().filter(|c| !c.is_whitespace()).collect();
+    let b_chars: HashSet<char> = bt.chars().filter(|c| !c.is_whitespace()).collect();
+    let intersect = a_chars.intersection(&b_chars).count();
+    let union = a_chars.union(&b_chars).count();
+    if union > 0 {
+        (intersect as f64) / (union as f64)
+    } else {
+        0.0
+    }
+}
+
+/// Detects indentation difference and adapts `new_text` lines to match target file indentation
+fn adapt_indentation(target_slice: &[&str], old_lines: &[&str], new_text: &str) -> String {
+    if target_slice.is_empty() || old_lines.is_empty() {
+        return new_text.to_string();
+    }
+
+    // Find first non-empty line in target and old
+    let target_first = target_slice.iter().find(|l| !l.trim().is_empty());
+    let old_first = old_lines.iter().find(|l| !l.trim().is_empty());
+
+    if let (Some(tf), Some(of)) = (target_first, old_first) {
+        let tf_indent_len = tf.len() - tf.trim_start().len();
+        let of_indent_len = of.len() - of.trim_start().len();
+
+        if tf_indent_len != of_indent_len {
+            let tf_prefix = &tf[..tf_indent_len];
+            let is_tabs = tf_prefix.starts_with('\t');
+
+            if tf_indent_len > of_indent_len {
+                let diff = tf_indent_len - of_indent_len;
+                let pad = if is_tabs { "\t".repeat(diff) } else { " ".repeat(diff) };
+                return new_text
+                    .lines()
+                    .map(|l| {
+                        if l.trim().is_empty() {
+                            l.to_string()
+                        } else {
+                            format!("{}{}", pad, l)
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+            } else {
+                let diff = of_indent_len - tf_indent_len;
+                return new_text
+                    .lines()
+                    .map(|l| {
+                        let l_indent = l.len() - l.trim_start().len();
+                        if l_indent >= diff {
+                            l[diff..].to_string()
+                        } else {
+                            l.trim_start().to_string()
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+            }
+        }
+    }
+
+    new_text.to_string()
+}
+
+/// Decomposes `old_lines` and `new_lines` into Git 3-way prefix, deletion, insertion, and suffix hunks
+pub fn decompose_3way_hunk(old_lines: &[&str], new_lines: &[&str]) -> Option<Git3WayHunk> {
+    if old_lines.is_empty() || new_lines.is_empty() {
+        return None;
+    }
+
+    // Common prefix
+    let mut prefix_len = 0;
+    while prefix_len < old_lines.len()
+        && prefix_len < new_lines.len()
+        && old_lines[prefix_len].trim() == new_lines[prefix_len].trim()
+    {
+        prefix_len += 1;
+    }
+
+    // Common suffix (do not overlap with prefix)
+    let mut suffix_len = 0;
+    while suffix_len < (old_lines.len() - prefix_len)
+        && suffix_len < (new_lines.len() - prefix_len)
+        && old_lines[old_lines.len() - 1 - suffix_len].trim()
+            == new_lines[new_lines.len() - 1 - suffix_len].trim()
+    {
+        suffix_len += 1;
+    }
+
+    // Require at least one boundary of context (prefix or suffix) to be a valid 3-way hunk
+    if prefix_len > 0 || suffix_len > 0 {
+        let ctx_pre: Vec<String> = old_lines[..prefix_len].iter().map(|s| s.to_string()).collect();
+        let to_del: Vec<String> = old_lines[prefix_len..old_lines.len() - suffix_len]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let to_add: Vec<String> = new_lines[prefix_len..new_lines.len() - suffix_len]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let ctx_post: Vec<String> = old_lines[old_lines.len() - suffix_len..]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+
+        Some(Git3WayHunk {
+            context_before: ctx_pre,
+            to_delete: to_del,
+            to_insert: to_add,
+            context_after: ctx_post,
+        })
+    } else {
+        None
+    }
+}
+
+/// Applies a Git 3-Way hunk to content lines by locating context boundaries
+fn apply_git_3way_hunk(content_lines: &[&str], hunk: &Git3WayHunk) -> Option<String> {
+    if content_lines.is_empty() {
+        return None;
+    }
+
+    let pre_len = hunk.context_before.len();
+    let post_len = hunk.context_after.len();
+
+    // 1. Both prefix and suffix context available
+    if pre_len > 0 && post_len > 0 {
+        let mut candidate_pairs = Vec::new();
+
+        for i in 0..content_lines.len() {
+            // Check prefix match
+            if i + pre_len <= content_lines.len() {
+                let pre_slice = &content_lines[i..i + pre_len];
+                let pre_match = pre_slice
+                    .iter()
+                    .zip(hunk.context_before.iter())
+                    .all(|(c, o)| line_similarity(c, o) >= 0.85);
+
+                if pre_match {
+                    let min_j = i + pre_len;
+                    let max_j = (min_j + hunk.to_delete.len() + 15).min(content_lines.len());
+                    for j in min_j..=max_j {
+                        if j + post_len <= content_lines.len() {
+                            let post_slice = &content_lines[j..j + post_len];
+                            let post_match = post_slice
+                                .iter()
+                                .zip(hunk.context_after.iter())
+                                .all(|(c, o)| line_similarity(c, o) >= 0.85);
+
+                            if post_match {
+                                candidate_pairs.push((i, j + post_len));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if candidate_pairs.len() == 1 {
+            let (start_idx, end_idx) = candidate_pairs[0];
+            let mut result = Vec::new();
+            result.extend_from_slice(&content_lines[..start_idx]);
+            for l in &hunk.context_before {
+                result.push(l.as_str());
+            }
+            for l in &hunk.to_insert {
+                result.push(l.as_str());
+            }
+            for l in &hunk.context_after {
+                result.push(l.as_str());
+            }
+            result.extend_from_slice(&content_lines[end_idx..]);
+            return Some(result.join("\n"));
+        }
+    }
+
+    None
+}
+
+/// Checks if string is a unified diff
+fn is_unified_diff(s: &str) -> bool {
+    let s = s.trim();
+    s.starts_with("diff --git")
+        || s.starts_with("--- ")
+        || s.starts_with("@@ ")
+        || (s.lines().any(|l| l.starts_with("@@ -")) && (s.contains("\n+") || s.contains("\n-")))
+}
+
+/// Applies a unified diff patch to content lines
+fn apply_unified_diff_patch(content_lines: &[&str], diff_text: &str) -> Option<String> {
+    let mut hunks = Vec::new();
+    let lines: Vec<&str> = diff_text.lines().collect();
+    let mut i = 0;
+
+    while i < lines.len() {
+        let line = lines[i];
+        if line.starts_with("@@ ") {
+            i += 1;
+            let mut ctx_pre = Vec::new();
+            let mut del = Vec::new();
+            let mut add = Vec::new();
+            let mut ctx_post = Vec::new();
+            let mut seen_mods = false;
+
+            while i < lines.len() && !lines[i].starts_with("@@ ") && !lines[i].starts_with("diff --git") {
+                let hline = lines[i];
+                if let Some(stripped) = hline.strip_prefix('+') {
+                    add.push(stripped.to_string());
+                    seen_mods = true;
+                } else if let Some(stripped) = hline.strip_prefix('-') {
+                    del.push(stripped.to_string());
+                    seen_mods = true;
+                } else {
+                    let text = hline.strip_prefix(' ').unwrap_or(hline);
+                    if !seen_mods {
+                        ctx_pre.push(text.to_string());
+                    } else {
+                        ctx_post.push(text.to_string());
+                    }
+                }
+                i += 1;
+            }
+
+            hunks.push(Git3WayHunk {
+                context_before: ctx_pre,
+                to_delete: del,
+                to_insert: add,
+                context_after: ctx_post,
+            });
+        } else {
+            i += 1;
+        }
+    }
+
+    if hunks.is_empty() {
+        return None;
+    }
+
+    let mut current_lines: Vec<String> = content_lines.iter().map(|s| s.to_string()).collect();
+
+    for hunk in hunks {
+        let refs: Vec<&str> = current_lines.iter().map(|s| s.as_str()).collect();
+        let updated = apply_git_3way_hunk(&refs, &hunk)?;
+        current_lines = updated.lines().map(|s| s.to_string()).collect();
+    }
+
+    Some(current_lines.join("\n"))
+}
+
+/// Computes Longest Common Subsequence of lines using line similarity
+fn compute_line_lcs(a: &[&str], b: &[&str]) -> usize {
+    let m = a.len();
+    let n = b.len();
+    if m == 0 || n == 0 {
+        return 0;
+    }
+
+    let mut dp = vec![vec![0u16; n + 1]; m + 1];
+    for i in 1..=m {
+        for j in 1..=n {
+            if line_similarity(a[i - 1], b[j - 1]) >= 0.85 {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = dp[i - 1][j].max(dp[i][j - 1]);
+            }
+        }
+    }
+
+    dp[m][n] as usize
+}
+
+/// Git LCS Fuzzy Alignment: finds the window in content that has the highest LCS alignment with `old_lines`
+fn apply_git_lcs_alignment(
+    content_lines: &[&str],
+    old_lines: &[&str],
+    new_text: &str,
+) -> Option<String> {
+    if content_lines.is_empty() || old_lines.is_empty() {
+        return None;
+    }
+
+    let m = old_lines.len();
+    let min_win = m.saturating_sub(3).max(1);
+    let max_win = (m + 6).min(content_lines.len());
+
+    let mut best_score = 0.0f64;
+    let mut second_best_score = 0.0f64;
+    let mut best_window = None;
+
+    for win_len in min_win..=max_win {
+        if content_lines.len() < win_len {
+            continue;
+        }
+        for i in 0..=(content_lines.len() - win_len) {
+            let win = &content_lines[i..i + win_len];
+            let lcs = compute_line_lcs(win, old_lines);
+            let score = (lcs as f64) / (m.max(win_len) as f64);
+
+            if score > best_score {
+                second_best_score = best_score;
+                best_score = score;
+                best_window = Some((i, i + win_len));
+            } else if score > second_best_score {
+                second_best_score = score;
+            }
+        }
+    }
+
+    // Require high LCS alignment (>= 0.75) and confidence margin
+    if best_score >= 0.75 && (best_score - second_best_score >= 0.05 || second_best_score == 0.0) {
+        if let Some((start_idx, end_idx)) = best_window {
+            let adapted_new = adapt_indentation(
+                &content_lines[start_idx..end_idx],
+                old_lines,
+                new_text,
+            );
+            let mut result = Vec::new();
+            result.extend_from_slice(&content_lines[..start_idx]);
+            result.push(&adapted_new);
+            result.extend_from_slice(&content_lines[end_idx..]);
+            return Some(result.join("\n"));
+        }
+    }
+
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_git_3way_hunk_decomposition() {
+        let old_lines = vec![
+            "function calculateTotal(items) {",
+            "    let sum = 0;",
+            "    return sum;",
+            "}",
+        ];
+        let new_lines = vec![
+            "function calculateTotal(items) {",
+            "    let sum = items.reduce((a, b) => a + b, 0);",
+            "    return sum;",
+            "}",
+        ];
+
+        let hunk = decompose_3way_hunk(&old_lines, &new_lines).expect("Should decompose hunk");
+        assert_eq!(hunk.context_before, vec!["function calculateTotal(items) {"]);
+        assert_eq!(hunk.to_delete, vec!["    let sum = 0;"]);
+        assert_eq!(hunk.to_insert, vec!["    let sum = items.reduce((a, b) => a + b, 0);"]);
+        assert_eq!(hunk.context_after, vec!["    return sum;", "}"]);
+    }
+
+    #[test]
+    fn test_git_3way_hunk_application() {
+        let content = "import { Item } from './types';\n\nfunction calculateTotal(items) {\n    let sum = 0;\n    return sum;\n}\n\nexport default calculateTotal;";
+        let old_text = "function calculateTotal(items) {\n    let sum = 0;\n    return sum;\n}";
+        let new_text = "function calculateTotal(items) {\n    let sum = items.reduce((a, b) => a + b, 0);\n    return sum;\n}";
+
+        let updated = apply_resilient_edit(content, old_text, new_text, "calc.ts").unwrap();
+        assert!(updated.contains("let sum = items.reduce"));
+        assert!(updated.contains("import { Item }"));
+    }
+
+    #[test]
+    fn test_git_unified_diff_patch() {
+        let content = "const port = 3000;\nconst host = 'localhost';\nconst timeout = 5000;";
+        let patch = "@@ -1,3 +1,3 @@\n const port = 3000;\n-const host = 'localhost';\n+const host = '0.0.0.0';\n const timeout = 5000;";
+
+        let updated = apply_resilient_edit(content, patch, patch, "config.ts").unwrap();
+        assert!(updated.contains("const host = '0.0.0.0';"));
+        assert!(updated.contains("const port = 3000;"));
+    }
+
+    #[test]
+    fn test_git_lcs_alignment_with_inserted_line() {
+        let content = "function render() {\n    // Some extra inserted comment\n    setup();\n    display();\n    cleanup();\n}";
+        // AI didn't know about the inserted comment
+        let old_text = "function render() {\n    setup();\n    display();\n    cleanup();\n}";
+        let new_text = "function render() {\n    setupV2();\n    displayV2();\n    cleanupV2();\n}";
+
+        let updated = apply_resilient_edit(content, old_text, new_text, "app.ts").unwrap();
+        assert!(updated.contains("setupV2();"));
+        assert!(updated.contains("displayV2();"));
+    }
+
+    #[test]
+    fn test_git_smart_indentation_adaptation() {
+        let content = "class App {\n        init() {\n            start();\n        }\n}";
+        // AI sent 4 spaces instead of 8 spaces
+        let old_text = "    init() {\n        start();\n    }";
+        let new_text = "    init() {\n        startFast();\n    }";
+
+        let updated = apply_resilient_edit(content, old_text, new_text, "app.ts").unwrap();
+        assert!(updated.contains("startFast();"));
+    }
 }

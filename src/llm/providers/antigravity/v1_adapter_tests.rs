@@ -411,3 +411,90 @@ fn test_gemini_thinking_config_auto_enabled() {
     assert_eq!(thinking_config["thinkingBudget"].as_i64().unwrap(), -1);
     assert_eq!(thinking_config["includeThoughts"].as_bool().unwrap(), true);
 }
+
+#[test]
+fn test_gemini_thinking_budget_resolution() {
+    use crate::llm::providers::antigravity::v1_adapter::resolve_gemini_thinking_budget;
+
+    assert_eq!(resolve_gemini_thinking_budget("ag/gemini-3.8-flash-low"), (1024, true));
+    assert_eq!(resolve_gemini_thinking_budget("gemini-3.8-flash-low"), (1024, true));
+    assert_eq!(resolve_gemini_thinking_budget("gemini-3.8-flash(low)"), (1024, true));
+    assert_eq!(resolve_gemini_thinking_budget("gemini-3.8-flash-minimal"), (512, true));
+    assert_eq!(resolve_gemini_thinking_budget("gemini-3.8-flash-medium"), (4096, true));
+    assert_eq!(resolve_gemini_thinking_budget("gemini-3.8-flash(medium)"), (4096, true));
+    assert_eq!(resolve_gemini_thinking_budget("gemini-3.8-flash"), (4096, true));
+    assert_eq!(resolve_gemini_thinking_budget("ag/gemini-3.8-flash-high"), (-1, true));
+    assert_eq!(resolve_gemini_thinking_budget("gemini-3.8-flash-high"), (-1, true));
+    assert_eq!(resolve_gemini_thinking_budget("gemini-3.8-flash(high)"), (-1, true));
+    assert_eq!(resolve_gemini_thinking_budget("gemini-3.8-flash-none"), (0, false));
+    assert_eq!(resolve_gemini_thinking_budget("gemini-3.8-flash(none)"), (0, false));
+    assert_eq!(resolve_gemini_thinking_budget("gemini-3.8-flash-off"), (0, false));
+}
+
+#[test]
+fn test_gemini_thinking_config_tiered_payloads() {
+    let req_low = V1ChatRequest {
+        model: "ag/gemini-3.8-flash-low".to_string(),
+        messages: vec![crate::llm::v1_engine::V1Message {
+            role: "user".to_string(),
+            content: Some(serde_json::json!("Fix bug in code")),
+            tool_calls: None,
+            tool_call_id: None,
+            name: None,
+            thought_signature: None,
+        }],
+        temperature: None,
+        max_tokens: None,
+        stream: None,
+        tools: None,
+        tool_choice: None,
+    };
+    let payload_low = build_gemini_payload(&req_low, "test-project");
+    let tc_low = &payload_low["request"]["generationConfig"]["thinkingConfig"];
+    assert_eq!(tc_low["thinkingBudget"].as_i64().unwrap(), 1024);
+    assert_eq!(tc_low["includeThoughts"].as_bool().unwrap(), true);
+    assert_eq!(payload_low["model"].as_str().unwrap(), "gemini-3.8-flash-low");
+
+    let req_none = V1ChatRequest {
+        model: "ag/gemini-3.8-flash-none".to_string(),
+        messages: vec![crate::llm::v1_engine::V1Message {
+            role: "user".to_string(),
+            content: Some(serde_json::json!("Say hi")),
+            tool_calls: None,
+            tool_call_id: None,
+            name: None,
+            thought_signature: None,
+        }],
+        temperature: None,
+        max_tokens: None,
+        stream: None,
+        tools: None,
+        tool_choice: None,
+    };
+    let payload_none = build_gemini_payload(&req_none, "test-project");
+    let tc_none = &payload_none["request"]["generationConfig"]["thinkingConfig"];
+    assert_eq!(tc_none["thinkingBudget"].as_i64().unwrap(), 0);
+    assert_eq!(tc_none["includeThoughts"].as_bool().unwrap(), false);
+
+    let req_paren = V1ChatRequest {
+        model: "ag/gemini-3.8-flash-low(low)".to_string(),
+        messages: vec![crate::llm::v1_engine::V1Message {
+            role: "user".to_string(),
+            content: Some(serde_json::json!("Fast edit")),
+            tool_calls: None,
+            tool_call_id: None,
+            name: None,
+            thought_signature: None,
+        }],
+        temperature: None,
+        max_tokens: None,
+        stream: None,
+        tools: None,
+        tool_choice: None,
+    };
+    let payload_paren = build_gemini_payload(&req_paren, "test-project");
+    let tc_paren = &payload_paren["request"]["generationConfig"]["thinkingConfig"];
+    assert_eq!(tc_paren["thinkingBudget"].as_i64().unwrap(), 1024);
+    assert_eq!(tc_paren["includeThoughts"].as_bool().unwrap(), true);
+    assert_eq!(payload_paren["model"].as_str().unwrap(), "gemini-3.8-flash-low");
+}
