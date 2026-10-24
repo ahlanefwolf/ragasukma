@@ -239,7 +239,7 @@ export const TunerControls: Component<TunerControlsProps> = (props) => {
           <button
             onClick={props.onAddPose}
             class="px-3 py-2 text-xs font-semibold whitespace-nowrap bg-theme-surface text-theme-cyan border border-dashed border-theme-cyan/40 hover:bg-theme-cyan/10 hover:border-theme-cyan flex items-center gap-1.5 transition-all"
-            title="Tambah pose baru"
+            title="Add new pose"
           >
             <Plus size={13} />
             <span>+ New Pose</span>

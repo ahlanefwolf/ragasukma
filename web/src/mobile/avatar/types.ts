@@ -8,9 +8,9 @@ export interface AvatarViewerProps {
   state: AvatarState;
   emotion?: string;
   isAudioStreaming?: boolean;
-  // Callback status AR untuk sinkronisasi dock interaksi di MobileApp
+  // AR status callback to synchronize interaction dock in MobileApp
   onArStateChange?: (isActive: boolean) => void;
-  // Slot custom untuk meletakkan mic/chat dock di dalam DOM Overlay AR
+  // Custom slot to mount mic/chat dock inside WebXR DOM Overlay
   arBottomSlot?: () => any;
 }
 

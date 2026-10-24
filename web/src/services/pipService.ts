@@ -458,7 +458,7 @@ class PipManager {
       this.updateMediaSession();
     };
 
-    // Render frame pertama seketika
+    // Render initial frame immediately
     render();
 
     // ── Web Worker Timer ──

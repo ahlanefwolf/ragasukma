@@ -305,7 +305,7 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
 
   return (
     <div class="my-1.5 rounded-xl border border-indigo-500/20 bg-indigo-950/20 overflow-hidden shadow-sm transition-all text-xs">
-      {/* Header bar: Klik untuk collapse/expand */}
+      {/* Header bar: Click to collapse/expand */}
       <div
         onClick={() => setIsCardCollapsed(!isCardCollapsed())}
         class="flex items-center justify-between px-3 py-2 bg-indigo-900/30 hover:bg-indigo-900/40 cursor-pointer transition-colors border-b border-indigo-500/10 select-none"

@@ -204,10 +204,10 @@ pub fn clean_ai_text(text: &str) -> String {
     // 5. Buang tag bintang tunggal emotion (*malu-malu*, *happy*, dsb.)
     let text = RE_SINGLE_STAR_EMOTE.replace_all(&text, " ");
 
-    // 6. Normalisasi elipsis (...) dan (…) agar TTS tidak mengeja "titik titik" / "dot dot"
+    // 6. Normalize ellipses (...) and (…) so TTS does not pronounce "dot dot"
     let text = RE_ELLIPSIS.replace_all(&text, ", ");
 
-    // 7. Normalisasi tanda baca berulang (???, !!!, ,,,) -> (?, !, ,)
+    // 7. Normalize repeated punctuation (???, !!!, ,,,) -> (?, !, ,)
     let text = RE_REPEATED_PUNCT.replace_all(&text, |caps: &regex::Captures| {
         match &caps[0][..1] {
             "!" => "!",
@@ -226,7 +226,7 @@ pub fn clean_ai_text(text: &str) -> String {
         }
     }
 
-    // 9. Rapikan multiple spaces dan perbaiki koma di akhir
+    // 9. Clean up multiple spaces and trailing commas
     let mut result = String::with_capacity(cleaned.len());
     let mut last_was_space = false;
     for c in cleaned.chars() {

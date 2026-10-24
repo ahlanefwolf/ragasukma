@@ -207,7 +207,7 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
                   class={`w-20 h-1.5 bg-theme-border appearance-none cursor-pointer accent-theme-cyan ${
                     isFullMobileActive() ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
-                  title={isFullMobileActive() ? 'Mode Full HP aktif di HP' : `Volume: ${Math.round(volume() * 100)}%`}
+                  title={isFullMobileActive() ? 'Full mobile mode active on phone' : `Volume: ${Math.round(volume() * 100)}%`}
                 />
               </div>
 

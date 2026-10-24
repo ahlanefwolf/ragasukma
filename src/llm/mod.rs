@@ -7,5 +7,5 @@ pub mod types;
 pub mod usage;
 pub mod v1_engine;
 
-// Re-export komponen utama yang aktif digunakan
+// Re-export primary active components
 pub use client::LlmClient;

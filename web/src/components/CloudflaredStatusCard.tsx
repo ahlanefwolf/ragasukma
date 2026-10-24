@@ -61,7 +61,7 @@ export const CloudflaredStatusCard: Component<CloudflaredStatusCardProps> = (pro
               <span class="px-3 py-1 text-xs font-bold bg-theme-emerald/20 text-theme-emerald border border-theme-emerald/30 inline-flex items-center gap-1.5">
                 <Check size={13} class="stroke-[2.5]" /> cloudflared v{props.info()!.version}
               </span>
-              <span class="text-xs text-theme-text/60">Terpasang dan siap digunakan</span>
+              <span class="text-xs text-theme-text/60">Installed and ready to use</span>
             </div>
             <Show when={props.info()?.path}>
               <p class="text-xs font-mono text-theme-text/50 truncate">

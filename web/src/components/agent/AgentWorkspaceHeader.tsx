@@ -70,7 +70,7 @@ export const AgentWorkspaceHeader: Component<{
                       props.onToggleProjectSkill(skill.id);
                     }}
                     class="hover:text-rose-400 p-0.5 rounded-full hover:bg-theme-bg/50 transition-colors"
-                    title="Nonaktifkan skill ini dari workspace"
+                    title="Disable this skill from workspace"
                   >
                     <X class="w-2.5 h-2.5" />
                   </button>
@@ -87,11 +87,11 @@ export const AgentWorkspaceHeader: Component<{
                   ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 shadow-xs'
                   : 'bg-theme-bg/80 text-theme-text/70 border border-theme-border hover:border-theme-cyan/40 hover:text-theme-cyan'
               }`}
-              title={props.activeProjectSkillIds.length === 0 ? 'Belum ada skill aktif. Klik untuk menambahkan skill ke workspace ini.' : 'Kelola prompt skills'}
+              title={props.activeProjectSkillIds.length === 0 ? 'No active skills. Click to add skills to this workspace.' : 'Manage prompt skills'}
             >
               <Sparkles class="w-2.5 h-2.5 shrink-0" />
               <span>
-                {props.activeProjectSkillIds.length === 0 ? '+ Tambah Skill AI' : '+ Skill'}
+                {props.activeProjectSkillIds.length === 0 ? '+ Add AI Skill' : '+ Skill'}
               </span>
             </button>
           </div>
@@ -101,7 +101,7 @@ export const AgentWorkspaceHeader: Component<{
             onClick={props.onToggleWorkspaceSettings}
             class="text-2xs text-theme-text/60 hover:text-theme-text flex items-center gap-1 transition-colors px-2.5 py-1 rounded-lg border border-theme-border hover:border-theme-cyan/40 hover:bg-theme-bg/60 shrink-0"
           >
-            <span>{props.showWorkspaceSettings ? 'Tutup Pengaturan' : 'Atur Workspace'}</span>
+            <span>{props.showWorkspaceSettings ? 'Close Settings' : 'Workspace Settings'}</span>
             <ChevronDown class={`w-3 h-3 transition-transform ${props.showWorkspaceSettings ? 'rotate-180 text-theme-cyan' : ''}`} />
           </button>
         </div>
@@ -116,10 +116,10 @@ export const AgentWorkspaceHeader: Component<{
               <div>
                 <label class="text-xs text-theme-text font-semibold flex items-center gap-1.5">
                   <Sparkles class="w-3.5 h-3.5 text-theme-cyan" />
-                  Prompt Skills Workspace
+                  Workspace Prompt Skills
                 </label>
                 <p class="text-xs text-theme-text/50 mt-0.5">
-                  Pilih keahlian khusus yang akan digunakan AI untuk menyelesaikan tugas di workspace ini.
+                  Select specialized skills used by the AI agent to complete tasks in this workspace.
                 </p>
               </div>
               <button
@@ -127,7 +127,7 @@ export const AgentWorkspaceHeader: Component<{
                 onClick={props.onOpenSkillsTab}
                 class="text-xs text-theme-cyan hover:underline shrink-0 font-medium"
               >
-                Buka Library Skill &rarr;
+                Open Skills Library &rarr;
               </button>
             </div>
 
@@ -158,11 +158,11 @@ export const AgentWorkspaceHeader: Component<{
                                 : 'bg-theme-bg text-theme-text/70'
                             }`}
                           >
-                            {isActive() ? 'Aktif' : 'Nonaktif'}
+                            {isActive() ? 'Active' : 'Inactive'}
                           </span>
                         </div>
                         <p class="text-xs text-theme-text/60 line-clamp-2 leading-tight">
-                          {skill.description || 'Instruksi khusus AI untuk mempercepat dan meningkatkan akurasi pengerjaan.'}
+                          {skill.description || 'Specialized AI skill instructions to accelerate workflow and increase accuracy.'}
                         </p>
                       </div>
 
@@ -171,7 +171,7 @@ export const AgentWorkspaceHeader: Component<{
                           {skill.slug ? `@${skill.slug}` : 'skill'}
                         </span>
                         <span class="text-theme-cyan/70 font-medium">
-                          {isActive() ? 'Klik untuk matikan' : 'Klik untuk aktifkan'}
+                          {isActive() ? 'Click to disable' : 'Click to enable'}
                         </span>
                       </div>
                     </div>
@@ -182,14 +182,14 @@ export const AgentWorkspaceHeader: Component<{
 
             <Show when={props.skills.length === 0}>
               <div class="p-3 text-center rounded-lg border border-dashed border-theme-border bg-theme-bg/30">
-                <p class="text-xs text-theme-text/60 mb-2">Belum ada prompt skill yang didaftarkan di library.</p>
+                <p class="text-xs text-theme-text/60 mb-2">No prompt skills registered in library yet.</p>
                 <button
                   type="button"
                   onClick={props.onOpenSkillsTab}
                   class="text-xs px-3 py-1 bg-theme-cyan text-theme-bg font-medium rounded-lg hover:bg-theme-cyan/90 transition-colors inline-flex items-center gap-1.5"
                 >
                   <Sparkles class="w-3.5 h-3.5" />
-                  Tambah Skill Pertama
+                  Add First Skill
                 </button>
               </div>
             </Show>

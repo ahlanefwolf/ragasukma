@@ -99,8 +99,8 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
          - Strict goal completion: NEVER declare a goal complete prematurely. Ensure all operations, edits, and chained commands have executed with 0 errors before concluding.\n\
          </completeness-contract>\n\n\
          <multilingual-interaction>\n\
-         - Fully multilingual: The user may interact in any language (e.g. Indonesian, English, Spanish, Japanese). Understand intent accurately regardless of phrasing, idioms, or rhetorical style.\n\
-         - Respond in the language used by the user, while keeping all code, comments, variables, identifiers, tool arguments, and technical execution in standard English.\n\
+         - Fully multilingual: The user may interact in any language. Accurately understand intent, question vs command, and requirements regardless of phrasing or rhetorical style.\n\
+         - Respond naturally in the language used by the user, while keeping all code, technical identifiers, tool arguments, and execution in standard English.\n\
          </multilingual-interaction>\n\n\
          <critical>\n\
          1. UNRESTRICTED WORKSPACE AUTONOMY: You have full, unrestricted permission to perform any actions within the workspace. You can inspect files, run terminal commands, and modify files directly without asking for permission.\n\
@@ -134,10 +134,10 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
          15. NEVER USE SHELL SCRIPTS FOR READING: NEVER invoke shell commands like `sed`, `cat`, `head`, `tail`, or custom script one-liners via `workspace_run_command` just to read or view file lines. Always use `workspace_read_file` or `workspace_grep`.\n\
          16. SUMMARY OF ACCOMPLISHMENTS: Once actions are executed and verified, provide a concise and clear summary of the files modified and commands executed.\n\
          17. NEVER CLAIM SUCCESS ON FAILING CHECKS (ZERO TOLERANCE FOR FALSE SUCCESS): If a compiler, build, or test command printed any errors or returned a non-zero exit code, you MUST NEVER claim success, say 'all done', or conclude your turn. You are strictly forbidden from claiming a task is complete while errors remain in terminal or compiler output. You MUST fix the root causes and re-run verification until it passes cleanly with 0 errors.\n\
-         18. MANDATORY VERIFICATION BEFORE CONCLUSION: When you modify or add code, verify your work using `workspace_run_command` (e.g. `{}`) before concluding if a verification command exists. Only conclude when verification checks succeed.\n\
+         18. MANDATORY VERIFICATION BEFORE CONCLUSION: When you modify or add code, verify your work using `workspace_run_command` (e.g. `{}`) before concluding if a verification command exists. Only conclude when verification checks succeed. For read-only queries, questions, or analysis where no files need modification, verification is NOT required; conclude directly.\n\
          19. STRICT GOAL COMPLETION (NO PREMATURE GOAL CLAIMS): While direct action and command chaining are required, NEVER conclude early or claim a goal is accomplished if the underlying task has not actually succeeded. Verify that terminal commands exited with code 0 (`success: true`) and requested files on disk are truly modified before declaring success. If any command in a chain fails or reports errors, immediately inspect the failure, fix the root cause, and re-run until it passes.\n\
          20. MULTI-COMPONENT & FULL-STACK COMPLETENESS: When a task specifies work across multiple folders, components, or services (e.g. `backend` AND `frontend`), you MUST complete the deliverables for ALL specified components. NEVER conclude after editing only one component when other components remain untouched. Verify each modified component with its corresponding test/build command (e.g. `cargo test` for backend and `npm run check && npm run build` for frontend), and conclude only when all components are implemented and verified.\n\
-         21. NO UNREQUESTED GIT COMMITS OR DUPLICATE TEST RERUNS: Once all modified components are verified with 0 errors (e.g. backend tests pass AND frontend build passes), your work is COMPLETE. Do NOT execute `git init`, `git add`, `git commit`, or duplicate test reruns unless the user explicitly requested git operations in their prompt. Conclude your turn immediately with your final summary!\n\
+         21. NO UNREQUESTED GIT COMMITS OR REDUNDANT TOOL CALLS: Once all modified components are verified with 0 errors (e.g. backend tests pass AND frontend build passes), your work is COMPLETE. STOP calling tools immediately (no git commands, no file re-reading, no duplicate checks). Conclude your turn immediately with your final summary to the user!\n\
          </critical>\n\n",
         os_name, arch_name, shell_desc, verifier_hint
     );
@@ -180,22 +180,8 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
         .unwrap_or("")
         .to_string();
 
-    // State-driven task indicator: syntactical markers (file paths, @tags, file extensions)
-    let is_task_request = last_user_prompt.contains('@')
-        || last_user_prompt.contains('/')
-        || last_user_prompt.contains('\\')
-        || [".md", ".rs", ".ts", ".tsx", ".js", ".jsx", ".py", ".json", ".toml", ".yaml", ".yml", ".go", ".c", ".cpp", ".java"]
-            .iter()
-            .any(|ext| last_user_prompt.contains(ext));
-
     let session_goals = repository::list_session_goals(session_id).await.unwrap_or_default();
     let latest_existing_goal = session_goals.first().cloned();
-
-    // Check if the latest goal is still active / unresolved
-    let has_unresolved_active_goal = latest_existing_goal
-        .as_ref()
-        .map(|g| g.status == "in_progress" || g.status == "initialized" || g.phase == "action" || g.phase == "verification")
-        .unwrap_or(false);
 
     // Check if the latest goal was already completed or failed; if so, create a new one
     let goal_id = match latest_existing_goal {
@@ -306,6 +292,8 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
     // Reset modified_files and executed_commands for this specific turn so reports only reflect ACTUAL successful edits
     let mut modified_files: Vec<String> = Vec::new();
     let mut executed_commands: Vec<String> = Vec::new();
+    let mut consecutive_command_count: usize = 0;
+    let mut last_executed_command: Option<String> = None;
     let mut consecutive_read_same_file: HashMap<String, usize> = HashMap::new();
     let mut recent_read_slices: HashSet<(String, Option<i64>, Option<i64>)> = HashSet::new();
     let mut global_inspection_streak: usize = 0;
@@ -313,6 +301,8 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
     let mut last_tool_had_error: bool = false;
     let mut pending_error_files: HashSet<String> = HashSet::new();
     let mut files_read_in_full: HashSet<String> = HashSet::new();
+    let mut force_final_text_only: bool = false;
+    let mut circuit_breaker_triggered: bool = false;
 
 
     let prior_verifs = repository::list_goal_verifications(&goal_id).await.unwrap_or_default();
@@ -557,14 +547,19 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
         }
 
         let tools_schema = get_agent_tools_schema();
+        let (tools_payload, tool_choice_payload) = if force_final_text_only {
+            (None, Some(json!("none")))
+        } else {
+            (Some(tools_schema), None)
+        };
         let chat_req = V1ChatRequest {
             model: model.clone(),
             messages: v1_messages,
             temperature: session.temperature.map(|t| t as f32).or(Some(0.7)),
             max_tokens: Some(4096),
             stream: Some(true),
-            tools: Some(tools_schema),
-            tool_choice: None,
+            tools: tools_payload,
+            tool_choice: tool_choice_payload,
         };
 
         let input_chars: usize = chat_req.messages.iter().map(|m| {
@@ -942,7 +937,6 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                         && is_accessing_unmodified_target;
 
                     let is_post_verification_terminal_command = has_passed_verification
-                        && !modified_files.is_empty()
                         && !last_command_had_error
                         && pending_error_files.is_empty()
                         && tc.function.name == "workspace_run_command"
@@ -951,14 +945,31 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                             cmd.starts_with("git ") || cmd.contains("git commit") || cmd.contains("git add") || executed_commands.iter().any(|ec| ec.contains(&cmd) || cmd.contains(ec))
                         };
 
+                    let is_repeated_command = tc.function.name == "workspace_run_command" && {
+                        let cmd = args_val.get("command").and_then(|c| c.as_str()).unwrap_or("").trim();
+                        !cmd.is_empty() && last_executed_command.as_deref() == Some(cmd) && consecutive_command_count >= 1
+                    };
+
                     // HARD GATES & CIRCUIT BREAKERS (oh-my-pi inspired anti-loop protection)
-                    // Circuit breaker only triggers AFTER verification has actually been tested and passed with 0 errors in THIS turn,
-                    // AND the agent is NOT trying to read or edit another untouched deliverable file!
-                    let tool_output = if has_passed_verification && !modified_files.is_empty() && !last_command_had_error && pending_error_files.is_empty() && !is_work_on_new_target && (tc.function.name != "workspace_run_command" || is_post_verification_terminal_command) {
-                        "Verification has already succeeded with 0 errors for all modified file(s). All active errors resolved. Conclude your turn immediately and provide your summary to the user now.".to_string()
-                    } else if is_inspection && !is_target_in_error_list && global_inspection_streak >= 4 {
+                    // Hard stop: When triggered, the circuit breaker permanently cuts off further tool calls
+                    // and forces the agent to conclude with a direct text summary/response.
+                    let mut is_breaker_trip = false;
+                    let tool_output = if circuit_breaker_triggered || force_final_text_only {
+                        is_breaker_trip = true;
+                        "Tool execution rejected: Tool calling is closed for this turn. Conclude your turn immediately and provide your summary to the user now.".to_string()
+                    } else if has_passed_verification && !last_command_had_error && pending_error_files.is_empty() && !is_work_on_new_target && (tc.function.name != "workspace_run_command" || is_post_verification_terminal_command) {
+                        is_breaker_trip = true;
+                        "Verification has already succeeded with 0 errors. All active errors resolved. Tool calling is now closed. Conclude your turn immediately and provide your summary to the user now.".to_string()
+                    } else if is_repeated_command {
+                        is_breaker_trip = true;
+                        let cmd = args_val.get("command").and_then(|c| c.as_str()).unwrap_or("").trim();
                         format!(
-                            "Tool execution rejected by inspection circuit breaker: You have executed {} consecutive inspection operations without editing any code. Stop browsing files. Apply your changes using `workspace_edit_file` or `workspace_write_file` NOW, or run verification via `workspace_run_command`.",
+                            "Command repetition limit reached for `{cmd}`. This command was already executed without subsequent file modifications. Tool calling is now closed. Conclude your turn now and report the results directly to the user."
+                        )
+                    } else if is_inspection && !is_target_in_error_list && global_inspection_streak >= 4 {
+                        is_breaker_trip = true;
+                        format!(
+                            "Inspection limit reached ({} consecutive reads without code modifications). The circuit breaker has closed tool calling. Conclude your turn now and provide your findings, answers, or plan directly to the user.",
                             global_inspection_streak
                         )
                     } else if tc.function.name == "workspace_read_file" && {
@@ -969,9 +980,10 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                         let is_streak_exceeded = target_arg_file.as_ref().map(|p| consecutive_read_same_file.get(p).copied().unwrap_or(0) >= 3).unwrap_or(false);
                         is_exact_duplicate || is_streak_exceeded
                     } {
+                        is_breaker_trip = true;
                         let path = target_arg_file.as_deref().unwrap_or("target");
                         format!(
-                            "Tool execution rejected: File `{}` has already been inspected in this turn without modification. You already have its contents in your conversation history. Formulate your changes and call `workspace_edit_file` or `workspace_write_file` now.",
+                            "Read limit reached for `{}`. You already have its contents in history. Tool calling is now closed. Conclude your response or plan to the user now.",
                             path
                         )
                     } else {
@@ -997,6 +1009,14 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                             Err(e) => format!("Tool execution error: {}", e),
                         }
                     };
+
+                    if is_breaker_trip {
+                        circuit_breaker_triggered = true;
+                        force_final_text_only = true;
+                        ephemeral_directive = Some(
+                            "CIRCUIT BREAKER TRIGGERED: Tool calling is permanently closed for this turn. Do NOT attempt to invoke any more tools. Provide your final response, summary, or answer to the user now.".to_string()
+                        );
+                    }
 
                     if is_inspection {
                         global_inspection_streak += 1;
@@ -1031,6 +1051,8 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                             has_passed_verification = false; // Reset verification so newly modified files must be verified!
                             verification_prompted = false; // Reset so verification gate triggers for newly modified files!
                             global_inspection_streak = 0;
+                            consecutive_command_count = 0;
+                            last_executed_command = None;
                             recent_read_slices.clear();
                             consecutive_read_same_file.clear();
                             if let Some(path) = target_arg_file.as_ref() {
@@ -1068,8 +1090,16 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                     } else if tc.function.name == "workspace_run_command" {
                         global_inspection_streak = 0;
                         if let Some(cmd) = args_val.get("command").and_then(|c| c.as_str()) {
-                            if !executed_commands.contains(&cmd.to_string()) {
-                                executed_commands.push(cmd.to_string());
+                            let trimmed_cmd = cmd.trim();
+                            if last_executed_command.as_deref() == Some(trimmed_cmd) {
+                                consecutive_command_count += 1;
+                            } else {
+                                consecutive_command_count = 1;
+                                last_executed_command = Some(trimmed_cmd.to_string());
+                            }
+
+                            if !executed_commands.contains(&trimmed_cmd.to_string()) {
+                                executed_commands.push(trimmed_cmd.to_string());
                             }
 
                             let is_err = is_command_output_error(&tool_output);
@@ -1153,23 +1183,18 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                                     if is_passed { None } else { Some(&tool_output) },
                                 ).await;
 
-                                // Verification CANNOT be considered satisfied if the user requested changes but 0 files were modified
-                                if is_passed && !modified_files.is_empty() {
+                                if is_passed {
                                     has_passed_verification = true;
                                     last_command_had_error = false;
                                     pending_error_files.clear();
                                     current_phase = "concluded".to_string();
+                                    force_final_text_only = true;
                                     let _ = repository::update_goal_phase(&goal_id, "concluded").await;
                                     let _ = repository::update_goal_status(&goal_id, "completed").await;
                                     ephemeral_directive = Some(
-                                        "VERIFICATION PASSED: The build/test command succeeded with 0 errors! If all parts of the user objective across all components (e.g. backend and frontend) are complete, conclude your turn now with a clear summary. If remaining deliverables or other files still need changes, proceed directly to edit them.".to_string()
+                                        "VERIFICATION PASSED: The build/test command succeeded with 0 errors! All active tasks and verifications are complete. Conclude your turn now with a clear summary for the user without calling any more tools.".to_string()
                                     );
-                                } else if is_passed && modified_files.is_empty() && has_unresolved_active_goal {
-                                    // Build passed but no files were modified yet for this in-progress goal
-                                    ephemeral_directive = Some(
-                                        "VERIFICATION RAN WITHOUT CODE EDITS: The build/test command passed, but you have not modified any files for this task yet. Ensure you apply any needed changes to the target files before concluding.".to_string()
-                                    );
-                                } else if !is_passed {
+                                } else {
                                     has_passed_verification = false;
                                     current_phase = "action".to_string();
                                     let _ = repository::update_goal_phase(&goal_id, "action").await;
@@ -1325,9 +1350,9 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
             continue;
         }
 
-        // Action Gate (State-driven & language-agnostic):
+        // Action Gate:
         // If a command or edit tool returned an error in this turn, the agent must fix it before concluding
-        let must_apply_changes = last_command_had_error || last_tool_had_error;
+        let must_apply_changes = (last_command_had_error || last_tool_had_error) && !circuit_breaker_triggered && !force_final_text_only;
 
         if must_apply_changes && modified_files.is_empty() && iteration < max_safety_iterations - 2 {
             ephemeral_directive = Some(
@@ -1336,25 +1361,13 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
             continue;
         }
 
-        // State-driven task gate: If the turn was working on a code/task deliverable,
-        // or if the assistant output mentions workspace tool calls in text instead of invoking them,
-        // do not conclude without actually executing the modifications.
-        let model_mentions_tools_in_text = final_content.contains("workspace_");
-        let has_active_inspections = global_inspection_streak > 0 || !consecutive_read_same_file.is_empty();
-        let is_unfulfilled_task = (is_task_request || model_mentions_tools_in_text) && has_active_inspections;
-
-        if is_unfulfilled_task && modified_files.is_empty() && iteration < max_safety_iterations - 2 {
-            ephemeral_directive = Some(
-                "ACTION REQUIRED — NO CODE CHANGES APPLIED YET: You have inspected the workspace, but no files have been modified on disk yet! Do NOT merely narrate plans, next steps, or thoughts in text. You MUST call `workspace_read_file`, `workspace_edit_file`, or `workspace_write_file` NOW to complete the required modifications.".to_string()
-            );
-            continue;
-        }
-
         // Hard Verification Enforcement Gate:
         // NEVER allow conclusion while verification failed or active command/tool errors exist
-        let has_failing_checks = (!has_passed_verification && verification_attempts > 0)
-            || last_command_had_error
-            || last_tool_had_error;
+        let has_failing_checks = (!circuit_breaker_triggered && !force_final_text_only) && (
+            (!has_passed_verification && verification_attempts > 0)
+                || last_command_had_error
+                || last_tool_had_error
+        );
         if has_failing_checks && iteration < max_safety_iterations - 2 {
             ephemeral_directive = Some(
                 "CRITICAL REJECTION — FAILING CHECKS OR UNRESOLVED ERRORS: A verification check, terminal command, or edit operation failed! You are strictly forbidden from concluding or claiming success while errors remain. Inspect the error messages, fix the code using `workspace_edit_file` or `workspace_write_file`, and re-run verification until all checks pass cleanly.".to_string()
@@ -1363,7 +1376,7 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
         }
 
         // Verification Gate: If files were modified in this session, ensure at least one verification check was run
-        if !modified_files.is_empty() && !has_passed_verification && !verification_prompted && iteration < max_safety_iterations - 1 {
+        if !modified_files.is_empty() && !has_passed_verification && !verification_prompted && !circuit_breaker_triggered && !force_final_text_only && iteration < max_safety_iterations - 1 {
             verification_prompted = true;
             let relevant_verifiers = super::languages::detect_verifiers_for_modified_files(&allowed_folders, &modified_files);
             let verifier_hint = if !relevant_verifiers.is_empty() {
@@ -1426,10 +1439,7 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
         let content_to_save = composed_content.as_str();
 
         // Conclude the active goal with the final summary so subsequent goals inherit it
-        let final_goal_status = if ((must_apply_changes || is_task_request) && modified_files.is_empty())
-            || last_command_had_error
-            || last_tool_had_error
-        {
+        let final_goal_status = if last_command_had_error || last_tool_had_error {
             "failed"
         } else if !modified_files.is_empty() && !has_passed_verification {
             "completed_unverified"

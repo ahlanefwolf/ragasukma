@@ -193,7 +193,7 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                     *lock = snap.tabs.clone();
                 }
 
-                // Tulis to file disk
+                // Write to disk file
                 write_snapshot_to_disk(&snap);
                 current_snapshot = Some(snap);
             }
@@ -487,7 +487,7 @@ pub fn get_latest_snapshot() -> Option<BrowserDomSnapshot> {
             return Some(snap.clone());
         }
     }
-    // Fallback: baca direct file assets/active_tab_browser.json from disk
+    // Fallback: read directly from assets/active_tab_browser.json on disk
     let path = get_active_tab_browser_path();
     if path.exists() {
         if let Ok(content) = fs::read_to_string(&path) {

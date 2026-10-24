@@ -191,7 +191,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
       }
     } catch (e) {
       console.error(e);
-      props.showToast('Gagal memuat data workspace');
+      props.showToast('Failed to load workspace data');
     } finally {
       ws.setLoading(false);
     }
@@ -212,7 +212,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
           </div>
           <div>
             <h2 class="text-base font-semibold text-white">Agent Workspace</h2>
-            <p class="text-xs text-white/50">Proyek Multi-folder, Sesi Task, Prompt Skills & MCP</p>
+            <p class="text-xs text-white/50">Multi-folder Projects, Task Sessions, Prompt Skills & MCP</p>
           </div>
         </div>
 
@@ -400,7 +400,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
             </Show>
           </div>
 
-          {/* Right Column: Docked Side Code Panel (Split Pane - Tidak Pakai Modal) */}
+          {/* Right Column: Docked Side Code Panel (Split Pane) */}
           <Show when={files.selectedFileForTag()}>
             <div class="w-1/2 min-w-[380px] xl:min-w-[480px] max-w-[50%] flex flex-col min-h-0 h-full overflow-hidden animate-in slide-in-from-right-4 duration-200">
               <AgentCodePanel
@@ -423,7 +423,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
                   const tag = files.currentSelectedTag();
                   if (tag) {
                     navigator.clipboard.writeText(tag);
-                    props.showToast(`Tag ${tag} disalin ke clipboard!`);
+                    props.showToast(`Tag ${tag} copied to clipboard!`);
                   }
                 }}
               />

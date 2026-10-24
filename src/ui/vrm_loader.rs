@@ -527,17 +527,16 @@ impl VrmModelData {
                 }
             }
 
-            // Prioritaskan MToon di atas Unlit:
-            // Jika material memiliki definisi MToon (VRMC_materials_mtoon atau VRM 0.x MToon),
-            // KHR_materials_unlit hanyalah glTF fallback standar, jadi jangan set is_unlit = true.
+            // Prioritize MToon over Unlit:
+            // If material defines MToon (VRMC_materials_mtoon or VRM 0.x MToon),
+            // KHR_materials_unlit is merely a glTF fallback, so do not mark as is_unlit.
             if has_mtoon {
                 is_unlit = false;
             }
 
             // Fallback Shade Tint:
-            // Jika material skin tidak memiliki file shade texture terpisah dan warna shade masih
-            // putih/default (>= 0.95), berikan warna bayangan hangat (peach/warm shadow tint ~0.85)
-            // agar kontur cel-shading anime otomatis terbentuk saat terkena sudut cahaya.
+            // If skin material lacks a dedicated shade texture and shade color is still white/default (>= 0.95),
+            // assign a warm peach tint (~0.85) so anime cel-shading contours emerge naturally under lighting.
             if matches!(category, MaterialCategory::Skin) && shade_texture.is_none() {
                 if shade_color_factor[0] >= 0.95 && shade_color_factor[1] >= 0.95 && shade_color_factor[2] >= 0.95 {
                     shade_color_factor = [0.85, 0.81, 0.78];

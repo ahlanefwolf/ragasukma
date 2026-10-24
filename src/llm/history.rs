@@ -353,8 +353,8 @@ mod tests {
         .bind("Ahlan")
         .bind("Sukma")
         .bind("companion")
-        .bind("Halo Sukma")
-        .bind("Halo Ahlan, ada yang bisa dibantu?")
+        .bind("Hello Sukma")
+        .bind("Hello Ahlan, how can I help you?")
         .execute(&pool)
         .await
         .unwrap();
@@ -369,7 +369,7 @@ mod tests {
 
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].callsign, "Ahlan");
-        assert_eq!(rows[0].user_msg, "Halo Sukma");
+        assert_eq!(rows[0].user_msg, "Hello Sukma");
         assert_eq!(rows[0].assistant_name, "Sukma");
 
         let res = sqlx::query("DELETE FROM chat_history WHERE date_str = ?")

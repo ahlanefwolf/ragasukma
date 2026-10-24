@@ -42,9 +42,9 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
 
   return (
     <div class="absolute inset-0 pointer-events-none z-40 p-4 flex flex-col justify-between">
-      {/* Floating Action Icons: X, Lock, Quality & FPS di sudut kanan atas */}
+      {/* Floating Action Icons: Exit, Lock, Quality & FPS in top-right corner */}
       <div class="absolute top-4 right-4 flex flex-col items-center gap-2 pointer-events-auto select-none">
-        {/* Tombol Keluar (X) */}
+        {/* Exit Button (X) */}
         <button
           type="button"
           onClick={props.onExitAr}
@@ -54,7 +54,7 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
           <X size={26} class="stroke-[2.2]" />
         </button>
 
-        {/* Tombol Lock / Unlock tepat di bawah X */}
+        {/* Lock / Unlock button below exit */}
         <Show
           when={props.isAvatarLocked}
           fallback={
@@ -106,10 +106,10 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
         </button>
       </div>
 
-      {/* Spacer atas */}
+      {/* Top spacer */}
       <div class="flex-1 pointer-events-none" />
 
-      {/* Slot Bawah: Mic & Chat Dock di Mode AR */}
+      {/* Bottom Slot: Mic & Chat Dock in AR mode */}
       <Show when={props.bottomSlot}>
         <div class="w-full pointer-events-auto pb-4">
           {props.bottomSlot}

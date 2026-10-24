@@ -26,7 +26,7 @@ fn vs_overlay(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
     return out;
 }
 
-// Vector SDF Helper: Jarak ke Garis
+// Vector SDF Helper: Distance to Line
 fn sdf_line(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
     let pa = p - a;
     let ba = b - a;
@@ -34,7 +34,7 @@ fn sdf_line(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
     return length(pa - ba * h);
 }
 
-// Vector SDF Helper: Jarak ke Rounded Box
+// Vector SDF Helper: Distance to Rounded Box
 fn sdf_rounded_box(p: vec2<f32>, b: vec2<f32>, r: f32) -> f32 {
     let q = abs(p) - b + vec2<f32>(r, r);
     return min(max(q.x, q.y), 0.0) + length(max(q, vec2<f32>(0.0, 0.0))) - r;

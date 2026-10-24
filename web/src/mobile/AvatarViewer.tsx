@@ -126,14 +126,14 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
   };
 
   onMount(() => {
-    // 1. Inisialisasi canvas 3D langsung tanpa menunggu network fetch selesai
+    // 1. Initialize 3D canvas immediately without blocking on network fetch
     setTimeout(() => {
       startVrmScene();
       sceneManager.setRenderQuality(renderQuality());
       sceneManager.setFpsLimit(fpsLimit());
     }, 50);
 
-    // 2. Cek kapabilitas WebXR AR di browser
+    // 2. Check browser WebXR AR capability
     WebXRArManager.isSupported().then((supported) => {
       setIsArSupported(supported);
     });
@@ -146,7 +146,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       props.onArStateChange?.(arState.isActive);
     });
 
-    // 4. Fetch poses.json secara paralel di background
+    // 4. Fetch poses.json in background
     fetch(`${API_BASE}/api/poses`)
       .then((res) => (res.ok ? res.json() : null))
       .then((p) => {
@@ -154,7 +154,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       })
       .catch(() => {});
 
-    // 5. Periksa avatar type dari config secara paralel
+    // 5. Check avatar type from config in parallel
     fetch(`${API_BASE}/api/config`)
       .then((res) => (res.ok ? res.json() : null))
       .then((cfg) => {
@@ -165,7 +165,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       })
       .catch(() => {});
 
-    // Sinkronisasi status fullscreen dari browser event
+    // Synchronize fullscreen state from browser events
     const onFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
@@ -185,7 +185,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       ref={rootContainerRef}
       class="relative w-full h-full flex items-center justify-center overflow-hidden select-none touch-none"
     >
-      {/* WebXR AR Overlay UI khusus (DOM Overlay terpisah dari Canvas WebGL agar tidak freeze compositor) */}
+      {/* WebXR AR Overlay UI (DOM Overlay separated from WebGL Canvas to prevent compositor freeze) */}
       <div
         ref={arOverlayRef}
         class="absolute inset-0 pointer-events-none z-40"
@@ -207,7 +207,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
         </Show>
       </div>
 
-      {/* Vertical Camera Control Toolbar (hanya saat mode 3D standar) */}
+      {/* Vertical Camera Control Toolbar (standard 3D mode only) */}
       <Show when={avatarType() === 'vrm' && isVrmLoaded() && !isArActive()}>
         <AvatarCameraControls
           isFullscreen={isFullscreen()}
@@ -239,7 +239,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
         }}
       />
 
-      {/* Cinematic Portrait Depth Blur: Hanya aktif di mode non-AR agar tidak menimpa feed kamera AR */}
+      {/* Cinematic Portrait Depth Blur: active only in non-AR mode to prevent occluding AR camera feed */}
       <Show when={avatarType() === 'vrm' && !vrmLoadError() && !isArActive()}>
         <div
           class="absolute inset-0 z-15 pointer-events-none transition-opacity duration-500"

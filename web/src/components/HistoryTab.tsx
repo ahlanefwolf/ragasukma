@@ -46,7 +46,7 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
     try {
       const pList = await agentService.getProjects();
       if (pList.length === 0) {
-        props.showToast('Belum ada project workspace. Buat project terlebih dahulu di menu Agent Workspace.');
+        props.showToast('No workspace projects found. Create a project first in the Agent Workspace tab.');
         return;
       }
       setAvailableProjects(pList);
@@ -55,10 +55,10 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
 
       const firstLine = messagePreview.split('\n')[0].trim();
       const title = firstLine.length > 50 ? firstLine.slice(0, 50) + '...' : firstLine;
-      setBridgeTitle(title || 'Task dari Main Chat');
+      setBridgeTitle(title || 'Task from Main Chat');
       setShowProjectModal(true);
     } catch {
-      props.showToast('Gagal memuat daftar project');
+      props.showToast('Failed to load project list');
     }
   };
 
@@ -76,15 +76,15 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
       });
 
       if (res.ok && res.session) {
-        props.showToast(`Task "${res.session.title}" berhasil dibuat di Workspace! Mengalihkan...`);
+        props.showToast(`Task "${res.session.title}" created successfully in Workspace! Redirecting...`);
         setShowProjectModal(false);
         // Switch to Agent Workspace tab
         window.location.hash = '#agent';
       } else {
-        props.showToast(res.error || 'Gagal membuat sesi task');
+        props.showToast(res.error || 'Failed to create task session');
       }
     } catch (e: any) {
-      props.showToast(e.message || 'Gagal membuat task');
+      props.showToast(e.message || 'Failed to create task');
     } finally {
       setCreatingTask(false);
     }
@@ -397,10 +397,10 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
                               <button
                                 onClick={() => handleSendToProject(turn.id!, turn.message)}
                                 class="text-xs font-mono text-theme-cyan/80 hover:text-theme-cyan hover:bg-theme-cyan/10 px-2 py-1 rounded transition-colors flex items-center gap-1.5"
-                                title="Jadikan percakapan ini sebagai sesi task di Project Workspace"
+                                title="Send this conversation as a task session to Project Workspace"
                               >
                                 <FolderGit2 size={12} />
-                                <span>Jadikan Task di Project</span>
+                                <span>Send Task to Project</span>
                               </button>
                             </div>
                           </Show>
@@ -445,14 +445,14 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
         </div>
       </div>
 
-      {/* ── Modal: Kirim ke Project Workspace ───────────────────────────── */}
+      {/* ── Modal: Send to Project Workspace ───────────────────────────── */}
       <Show when={showProjectModal()}>
         <div class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div class="bg-theme-surface border border-theme-border max-w-md w-full p-5 space-y-4 shadow-2xl">
             <div class="flex items-center justify-between border-b border-theme-border pb-3">
               <div class="flex items-center gap-2">
                 <FolderGit2 class="w-4 h-4 text-theme-cyan" />
-                <h3 class="text-sm font-bold text-theme-text font-heading">Jadikan Task di Project Workspace</h3>
+                <h3 class="text-sm font-bold text-theme-text font-heading">Send Task to Project Workspace</h3>
               </div>
               <button
                 onClick={() => setShowProjectModal(false)}
@@ -464,7 +464,7 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
 
             <div class="space-y-3 text-xs">
               <div>
-                <label class="block text-theme-text/70 mb-1 font-mono">Pilih Project Workspace Tujuan:</label>
+                <label class="block text-theme-text/70 mb-1 font-mono">Target Workspace Project:</label>
                 <select
                   value={selectedBridgeProjectId()}
                   onChange={(e) => setSelectedBridgeProjectId(e.currentTarget.value)}
@@ -479,7 +479,7 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
               </div>
 
               <div>
-                <label class="block text-theme-text/70 mb-1 font-mono">Judul Task / Sasaran Kerja:</label>
+                <label class="block text-theme-text/70 mb-1 font-mono">Task Title / Objective:</label>
                 <input
                   type="text"
                   value={bridgeTitle()}
@@ -489,7 +489,7 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
               </div>
 
               <div class="p-2.5 bg-theme-card/60 border border-theme-border text-xs text-theme-text/60 leading-relaxed">
-                Task baru akan dibuat di dalam project terpilih dengan menyertakan seluruh konteks percakapan ini ke sesi agent secara terisolasi.
+                A new task session will be created in the selected project, transferring this conversation context into an isolated agent session.
               </div>
             </div>
 
@@ -498,17 +498,17 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
                 onClick={() => setShowProjectModal(false)}
                 class="px-3.5 py-1.5 text-xs text-theme-text/60 hover:text-theme-text"
               >
-                Batal
+                Cancel
               </button>
               <button
                 onClick={handleConfirmCreateTask}
                 disabled={creatingTask() || !selectedBridgeProjectId()}
-                class="px-4 py-1.5 text-xs bg-theme-cyan hover:bg-theme-cyan/90 disabled:opacity-50 text-theme-card font-bold font-mono flex items-center gap-1.5"
+                class="px-4 py-1.5 text-xs font-semibold bg-theme-cyan text-theme-bg hover:bg-theme-cyan/90 transition-all flex items-center gap-1.5 disabled:opacity-40"
               >
-                <Show when={creatingTask()} fallback={<FolderGit2 size={13} />}>
-                  <Loader2 size={13} class="animate-spin" />
+                <Show when={creatingTask()} fallback={<FolderGit2 size={12} />}>
+                  <Loader2 size={12} class="animate-spin" />
                 </Show>
-                Buat Sesi Task
+                <span>Create Task Session</span>
               </button>
             </div>
           </div>

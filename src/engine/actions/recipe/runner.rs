@@ -151,7 +151,7 @@ pub fn resolve_best_click_target(
     }
 }
 
-/// Search selector elemen terbaik from snapshot active if selector utama not found or berubah (khusus input/elemen spesifik)
+/// Search for best element selector from active snapshot if primary selector is missing or changed (specifically for inputs/elements)
 pub fn resolve_best_element_selector(
     elements: &[DomElementInfo],
     selector_primary: &str,
@@ -607,7 +607,7 @@ pub fn execute_recipe(payload: &str) -> Option<(String, String)> {
 
         let initial_ts = get_latest_snapshot().map(|s| s.timestamp).unwrap_or(0);
 
-        // Step 0: Open Tab New (Isolated Clean State) sesuai aturan mandatory
+        // Step 0: Open New Tab (Isolated Clean State) per mandatory rules
         if recipe.initial_action.action == "open_new_tab" {
             let initial_url = &recipe.initial_action.url;
             crate::term_log!("[Recipe Runner] Opening new tab to: {}", initial_url);

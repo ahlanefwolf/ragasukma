@@ -32,7 +32,7 @@ export class VrmSceneManager {
   private expressionAnimator = new VrmExpressionAnimator();
   private arManager = new WebXRArManager();
   private currentQuality: RenderQuality = 'hd';
-  private currentFpsLimit: FpsLimit = 60; // Default 60 FPS (adem & stabil untuk baterai smartphone)
+  private currentFpsLimit: FpsLimit = 60; // Default 60 FPS (cool & stable for mobile battery)
   private lastRenderTimestamp = 0;
 
   constructor() {
@@ -93,7 +93,7 @@ export class VrmSceneManager {
     this.renderer.setPixelRatio(this.getPixelRatioForQuality(this.currentQuality));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    // Linear tone mapping bawaan standar VRM agar saturasi dan rona warna kulit/baju tetap bersih, konsisten & tidak berbayang kotor
+    // VRM standard linear tone mapping to ensure clean, consistent skin and clothing saturation without muddy shadows
     this.renderer.toneMapping = THREE.LinearToneMapping;
     this.renderer.toneMappingExposure = 1.0;
 
@@ -137,10 +137,10 @@ export class VrmSceneManager {
       TWO: THREE.TOUCH.DOLLY_PAN,
     };
 
-    // Lighting Setup Standar MToon / VRM (1:1 Identik dengan shader.wgsl di Native UI):
-    // Key light miring [0.35, 0.45, 0.7] dipasang sebagai anak kamera dengan intensitas Math.PI
-    // agar hasil directDiffuse (irradiance * BRDF_Lambert / PI) tepat 1.0 (unit intensity).
-    // Tanpa ambient light agar bayangan anime cel-shading murni mengikuti shade_color dari model dan 100% konsisten dengan desktop UI.
+    // Standard MToon / VRM lighting setup (identical to shader.wgsl in native UI):
+    // Key light at [0.35, 0.45, 0.7] attached as camera child with Math.PI intensity
+    // so directDiffuse (irradiance * BRDF_Lambert / PI) equals 1.0 (unit intensity).
+    // No ambient light so anime cel-shading cleanly follows the model's shade_color, fully consistent with desktop UI.
     const light = new THREE.DirectionalLight(0xffffff, Math.PI);
     light.position.set(0.35, 0.45, 0.7);
     light.target.position.set(0, 0, 0);
@@ -169,7 +169,7 @@ export class VrmSceneManager {
           VRMUtils.removeUnnecessaryJoints(gltf.scene);
         } catch (_) {}
 
-        // VRM Spring Bone (Fisika dinamis rambut, rok, dan aksesoris)
+        // VRM Spring Bone (dynamic physics for hair, skirt, and accessories)
         if (vrm.springBoneManager) {
           try {
             vrm.springBoneManager.reset();
@@ -179,9 +179,9 @@ export class VrmSceneManager {
         // VRM 0.X compatibility: Rotate VRM0 models 180 degrees so they face the camera (+Z)
         VRMUtils.rotateVRM0(vrm);
 
-        // Setup Material MToon (1:1 Identik dengan pipeline WGPU di Native UI):
-        // Mempertahankan parameter material asli (shade texture, shade color, toony factor),
-        // mematikan total outline (inverted hull), dan mengaktifkan Rim Lighting lembut persis seperti shader.wgsl.
+        // MToon Material Setup (identical to WGPU pipeline in Native UI):
+        // Preserves original material parameters (shade texture, shade color, toony factor),
+        // completely disables outlines (inverted hull), and activates soft rim lighting matching shader.wgsl.
         const maxAnisotropy = this.renderer ? this.renderer.capabilities.getMaxAnisotropy() : 1;
 
         vrm.scene.traverse((obj) => {
@@ -191,7 +191,7 @@ export class VrmSceneManager {
             mesh.castShadow = false;
             mesh.receiveShadow = false;
 
-            // 1. Matikan dan hilangkan outline sepenuhnya (1:1 dengan shader.wgsl di Desktop / Native UI)
+            // 1. Disable and remove outlines completely (matching desktop / native UI shader.wgsl)
             if (Array.isArray(mesh.material)) {
               const nonOutlineMaterials = mesh.material.filter(
                 (m) => !(m as any).isOutline && !m.name?.includes('(Outline)')
@@ -210,8 +210,8 @@ export class VrmSceneManager {
                 }
               }
 
-              // Jika hanya ada 1 material permukaan asli dan 1 material outline yang dibuat three-vrm,
-              // kembalikan mesh.material ke single surface material dan bersihkan geometry groups
+              // If there is only 1 original surface material and 1 outline material created by three-vrm,
+              // revert mesh.material to the single surface material and clear geometry groups
               if (nonOutlineMaterials.length === 1 && mesh.material.length > 1) {
                 mesh.material = nonOutlineMaterials[0];
                 if (mesh.geometry.groups.length > 0) {
@@ -230,7 +230,7 @@ export class VrmSceneManager {
             for (const mat of materials) {
               if (!mat) continue;
 
-              // Pastikan properti outline pada material utama juga dinonaktifkan
+              // Ensure outline property on main material is also disabled
               if ((mat as any).isOutline || mat.name?.includes('(Outline)')) {
                 mat.visible = false;
               }
@@ -241,22 +241,22 @@ export class VrmSceneManager {
                 (mat as any).outlineWidthFactor = 0.0;
               }
 
-              // Hanya untuk material yang transparan / blend:
-              // Pastikan depthWrite = false agar tidak melubangi geometri di belakangnya.
+              // For transparent / blending materials only:
+              // Ensure depthWrite = false to avoid punching holes in background geometry.
               if (mat.transparent) {
                 mat.depthWrite = false;
                 mat.depthTest = true;
                 if (mat.alphaTest === 0) {
                   mat.alphaTest = 0.001;
                 }
-                // Jika material blend memiliki opacity 0 (helper quad seperti eye_touming),
-                // sembunyikan agar tidak membuang draw call dan tidak menutupi bola mata
+                // If blend material has 0 opacity (e.g. eye_touming helper quads),
+                // hide it to save draw calls and prevent occluding eyeballs
                 if (mat.opacity <= 0.001) {
                   mat.visible = false;
                 }
               }
 
-              // 2. Anisotropy filtering untuk ketajaman tekstur saat zoom
+              // 2. Anisotropic filtering for crisp textures on close-up zoom
               if ('map' in mat && (mat as any).map) {
                 const tex = (mat as any).map as THREE.Texture;
                 tex.anisotropy = Math.min(maxAnisotropy, 4);
@@ -282,20 +282,20 @@ export class VrmSceneManager {
     );
 
     this.renderer.setAnimationLoop((timestamp, frame) => {
-      // Pause total render loop jika tab browser di HP sedang diminimize/backgrounded
+      // Pause render loop if mobile browser tab is minimized or backgrounded
       if (typeof document !== 'undefined' && document.hidden) {
         return;
       }
 
       const isXr = this.renderer?.xr.isPresenting;
 
-      // Ambil delta waktu SEBELUM throttling agar accumulator internal Clock Three.js tetap akurat
+      // Sample delta time BEFORE throttling so Three.js Clock internal accumulator stays accurate
       const rawDelta = this.clock?.getDelta() || 0.016;
 
       // FPS Throttler:
-      // Hanya aktifkan throttling frame di mode 3D standar.
-      // Di mode WebXR AR, frame loop WAJIB mengikuti display XR native refresh rate tanpa dropped frame
-      // agar kamera AR dan pose model tidak flickering/berkedip.
+      // Only throttle frames in standard 3D mode.
+      // In WebXR AR mode, the frame loop MUST follow native XR display refresh rate without dropped frames
+      // to prevent camera and avatar pose flickering.
       if (!isXr && this.currentFpsLimit > 0) {
         const minFrameInterval = 1000 / this.currentFpsLimit;
         if (timestamp - this.lastRenderTimestamp < minFrameInterval - 1.5) {
@@ -304,7 +304,7 @@ export class VrmSceneManager {
       }
       this.lastRenderTimestamp = timestamp;
 
-      // Safety clamp terhadap lonjakan lag/tab backgrounding
+      // Safety clamp against backgrounding lag spikes
       const delta = Math.min(rawDelta, 0.1);
 
       if (isXr) {
@@ -373,7 +373,7 @@ export class VrmSceneManager {
       this.renderer.setPixelRatio(this.getPixelRatioForQuality(quality));
     }
 
-    // Sesuaikan ketajaman bayangan dan filtering tekstur sesuai profil kualitas
+    // Adjust shadow sharpness and texture filtering according to quality profile
     if (this.currentVrm) {
       const maxAnisotropy = this.renderer.capabilities.getMaxAnisotropy();
       const targetAnisotropy = quality === 'sd' ? 1 : quality === 'hd' ? Math.min(maxAnisotropy, 4) : Math.min(maxAnisotropy, 8);
@@ -398,12 +398,12 @@ export class VrmSceneManager {
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     switch (quality) {
       case 'sd':
-        // SD: 1.0x (mode hemat daya / low-end)
+        // SD: 1.0x (power-saving / low-end mode)
         return Math.min(dpr, 1.0);
       case 'ultra':
       case 'hd':
       default:
-        // Real Native Screen Pixel Ratio (1:1 ketajaman asli layar tanpa dipotong/dikurangi)
+        // Native screen pixel ratio (1:1 native screen sharpness)
         return dpr;
     }
   }
@@ -432,7 +432,7 @@ export class VrmSceneManager {
       this.renderer.xr.setFramebufferScaleFactor(arScaleFactor);
     } catch (_) {}
 
-    // Matikan Shadow Map saat masuk AR agar kamera AR 60 FPS mulus tanpa drop frame
+    // Disable shadow maps during AR to maintain smooth 60 FPS without frame drops
     if (this.renderer) {
       this.renderer.shadowMap.enabled = false;
     }

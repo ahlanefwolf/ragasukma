@@ -107,7 +107,7 @@ impl LlmClient {
             content: input_text.to_string(),
         });
 
-        // Selalu reload akun dari disk agar sinkron real-time jika ada akun yang baru ditambah / dihapus
+        // Always reload accounts from disk for real-time synchronization if an account was newly added / removed
         let _ = self.antigravity.load_accounts();
         let _ = self.codex.load_accounts();
 
@@ -403,7 +403,7 @@ impl LlmClient {
                 if crate::app_state::is_interruption_requested() {
                     bail!("Interrupted by user");
                 }
-                // Hanya fallback ke Ollama jika memang endpoint-nya mengarah ke Ollama /api/chat
+                // Only fallback to Ollama if the endpoint specifically points to Ollama /api/chat
                 if !self.base_url.contains("/api/chat") && !self.base_url.contains(":11434") {
                     return Err(anyhow::anyhow!("Failed streaming request to {custom_endpoint}: {e}"));
                 }

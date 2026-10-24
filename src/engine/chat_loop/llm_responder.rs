@@ -25,7 +25,7 @@ pub fn process_llm_response_with_role(
     // Pre-warm isolated TTS worker asynchronously while LLM processes first token
     crate::audio::supertonic::prewarm_tts_worker();
 
-    // Inisialisasi streaming voice session untuk sintesis & playback paralel per kalimat
+    // Initialize streaming voice session for parallel sentence synthesis & playback
     let mut voice_session = tts.start_streaming_session(asst_name);
 
     let result = llm.chat_stream_with_role(role, effective_input, |sentence, emotion| {
@@ -42,7 +42,7 @@ pub fn process_llm_response_with_role(
             return Err(anyhow::anyhow!("Interrupted by user"));
         }
 
-        // Push potongan kalimat langsung ke background TTS worker
+        // Push sentence segments directly to background TTS worker
         voice_session.push_sentence(&clean_sentence, emotion);
 
         // Update emotion avatar real-time to renderer 3D
@@ -72,7 +72,7 @@ pub fn process_llm_response_with_role(
 
     match &result {
         Ok(txt) => {
-            // Selesaikan session streaming voice (sinkronisasi kalimat terakhir)
+            // Complete the voice streaming session (synchronize final sentence)
             voice_session.finish();
 
             let clean = txt.trim();
@@ -91,13 +91,13 @@ pub fn process_llm_response_with_role(
             }
         }
         Err(e) => {
-            // Hentikan antrean audio jika LLM terputus atau gagal
+            // Abort audio queue if LLM connection drops or fails
             voice_session.abort();
 
             let err_str = e.to_string();
             crate::term_err!("[LLM Error]: {err_str}");
 
-            // Abaikan jika error disebabkan oleh interupsi pengguna
+            // Ignore if error was caused by user interruption
             if !err_str.contains("Interrupted by user") {
                 let err_voice_msg = "Sorry, I encountered an error connecting to the language model. Please check the endpoint or authentication.";
                 let _ = tts_clone.speak_with_emotion_and_lang(

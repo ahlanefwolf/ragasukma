@@ -90,7 +90,7 @@ pub fn init_engine() -> Result<OpenVoiceEngine> {
     })
 }
 
-/// Cari file audio referensi standar di folder assets (`assets/refvoice.*` / candidates)
+/// Find standard reference voice audio in the assets folder (`assets/refvoice.*` / candidates)
 pub fn find_ref_voice_path() -> Option<PathBuf> {
     let supported_exts = ["wav", "mp3", "ogg", "flac", "m4a", "aac"];
     for ext in &supported_exts {
@@ -103,8 +103,8 @@ pub fn find_ref_voice_path() -> Option<PathBuf> {
     None
 }
 
-/// Reset in-memory cache dan hapus disk cache (.se.bin) jika user mengupload audio referensi baru.
-/// Tidak memanggil get_engine() agar tidak memicu inisialisasi ONNX di main process.
+/// Reset in-memory cache and delete disk cache (.se.bin) when user uploads a new reference audio.
+/// Avoids calling get_engine() so ONNX runtime initialization is not triggered in main process.
 pub fn invalidate_ref_cache() {
     if let Some(Some(engine)) = OPENVOICE_ENGINE.get() {
         if let Ok(mut lock) = engine.ref_se_cache.lock() {
@@ -123,7 +123,7 @@ fn load_se_from_disk(cache_path: &Path, audio_mtime: Option<std::time::SystemTim
     let cache_meta = std::fs::metadata(cache_path).ok()?;
     if let (Some(audio_mt), Ok(cache_mt)) = (audio_mtime, cache_meta.modified()) {
         if cache_mt < audio_mt {
-            return None; // audio referensi lebih baru daripada cache
+            return None; // reference audio is newer than cache
         }
     }
     let bytes = std::fs::read(cache_path).ok()?;
@@ -300,12 +300,12 @@ pub fn compute_linear_spectrogram(
     (spec_data, n_frames)
 }
 
-/// Batasi durasi audio referensi maksimal hanya 8.0 detik pertama (5-10 detik).
-/// OpenVoice V2 hanya butuh 3-5 detik audio bersih untuk mengekstrak embedding [1, 256, 1].
+/// Limits reference audio duration to the first 8.0 seconds.
+/// OpenVoice V2 requires only 3-5 seconds of clean audio to extract speaker embedding [1, 256, 1].
 pub const MAX_REF_AUDIO_DURATION_SECS: f32 = 8.0;
 
 /// Decode any supported audio file on disk to 22.05kHz mono f32 samples,
-/// dipotong maksimal hanya 5–10 detik pertama untuk menghemat RAM dan waktu STFT.
+/// capped to the first 5-10 seconds to conserve memory and STFT computation time.
 pub fn load_audio_file_22k(file_path: &Path) -> Result<Vec<f32>> {
     let file = std::fs::File::open(file_path)?;
     let cursor = std::io::BufReader::new(file);
@@ -315,7 +315,7 @@ pub fn load_audio_file_22k(file_path: &Path) -> Result<Vec<f32>> {
     let channels = source.channels() as usize;
     let sample_rate = source.sample_rate();
 
-    // Batasi pembacaan samples maksimal hanya 5–10 detik pertama dari decoder untuk mencegah RAM bloat
+    // Bound sample reading from decoder to prevent memory bloat
     let max_raw_samples = (sample_rate as f32 * channels as f32 * MAX_REF_AUDIO_DURATION_SECS).ceil() as usize;
     let samples_raw: Vec<f32> = source.convert_samples::<f32>().take(max_raw_samples).collect();
 
@@ -326,7 +326,7 @@ pub fn load_audio_file_22k(file_path: &Path) -> Result<Vec<f32>> {
         mono.push(sum / channels as f32);
     }
 
-    // Lewati hening/silence di awal audio (threshold amplitude 0.01) agar encoder menangkap vokal murni
+    // Skip leading silence (threshold amplitude 0.01) so encoder captures pure vocal timbre
     let speech_start = mono.iter().position(|&s| s.abs() > 0.01).unwrap_or(0);
     let active_mono = if speech_start < mono.len() {
         &mono[speech_start..]
@@ -337,7 +337,7 @@ pub fn load_audio_file_22k(file_path: &Path) -> Result<Vec<f32>> {
     // Resample to 22050 Hz
     let mut resampled = resample_linear(active_mono, sample_rate, 22050);
 
-    // Hard limit hasil resample maksimal 22050 * MAX_REF_AUDIO_DURATION_SECS
+    // Hard limit resampled samples to 22050 * MAX_REF_AUDIO_DURATION_SECS
     let max_22k_samples = (22050.0 * MAX_REF_AUDIO_DURATION_SECS).round() as usize;
     if resampled.len() > max_22k_samples {
         resampled.truncate(max_22k_samples);
@@ -347,7 +347,7 @@ pub fn load_audio_file_22k(file_path: &Path) -> Result<Vec<f32>> {
 }
 
 impl OpenVoiceEngine {
-    /// Load `openvoice_ref_encoder.onnx` on demand jika .se.bin belum ada dan perlu dihitung
+    /// Load `openvoice_ref_encoder.onnx` on demand if .se.bin does not exist yet and needs computation
     fn get_or_load_ref_encoder(&self) -> Result<std::sync::MutexGuard<'_, Option<Session>>> {
         let mut guard = self.ref_enc_sess.lock().map_err(|e| anyhow!("{e}"))?;
         if guard.is_none() {
@@ -374,7 +374,7 @@ impl OpenVoiceEngine {
         Ok(guard)
     }
 
-    /// Segera lepaskan `openvoice_ref_encoder.onnx` dari RAM setelah ekstraksi embedding selesai
+    /// Immediately unloads `openvoice_ref_encoder.onnx` from RAM once embedding extraction is completed
     pub fn unload_ref_encoder(&self) {
         if let Ok(mut guard) = self.ref_enc_sess.lock() {
             if guard.is_some() {
@@ -421,9 +421,9 @@ impl OpenVoiceEngine {
         Ok(out_slice.to_vec())
     }
 
-    /// Ambil target SE dari file referensi disk (dengan in-memory cache & persistent disk cache).
-    /// Jika disk cache .se.bin (1 KB) sudah ada, file bin langsung dibaca tanpa perlu decode audio
-    /// maupun load openvoice_ref_encoder.onnx.
+    /// Retrieve target SE from reference file on disk (with in-memory & persistent disk cache).
+    /// If disk cache .se.bin (1 KB) exists, the binary file is read directly without decoding audio
+    /// or loading openvoice_ref_encoder.onnx.
     pub fn get_target_se(&self, ref_path: &Path) -> Result<Vec<f32>> {
         let path_str = ref_path.to_string_lossy().to_string();
         if let Ok(lock) = self.ref_se_cache.lock() {
@@ -438,7 +438,7 @@ impl OpenVoiceEngine {
         let cache_file = ref_path.with_extension("se.bin");
         let fallback_cache = crate::config::get_app_cache_dir().join("refvoice.se.bin");
 
-        // 1. Coba load dari disk cache (.se.bin) agar instant tanpa inference ulang & tanpa load ref encoder
+        // 1. Try loading from disk cache (.se.bin) for instant retrieval without inference or encoder load
         if let Some(se) = load_se_from_disk(&fallback_cache, audio_mtime)
             .or_else(|| load_se_from_disk(&cache_file, audio_mtime))
         {
@@ -449,19 +449,19 @@ impl OpenVoiceEngine {
             return Ok(se);
         }
 
-        // 2. Jika disk cache belum ada, potong audio maksimal 5-10 detik pertama, hitung .se.bin sekali simpan
+        // 2. If disk cache does not exist, extract speaker embedding and save to .se.bin
         crate::term_log!("[OpenVoice Engine] Extracting speaker embedding from {:?} (capped to first {}s)", ref_path, MAX_REF_AUDIO_DURATION_SECS);
         let samples = load_audio_file_22k(ref_path)?;
         let se = self.extract_se_from_samples(&samples)?;
 
-        // Simpan ke app cache directory (~/.cache/ragasukma/refvoice.se.bin)
+        // Save to app cache directory (~/.cache/ragasukma/refvoice.se.bin)
         save_se_to_disk(&fallback_cache, &se);
         if PathBuf::from("Cargo.toml").exists() {
             save_se_to_disk(&cache_file, &se);
         }
         crate::term_log!("[OpenVoice Engine] Saved speaker embedding (.se.bin) to cache: {:?}", fallback_cache);
 
-        // Segera unload openvoice_ref_encoder.onnx dari RAM
+        // Immediately unload openvoice_ref_encoder.onnx from RAM
         self.unload_ref_encoder();
 
         if let Ok(mut lock) = self.ref_se_cache.lock() {
@@ -470,8 +470,8 @@ impl OpenVoiceEngine {
         Ok(se)
     }
 
-    /// Ambil base speaker embedding (Supertonic source voice).
-    /// Disimpan di cache memori dan disk (1 KB) agar tone conversion tidak membebani ekstraksi ulang.
+    /// Retrieve base speaker embedding (Supertonic source voice).
+    /// Cached in memory and disk (1 KB) so tone conversion avoids repeated extraction.
     fn get_or_extract_base_se(&self, src_22k: &[f32]) -> Result<Vec<f32>> {
         if let Ok(lock) = self.base_se_cache.lock() {
             if let Some(ref se) = *lock {
@@ -491,8 +491,8 @@ impl OpenVoiceEngine {
             return Ok(se);
         }
 
-        // OpenVoice ref encoder butuh minimal 2.5-3 detik audio untuk ekstraksi timbre yang stabil dan akurat.
-        // Jika chunk kata pertama terlalu pendek (misal "Halo" < 1s), repeat hingga ~3 detik agar profil suara jernih.
+        // OpenVoice ref encoder requires at least 2.5-3 seconds of audio for stable timbre extraction.
+        // If the initial word chunk is too short (e.g. "Hello" < 1s), repeat up to ~3 seconds for a clean voice profile.
         let min_samples = 22050 * 3;
         let mut padded = Vec::new();
         let samples_to_encode = if src_22k.len() < min_samples && !src_22k.is_empty() {
@@ -514,7 +514,7 @@ impl OpenVoiceEngine {
         Ok(se)
     }
 
-    /// Mengonversi timbre audio WAV (44.1k/24k) ke target voice reference dengan embedding target yang sudah diekstrak
+    /// Converts audio timbre to target voice reference using pre-extracted target embedding
     pub fn convert_voice_with_target_se(
         &self,
         src_samples: &[f32],
@@ -522,13 +522,13 @@ impl OpenVoiceEngine {
         sid_tgt: &[f32],
         tau: f32,
     ) -> Result<Vec<f32>> {
-        // 1. Resample source audio ke 22.05kHz
+        // 1. Resample source audio to 22.05kHz
         let src_22k = resample_linear(src_samples, src_sample_rate, 22050);
 
-        // 2. Base speaker embedding (cached di RAM & disk 1 KB, tanpa extract berulang pada setiap chunk)
+        // 2. Base speaker embedding (cached in RAM & 1 KB disk, avoids repeated per-chunk extraction)
         let sid_src = self.get_or_extract_base_se(&src_22k)?;
 
-        // 3. Compute Linear Spectrogram untuk Tone Converter
+        // 3. Compute Linear Spectrogram for Tone Converter
         let (spec, n_frames) = compute_linear_spectrogram(&src_22k, 1024, 256, 1024);
 
         let spec_tensor = Tensor::from_array(([1usize, 513usize, n_frames], spec))
@@ -558,7 +558,7 @@ impl OpenVoiceEngine {
         Ok(out_slice.to_vec())
     }
 
-    /// Mengonversi timbre audio WAV (44.1k/24k) ke target voice reference
+    /// Converts audio timbre to target voice reference
     #[allow(dead_code)]
     pub fn convert_voice(
         &self,

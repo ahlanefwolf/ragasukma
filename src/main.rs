@@ -39,8 +39,8 @@ fn main() -> Result<()> {
     #[cfg(target_os = "windows")]
     unsafe {
         use windows::Win32::System::Console::FreeConsole;
-        // Jika aplikasi dijalankan tanpa argument console/debug (misal via GUI/portable double-click),
-        // paksa lepaskan console handle agar Windows 11 / Windows Terminal tidak memunculkan window CMD.
+        // If launched without console/debug arguments (e.g. via GUI/portable double-click),
+        // release the console handle so Windows Terminal does not pop up a CMD window.
         if !std::env::args().any(|a| a == "--console" || a == "--debug") {
             let _ = FreeConsole();
         } else {

@@ -6,7 +6,7 @@ static REMOTE_TEXT_QUEUE: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
 /// Push incoming text (from Web STT or Mobile remote) to the unified global queue
 pub fn inject_remote_text(text: String) -> bool {
     let cfg = crate::assets::load_config();
-    // Jika voice_interruption aktif (true), potong suara asisten seketika saat user berbicara
+    // If voice_interruption is enabled (true), immediately interrupt assistant speech when user speaks
     if cfg.voice_interruption {
         crate::app_state::trigger_interruption();
         crate::audio::player::stop_native_voice();

@@ -1,5 +1,4 @@
 use anyhow::{bail, Result};
-use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Verify that a target path is allowed within one of the project's root folders.
@@ -293,8 +292,11 @@ pub fn create_workspace_command(command_str: &str) -> std::process::Command {
     #[cfg(target_os = "windows")]
     {
         let mut cmd = std::process::Command::new("powershell");
+        crate::engine::skills::configure_subprocess(&mut cmd);
         cmd.arg("-ExecutionPolicy")
             .arg("Bypass")
+            .arg("-WindowStyle")
+            .arg("Hidden")
             .arg("-Command")
             .arg(command_str);
 

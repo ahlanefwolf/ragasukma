@@ -135,7 +135,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let view_dir = normalize(camera.camera_pos - in.world_pos);
     let n = normalize(in.world_normal);
 
-    // Directional Key Light: Posisi miring dari kanan atas kamera agar kontur 3D dan cel-shading nyata terlihat
+    // Directional Key Light: Angled from upper right of camera for pronounced 3D contour and cel-shading
     var cam_right = vec3<f32>(view_dir.z, 0.0, -view_dir.x);
     let len_cr = length(cam_right);
     if (len_cr > 0.0001) {
@@ -148,13 +148,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let dotNL = clamp(dot(n, light_dir), -1.0, 1.0);
 
-    // MToon Toony Step (dengan transisi halus agar cel-shading anime cantik & tidak tajam bergerigi)
+    // MToon Toony Step (smooth transition for soft anime cel-shading without harsh aliasing)
     let toony_min = -1.0 + material.shading_toony;
     let toony_max = 1.0 - material.shading_toony;
     let raw_shading = dotNL + material.shading_shift;
     let shading = smoothstep(toony_min, max(toony_max, toony_min + 0.1), raw_shading);
 
-    // Shade Color: Sample shade texture dan kalikan dengan shade_color_factor
+    // Shade Color: Sample shade texture and multiply with shade_color_factor
     var shade_color: vec3<f32>;
     if (material.has_shade_tex == 1u) {
         let shade_sample = textureSample(t_shade, s_diffuse, in.uv).rgb;

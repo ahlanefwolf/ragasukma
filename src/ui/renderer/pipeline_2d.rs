@@ -153,7 +153,7 @@ pub fn load_loading_icon_texture(
     layout: &wgpu::BindGroupLayout,
     sampler: &wgpu::Sampler,
 ) -> Option<(wgpu::TextureView, wgpu::BindGroup, [f32; 2])> {
-    // 1. Coba baca from file candidates in disk
+    // 1. Try reading from file candidates on disk
     let candidates = [
         crate::assets::find_file_in_candidates("icon.png"),
         std::path::PathBuf::from("icons/icon.png"),

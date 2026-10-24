@@ -816,7 +816,7 @@ export class VoiceSessionManager {
     const targetStt = getChromeSttCode(cfg?.lang || 'id');
     if (this.recognition && this.recognition.lang !== targetStt) {
       this.recognition.lang = targetStt;
-      console.log('[Chrome Web STT] Reaktif ganti bahasa STT ke:', targetStt);
+      console.log('[Chrome Web STT] Switched STT language to:', targetStt);
       try {
         this.recognition.stop();
       } catch {}

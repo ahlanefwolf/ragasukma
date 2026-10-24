@@ -348,7 +348,7 @@ pub(crate) async fn axum_ag_oauth_callback(Query(q): Query<AgOAuthQuery>) -> imp
         Ok(Ok(email)) => {
             crate::app_state::push_client_action("antigravity:oauth_success", Some(&email));
             let html = format!(
-                r#"<!DOCTYPE html><html><head><title>Login Success</title><meta charset="utf-8"><style>body {{ font-family: system-ui, sans-serif; background: #111; color: #eee; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }} .box {{ text-align: center; padding: 24px; }} button {{ margin-top: 16px; padding: 8px 16px; cursor: pointer; }}</style></head><body><div class="box"><p>Login success: <b>{}</b></p><button onclick="window.close()">Tutup</button></div><script>try {{ window.close(); }} catch (e) {{}} setTimeout(() => {{ try {{ window.close(); }} catch (e) {{}} }}, 300);</script></body></html>"#,
+                r#"<!DOCTYPE html><html><head><title>Login Success</title><meta charset="utf-8"><style>body {{ font-family: system-ui, sans-serif; background: #111; color: #eee; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }} .box {{ text-align: center; padding: 24px; }} button {{ margin-top: 16px; padding: 8px 16px; cursor: pointer; }}</style></head><body><div class="box"><p>Login success: <b>{}</b></p><button onclick="window.close()">Close</button></div><script>try {{ window.close(); }} catch (e) {{}} setTimeout(() => {{ try {{ window.close(); }} catch (e) {{}} }}, 300);</script></body></html>"#,
                 email
             );
             (StatusCode::OK, Html(html)).into_response()

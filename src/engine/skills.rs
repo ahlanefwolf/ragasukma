@@ -74,7 +74,7 @@ pub async fn sync_skills_from_db() -> Vec<SkillItem> {
 
     if rows.is_empty() {
         let default_skills = vec![
-            SkillItem::new("Btop", "Buka btop", "btop"),
+            SkillItem::new("Btop", "Launch btop", "btop"),
         ];
         let now = get_now_secs();
         for s in &default_skills {
@@ -186,8 +186,8 @@ pub fn execute_command_by_os(cmd: &str) -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
     {
         let trimmed = cmd.trim();
-        // If perintah is executable direct or file (for example calc.exe, notepad.exe, explorer.exe)
-        // and not mengandung shell pipe/redirect, run direct without cmd /C
+        // If command is a direct executable or file (e.g. calc.exe, notepad.exe, explorer.exe)
+        // and does not contain shell pipes or redirects, run directly without cmd /C
         if !trimmed.contains('|')
             && !trimmed.contains('&')
             && !trimmed.contains('>')

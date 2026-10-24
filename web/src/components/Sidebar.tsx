@@ -113,7 +113,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
               <button
                 onClick={toggleCollapsed}
                 class="hidden md:flex items-center justify-center w-7 h-7 rounded text-theme-text/50 hover:text-theme-cyan bg-theme-card/50 hover:bg-theme-card border border-theme-border/60 hover:border-theme-cyan/40 transition-all duration-200 group/btn shadow-sm"
-                title={collapsed() ? 'Buka Sidebar' : 'Tutup Sidebar'}
+                title={collapsed() ? 'Expand Sidebar' : 'Collapse Sidebar'}
                 aria-label={collapsed() ? 'Expand sidebar' : 'Collapse sidebar'}
               >
                 {collapsed() ? (

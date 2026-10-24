@@ -104,7 +104,7 @@ export class VrmExpressionAnimator {
       targetWeights['blink'] = Math.min(1.0, (targetWeights['blink'] || 0) + naturalBlinkWeight);
     }
 
-    // 3. Audio-Driven Lip Sync Vokal Vowel (A, I, U, E, O) when Speaking
+    // 3. Audio-Driven Lip Sync Vowels (A, I, U, E, O) when Speaking
     if (currentState === 'speaking') {
       // When speaking, damp emotions that open jaw/mouth (surprised & happy)
       // to avoid exaggerated double-mouth opening with vocal Lip Sync
@@ -117,7 +117,7 @@ export class VrmExpressionAnimator {
 
       const lip = globalAudioSync.getVoiceLipWeights();
       if (lip.mouthOpen > 0.015) {
-        // Suara aktif dari speaker HP: terapkan pembacaan formant vokal AIUEO
+        // Active audio from speaker: apply AIUEO vocal formant weights
         targetWeights['aa'] = lip.aa;
         targetWeights['ih'] = lip.ih;
         targetWeights['ou'] = lip.ou;

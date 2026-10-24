@@ -76,7 +76,7 @@ export const PersonaAiSection: Component<PersonaAiSectionProps> = (props) => {
   };
 
   createEffect(() => {
-    // Dipanggil otomatis begitu tab dibuka atau isActive menjadi true
+    // Automatically invoked when the tab opens or isActive becomes true
     if (props.isActive) {
       refreshDynamicModels();
     }

@@ -90,11 +90,16 @@ pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> 
         "#,
             selected_path_init
         );
-        let output = std::process::Command::new("powershell")
+        let mut cmd = std::process::Command::new("powershell");
+        crate::engine::skills::configure_subprocess(&mut cmd);
+        cmd.arg("-ExecutionPolicy")
+            .arg("Bypass")
+            .arg("-WindowStyle")
+            .arg("Hidden")
             .arg("-NoProfile")
             .arg("-Command")
-            .arg(ps_script)
-            .output()?;
+            .arg(ps_script);
+        let output = cmd.output()?;
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !stdout.is_empty() {
@@ -119,10 +124,10 @@ pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> 
         } else {
             r#"POSIX path of (choose folder with prompt "Select Workspace Folder")"#.to_string()
         };
-        let output = std::process::Command::new("osascript")
-            .arg("-e")
-            .arg(&script)
-            .output()?;
+        let mut cmd = std::process::Command::new("osascript");
+        crate::engine::skills::configure_subprocess(&mut cmd);
+        cmd.arg("-e").arg(&script);
+        let output = cmd.output()?;
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !stdout.is_empty() {

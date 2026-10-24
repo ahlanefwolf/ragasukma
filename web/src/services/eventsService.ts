@@ -3,7 +3,7 @@ import { API_BASE } from './base';
 // ---------------------------------------------------------------------------
 // 1. REALTIME WEBSOCKET STREAM (/api/ws)
 // Mengirim event 'state' (visual/status AI), 'action' (trigger skill/audio),
-// 'log' (live console logs), dan 'model_status' secara instan dua arah.
+// 'log' (live console logs), and 'model_status' bidirectionally.
 // ---------------------------------------------------------------------------
 export interface CoreStatePayload {
   state: string;
@@ -360,7 +360,7 @@ export const eventsService = {
     return isConnected;
   },
 
-  // HTTP Fallback: hanya digunakan jika client membutuhkan polling actions manual tanpa WS
+  // HTTP Fallback: only used if client requires manual action polling without WS
   async getActionsSince(lastId: number): Promise<{ actions: ClientAction[]; last_id: number }> {
     const res = await fetch(`${API_BASE}/api/actions/since?last_id=${lastId}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

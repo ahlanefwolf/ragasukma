@@ -390,39 +390,19 @@ pub fn is_command_output_error(output: &str) -> bool {
             return true;
         }
 
-        let stdout = val.get("stdout").and_then(|v| v.as_str()).unwrap_or("");
+        // Process exited cleanly with code 0.
+        // Warnings, deprecation notices, or info logs in stderr MUST NOT be considered errors when exit_code is 0.
         let stderr = val.get("stderr").and_then(|v| v.as_str()).unwrap_or("");
-        let combined = format!("{}\n{}", stdout, stderr);
-
-        // Explicit test runner success indicators (e.g. Python unittest outputs "....\nOK" to stderr)
-        let trimmed_combined = combined.trim();
-        if trimmed_combined == "OK"
-            || trimmed_combined.ends_with("\nOK")
-            || trimmed_combined.contains("\nOK\n")
-            || trimmed_combined.contains("\nOK (")
-            || combined.contains("test result: ok.")
-            || (combined.contains("tests:") && combined.to_lowercase().contains("passed"))
-            || combined.to_lowercase().contains("all tests passed")
-        {
-            return false;
-        }
-
-        // Check stderr ONLY for fatal unhandled crashes when exit_code is zero
         if !stderr.is_empty() {
             let lower_err = stderr.to_lowercase();
-            if lower_err.contains("syntaxerror:")
-                || lower_err.contains("failed to compile")
-                || lower_err.contains("compilation failed")
-                || lower_err.contains("fatal error:")
-                || lower_err.contains("panic:")
-                || lower_err.contains("uncaught exception:")
+            if lower_err.contains("panic:")
                 || lower_err.contains("segmentation fault")
+                || lower_err.contains("fatal error:")
             {
                 return true;
             }
         }
 
-        // Clean command execution
         return false;
     }
 

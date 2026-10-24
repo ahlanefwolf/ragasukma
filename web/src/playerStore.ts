@@ -82,7 +82,7 @@ function bindAudioListeners(el: HTMLAudioElement) {
   });
 
   el.addEventListener('error', (e) => {
-    console.warn('[AudioPlayer] Error saat memutar audio stream:', e);
+    console.warn('[AudioPlayer] Error playing audio stream:', e);
   });
 }
 

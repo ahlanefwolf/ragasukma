@@ -388,7 +388,7 @@ impl TextToSpeech {
             .stack_size(512 * 1024)
             .spawn(move || {
             while let Ok(item) = mobile_rx.recv() {
-                // 1. Simpan audio chunk WAV ke in-memory cache
+                // 1. Store WAV audio chunk into in-memory cache
                 crate::audio::supertonic::set_last_audio_wav(item.chunk_id.clone(), item.chunk_wav.clone());
 
                 // 2. Broadcast chunk immediately to mobile clients over WebSocket
@@ -428,7 +428,7 @@ impl TextToSpeech {
         // Worker 1 (Chunk Inference Producer): Generate WAV Chunks via ONNX
         // ---------------------------------------------------------------------
         let on_chunk = |chunk_idx: usize, total_chunks: usize, chunk_samples: Vec<f32>, chunk_rate: u32, chunk_wav: Vec<u8>| {
-            // Jika ada interupsi dari user, jangan teruskan chunk ke player/mobile
+            // Drop chunk and abort forwarding if user requested interruption
             if crate::app_state::is_interruption_requested() {
                 return;
             }

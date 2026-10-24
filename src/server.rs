@@ -257,7 +257,7 @@ fn serve_static_asset(url: &str) -> axum::response::Response {
         }
     }
 
-    // 2. Fallback jika tidak ada folder web/dist di disk (Binary standalone embedded)
+    // 2. Fallback if no web/dist folder exists on disk (embedded standalone binary)
     if let Some(file) = EmbeddedWebDist::get(target_path) {
         let mime_type = mime_for(target_path);
         return axum::response::Response::builder()
@@ -292,8 +292,8 @@ async fn handle_axum_fallback(
     let method = req.method().as_str();
     let url = req.uri().path();
 
-    // Fast-path untuk static web asset (HTML, JS, CSS, gambar, SPA):
-    // Langsung disajikan dari memori/disk tanpa spawn_blocking dan VirtualHttpStream overhead
+    // Fast-path for static web assets (HTML, JS, CSS, images, SPA):
+    // Served directly from memory/disk without spawn_blocking or VirtualHttpStream overhead
     if method == "GET" && !url.starts_with("/api") && !url.starts_with("/v1") {
         return serve_static_asset(url);
     }

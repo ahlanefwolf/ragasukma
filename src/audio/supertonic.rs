@@ -884,10 +884,10 @@ fn preprocess_text(text: &str, lang: &str) -> String {
         .replace(['[', ']', '{', '}', '(', ')', '<', '>', '|', '/', '\\', '#', '→', '←', '•', '·', '…', '★', '☆'], " ");
 
     t = t.replace('@', " at ");
-    t = t.replace('&', " dan ");
-    t = t.replace('%', " persen ");
+    t = t.replace('&', " and ");
+    t = t.replace('%', " percent ");
     t = t.replace('+', " plus ");
-    t = t.replace('=', " sama dengan ");
+    t = t.replace('=', " equals ");
     t = t.replace("e.g.,", "for example, ");
     t = t.replace("i.e.,", "that is, ");
 

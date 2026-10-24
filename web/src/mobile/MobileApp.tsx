@@ -286,15 +286,15 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   const processAudioChunkQueue = async () => {
     if (isPlayingChunk) return;
 
-    // Cari chunk yang persis sesuai urutan berikutnya (strictly sequential 0 -> 1 -> 2 -> ...)
+    // Find chunk matching exact sequential order (0 -> 1 -> 2 -> ...)
     const item = audioChunkQueue.get(nextExpectedChunkIndex);
     if (!item) {
-      // Jika chunk belum tiba tapi totalChunks belum tercapai, beri toleransi buffer
+      // Buffer tolerance if the next chunk has not arrived yet
       if (nextExpectedChunkIndex < chunkTotalExpected) {
         if (!chunkWaitTimer) {
           chunkWaitTimer = window.setTimeout(() => {
             chunkWaitTimer = null;
-            // Jika chunk hilang/gagal download setelah 3 detik, paksa lompat ke chunk berikutnya
+            // Force skip to the next available chunk if missing/failed after 3 seconds
             if (audioChunkQueue.size > 0) {
               const availableKeys = Array.from(audioChunkQueue.keys()).sort((a, b) => a - b);
               if (availableKeys.length > 0 && availableKeys[0] > nextExpectedChunkIndex) {
@@ -357,7 +357,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       if (nextExpectedChunkIndex < chunkTotalExpected || audioChunkQueue.size > 0) {
         processAudioChunkQueue();
       } else {
-        // Semua chunk selesai diputar sempurna
+        // All chunks finished playing cleanly
         isVoiceSpeakingOnMobile = false;
         audioSync.unduckMusic();
         updateVisualStateSafe('idle');
@@ -1094,7 +1094,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       setIsHpMicListening(false);
     }
 
-    // Interupsi response lama seketika: invalidasi seq, bersihkan antrean chunk & blob
+    // Immediately interrupt previous response: invalidate seq, clear chunk queue & blobs
     mobileSpeakSeq++;
     audioChunkQueue.clear();
     clearPrefetchedBlobs();

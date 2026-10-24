@@ -455,7 +455,7 @@ const App: Component = () => {
           </Show>
         }
       >
-        {/* DISPLAY KHUSUS SMARTPHONE (ONLY MIC PTT + CONSOLE LOGS REAL-TIME) */}
+        {/* MOBILE VIEW (MIC PTT + REAL-TIME CONSOLE LOGS) */}
         <MobileClientView
           authKey={getMobileAuthKey()}
           showToast={showToast}

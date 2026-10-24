@@ -183,9 +183,16 @@ pub fn detect_verifiers_for_modified_files(
     }
 }
 
-/// Checks if an executed shell command is a verification / test / typecheck command
+/// Checks if an executed shell command is a verification / test / typecheck / build command across any language
 pub fn is_verification_command(cmd: &str) -> bool {
     let lower = cmd.trim().to_lowercase();
+
+    // Commands that are purely informational / navigation and NEVER count as verification
+    let pure_info_prefixes = [
+        "git status", "git log", "git diff", "git show", "git branch", "git remote",
+        "ls", "dir", "pwd", "cd ", "echo ", "cat ", "type ", "head ", "tail ", "find ",
+        "which ", "where ", "whoami", "hostname", "uname",
+    ];
 
     // Handle chained shell commands e.g. "cd simulations/python_scenario && python3 -m unittest discover -s tests"
     let sub_commands: Vec<&str> = lower
@@ -196,13 +203,21 @@ pub fn is_verification_command(cmd: &str) -> bool {
 
     for sub in sub_commands {
         let sub_trimmed = sub.trim_matches(|c: char| c == '(' || c == ')' || c.is_whitespace());
+        if sub_trimmed.is_empty() {
+            continue;
+        }
+
+        // If the sub-command starts with a known pure-info command, skip it
+        if pure_info_prefixes.iter().any(|info| sub_trimmed == *info || sub_trimmed.starts_with(info)) {
+            continue;
+        }
 
         let known_prefixes = [
             "cargo test", "cargo check", "cargo clippy", "cargo build",
             "npm test", "npm run test", "npm run build", "npm run check", "npm run typecheck", "npm run lint",
-            "pnpm test", "pnpm run test", "pnpm run build", "pnpm run typecheck",
-            "yarn test", "yarn run test", "yarn run build", "yarn run typecheck",
-            "bun test", "bun run build", "bun run check",
+            "pnpm test", "pnpm run test", "pnpm run build", "pnpm run typecheck", "pnpm run lint",
+            "yarn test", "yarn run test", "yarn run build", "yarn run typecheck", "yarn run lint",
+            "bun test", "bun run build", "bun run check", "bun run lint",
             "deno test", "deno check", "deno lint",
             "node --test", "node --experimental-strip-types --test", "node test",
             "npx tsc", "tsc",
@@ -217,24 +232,49 @@ pub fn is_verification_command(cmd: &str) -> bool {
             "flutter test", "flutter analyze", "dart test", "dart analyze",
             "dotnet test", "dotnet build",
             "gradle test", "./gradlew test", "mvn test", "mvn verify",
-            "ctest", "cmake --build", "make test", "make check", "meson test",
+            "ctest", "cmake --build", "make test", "make check", "meson test", "ninja",
             "php artisan test", "./vendor/bin/phpunit", "composer test", "./vendor/bin/pest",
             "bundle exec rspec", "bundle exec rake test", "rake test",
             "mix test",
             "swift test", "swift build",
             "zig build test", "zig build",
             "vitest", "jest",
+            "just test", "just check", "task test", "task check",
+            "bazel test", "buck test", "pants test",
         ];
 
         if known_prefixes.iter().any(|p| sub_trimmed.starts_with(p)) {
             return true;
         }
 
-        // Also check if executing a test script directly, e.g. "python3 tests/test_billing.py" or "node tests/cart.test.js"
-        if (sub_trimmed.starts_with("python") || sub_trimmed.starts_with("python3") || sub_trimmed.starts_with("node"))
-            && (sub_trimmed.contains("test") || sub_trimmed.contains("unittest") || sub_trimmed.contains("pytest") || sub_trimmed.contains("check"))
-        {
-            return true;
+        // Universal language-agnostic detection:
+        // Any command invoking a test runner, linter, typechecker, or compiler script
+        let parts: Vec<&str> = sub_trimmed.split_whitespace().collect();
+        if let Some(first) = parts.first() {
+            let base_cmd = first.rsplit(['/', '\\']).next().unwrap_or(first);
+            // Standalone build & test tools (make, ninja, cmake, pytest, ctest, etc.)
+            let build_tools = [
+                "make", "ninja", "cmake", "ctest", "just", "task", "bazel", "buck", "buck2",
+                "meson", "scons", "rake", "gradle", "mvn", "pytest", "vitest", "jest", "mocha",
+                "cargo", "npm", "pnpm", "yarn", "bun", "deno", "dune", "sbt", "mix",
+            ];
+            if build_tools.contains(&base_cmd) {
+                return true;
+            }
+
+            // Script executions e.g. "./test.sh", "bash run_tests.sh", "sh check.sh", "python3 tests/test.py"
+            if base_cmd.contains("test") || base_cmd.contains("check") || base_cmd.contains("verify") || base_cmd.contains("lint") {
+                return true;
+            }
+
+            // Arguments containing verification keywords
+            if parts.iter().skip(1).any(|arg| {
+                *arg == "test" || *arg == "check" || *arg == "lint" || *arg == "build"
+                    || *arg == "typecheck" || *arg == "verify" || *arg == "validate"
+                    || arg.starts_with("test") || arg.contains("pytest") || arg.contains("unittest")
+            }) {
+                return true;
+            }
         }
     }
 
@@ -268,6 +308,13 @@ mod tests {
         assert!(is_verification_command("pytest tests/"));
         assert!(is_verification_command("python3 -m unittest discover -s tests"));
         assert!(is_verification_command("cd simulations/python_scenario && python3 -m unittest discover -s tests"));
+        assert!(is_verification_command("./test.sh"));
+        assert!(is_verification_command("make check"));
+        assert!(is_verification_command("bazel test //..."));
+        assert!(is_verification_command("just test"));
+        assert!(!is_verification_command("git status"));
+        assert!(!is_verification_command("git diff"));
+        assert!(!is_verification_command("ls -la"));
         assert!(is_verification_command("node --test tests/*.test.js"));
         assert!(is_verification_command("go test ./..."));
         assert!(is_verification_command("flutter test"));

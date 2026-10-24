@@ -264,7 +264,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
       await loadRefVoiceInfo();
     } catch (err) {
       console.error('[Upload Ref Voice Error]:', err);
-      alert('Gagal mengunggah file audio referensi: ' + (err instanceof Error ? err.message : String(err)));
+      alert('Failed to upload reference audio file: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsUploadingRef(false);
       if (refFileInputRef) {

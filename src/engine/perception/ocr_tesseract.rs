@@ -76,14 +76,14 @@ pub fn run_tesseract_fallback(
             )
         })?;
 
-    // 3. Tulis PNG bytes to child stdin
+    // 3. Write PNG bytes to child stdin
     if let Some(mut stdin) = child.stdin.take() {
         stdin
             .write_all(&png_bytes)
             .map_err(|e| format!("Failed to send image buffer to tesseract stdin: {e}"))?;
     }
 
-    // 4. Tunggu eksekusi and baca stdout TSV
+    // 4. Wait for execution and read stdout TSV
     let output = child
         .wait_with_output()
         .map_err(|e| format!("Failed to read tesseract output: {e}"))?;

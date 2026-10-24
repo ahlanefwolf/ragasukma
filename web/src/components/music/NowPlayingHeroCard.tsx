@@ -140,7 +140,7 @@ export const NowPlayingHeroCard: Component = () => {
                   class={`w-20 h-1.5 bg-theme-border appearance-none cursor-pointer accent-theme-cyan ${
                     isFullMobileActive() ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
-                  title={isFullMobileActive() ? 'Audio dikontrol dari HP' : `Volume: ${Math.round(volume() * 100)}%`}
+                  title={isFullMobileActive() ? 'Audio controlled from mobile device' : `Volume: ${Math.round(volume() * 100)}%`}
                 />
                 <span class="text-xs font-mono text-theme-text/60 w-8 text-right">
                   {Math.round(volume() * 100)}%

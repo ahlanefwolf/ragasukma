@@ -23,7 +23,7 @@ export class WebXRArManager {
   private onEndCallback: (() => void) | null = null;
   private sessionStartTime = 0;
 
-  // Smart tracking interpolation targets (mencegah jitter & lompatan kaku)
+  // Smart tracking interpolation targets (prevents jitter & abrupt jumps)
   private targetPosition = new THREE.Vector3();
   private targetQuaternion = new THREE.Quaternion();
   private hasFirstHit = false;
@@ -191,7 +191,7 @@ export class WebXRArManager {
 
     let hitFound = false;
 
-    // Optimasi AR Performance: Throttle Hit-Test SLAM scan setiap 2 frame untuk meringankan CPU smartphone
+    // AR Performance optimization: throttle Hit-Test SLAM scan every 2 frames to reduce mobile CPU load
     this.hitTestThrottleCounter++;
     const shouldRunHitTest = this.hitTestThrottleCounter % 2 === 0;
 
@@ -241,7 +241,7 @@ export class WebXRArManager {
     }
 
     if (hitFound) {
-      // 2. SMOOTH LERP INTERPOLATION (Gerakan meluncur halus, tidak lompat-lompat kaku)
+      // 2. SMOOTH LERP INTERPOLATION (smooth gliding motion without rigid jumps)
       if (!this.hasFirstHit) {
         this.reticle.position.copy(this.targetPosition);
         this.reticle.quaternion.copy(this.targetQuaternion);
@@ -252,8 +252,8 @@ export class WebXRArManager {
       }
 
       // 3. NATURAL AR WORLD SCALE & PULSE RING ANIMATION:
-      // Di dunia nyata standar AR, ukuran cincin tetap konstan di dunia fisik (diameter ~25cm di lantai).
-      // Kamera Three.js secara alami akan membuatnya mengecil saat kita menjauh dan membesar saat mendekat.
+      // In physical AR world, the ring size remains constant (~25cm diameter on floor).
+      // Three.js perspective camera naturally scales it as the user moves closer or farther.
       const pulse = 1.0 + Math.sin(performance.now() * 0.005) * 0.06;
       this.reticle.scale.setScalar(pulse);
 
@@ -276,7 +276,7 @@ export class WebXRArManager {
 
     vrmAnchor.position.copy(this.reticle.position);
 
-    // Hadapkan avatar tegak lurus ke arah pengguna di dunia nyata
+    // Orient avatar directly towards the user in real-world space
     const camPos = new THREE.Vector3();
     camera.getWorldPosition(camPos);
     const lookTarget = new THREE.Vector3(camPos.x, this.reticle.position.y, camPos.z);
@@ -286,9 +286,9 @@ export class WebXRArManager {
     this.reticle.visible = false;
     this.isAvatarLocked = true;
 
-    // OPTIMASI PERFORMA TINGGI:
-    // Matikan hit-test sensor lantai setelah avatar berhasil di-lock.
-    // Menghilangkan beban perhitungan SLAM/Raycasting ARCore per-frame yang bikin HP ngelag & panas.
+    // HIGH PERFORMANCE OPTIMIZATION:
+    // Turn off floor hit-test sensor once avatar is locked.
+    // Eliminates per-frame ARCore SLAM/Raycasting overhead to keep the device cool and responsive.
     if (this.hitTestSource) {
       try {
         this.hitTestSource.cancel();
@@ -306,7 +306,7 @@ export class WebXRArManager {
     this.hasFirstHit = false;
     this.reticle.visible = true;
 
-    // Hidupkan kembali hit-test sensor saat avatar di-unlock untuk mencari posisi baru
+    // Re-enable hit-test sensor when unlocked to discover new surface placement
     if (session && !this.hitTestSource) {
       try {
         const viewerSpace = await session.requestReferenceSpace('viewer');

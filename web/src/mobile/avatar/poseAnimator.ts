@@ -75,7 +75,7 @@ export class VrmPoseAnimator {
 
     if (count === 0) return;
 
-    // Natural Breathing ritme santai
+    // Natural relaxed breathing rhythm
     const breathSine = Math.sin(this.stateElapsedTime * 1.35);
     const breathChest = breathSine * 0.012;
     const breathSpine = breathSine * 0.006;

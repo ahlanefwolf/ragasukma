@@ -129,7 +129,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
 
     // Regex validation: 3D model is specifically VRM format only (.vrm)
     if (!/\.vrm$/i.test(file.name)) {
-      props.showToast('Format file tidak valid: 3D khusus untuk model .vrm!');
+      props.showToast('Invalid file format: 3D model must be a .vrm file!');
       target.value = '';
       return;
     }

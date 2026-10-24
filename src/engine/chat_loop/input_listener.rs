@@ -32,7 +32,7 @@ pub fn wait_for_user_turn(session: &mut AppSession) -> LoopAction {
         }
 
         if let Some(trimmed) = crate::engine::remote_text::pop_remote_text() {
-            // Taati setting voice_interruption dari config
+            // Respect voice_interruption setting from config
             if session.config.voice_interruption {
                 crate::audio::player::stop_native_voice();
                 crate::app_state::trigger_interruption();
