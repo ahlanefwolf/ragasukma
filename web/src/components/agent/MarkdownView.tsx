@@ -201,7 +201,7 @@ export const MarkdownView: Component<MarkdownViewProps> = (props) => {
             if (codeEl) {
               navigator.clipboard.writeText(codeEl.textContent || '');
               const prevText = btn.textContent;
-              btn.textContent = '✓ Copied!';
+              btn.textContent = 'Copied!';
               btn.classList.add('text-emerald-400');
               setTimeout(() => {
                 btn.textContent = prevText;

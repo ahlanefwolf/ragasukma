@@ -52,10 +52,10 @@ export const YtDlpStatusCard: Component<YtDlpStatusCardProps> = (props) => {
 
         <Show when={!props.checking() && props.info()?.available}>
           <div class="flex items-center gap-2">
-            <span class="px-3 py-1 text-xs font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40">
-              ✓ yt-dlp v{props.info()!.version}
+            <span class="px-3 py-1 text-xs font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 inline-flex items-center gap-1.5">
+              <Check size={13} class="stroke-[2.5]" /> yt-dlp v{props.info()!.version}
             </span>
-            <span class="text-xs text-theme-text/70">Ready to use</span>
+            <span class="text-xs text-theme-text/60">Ready to download and play</span>
           </div>
         </Show>
 

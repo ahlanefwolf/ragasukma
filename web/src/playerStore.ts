@@ -82,7 +82,7 @@ function bindAudioListeners(el: HTMLAudioElement) {
   });
 
   el.addEventListener('error', (e) => {
-    console.warn('⚠️ [AudioPlayer] Error saat memutar audio stream:', e);
+    console.warn('[AudioPlayer] Error saat memutar audio stream:', e);
   });
 }
 
@@ -175,7 +175,7 @@ api.subscribeActions(async (act) => {
 
 
 
-  console.log('🎵 [playerStore] Menerima action SSE:', act);
+  console.log('[playerStore] Menerima action SSE:', act);
 
   if (act.action === 'music:play') {
     const query = act.payload?.toLowerCase().trim();

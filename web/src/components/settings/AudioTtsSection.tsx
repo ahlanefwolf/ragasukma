@@ -93,7 +93,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
   const [testText, setTestText] = createSignal('');
   const [genderFilter, setGenderFilter] = createSignal<'all' | 'female' | 'male'>('all');
 
-  // 🎙️ Reference Voice (OpenVoice V2 Tone Converter) State
+  // Reference Voice (OpenVoice V2 Tone Converter) State
   const [refVoiceExists, setRefVoiceExists] = createSignal(false);
   const [refVoiceFilename, setRefVoiceFilename] = createSignal('');
   const [refVoiceSizeMb, setRefVoiceSizeMb] = createSignal(0);
@@ -101,6 +101,8 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
   const [isPlayingRefPreview, setIsPlayingRefPreview] = createSignal(false);
   let refFileInputRef: HTMLInputElement | undefined;
   let activeRefAudio: HTMLAudioElement | null = null;
+
+  // Live VAD & Audio Level Meter State
 
   const loadRefVoiceInfo = async () => {
     try {
@@ -478,7 +480,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
           </div>
         </div>
 
-        {/* 🎚️ VAD (Voice Activity Detection) & Noise Gate Visualizer */}
+        {/* VAD (Voice Activity Detection) & Noise Gate Visualizer */}
         <div class="p-4 bg-theme-card/80 border border-theme-border space-y-3.5">
           <div class="flex items-center justify-between flex-wrap gap-2">
             <div>
@@ -758,7 +760,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
           </button>
         </div>
 
-        {/* 🎙️ Reference Voice (Zero-Shot Clone / Tone Color Converter) */}
+        {/* Reference Voice (Zero-Shot Clone / Tone Color Converter) */}
         <div class="p-4 bg-theme-card border border-theme-border space-y-3">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div class="space-y-0.5">

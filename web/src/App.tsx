@@ -20,7 +20,7 @@ import { ModelLoadingOverlay } from './components/ModelLoadingOverlay';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ModelDownloadStatus } from './services/eventsService';
 import { initGlobalAudio, killGlobalAudio, currentTrack, isPlaying, isPaused } from './playerStore';
-import { Menu as MenuIcon } from 'lucide-solid';
+import { Menu as MenuIcon, X } from 'lucide-solid';
 import { api, killCurrentSession } from './api';
 import { VoiceSessionManager } from './services/voiceSession';
 
@@ -141,10 +141,8 @@ const App: Component = () => {
 
     const track = currentTrack();
     if (track && track.title) {
-      if (isPlaying()) {
-        document.title = `▶ ${track.title} - Ragasukma`;
-      } else if (isPaused()) {
-        document.title = `⏸ ${track.title} - Ragasukma`;
+      if (isPlaying() || isPaused()) {
+        document.title = `${track.title} - Ragasukma`;
       } else {
         document.title = 'Ragasukma - AI Companion & Dashboard';
       }
@@ -340,8 +338,8 @@ const App: Component = () => {
               /* Tab Deactivated / Shutdown Modal */
               <div class="fixed inset-0 z-[200] bg-theme-bg/95 backdrop-blur-md flex items-center justify-center p-4 select-none">
                 <div class="max-w-md w-full p-8 bg-theme-surface border border-theme-rose/50 shadow-2xl text-center space-y-5 animate-in fade-in duration-200">
-                  <div class="w-14 h-14 mx-auto bg-theme-rose/20 text-theme-rose border border-theme-rose/40 flex items-center justify-center text-2xl font-bold shadow-lg shadow-theme-rose/10">
-                    ✕
+                  <div class="w-14 h-14 mx-auto rounded-full bg-theme-rose/10 border border-theme-rose/30 flex items-center justify-center text-theme-rose">
+                    <X class="w-7 h-7 stroke-[2.5]" />
                   </div>
                   <div class="space-y-2">
                     <h3 class="text-theme-text">
@@ -379,38 +377,21 @@ const App: Component = () => {
               onCloseMobile={() => setMobileMenuOpen(false)}
             />
 
-            <main class="flex-1 flex flex-col h-full overflow-hidden bg-theme-surface">
-              {/* Top Header */}
-              <header class="h-14 px-4 sm:px-6 md:px-8 border-b border-theme-border flex items-center justify-between shrink-0 bg-theme-bg/90 backdrop-blur-xl select-none">
-                <div class="flex items-center gap-3">
-                  <button
-                    onClick={() => setMobileMenuOpen(true)}
-                    class="p-2 bg-theme-card text-theme-text border border-theme-border hover:border-theme-cyan/50 md:hidden transition-colors"
-                    aria-label="Open Menu"
-                  >
-                    <MenuIcon size={18} />
-                  </button>
-
-                  <div class="flex items-center gap-2">
-                    <span class="text-xs font-mono font-bold px-2.5 py-1 bg-theme-rose/20 text-theme-rose border border-theme-rose/30 uppercase tracking-wider">
-                      STATE: {currentState()}
-                    </span>
-                  </div>
-                </div>
-
-                <div class="flex items-center gap-3">
-                  <div class="flex items-center gap-2 px-3 py-1 bg-theme-card border border-theme-border text-xs font-semibold text-theme-text">
-                    <span class="w-2 h-2 bg-theme-cyan shadow-[0_0_8px_var(--cyan)] animate-pulse" />
-                    <span class="tracking-wide">Avatar Overlay</span>
-                  </div>
-                </div>
-              </header>
+            <main class="flex-1 flex flex-col h-full overflow-hidden bg-theme-surface relative">
+              {/* Mobile Menu Floating Trigger (Only on small screens since navbar is removed) */}
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                class="fixed top-3 left-3 z-30 p-2 bg-theme-card text-theme-text border border-theme-border hover:border-theme-cyan/50 md:hidden transition-colors shadow-lg"
+                aria-label="Open Navigation Menu"
+              >
+                <MenuIcon size={18} />
+              </button>
 
               {/* Main View Content (Edge-to-edge for Agent, 1600px max for dashboard tabs) */}
               <div
                 class={`flex-1 w-full ${
                   activeTab() === 'agent'
-                    ? 'h-[calc(100vh-3.5rem)] overflow-hidden px-2 sm:px-3 pt-2 pb-2 max-w-full flex flex-col'
+                    ? 'h-full overflow-hidden px-2 sm:px-3 pt-2 pb-2 max-w-full flex flex-col'
                     : 'overflow-y-auto p-4 sm:p-6 md:p-8 max-w-[1600px] mx-auto pb-12'
                 }`}
               >

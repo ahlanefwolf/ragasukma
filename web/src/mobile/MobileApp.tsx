@@ -188,9 +188,9 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         wakeLockSentinel.addEventListener('release', () => {
           wakeLockSentinel = null;
         });
-        console.log('📱 [Mobile] Screen Wake Lock active (prevents screen sleep & socket freeze)');
+        console.log('[Mobile] Screen Wake Lock active (prevents screen sleep & socket freeze)');
       } catch (err) {
-        console.warn('⚠️ [Mobile] Wake Lock request error:', err);
+        console.warn('[Mobile] Wake Lock request error:', err);
       }
     }
   };
@@ -1069,10 +1069,8 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   createEffect(() => {
     const st = mobileMusicState();
     if (st.track && st.track.title) {
-      if (st.isPlaying) {
-        document.title = `▶ ${st.track.title} - Ragasukma`;
-      } else if (st.isPaused) {
-        document.title = `⏸ ${st.track.title} - Ragasukma`;
+      if (st.isPlaying || st.isPaused) {
+        document.title = `${st.track.title} - Ragasukma`;
       } else {
         document.title = 'Ragasukma';
       }

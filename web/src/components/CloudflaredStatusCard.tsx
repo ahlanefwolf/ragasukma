@@ -58,10 +58,10 @@ export const CloudflaredStatusCard: Component<CloudflaredStatusCardProps> = (pro
         <Show when={!props.checking() && props.info()?.available}>
           <div class="space-y-1.5">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="px-3 py-1 text-xs font-bold bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40">
-                ✓ cloudflared {props.info()!.version.startsWith('v') ? props.info()!.version : `v${props.info()!.version}`}
+              <span class="px-3 py-1 text-xs font-bold bg-theme-emerald/20 text-theme-emerald border border-theme-emerald/30 inline-flex items-center gap-1.5">
+                <Check size={13} class="stroke-[2.5]" /> cloudflared v{props.info()!.version}
               </span>
-              <span class="text-xs text-theme-text/70">Installed & ready to use</span>
+              <span class="text-xs text-theme-text/60">Terpasang dan siap digunakan</span>
             </div>
             <Show when={props.info()?.path}>
               <p class="text-xs font-mono text-theme-text/50 truncate">
