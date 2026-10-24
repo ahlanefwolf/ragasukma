@@ -1,4 +1,7 @@
+pub mod compressor;
 pub mod context_builder;
+pub mod diagnostics;
+pub mod events;
 pub mod executor;
 pub mod languages;
 pub mod mcp;

@@ -1,8 +1,6 @@
 use anyhow::{Context, Result};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
-use std::sync::{Mutex, OnceLock};
-use tokio::sync::broadcast;
 
 use super::models::{AgentSessionEvent, Message};
 use super::repository;
@@ -11,31 +9,10 @@ use crate::llm::providers::antigravity::AntigravityProvider;
 use crate::llm::providers::codex::CodexProvider;
 use crate::llm::v1_engine::{V1ChatRequest, V1Message, V1StreamEvent, V1ToolCall, V1ToolCallFunction};
 
-static SESSION_BROADCASTERS: OnceLock<Mutex<HashMap<String, broadcast::Sender<AgentSessionEvent>>>> =
-    OnceLock::new();
-
-fn get_broadcasters_map() -> &'static Mutex<HashMap<String, broadcast::Sender<AgentSessionEvent>>> {
-    SESSION_BROADCASTERS.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
-pub fn get_session_sender(session_id: &str) -> broadcast::Sender<AgentSessionEvent> {
-    let mut map = get_broadcasters_map()
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-    if let Some(sender) = map.get(session_id) {
-        sender.clone()
-    } else {
-        // High capacity channel to prevent Lagged errors during rapid streaming / large tool calls
-        let (sender, _) = broadcast::channel(2048);
-        map.insert(session_id.to_string(), sender.clone());
-        sender
-    }
-}
-
-pub fn broadcast_session_event(session_id: &str, event: AgentSessionEvent) {
-    let sender = get_session_sender(session_id);
-    let _ = sender.send(event);
-}
+// Re-export submodules for full backwards compatibility
+pub use super::compressor::*;
+pub use super::diagnostics::*;
+pub use super::events::*;
 
 pub fn parse_project_folders(root_path: Option<&str>) -> Vec<String> {
     let Some(raw) = root_path else {
@@ -52,289 +29,6 @@ pub fn parse_project_folders(root_path: Option<&str>) -> Vec<String> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct GroupedFileDiagnostic {
-    pub file_path: String,
-    pub lines: Vec<usize>,
-    pub error_count: usize,
-    pub sample_messages: Vec<String>,
-}
-
-/// Parses and groups diagnostic errors by file across any language/compiler.
-/// Returns grouped summaries so the model can batch-edit entire files at once.
-pub fn group_diagnostics_by_file(output: &str) -> (Vec<GroupedFileDiagnostic>, Vec<String>) {
-    let mut file_map: std::collections::HashMap<String, (Vec<usize>, usize, Vec<String>)> = std::collections::HashMap::new();
-    let mut file_order: Vec<String> = Vec::new();
-    let mut general_errors: Vec<String> = Vec::new();
-
-    let extensions = [".tsx", ".ts", ".jsx", ".js", ".rs", ".py", ".go", ".vue", ".svelte", ".c", ".cpp", ".h", ".java", ".rb", ".php", ".cs"];
-
-    for line in output.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-
-        // Check if line contains a file path with line number (e.g. `src/App.tsx:88:11` or `File "app.py", line 45` or `./src/index.js:12:5`)
-        let mut matched_file = None;
-        let mut line_no = None;
-
-        for ext in &extensions {
-            if let Some(pos) = trimmed.find(ext) {
-                let end_of_ext = pos + ext.len();
-                // Find start of file path by scanning leftward for whitespace or quotes
-                let prefix = &trimmed[..end_of_ext];
-                let path_start = prefix.rfind(|c: char| c.is_whitespace() || c == '"' || c == '\'' || c == '(').map(|idx| idx + 1).unwrap_or(0);
-                let raw_path = &prefix[path_start..];
-
-                // Check for :line:col or :line following the extension
-                let remainder = &trimmed[end_of_ext..];
-                if let Some(stripped) = remainder.strip_prefix(':') {
-                    let parts: Vec<&str> = stripped.split(':').collect();
-                    if let Some(num_str) = parts.first() {
-                        if let Ok(num) = num_str.parse::<usize>() {
-                            line_no = Some(num);
-                        }
-                    }
-                }
-                matched_file = Some(raw_path.trim_start_matches("./").to_string());
-                break;
-            }
-        }
-
-        if let Some(fpath) = matched_file {
-            if !file_map.contains_key(&fpath) {
-                file_order.push(fpath.clone());
-            }
-            let entry = file_map.entry(fpath).or_insert_with(|| (Vec::new(), 0, Vec::new()));
-            entry.1 += 1;
-            if let Some(ln) = line_no {
-                if !entry.0.contains(&ln) && entry.0.len() < 10 {
-                    entry.0.push(ln);
-                }
-            }
-            if entry.2.len() < 3 && (trimmed.contains("error") || trimmed.contains("Error") || trimmed.contains("TS")) {
-                let sample = if trimmed.len() > 120 { format!("{}...", &trimmed[..117]) } else { trimmed.to_string() };
-                entry.2.push(sample);
-            }
-        } else if trimmed.starts_with("error[")
-            || trimmed.starts_with("Error:")
-            || trimmed.starts_with("SyntaxError:")
-            || trimmed.starts_with("TypeError:")
-            || trimmed.starts_with("ReferenceError:")
-            || trimmed.starts_with("npm ERR!")
-            || (trimmed.starts_with("Found ") && trimmed.contains(" error"))
-        {
-            if general_errors.len() < 8 {
-                general_errors.push(trimmed.to_string());
-            }
-        }
-    }
-
-    let grouped = file_order.into_iter().filter_map(|f| {
-        let (mut lines, count, samples) = file_map.remove(&f)?;
-        lines.sort_unstable();
-        Some(GroupedFileDiagnostic {
-            file_path: f,
-            lines,
-            error_count: count,
-            sample_messages: samples,
-        })
-    }).collect();
-
-    (grouped, general_errors)
-}
-
-/// Extracts diagnostic error summaries (file locations, line numbers, error descriptions)
-/// from compiler, bundler, linter, or test runner output (e.g. tsc, rustc, cargo, vite, eslint, pytest, python).
-pub fn extract_command_diagnostics(output: &str) -> Vec<String> {
-    let mut diagnostics = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-
-    // Regex for standard file:line:col or file:line error patterns:
-    // Examples:
-    // - src/App.tsx:88:11 - error TS2769: No overload matches this call.
-    // - src/main.rs:42:15: error[E0308]: mismatched types
-    // - File "app.py", line 45, in <module>
-    // - ./src/index.js:12:5: SyntaxError
-    for line in output.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-
-        let is_diag_line = (trimmed.contains(".tsx:") || trimmed.contains(".ts:") || trimmed.contains(".jsx:") || trimmed.contains(".js:")
-            || trimmed.contains(".rs:") || trimmed.contains(".py:") || trimmed.contains(".go:") || trimmed.contains(".vue:") || trimmed.contains(".svelte:"))
-            && (trimmed.contains("error") || trimmed.contains("Error") || trimmed.contains("warning") || trimmed.contains("FAIL"));
-
-        let is_generic_error = trimmed.starts_with("error[")
-            || trimmed.starts_with("Error:")
-            || trimmed.starts_with("SyntaxError:")
-            || trimmed.starts_with("TypeError:")
-            || trimmed.starts_with("ReferenceError:")
-            || trimmed.starts_with("npm ERR!")
-            || (trimmed.starts_with("Found ") && trimmed.contains(" error"));
-
-        if is_diag_line || is_generic_error {
-            // Normalize and deduplicate
-            let diag_entry = if trimmed.len() > 160 {
-                format!("{}...", &trimmed[..157])
-            } else {
-                trimmed.to_string()
-            };
-
-            if seen.insert(diag_entry.clone()) {
-                diagnostics.push(diag_entry);
-                if diagnostics.len() >= 15 {
-                    break;
-                }
-            }
-        }
-    }
-
-    diagnostics
-}
-
-/// Estimates token count from a message for budget calculations (approx 4 chars per token)
-fn estimate_message_tokens(msg: &Message) -> usize {
-    let mut total = 0;
-    if let Some(ref c) = msg.content {
-        total += c.len();
-    }
-    if let Some(ref tc) = msg.tool_calls {
-        total += tc.len();
-    }
-    (total / 4).max(1)
-}
-
-/// Generates a rolling semantic summary of older messages that are evicted from the active sliding window,
-/// preserving continuity without memory amnesia across long multi-turn sessions.
-fn summarize_evicted_messages(evicted: &[&Message]) -> String {
-    let mut modified_files = Vec::new();
-    let mut executed_cmds = Vec::new();
-    let mut key_read_files = Vec::new();
-
-    for msg in evicted {
-        if msg.role == "assistant" {
-            if let Some(ref tc_raw) = msg.tool_calls {
-                if let Ok(calls) = serde_json::from_str::<Vec<V1ToolCall>>(tc_raw) {
-                    for call in calls {
-                        if let Ok(args) = serde_json::from_str::<serde_json::Value>(&call.function.arguments) {
-                            if call.function.name == "workspace_edit_file" || call.function.name == "workspace_write_file" {
-                                if let Some(p) = args.get("file_path").or_else(|| args.get("path")).and_then(|v| v.as_str()) {
-                                    if !modified_files.contains(&p.to_string()) {
-                                        modified_files.push(p.to_string());
-                                    }
-                                }
-                            } else if call.function.name == "workspace_run_command" {
-                                if let Some(cmd) = args.get("command").and_then(|v| v.as_str()) {
-                                    if !executed_cmds.contains(&cmd.to_string()) {
-                                        executed_cmds.push(cmd.to_string());
-                                    }
-                                }
-                            } else if call.function.name == "workspace_read_file" {
-                                if let Some(p) = args.get("file_path").or_else(|| args.get("path")).and_then(|v| v.as_str()) {
-                                    if !key_read_files.contains(&p.to_string()) {
-                                        key_read_files.push(p.to_string());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    let mut summary = String::new();
-    summary.push_str("### 🧠 Compact History Summary of Evicted Earlier Turns:\n");
-    if !modified_files.is_empty() {
-        summary.push_str(&format!("- Files modified in earlier turns: {}\n", modified_files.join(", ")));
-    }
-    if !executed_cmds.is_empty() {
-        summary.push_str(&format!("- Key commands executed earlier: {}\n", executed_cmds.iter().take(5).cloned().collect::<Vec<_>>().join(" | ")));
-    }
-    if !key_read_files.is_empty() {
-        summary.push_str(&format!("- Files inspected earlier: {}\n", key_read_files.iter().take(6).cloned().collect::<Vec<_>>().join(", ")));
-    }
-    summary.push_str("- Retain the above context while working on the current turn.\n\n");
-    summary
-}
-
-/// Sanitizes tool output for persistent storage in database.
-/// If tool output is extremely large (e.g. read_file > 32,000 chars), we truncate the middle
-/// to keep SQLite and frontend state lightweight, while keeping live buffer intact in memory.
-fn sanitize_tool_output_for_db(content: &str) -> String {
-    if content.len() > 32_000 {
-        let prefix: String = content.chars().take(16_000).collect();
-        let suffix: String = content.chars().rev().take(8_000).collect::<Vec<_>>().into_iter().rev().collect();
-        format!(
-            "{}\n\n[... Output truncated for database efficiency ({} total bytes) ...]\n\n{}",
-            prefix,
-            content.len(),
-            suffix
-        )
-    } else {
-        content.to_string()
-    }
-}
-
-/// Checks if a tool execution output from a workspace command represents an error / failure.
-pub fn is_command_output_error(output: &str) -> bool {
-    if let Ok(val) = serde_json::from_str::<serde_json::Value>(output) {
-        if let Some(success) = val.get("success").and_then(|v| v.as_bool()) {
-            if !success {
-                return true;
-            }
-        }
-        if let Some(code) = val.get("exit_code").and_then(|v| v.as_i64()) {
-            if code != 0 {
-                return true;
-            }
-        }
-        if let Some(status) = val.get("status").and_then(|v| v.as_str()) {
-            if status == "FAILED" || status == "ERROR" {
-                return true;
-            }
-        }
-    }
-
-    let lower = output.to_lowercase();
-    output.starts_with("Tool execution error")
-        || output.contains("❌ COMMAND FAILED")
-        || output.contains("\"success\":false")
-        || output.contains("\"success\": false")
-        || lower.contains("error ts")
-        || lower.contains("error:")
-        || lower.contains("failed to compile")
-        || lower.contains("syntaxerror")
-        || lower.contains("typeerror")
-        || lower.contains("referenceerror")
-        || lower.contains("command not found")
-        || lower.contains("npm err!")
-        || lower.contains("yarn error")
-        || lower.contains("pnpm err")
-}
-
-/// Prunes older tool output results to optimize context window, token cost, and LLM inference latency.
-/// Preserves the live tail (the most recent 4 tool results) intact up to 24,000 chars while eliding bulky older outputs,
-/// directly inspired by the `oh-my-pi` context pruning & shell output minimizer architecture.
-/// Never truncates failed command diagnostics or error banners.
-fn compact_tool_output(content: &str, is_recent_tail: bool) -> String {
-    // Preserve command error diagnostics in full so compiler feedback is never lost
-    if is_command_output_error(content) {
-        return content.to_string();
-    }
-
-    if is_recent_tail {
-        // Keep recent tail intact up to 24,000 chars (16,000 head + 8,000 tail)
-        super::tools::truncate_smart(content, 16_000, 8_000)
-    } else {
-        // For older turns: prune older tool outputs while preserving meaningful head & tail
-        super::tools::truncate_smart(content, 500, 200)
-    }
-}
-
 pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>) -> Result<String> {
     // 1. Load Session & Project
     let session = repository::get_session(session_id)
@@ -346,6 +40,9 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
         .context("Project not found")?;
 
     let allowed_folders = parse_project_folders(project.root_path.as_deref());
+    for folder in &allowed_folders {
+        let _ = super::tools::ensure_git_and_gitignore(std::path::Path::new(folder));
+    }
     let prompt_skills = repository::get_project_skills(&project.id).await.unwrap_or_default();
 
     // 2. Mark session as running
@@ -576,7 +273,10 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
     system_prompt.push_str("\n### ⚙️ Deterministic Execution Phases:\n");
     system_prompt.push_str("1. DISCOVERY: Locate and inspect necessary target files. Once located, proceed directly to modifying them.\n");
     system_prompt.push_str("2. ACTION: Apply targeted file modifications using `workspace_edit_file` or `workspace_write_file`.\n");
-    system_prompt.push_str("3. VERIFICATION: After modifying files, verify changes via test or build commands (e.g. `npm run build`, `cargo check`). Once it passes with 0 errors, summarize your completed work.\n\n");
+    system_prompt.push_str(&format!(
+        "3. VERIFICATION: After modifying files, verify changes via test or build commands (e.g. `{}`). Once it passes with 0 errors, summarize your completed work.\n\n",
+        verifier_hint
+    ));
 
     // 4. Autonomous Tool Execution Loop (aligned with oh-my-pi architecture)
     // Runs autonomously until model has no more tool calls or user pauses/cancels
@@ -1168,8 +868,13 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                             let _ = repository::lock_goal_targets(&goal_id, &targets_json).await;
                             let _ = repository::update_goal_phase(&goal_id, "verification").await;
 
+                            let primary_verify = super::languages::detect_primary_verification_command(&allowed_folders)
+                                .unwrap_or_else(|| "test/build runner".to_string());
                             ephemeral_directive = Some(
-                                "ACTION EXECUTED: Target file updated successfully. You are now in VERIFICATION phase. Run the test/build command using `workspace_run_command` (e.g. `npm run build` or test runner) to verify your changes.".to_string()
+                                format!(
+                                    "ACTION EXECUTED: Target file updated successfully. You are now in VERIFICATION phase. Run the verification command using `workspace_run_command` (e.g. `{}`) to verify your changes.",
+                                    primary_verify
+                                )
                             );
                         }
                     } else if tc.function.name == "workspace_run_command" {
@@ -1379,9 +1084,9 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                         AgentSessionEvent::MessageCreated(tool_msg.clone()),
                     );
 
-                    // Keep full raw tool output in in-memory messages so live turn loop has full context
+                    // Cap in-memory tool output to max 32 KB so massive raw outputs never inflate LLM context
                     let mut in_memory_tool_msg = tool_msg;
-                    in_memory_tool_msg.content = Some(tool_output);
+                    in_memory_tool_msg.content = Some(sanitize_tool_output_for_memory(&tool_output));
                     db_messages.push(in_memory_tool_msg);
                 }
 
@@ -1594,4 +1299,22 @@ pub fn detect_project_verification_commands(allowed_folders: &[String]) -> Optio
 /// Delegated verification command check for backward compatibility
 pub fn is_verification_command(cmd: &str) -> bool {
     super::languages::is_verification_command(cmd)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_project_folders() {
+        assert_eq!(parse_project_folders(None), Vec::<String>::new());
+        assert_eq!(
+            parse_project_folders(Some("[\"/path/a\", \"/path/b\"]")),
+            vec!["/path/a".to_string(), "/path/b".to_string()]
+        );
+        assert_eq!(
+            parse_project_folders(Some("/single/path")),
+            vec!["/single/path".to_string()]
+        );
+    }
 }

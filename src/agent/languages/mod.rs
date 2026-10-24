@@ -78,29 +78,58 @@ pub fn detect_primary_verification_command(allowed_folders: &[String]) -> Option
 /// Checks if an executed shell command is a verification / test / typecheck command
 pub fn is_verification_command(cmd: &str) -> bool {
     let lower = cmd.trim().to_lowercase();
-    let known_prefixes = [
-        "cargo test", "cargo check", "cargo clippy", "cargo build",
-        "npm test", "npm run test", "npm run build", "npm run check", "npm run typecheck", "npm run lint",
-        "pnpm test", "pnpm run test", "pnpm run build", "pnpm run typecheck",
-        "yarn test", "yarn run test", "yarn run build", "yarn run typecheck",
-        "bun test", "bun run build",
-        "deno test", "deno check", "deno lint",
-        "npx tsc", "tsc",
-        "pytest", "python -m unittest", "python -m pytest", "uv run pytest", "poetry run pytest", "pipenv run pytest",
-        "go test", "go vet", "go build",
-        "flutter test", "flutter analyze", "dart test", "dart analyze",
-        "dotnet test", "dotnet build",
-        "gradle test", "./gradlew test", "mvn test", "mvn verify",
-        "ctest", "cmake --build", "make test", "make check", "meson test",
-        "php artisan test", "./vendor/bin/phpunit", "composer test", "./vendor/bin/pest",
-        "bundle exec rspec", "bundle exec rake test", "rake test",
-        "mix test",
-        "swift test", "swift build",
-        "zig build test", "zig build",
-        "vitest", "jest",
-    ];
 
-    known_prefixes.iter().any(|p| lower.starts_with(p))
+    // Handle chained shell commands e.g. "cd simulations/python_scenario && python3 -m unittest discover -s tests"
+    let sub_commands: Vec<&str> = lower
+        .split(['&', ';', '|'])
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    for sub in sub_commands {
+        let sub_trimmed = sub.trim_start_matches(|c: char| c == '(' || c.is_whitespace());
+
+        let known_prefixes = [
+            "cargo test", "cargo check", "cargo clippy", "cargo build",
+            "npm test", "npm run test", "npm run build", "npm run check", "npm run typecheck", "npm run lint",
+            "pnpm test", "pnpm run test", "pnpm run build", "pnpm run typecheck",
+            "yarn test", "yarn run test", "yarn run build", "yarn run typecheck",
+            "bun test", "bun run build",
+            "deno test", "deno check", "deno lint",
+            "node --test", "node --experimental-strip-types --test", "node test",
+            "npx tsc", "tsc",
+            "pytest",
+            "python -m unittest", "python3 -m unittest", "py -m unittest",
+            "python -m pytest", "python3 -m pytest", "py -m pytest",
+            "python -m", "python3 -m",
+            "uv run pytest", "poetry run pytest", "pipenv run pytest",
+            "uv run", "poetry run",
+            "go test", "go vet", "go build",
+            "flutter test", "flutter analyze", "dart test", "dart analyze",
+            "dotnet test", "dotnet build",
+            "gradle test", "./gradlew test", "mvn test", "mvn verify",
+            "ctest", "cmake --build", "make test", "make check", "meson test",
+            "php artisan test", "./vendor/bin/phpunit", "composer test", "./vendor/bin/pest",
+            "bundle exec rspec", "bundle exec rake test", "rake test",
+            "mix test",
+            "swift test", "swift build",
+            "zig build test", "zig build",
+            "vitest", "jest",
+        ];
+
+        if known_prefixes.iter().any(|p| sub_trimmed.starts_with(p)) {
+            return true;
+        }
+
+        // Also check if executing a test script directly, e.g. "python3 tests/test_billing.py" or "node tests/cart.test.js"
+        if (sub_trimmed.starts_with("python") || sub_trimmed.starts_with("python3") || sub_trimmed.starts_with("node"))
+            && (sub_trimmed.contains("test") || sub_trimmed.contains("unittest") || sub_trimmed.contains("pytest") || sub_trimmed.contains("check"))
+        {
+            return true;
+        }
+    }
+
+    false
 }
 
 #[cfg(test)]
@@ -128,6 +157,9 @@ mod tests {
         assert!(is_verification_command("npm test"));
         assert!(is_verification_command("npx tsc --noEmit"));
         assert!(is_verification_command("pytest tests/"));
+        assert!(is_verification_command("python3 -m unittest discover -s tests"));
+        assert!(is_verification_command("cd simulations/python_scenario && python3 -m unittest discover -s tests"));
+        assert!(is_verification_command("node --test tests/*.test.js"));
         assert!(is_verification_command("go test ./..."));
         assert!(is_verification_command("flutter test"));
         assert!(is_verification_command("dotnet test"));

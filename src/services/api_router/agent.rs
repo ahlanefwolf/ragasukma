@@ -264,6 +264,12 @@ async fn create_project(Json(payload): Json<CreateProjectPayload>) -> impl IntoR
         }
     };
 
+    if let Some(ref vr) = validated_root {
+        for folder in crate::agent::executor::parse_project_folders(Some(vr)) {
+            let _ = crate::agent::tools::ensure_git_and_gitignore(std::path::Path::new(&folder));
+        }
+    }
+
     match repository::create_project(
         &payload.name,
         &desc,
@@ -294,6 +300,12 @@ async fn update_project(
             );
         }
     };
+
+    if let Some(ref vr) = validated_root {
+        for folder in crate::agent::executor::parse_project_folders(Some(vr)) {
+            let _ = crate::agent::tools::ensure_git_and_gitignore(std::path::Path::new(&folder));
+        }
+    }
 
     match repository::update_project(
         &id,
@@ -347,6 +359,9 @@ async fn get_project_files(Path(id): Path<String>) -> impl IntoResponse {
     };
 
     let allowed = crate::agent::executor::parse_project_folders(project.root_path.as_deref());
+    for folder in &allowed {
+        let _ = crate::agent::tools::ensure_git_and_gitignore(std::path::Path::new(folder));
+    }
     match crate::agent::tools::list_workspace_files(&allowed) {
         Ok(files) => (StatusCode::OK, Json(json!({"status": "ok", "files": files}))),
         Err(e) => (
