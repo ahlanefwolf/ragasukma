@@ -152,6 +152,8 @@ pub struct ChatTurnItem {
     pub message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -162,6 +164,7 @@ pub struct ChatHistoryPaginatedResponse {
     pub page: usize,
     pub limit: usize,
     pub total_pages: usize,
+    pub has_more: bool,
 }
 
 pub fn log_conversation_turn(
@@ -281,14 +284,18 @@ pub async fn get_history_by_date_paginated(
             speaker: r.callsign,
             message: r.user_msg,
             id: Some(r.id.clone()),
+            timestamp: Some(r.timestamp),
         });
         turns.push(ChatTurnItem {
             time: r.time_str,
             speaker: r.assistant_name,
             message: r.assistant_msg,
             id: Some(r.id),
+            timestamp: Some(r.timestamp),
         });
     }
+
+    let has_more = page < total_pages;
 
     ChatHistoryPaginatedResponse {
         date: target_date.to_string(),
@@ -297,6 +304,7 @@ pub async fn get_history_by_date_paginated(
         page,
         limit,
         total_pages,
+        has_more,
     }
 }
 

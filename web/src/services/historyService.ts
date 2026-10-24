@@ -5,6 +5,7 @@ export interface ChatTurnItem {
   speaker: string;
   message: string;
   id?: string;
+  timestamp?: number;
 }
 
 export interface ChatHistoryDay {
@@ -14,6 +15,7 @@ export interface ChatHistoryDay {
   page?: number;
   limit?: number;
   total_pages?: number;
+  has_more?: boolean;
 }
 
 export const historyService = {
@@ -38,12 +40,12 @@ export const historyService = {
       const url = `${API_BASE}/api/history/view?${params.toString()}`;
       const res = await fetchWithTimeout(url);
       if (!res.ok) {
-        return { date: date || '', turns: [], total_turns: 0, page: 1, limit, total_pages: 1 };
+        return { date: date || '', turns: [], total_turns: 0, page: 1, limit, total_pages: 1, has_more: false };
       }
       return await res.json();
     } catch (e) {
       console.error('Failed to get history content:', e);
-      return { date: date || '', turns: [], total_turns: 0, page: 1, limit, total_pages: 1 };
+      return { date: date || '', turns: [], total_turns: 0, page: 1, limit, total_pages: 1, has_more: false };
     }
   },
 

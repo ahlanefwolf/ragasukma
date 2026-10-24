@@ -5,11 +5,12 @@ import { getChromeSttCode } from '../services/configService';
 import { AvatarViewer } from './AvatarViewer';
 import { globalAudioSync, MobileTrackState } from './AudioSyncManager';
 import { MobileTopBar } from './components/MobileTopBar';
-import { MobileAudioMode, MobileSettingsSheet } from './components/MobileSettingsSheet';
-import { MobileFloatingMusic } from './components/MobileFloatingMusic';
 import { MobileInteractionDock } from './components/MobileInteractionDock';
+import { MobileSettingsSheet, MobileAudioMode } from './components/MobileSettingsSheet';
 import { MobileLogsDrawer } from './components/MobileLogsDrawer';
 import { MobileAudioUnlockModal } from './components/MobileAudioUnlockModal';
+import { MobileFloatingMusic } from './components/MobileFloatingMusic';
+import { MobileChatModal } from './components/MobileChatModal';
 import { ModelLoadingOverlay } from '../components/ModelLoadingOverlay';
 import { ModelDownloadStatus } from '../services/eventsService';
 
@@ -24,7 +25,9 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   const [lastSentText, setLastSentText] = createSignal('');
   const [showLogsDrawer, setShowLogsDrawer] = createSignal(false);
   const [showSettings, setShowSettings] = createSignal(false);
+  const [showChatModal, setShowChatModal] = createSignal(false);
   const [showTextInput, setShowTextInput] = createSignal(false);
+  const [config, setConfig] = createSignal<{ name?: string; callsign?: string }>({});
   const [viewportHeight, setViewportHeight] = createSignal<string>('100dvh');
   const [modelStatus, setModelStatus] = createSignal<ModelDownloadStatus | null>(null);
 
@@ -887,6 +890,15 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       setModelStatus(st);
     }).catch(() => {});
 
+    api.getConfig().then((cfg) => {
+      if (cfg) {
+        setConfig({
+          name: cfg.assistant_name || 'Assistant',
+          callsign: cfg.user_callsign || 'User',
+        });
+      }
+    }).catch(() => {});
+
     // Sync active mode to backend (Full HP -> mode_full_mobile; Remote PC -> mode_remote_desktop)
     const currentMode = audioMode();
     if (currentMode === 'full_mobile') {
@@ -1271,10 +1283,24 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
           onToggleMic={toggleHpMic}
           lastSentText={lastSentText()}
           showInput={showTextInput()}
-          onToggleShowInput={() => setShowTextInput(!showTextInput())}
+          onToggleShowInput={() => setShowChatModal(true)}
           onDismissLastSent={() => setLastSentText('')}
         />
       </div>
+
+      {/* WhatsApp Style Chat Modal with History Lazy Load */}
+      <MobileChatModal
+        isOpen={showChatModal()}
+        onClose={() => setShowChatModal(false)}
+        assistantName={config().name || 'Assistant'}
+        callsign={config().callsign || 'User'}
+        isSending={isSending()}
+        inputText={inputText()}
+        onInputText={setInputText}
+        onSend={(text) => sendTextToHost(text)}
+        assistantStatus={visualState()}
+        currentEmotion={emotion()}
+      />
 
       {/* 5. Slide-Up Bottom Sheet Console Logs */}
       <MobileLogsDrawer
