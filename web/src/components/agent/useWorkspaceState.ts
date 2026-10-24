@@ -288,10 +288,10 @@ Write idiomatic code, prioritize zero-cost abstractions, and maintain uncompromi
 
   const handleDeleteProject = async (id: string, name: string, onDeleted: (fallbackId: string | null) => Promise<void>) => {
     const ok = await showConfirm({
-      title: 'Hapus Project Workspace',
-      message: `Hapus workspace "${name}" dan seluruh sesi task di dalamnya? Folder fisik di disk tetap aman.`,
-      confirmText: 'Hapus Workspace',
-      cancelText: 'Batal',
+      title: 'Delete Project Workspace',
+      message: `Delete workspace "${name}" and all task sessions inside it? Physical folder on disk remains safe.`,
+      confirmText: 'Delete Workspace',
+      cancelText: 'Cancel',
       isDanger: true,
     });
     if (!ok) return;
@@ -437,10 +437,10 @@ ${skill.system_prompt}
 
   const handleDeleteSkill = async (id: string, name: string) => {
     const ok = await showConfirm({
-      title: 'Hapus Prompt Skill',
-      message: `Hapus prompt skill preset "${name}"? Aturan persona ini tidak akan diinjeksikan lagi ke agent.`,
-      confirmText: 'Hapus Skill',
-      cancelText: 'Batal',
+      title: 'Delete Rule',
+      message: `Delete rule "${targetRule.name}"?`,
+      confirmText: 'Delete Rule',
+      cancelText: 'Cancel',
       isDanger: true,
     });
     if (!ok) return;

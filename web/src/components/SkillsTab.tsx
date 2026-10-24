@@ -79,10 +79,9 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
 
   const handleDeleteSkill = async (name: string) => {
     const ok = await showConfirm({
-      title: 'Hapus Custom Skill',
-      message: `Hapus skill "${name}" dari registry sistem? Perintah terminal ini tidak akan dapat dipanggil kembali.`,
-      confirmText: 'Hapus Skill',
-      cancelText: 'Batal',
+      title: 'Delete Skill',
+      message: `Are you sure you want to delete skill "${name}"?`,
+      confirmText: 'Delete',
       isDanger: true,
     });
     if (!ok) return;

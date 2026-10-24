@@ -122,10 +122,9 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
 
   const handleDelete = async (filename: string, title: string) => {
     const confirmed = await showConfirm({
-      title: 'Hapus Musik',
-      message: `Hapus track "${title}" dari library audio? File di disk akan dihapus permanen.`,
-      confirmText: 'Hapus',
-      cancelText: 'Batal',
+      title: 'Delete Music File',
+      message: `Delete audio track "${track.title}" from library?`,
+      confirmText: 'Delete Track',
       isDanger: true,
     });
     if (!confirmed) return;

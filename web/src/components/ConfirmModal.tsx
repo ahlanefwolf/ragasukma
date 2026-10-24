@@ -92,7 +92,7 @@ export const ConfirmModal: Component = () => {
               </div>
               <div class="space-y-1 flex-1 min-w-0">
                 <h3 class="text-base font-heading font-bold uppercase tracking-wider text-theme-text">
-                  {state().title || (state().isDanger ? 'Konfirmasi Tindakan' : 'Konfirmasi')}
+                  {state().title || (state().isDanger ? 'Confirm Action' : 'Confirm')}
                 </h3>
                 <p class="text-xs text-theme-text/80 leading-relaxed font-sans break-words whitespace-pre-wrap">
                   {state().message}
@@ -102,7 +102,7 @@ export const ConfirmModal: Component = () => {
                 type="button"
                 onClick={handleCancel}
                 class="text-theme-text/50 hover:text-theme-text transition-colors p-1"
-                title="Tutup (Esc)"
+                title="Close (Esc)"
               >
                 <X size={16} />
               </button>
@@ -115,7 +115,7 @@ export const ConfirmModal: Component = () => {
                 onClick={handleCancel}
                 class="px-4 py-2 text-xs font-semibold uppercase tracking-wider bg-theme-card border border-theme-border hover:bg-theme-border text-theme-text transition-all"
               >
-                {state().cancelText || 'Batal'}
+                {state().cancelText || 'Cancel'}
               </button>
               <button
                 type="button"
@@ -128,7 +128,7 @@ export const ConfirmModal: Component = () => {
                 }`}
               >
                 {state().isDanger && <Trash2 size={13} />}
-                <span>{state().confirmText || (state().isDanger ? 'Hapus' : 'Lanjutkan')}</span>
+                <span>{state().confirmText || (state().isDanger ? 'Delete' : 'Continue')}</span>
               </button>
             </div>
           </div>

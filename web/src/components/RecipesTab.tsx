@@ -108,10 +108,9 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
 
   const handleDeleteRecipe = async (recipe: AutomationRecipe) => {
     const ok = await showConfirm({
-      title: 'Hapus Recipe',
-      message: `Hapus automation recipe "${recipe.name}" (${recipe.recipe_id})? Tindakan ini tidak dapat dibatalkan.`,
-      confirmText: 'Hapus',
-      cancelText: 'Batal',
+      title: 'Delete Recipe',
+      message: `Are you sure you want to delete recipe "${recipe.title}"?`,
+      confirmText: 'Delete',
       isDanger: true,
     });
     if (!ok) return;

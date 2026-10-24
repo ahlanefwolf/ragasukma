@@ -13,9 +13,18 @@ import {
   ShieldCheck,
   AlertCircle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Calendar
 } from 'lucide-solid';
 import { api, LlmUsageRecord, LlmUsageSummary } from '../api';
+
+const getTodayDateString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 interface UsageTabProps {
   showToast: (msg: string) => void;
@@ -34,6 +43,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
   const [records, setRecords] = createSignal<LlmUsageRecord[]>([]);
   const [loading, setLoading] = createSignal(false);
   const [selectedProvider, setSelectedProvider] = createSignal<string>('all');
+  const [selectedDate, setSelectedDate] = createSignal<string>(getTodayDateString());
   const [showClearConfirm, setShowClearConfirm] = createSignal(false);
 
   // Pagination Signals
@@ -42,13 +52,12 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
   const [total, setTotal] = createSignal(0);
   const [totalPages, setTotalPages] = createSignal(1);
 
-  const fetchUsageData = async (targetPage = page()) => {
+  const fetchUsageData = async (targetPage = page(), provider = selectedProvider(), date = selectedDate()) => {
     setLoading(true);
     try {
-      const p = selectedProvider();
       const [sumData, paginatedData] = await Promise.all([
-        api.getUsageSummary(p),
-        api.getUsageRecords(p, undefined, targetPage, limit()),
+        api.getUsageSummary(provider, date),
+        api.getUsageRecords(provider, date, targetPage, limit()),
       ]);
       setSummary(sumData);
       setRecords(paginatedData.items || []);
@@ -65,7 +74,13 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
   const handleProviderChange = (provider: string) => {
     setSelectedProvider(provider);
     setPage(1);
-    fetchUsageData(1);
+    fetchUsageData(1, provider, selectedDate());
+  };
+
+  const handleDateChange = (date: string) => {
+    setSelectedDate(date);
+    setPage(1);
+    fetchUsageData(1, selectedProvider(), date);
   };
 
   const handlePrevPage = () => {
@@ -250,52 +265,96 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
         </div>
       </div>
 
-      {/* Provider Filter Tabs */}
-      <div class="flex items-center gap-2 border-b border-theme-border pb-3">
-        <button
-          onClick={() => handleProviderChange('all')}
-          class={`px-3 py-1.5 text-xs font-semibold tracking-wide border transition-all ${
-            selectedProvider() === 'all'
-              ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold shadow-sm'
-              : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-text'
-          }`}
-        >
-          All Providers
-        </button>
+      {/* Filters: Provider & Date */}
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-theme-border pb-3">
+        {/* Provider Filter Tabs */}
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => handleProviderChange('all')}
+            class={`px-3 py-1.5 text-xs font-semibold tracking-wide border transition-all ${
+              selectedProvider() === 'all'
+                ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold shadow-sm'
+                : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-text'
+            }`}
+          >
+            All Providers
+          </button>
 
-        <button
-          onClick={() => handleProviderChange('antigravity')}
-          class={`px-3 py-1.5 text-xs font-semibold tracking-wide border transition-all flex items-center gap-1.5 ${
-            selectedProvider() === 'antigravity'
-              ? 'bg-theme-rose text-white border-theme-rose font-bold shadow-sm'
-              : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-text'
-          }`}
-        >
-          <span>Antigravity</span>
-          <span class="text-[10px] font-mono opacity-80">(ag)</span>
-        </button>
+          <button
+            onClick={() => handleProviderChange('antigravity')}
+            class={`px-3 py-1.5 text-xs font-semibold tracking-wide border transition-all flex items-center gap-1.5 ${
+              selectedProvider() === 'antigravity'
+                ? 'bg-theme-rose text-white border-theme-rose font-bold shadow-sm'
+                : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-text'
+            }`}
+          >
+            <span>Antigravity</span>
+            <span class="text-[10px] font-mono opacity-80">(ag)</span>
+          </button>
 
-        <button
-          onClick={() => handleProviderChange('codex')}
-          class={`px-3 py-1.5 text-xs font-semibold tracking-wide border transition-all flex items-center gap-1.5 ${
-            selectedProvider() === 'codex'
-              ? 'bg-emerald-600 text-white border-emerald-500 font-bold shadow-sm'
-              : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-text'
-          }`}
-        >
-          <span>OpenAI Codex</span>
-          <span class="text-[10px] font-mono opacity-80">(cx)</span>
-        </button>
+          <button
+            onClick={() => handleProviderChange('codex')}
+            class={`px-3 py-1.5 text-xs font-semibold tracking-wide border transition-all flex items-center gap-1.5 ${
+              selectedProvider() === 'codex'
+                ? 'bg-emerald-600 text-white border-emerald-500 font-bold shadow-sm'
+                : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-text'
+            }`}
+          >
+            <span>OpenAI Codex</span>
+            <span class="text-[10px] font-mono opacity-80">(cx)</span>
+          </button>
+        </div>
+
+        {/* Date Filter Controls */}
+        <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 px-3 py-1.5 bg-theme-card border border-theme-border text-xs text-theme-text font-mono">
+            <Calendar size={14} class="text-theme-cyan shrink-0" />
+            <input
+              type="date"
+              value={selectedDate() === 'all' ? '' : selectedDate()}
+              onInput={(e) => handleDateChange(e.currentTarget.value || 'all')}
+              class="bg-transparent text-theme-text focus:outline-none cursor-pointer text-xs font-mono [color-scheme:dark]"
+            />
+          </div>
+
+          <button
+            onClick={() => handleDateChange(getTodayDateString())}
+            class={`px-2.5 py-1.5 text-xs font-semibold border transition-all ${
+              selectedDate() === getTodayDateString()
+                ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold shadow-sm'
+                : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-text'
+            }`}
+            title="Filter today"
+          >
+            Today
+          </button>
+
+          <button
+            onClick={() => handleDateChange('all')}
+            class={`px-2.5 py-1.5 text-xs font-semibold border transition-all ${
+              selectedDate() === 'all'
+                ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold shadow-sm'
+                : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-text'
+            }`}
+            title="Show all dates"
+          >
+            All Dates
+          </button>
+        </div>
       </div>
 
-      {/* Detailed History Table */}
-      <div class="bg-theme-surface border border-theme-border overflow-hidden">
+      {/* Records Table Card */}
+      <div class="bg-theme-card border border-theme-border shadow-sm overflow-hidden">
         <div class="p-4 border-b border-theme-border flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <Layers size={16} class="text-theme-cyan" />
-            <h2 class="font-heading text-sm font-bold tracking-wide text-theme-text uppercase">
-              Request Execution Log
-            </h2>
+            <span class="text-xs font-bold font-heading uppercase tracking-wide text-theme-text">
+              Inference Audit Trail
+            </span>
+            <Show when={selectedDate() !== 'all'}>
+              <span class="text-[10px] font-mono px-2 py-0.5 bg-theme-cyan/10 text-theme-cyan border border-theme-cyan/30">
+                {selectedDate() === getTodayDateString() ? 'Today' : selectedDate()}
+              </span>
+            </Show>
           </div>
           <span class="text-xs font-mono text-theme-text/50">
             {total() > 0

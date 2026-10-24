@@ -150,10 +150,9 @@ export const CodexTab: Component<CodexTabProps> = (props) => {
 
   const handleDelete = async (id: string) => {
     const ok = await showConfirm({
-      title: 'Hapus Akun Codex',
-      message: 'Apakah Anda yakin ingin menghapus akun ini dari pool OpenAI Codex? Token yang tersimpan akan dihapus.',
-      confirmText: 'Hapus Akun',
-      cancelText: 'Batal',
+      title: 'Delete Account',
+      message: 'Are you sure you want to delete this OpenAI Codex account?',
+      confirmText: 'Delete Account',
       isDanger: true,
     });
     if (!ok) return;

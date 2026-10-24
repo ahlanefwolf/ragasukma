@@ -368,10 +368,9 @@ export function useChatSession(
 
   const handleDeleteSession = async (id: string, title: string) => {
     const ok = await showConfirm({
-      title: 'Hapus Sesi Task',
-      message: `Hapus sesi task "${title}" beserta seluruh riwayat iterasi agent dan perubahannya?`,
-      confirmText: 'Hapus Sesi',
-      cancelText: 'Batal',
+      title: 'Delete Chat Session',
+      message: 'Are you sure you want to permanently delete this chat session?',
+      confirmText: 'Delete',
       isDanger: true,
     });
     if (!ok) return;

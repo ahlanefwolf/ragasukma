@@ -147,10 +147,9 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
 
   const handleDeleteDate = async (date: string) => {
     const ok = await showConfirm({
-      title: 'Hapus Riwayat Chat',
-      message: `Hapus seluruh log percakapan pada tanggal ${date} dari database SQLite? Tindakan ini tidak dapat dibatalkan.`,
-      confirmText: 'Hapus',
-      cancelText: 'Batal',
+      title: 'Delete History Item',
+      message: 'Are you sure you want to delete this item from history?',
+      confirmText: 'Delete',
       isDanger: true,
     });
     if (!ok) return;

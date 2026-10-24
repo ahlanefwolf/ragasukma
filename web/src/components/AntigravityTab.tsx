@@ -150,10 +150,9 @@ export const AntigravityTab: Component<AntigravityTabProps> = (props) => {
 
   const handleDelete = async (id: string) => {
     const ok = await showConfirm({
-      title: 'Hapus Akun Antigravity',
-      message: 'Apakah Anda yakin ingin menghapus akun ini dari Antigravity pool? Sesi aktif untuk akun ini akan dihentikan.',
-      confirmText: 'Hapus Akun',
-      cancelText: 'Batal',
+      title: 'Remove Account',
+      message: 'Are you sure you want to remove this account? Antigravity sync will stop for this profile.',
+      confirmText: 'Remove',
       isDanger: true,
     });
     if (!ok) return;
