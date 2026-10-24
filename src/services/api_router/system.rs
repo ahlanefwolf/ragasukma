@@ -23,6 +23,8 @@ pub fn register_system_routes(
         .route("/api/system/extension-path", get(axum_get_extension_path))
         .route("/api/system/model-status", get(axum_get_model_status))
         .route("/api/system/model-download", post(axum_post_model_download))
+        .route("/api/system/bun/info", get(axum_bun_info))
+        .route("/api/system/bun/install", post(axum_bun_install))
         // Menu & State
         .route("/api/cmd", post(axum_menu_cmd))
         .route("/api/state", get(axum_get_state).post(axum_post_state))
@@ -109,6 +111,15 @@ pub(crate) async fn axum_get_model_status() -> impl IntoResponse {
 pub(crate) async fn axum_post_model_download() -> impl IntoResponse {
     crate::services::model_manager_service::ensure_model_ready_background();
     Json(crate::services::model_manager_service::get_model_status())
+}
+
+pub(crate) async fn axum_bun_info() -> impl IntoResponse {
+    Json(crate::engine::bun::get_bun_info())
+}
+
+pub(crate) async fn axum_bun_install() -> impl IntoResponse {
+    crate::engine::bun::ensure_bun_installed_background();
+    Json(crate::engine::bun::get_bun_info())
 }
 
 // -----------------------------------------------------------------------------

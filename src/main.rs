@@ -180,6 +180,9 @@ fn main() -> Result<()> {
     // Check & download Supertonic-3 TTS model if missing, then init engine
     crate::services::model_manager_service::ensure_model_ready_background();
 
+    // Check & install Bun JavaScript runtime in background if missing
+    crate::engine::bun::ensure_bun_installed_background();
+
     let config = AppConfig::load();
     let config_clone = config.clone();
 

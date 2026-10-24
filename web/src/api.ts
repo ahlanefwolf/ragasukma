@@ -120,6 +120,22 @@ export const api = {
   getModelStatus: eventsService.getModelStatus,
   subscribeModelStatus: eventsService.subscribeModelStatus,
   triggerModelDownload: eventsService.triggerModelDownload,
+
+  // Bun Runtime Management Service
+  getBunInfo: async (): Promise<{ installed: boolean; version: string; path?: string; is_installing: boolean; error?: string }> => {
+    try {
+      const res = await fetch('/api/system/bun/info');
+      if (!res.ok) throw new Error('Failed to retrieve Bun info');
+      return await res.json();
+    } catch {
+      return { installed: false, version: '', is_installing: false };
+    }
+  },
+  installBun: async (): Promise<{ installed: boolean; version: string; path?: string; is_installing: boolean; error?: string }> => {
+    const res = await fetch('/api/system/bun/install', { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to trigger Bun installation');
+    return await res.json();
+  },
 };
 
 export type { AntigravityAccount, AntigravityQuotaResponse } from './services/antigravityService';

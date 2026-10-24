@@ -1,5 +1,6 @@
 pub mod actions;
 pub mod app_scanner;
+pub mod bun;
 pub mod chat_loop;
 pub mod cloudflared;
 pub mod hardware_probe;
@@ -16,6 +17,7 @@ pub mod ytdlp;
 
 pub use actions::*;
 pub use app_scanner::*;
+pub use bun::*;
 pub use cloudflared::*;
 pub use hardware_probe::*;
 pub use intent::*;
