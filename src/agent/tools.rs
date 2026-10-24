@@ -56,7 +56,7 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
             "type": "function",
             "function": {
                 "name": "workspace_read_file",
-                "description": "Read text content of a file in the workspace.",
+                "description": "Read text content of a file in the workspace. You can read the full file by omitting start_line and end_line, or specify lines around a target. AVOID reading files in repetitive 50-100 line chunks; read the target section directly in one call.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -102,7 +102,7 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
             "type": "function",
             "function": {
                 "name": "workspace_edit_file",
-                "description": "Precisely replace specific lines or sections in an existing file using search and replace. Preferred over writing the whole file.",
+                "description": "Replace a specific section or lines in an existing file. TIP: Keep 'old_text' short and unique (only 2-6 lines around the target change) so it matches reliably.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -112,7 +112,7 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
                         },
                         "old_text": {
                             "type": "string",
-                            "description": "Exact text or lines to find and replace"
+                            "description": "Exact text or lines to find and replace. Keep it minimal and concise (2 to 6 lines) for exact matching."
                         },
                         "new_text": {
                             "type": "string",
@@ -148,7 +148,11 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
             "type": "function",
             "function": {
                 "name": "workspace_run_command",
-                "description": "Execute a terminal/shell command (e.g. `cargo check`, `npm run build`, `npm test`, `git status`, etc.) in the workspace directory.",
+                "description": format!(
+                    "Execute a terminal/shell command on host OS '{}' using {}. Has full access to user development tools (npm, npx, pnpm, yarn, node, cargo, python, pip, git, etc.). Specify 'cwd' to run in a specific project folder or directory. Commands support full shell syntax and chaining.",
+                    std::env::consts::OS,
+                    if cfg!(target_os = "windows") { "PowerShell" } else { "user login shell (bash/zsh)" }
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -158,7 +162,7 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
                         },
                         "cwd": {
                             "type": "string",
-                            "description": "Working subdirectory relative to workspace (optional, defaults to workspace root)"
+                            "description": "Working directory relative to workspace or folder alias (optional, defaults to primary workspace root)"
                         }
                     },
                     "required": ["command"]
@@ -170,7 +174,8 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
     .clone()
 }
 
-/// Verify that a target path is allowed within one of the project's root folders
+/// Verify that a target path is allowed within one of the project's root folders.
+/// Seamlessly supports multi-root workspaces, folder aliases, and relative paths across all platforms.
 pub fn resolve_allowed_path(raw_path: &str, allowed_roots: &[String]) -> Result<PathBuf> {
     if allowed_roots.is_empty() {
         bail!("Workspace has no registered root folders.");
@@ -178,44 +183,107 @@ pub fn resolve_allowed_path(raw_path: &str, allowed_roots: &[String]) -> Result<
 
     let input_path = Path::new(raw_path);
 
-    // If path is relative, resolve against the first allowed root
-    let target = if input_path.is_relative() {
-        Path::new(&allowed_roots[0]).join(input_path)
-    } else {
-        input_path.to_path_buf()
-    };
+    // 1. If absolute path: verify it starts with an allowed root
+    if input_path.is_absolute() {
+        let canonical = if input_path.exists() {
+            input_path.canonicalize().unwrap_or_else(|_| input_path.to_path_buf())
+        } else if let Some(parent) = input_path.parent() {
+            if parent.exists() {
+                parent.canonicalize().unwrap_or_else(|_| parent.to_path_buf()).join(input_path.file_name().unwrap_or_default())
+            } else {
+                input_path.to_path_buf()
+            }
+        } else {
+            input_path.to_path_buf()
+        };
 
+        let is_inside = allowed_roots.iter().any(|r| {
+            let r_path = Path::new(r);
+            let r_canon = r_path.canonicalize().unwrap_or_else(|_| r_path.to_path_buf());
+            canonical.starts_with(&r_canon)
+        });
+
+        if !is_inside {
+            bail!(
+                "Access denied: path '{}' is outside allowed workspace folders ({:?})",
+                raw_path,
+                allowed_roots
+            );
+        }
+        return Ok(canonical);
+    }
+
+    // 2. Relative path: Check if path matches an existing file/dir in any allowed root directly
+    for root in allowed_roots {
+        let candidate = Path::new(root).join(input_path);
+        if candidate.exists() {
+            return Ok(candidate.canonicalize().unwrap_or(candidate));
+        }
+    }
+
+    // 3. Multi-root folder alias matching:
+    // e.g. input_path is "frontend" or "frontend/src/App.tsx", matching root ".../frontend"
+    for root in allowed_roots {
+        let root_p = Path::new(root);
+        if let Some(folder_name) = root_p.file_name().and_then(|n| n.to_str()) {
+            if input_path == Path::new(folder_name) {
+                return Ok(root_p.canonicalize().unwrap_or_else(|_| root_p.to_path_buf()));
+            }
+            if let Ok(rel) = input_path.strip_prefix(folder_name) {
+                let candidate = root_p.join(rel);
+                if candidate.exists() {
+                    return Ok(candidate.canonicalize().unwrap_or(candidate));
+                }
+            }
+        }
+    }
+
+    // 4. For new files or directories that do not exist yet (e.g. write_file)
+    for root in allowed_roots {
+        let root_p = Path::new(root);
+        if let Some(folder_name) = root_p.file_name().and_then(|n| n.to_str()) {
+            if let Ok(rel) = input_path.strip_prefix(folder_name) {
+                return Ok(root_p.join(rel));
+            }
+        }
+    }
+
+    // 5. Default fallback to primary root folder
+    let target = Path::new(&allowed_roots[0]).join(input_path);
     let target_canonical = if target.exists() {
         target.canonicalize().unwrap_or(target)
     } else {
-        // If file doesn't exist yet (for write_file), canonicalize parent
-        if let Some(parent) = target.parent() {
-            if parent.exists() {
-                parent.canonicalize().unwrap_or_else(|_| parent.to_path_buf()).join(target.file_name().unwrap_or_default())
-            } else {
-                target
-            }
-        } else {
-            target
-        }
+        target
     };
 
-    // Check if target is inside at least one allowed root
-    let is_inside_allowed = allowed_roots.iter().any(|root| {
-        let r_path = Path::new(root);
-        let r_canonical = r_path.canonicalize().unwrap_or_else(|_| r_path.to_path_buf());
-        target_canonical.starts_with(&r_canonical)
-    });
+    Ok(target_canonical)
+}
 
-    if !is_inside_allowed {
-        bail!(
-            "Access denied: path '{}' is outside allowed workspace folders ({:?})",
-            raw_path,
-            allowed_roots
-        );
+/// Convert any full path into a clean, workspace-relative path prefixed with its registered root folder name.
+/// e.g. `/home/user/project/portofolio/src/App.tsx` -> `portofolio/src/App.tsx`
+pub fn to_workspace_folder_path(path: &Path, allowed_roots: &[String]) -> String {
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+
+    for root in allowed_roots {
+        let root_p = Path::new(root);
+        let root_canon = root_p.canonicalize().unwrap_or_else(|_| root_p.to_path_buf());
+        if let Ok(rel) = canonical.strip_prefix(&root_canon) {
+            let folder_name = root_p
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("");
+            if rel.as_os_str().is_empty() {
+                return folder_name.to_string();
+            }
+            let rel_str = rel.to_string_lossy().replace('\\', "/");
+            if folder_name.is_empty() {
+                return rel_str;
+            }
+            return format!("{}/{}", folder_name, rel_str);
+        }
     }
 
-    Ok(target_canonical)
+    path.to_string_lossy().replace('\\', "/")
 }
 
 /// Execute a tool call safely
@@ -247,7 +315,8 @@ pub fn execute_tool_call(
                 entries.push(format!("{}{}", file_name, if is_dir { "/" } else { "" }));
             }
             entries.sort();
-            Ok(json!({ "path": resolved.to_string_lossy(), "entries": entries }).to_string())
+            let display_path = to_workspace_folder_path(&resolved, allowed_roots);
+            Ok(json!({ "path": display_path, "entries": entries }).to_string())
         }
 
         "workspace_read_file" => {
@@ -305,9 +374,10 @@ pub fn execute_tool_call(
 
             fs::write(&resolved, content)?;
 
+            let display_path = to_workspace_folder_path(&resolved, allowed_roots);
             let result_json = serde_json::json!({
                 "status": "ok",
-                "path": resolved.display().to_string(),
+                "path": display_path,
                 "file_path": file_path,
                 "bytes_written": content.len(),
                 "is_new_file": is_new_file,
@@ -343,21 +413,14 @@ pub fn execute_tool_call(
             let content = fs::read_to_string(&resolved)
                 .context(format!("Failed to read file '{}' for editing", file_path))?;
 
-            if !content.contains(old_text) {
-                bail!("'old_text' not found in file '{}'. Ensure exact match including whitespace/indentation.", file_path);
-            }
+            let updated_content = apply_resilient_edit(&content, old_text, new_text, file_path)?;
 
-            let occurrences = content.matches(old_text).count();
-            if occurrences > 1 {
-                bail!("'old_text' matches {} times in file '{}'. Provide more surrounding lines/context to make it uniquely identifiable.", occurrences, file_path);
-            }
-
-            let updated_content = content.replacen(old_text, new_text, 1);
             fs::write(&resolved, &updated_content)?;
 
+            let display_path = to_workspace_folder_path(&resolved, allowed_roots);
             let result_json = serde_json::json!({
                 "status": "ok",
-                "path": resolved.display().to_string(),
+                "path": display_path,
                 "file_path": file_path,
                 "bytes_written": updated_content.len(),
                 "old_text_len": old_text.len(),
@@ -379,7 +442,7 @@ pub fn execute_tool_call(
             let resolved = resolve_allowed_path(sub_path, allowed_roots)?;
 
             let mut matches = Vec::new();
-            grep_dir_recursive(&resolved, query, &mut matches, 50)?;
+            grep_dir_recursive(&resolved, query, &mut matches, 50, allowed_roots)?;
 
             Ok(json!({ "query": query, "matches_found": matches.len(), "results": matches }).to_string())
         }
@@ -399,19 +462,7 @@ pub fn execute_tool_call(
                 bail!("Working directory '{}' not found", sub_path);
             }
 
-            #[cfg(target_os = "windows")]
-            let mut proc = {
-                let mut cmd = std::process::Command::new("powershell");
-                cmd.arg("-NoProfile").arg("-Command").arg(command_str);
-                cmd
-            };
-
-            #[cfg(not(target_os = "windows"))]
-            let mut proc = {
-                let mut cmd = std::process::Command::new("sh");
-                cmd.arg("-c").arg(command_str);
-                cmd
-            };
+            let mut proc = create_workspace_command(command_str);
 
             proc.current_dir(&work_dir);
 
@@ -423,28 +474,51 @@ pub fn execute_tool_call(
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
             let exit_code = output.status.code().unwrap_or(-1);
+            let success = output.status.success() && exit_code == 0;
 
-            // Limit output size to prevent context overflow (max 20,000 characters)
-            let trimmed_stdout = if stdout.len() > 20_000 {
-                format!("{}... [Output truncated, too long]", &stdout[..20_000])
+            // Preserve tail where compiler diagnostics and error traces live (4k head + 16k tail)
+            let trimmed_stdout = truncate_smart(&stdout, 4_000, 16_000);
+            let trimmed_stderr = truncate_smart(&stderr, 2_000, 8_000);
+
+            let mut res_map = serde_json::Map::new();
+            res_map.insert("command".to_string(), serde_json::json!(command_str));
+            res_map.insert("cwd".to_string(), serde_json::json!(work_dir.display().to_string()));
+            res_map.insert("exit_code".to_string(), serde_json::json!(exit_code));
+            res_map.insert("success".to_string(), serde_json::json!(success));
+
+            if !success {
+                res_map.insert("status".to_string(), serde_json::json!("FAILED"));
+
+                let mut combined_output = String::new();
+                if !stdout.is_empty() {
+                    combined_output.push_str(&stdout);
+                }
+                if !stderr.is_empty() {
+                    combined_output.push('\n');
+                    combined_output.push_str(&stderr);
+                }
+
+                let diags = super::executor::extract_command_diagnostics(&combined_output);
+                let banner = if !diags.is_empty() {
+                    format!(
+                        "❌ COMMAND FAILED with exit code {exit_code}.\nIdentified Errors:\n{}\n\nReview the stdout/stderr below, edit the offending files, and re-run verification.",
+                        diags.iter().map(|d| format!("  - {}", d)).collect::<Vec<_>>().join("\n")
+                    )
+                } else {
+                    format!(
+                        "❌ COMMAND FAILED with exit code {exit_code}. Review stdout and stderr below to locate errors, fix the offending files, and re-run verification."
+                    )
+                };
+
+                res_map.insert("error_banner".to_string(), serde_json::json!(banner));
             } else {
-                stdout
-            };
+                res_map.insert("status".to_string(), serde_json::json!("SUCCESS"));
+            }
 
-            let trimmed_stderr = if stderr.len() > 10_000 {
-                format!("{}... [Error output truncated]", &stderr[..10_000])
-            } else {
-                stderr
-            };
+            res_map.insert("stdout".to_string(), serde_json::json!(trimmed_stdout));
+            res_map.insert("stderr".to_string(), serde_json::json!(trimmed_stderr));
 
-            let res_json = serde_json::json!({
-                "command": command_str,
-                "cwd": work_dir.display().to_string(),
-                "exit_code": exit_code,
-                "success": output.status.success(),
-                "stdout": trimmed_stdout,
-                "stderr": trimmed_stderr,
-            });
+            let res_json = serde_json::Value::Object(res_map);
 
             Ok(res_json.to_string())
         }
@@ -454,16 +528,39 @@ pub fn execute_tool_call(
 }
 
 fn grep_dir_recursive(
-    dir: &Path,
+    target_path: &Path,
     query: &str,
     matches: &mut Vec<serde_json::Value>,
     max_results: usize,
+    allowed_roots: &[String],
 ) -> Result<()> {
     if matches.len() >= max_results {
         return Ok(());
     }
 
-    if let Ok(entries) = fs::read_dir(dir) {
+    let query_lower = query.to_lowercase();
+
+    // Direct support if target_path is a single file!
+    if target_path.is_file() {
+        if let Ok(content) = fs::read_to_string(target_path) {
+            let display_file = to_workspace_folder_path(target_path, allowed_roots);
+            for (line_idx, line) in content.lines().enumerate() {
+                if line.to_lowercase().contains(&query_lower) {
+                    matches.push(json!({
+                        "file": display_file,
+                        "line": line_idx + 1,
+                        "content": line.trim()
+                    }));
+                    if matches.len() >= max_results {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+        return Ok(());
+    }
+
+    if let Ok(entries) = fs::read_dir(target_path) {
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().to_string();
@@ -474,13 +571,14 @@ fn grep_dir_recursive(
             }
 
             if path.is_dir() {
-                let _ = grep_dir_recursive(&path, query, matches, max_results);
+                let _ = grep_dir_recursive(&path, query, matches, max_results, allowed_roots);
             } else if path.is_file() {
                 if let Ok(content) = fs::read_to_string(&path) {
+                    let display_file = to_workspace_folder_path(&path, allowed_roots);
                     for (line_idx, line) in content.lines().enumerate() {
-                        if line.contains(query) {
+                        if line.to_lowercase().contains(&query_lower) {
                             matches.push(json!({
-                                "file": path.to_string_lossy(),
+                                "file": display_file,
                                 "line": line_idx + 1,
                                 "content": line.trim()
                             }));
@@ -514,7 +612,25 @@ pub fn list_workspace_files(allowed_roots: &[String]) -> Result<Vec<WorkspaceFil
         if !r_path.exists() || !r_path.is_dir() {
             continue;
         }
-        collect_files_recursive(r_path, r_path, &mut files, 0, max_items)?;
+
+        let folder_name = r_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_string();
+
+        // Also add the root folder itself to the file list so UI/agent sees it
+        if !folder_name.is_empty() {
+            files.push(WorkspaceFileInfo {
+                relative_path: folder_name.clone(),
+                name: folder_name.clone(),
+                is_dir: true,
+                size: 0,
+                line_count: None,
+            });
+        }
+
+        collect_files_recursive(r_path, &folder_name, r_path, &mut files, 0, max_items)?;
     }
 
     files.sort_by(|a, b| {
@@ -532,6 +648,7 @@ pub fn list_workspace_files(allowed_roots: &[String]) -> Result<Vec<WorkspaceFil
 
 fn collect_files_recursive(
     base_root: &Path,
+    folder_prefix: &str,
     current_dir: &Path,
     results: &mut Vec<WorkspaceFileInfo>,
     depth: usize,
@@ -578,10 +695,18 @@ fn collect_files_recursive(
                 }
             }
 
-            let rel_path = path
+            let inner_rel = path
                 .strip_prefix(base_root)
                 .map(|p| p.to_string_lossy().replace('\\', "/"))
                 .unwrap_or_else(|_| name.clone().replace('\\', "/"));
+
+            let rel_path = if folder_prefix.is_empty() {
+                inner_rel
+            } else if inner_rel.is_empty() {
+                folder_prefix.to_string()
+            } else {
+                format!("{}/{}", folder_prefix, inner_rel)
+            };
 
             let size = if is_dir {
                 0
@@ -604,11 +729,396 @@ fn collect_files_recursive(
             });
 
             if is_dir {
-                collect_files_recursive(base_root, &path, results, depth + 1, max_items)?;
+                collect_files_recursive(base_root, folder_prefix, &path, results, depth + 1, max_items)?;
             }
         }
     }
     Ok(())
+}
+
+/// Applies surgical edits to file content with a multi-tier resilient matcher:
+/// 1. Literal exact match
+/// 2. Trimmed leading/trailing newline match
+/// 3. Whitespace & indentation tolerant line-by-line sliding window
+/// 4. Quote & semicolon relaxed matching (single quotes vs double quotes, trailing semicolons/commas)
+/// 5. Anchor matching (first and last non-empty line match uniquely)
+/// 6. High-similarity fuzzy window matching (similarity >= 0.85)
+/// 7. Detailed contextual diagnostic reporting exact file lines if all matchers fail.
+pub fn apply_resilient_edit(
+    content: &str,
+    old_text: &str,
+    new_text: &str,
+    file_path: &str,
+) -> Result<String> {
+    let normalized_content = content.replace("\r\n", "\n");
+    let normalized_old = old_text.replace("\r\n", "\n");
+    let normalized_new = new_text.replace("\r\n", "\n");
+
+    // Tier 1: Exact literal match
+    if normalized_content.contains(&normalized_old) {
+        let count = normalized_content.matches(&normalized_old).count();
+        if count == 1 {
+            return Ok(normalized_content.replacen(&normalized_old, &normalized_new, 1));
+        } else if count > 1 {
+            bail!(
+                "'old_text' matches {} times in file '{}'. Provide 2-3 additional surrounding lines to make it unique.",
+                count, file_path
+            );
+        }
+    }
+
+    // Tier 2: Trimmed leading/trailing blank lines
+    let trimmed_old = normalized_old.trim_matches('\n');
+    let trimmed_new = normalized_new.trim_matches('\n');
+    if !trimmed_old.is_empty() && trimmed_old != normalized_old && normalized_content.contains(trimmed_old) {
+        let count = normalized_content.matches(trimmed_old).count();
+        if count == 1 {
+            return Ok(normalized_content.replacen(trimmed_old, trimmed_new, 1));
+        }
+    }
+
+    let content_lines: Vec<&str> = normalized_content.lines().collect();
+    let raw_old_lines: Vec<&str> = normalized_old.lines().collect();
+
+    // Strip leading & trailing empty lines from old_lines
+    let start_empty = raw_old_lines.iter().take_while(|l| l.trim().is_empty()).count();
+    let end_empty = raw_old_lines.iter().rev().take_while(|l| l.trim().is_empty()).count();
+    let old_lines: Vec<&str> = if start_empty + end_empty < raw_old_lines.len() {
+        raw_old_lines[start_empty..raw_old_lines.len() - end_empty].to_vec()
+    } else {
+        raw_old_lines
+    };
+
+    if old_lines.is_empty() {
+        bail!("'old_text' cannot be empty or only whitespace");
+    }
+
+    // Tier 3: Whitespace-tolerant line-by-line matching
+    if content_lines.len() >= old_lines.len() {
+        let mut match_indices = Vec::new();
+        for i in 0..=(content_lines.len() - old_lines.len()) {
+            let window = &content_lines[i..i + old_lines.len()];
+            if window.iter().zip(old_lines.iter()).all(|(c, o)| c.trim() == o.trim()) {
+                match_indices.push(i);
+            }
+        }
+
+        if match_indices.len() == 1 {
+            let start_idx = match_indices[0];
+            let mut result_lines = Vec::new();
+            result_lines.extend_from_slice(&content_lines[..start_idx]);
+            result_lines.push(&normalized_new);
+            result_lines.extend_from_slice(&content_lines[start_idx + old_lines.len()..]);
+            return Ok(result_lines.join("\n"));
+        } else if match_indices.len() > 1 {
+            bail!(
+                "'old_text' matched {} different sections with whitespace tolerance in '{}'. Provide more surrounding lines.",
+                match_indices.len(), file_path
+            );
+        }
+    }
+
+    // Tier 4: Punctuation & quote relaxed matching (single quotes vs double quotes, trailing semicolons/commas)
+    fn relax_line(s: &str) -> String {
+        s.chars()
+            .filter(|c| !c.is_whitespace() && *c != ';' && *c != ',')
+            .map(|c| if c == '\'' || c == '`' { '"' } else { c })
+            .collect()
+    }
+
+    if content_lines.len() >= old_lines.len() {
+        let relaxed_old: Vec<String> = old_lines.iter().map(|l| relax_line(l)).collect();
+        let mut relaxed_matches = Vec::new();
+        for i in 0..=(content_lines.len() - old_lines.len()) {
+            let window = &content_lines[i..i + old_lines.len()];
+            let matches = window
+                .iter()
+                .zip(relaxed_old.iter())
+                .all(|(c, o)| relax_line(c) == *o);
+            if matches {
+                relaxed_matches.push(i);
+            }
+        }
+
+        if relaxed_matches.len() == 1 {
+            let start_idx = relaxed_matches[0];
+            let mut result_lines = Vec::new();
+            result_lines.extend_from_slice(&content_lines[..start_idx]);
+            result_lines.push(&normalized_new);
+            result_lines.extend_from_slice(&content_lines[start_idx + old_lines.len()..]);
+            return Ok(result_lines.join("\n"));
+        }
+    }
+
+    // Tier 5: Anchor matching with meaningful non-trivial anchors
+    if old_lines.len() >= 3 {
+        // Find first non-trivial line (not just a solitary brace or tag like `</div>` or `}`)
+        let first_meaningful = old_lines
+            .iter()
+            .find(|l| {
+                let t = l.trim();
+                t.len() > 3 && t != "</div>" && t != "}" && t != "};" && t != "</button>" && t != "</div>;"
+            })
+            .map(|l| l.trim());
+
+        let last_meaningful = old_lines
+            .iter()
+            .rev()
+            .find(|l| {
+                let t = l.trim();
+                t.len() > 3 && t != "</div>" && t != "}" && t != "};" && t != "</button>" && t != "</div>;"
+            })
+            .map(|l| l.trim());
+
+        if let (Some(first_anchor), Some(last_anchor)) = (first_meaningful, last_meaningful) {
+            let mut anchor_matches = Vec::new();
+            for i in 0..content_lines.len() {
+                if content_lines[i].trim() == first_anchor {
+                    let min_end = i + 1;
+                    let max_end = (i + old_lines.len() + 15).min(content_lines.len());
+                    for (j, line) in content_lines.iter().enumerate().take(max_end).skip(min_end) {
+                        if line.trim() == last_anchor {
+                            anchor_matches.push((i, j));
+                        }
+                    }
+                }
+            }
+
+            if !anchor_matches.is_empty() {
+                let target_span = old_lines.len();
+                let mut best_anchor = anchor_matches[0];
+                let mut min_diff = (anchor_matches[0].1 - anchor_matches[0].0 + 1).abs_diff(target_span);
+                let mut second_diff = usize::MAX;
+
+                for &(start, end) in &anchor_matches[1..] {
+                    let diff = (end - start + 1).abs_diff(target_span);
+                    if diff < min_diff {
+                        second_diff = min_diff;
+                        min_diff = diff;
+                        best_anchor = (start, end);
+                    } else if diff < second_diff {
+                        second_diff = diff;
+                    }
+                }
+
+                if anchor_matches.len() == 1 || min_diff < second_diff {
+                    let (start_idx, end_idx) = best_anchor;
+                    let mut result_lines = Vec::new();
+                    result_lines.extend_from_slice(&content_lines[..start_idx]);
+                    result_lines.push(&normalized_new);
+                    result_lines.extend_from_slice(&content_lines[end_idx + 1..]);
+                    return Ok(result_lines.join("\n"));
+                }
+            }
+        }
+    }
+
+    // Tier 6: Elastic similarity window matching (handles line count variations +/- 3 lines)
+    if !content_lines.is_empty() && !old_lines.is_empty() {
+        let min_len = old_lines.len().saturating_sub(3).max(1);
+        let max_len = (old_lines.len() + 3).min(content_lines.len());
+
+        let mut best_score = 0.0f64;
+        let mut second_best_score = 0.0f64;
+        let mut best_range = None;
+
+        for window_len in min_len..=max_len {
+            if content_lines.len() < window_len {
+                continue;
+            }
+            for i in 0..=(content_lines.len() - window_len) {
+                let window = &content_lines[i..i + window_len];
+                let mut score_sum = 0.0;
+                let pair_count = window.len().min(old_lines.len());
+                for (c, o) in window.iter().take(pair_count).zip(old_lines.iter().take(pair_count)) {
+                    let c_trim = c.trim();
+                    let o_trim = o.trim();
+                    if c_trim == o_trim {
+                        score_sum += 1.0;
+                    } else if c_trim.to_lowercase() == o_trim.to_lowercase() {
+                        score_sum += 0.95;
+                    } else {
+                        let c_chars: std::collections::HashSet<char> = c_trim.chars().filter(|ch| !ch.is_whitespace()).collect();
+                        let o_chars: std::collections::HashSet<char> = o_trim.chars().filter(|ch| !ch.is_whitespace()).collect();
+                        let intersect = c_chars.intersection(&o_chars).count();
+                        let union = c_chars.union(&o_chars).count();
+                        if union > 0 {
+                            score_sum += (intersect as f64) / (union as f64);
+                        }
+                    }
+                }
+                let avg_score = score_sum / (old_lines.len().max(window_len) as f64);
+                if avg_score > best_score {
+                    second_best_score = best_score;
+                    best_score = avg_score;
+                    best_range = Some((i, i + window_len));
+                } else if avg_score > second_best_score {
+                    second_best_score = avg_score;
+                }
+            }
+        }
+
+        if best_score >= 0.65 && (best_score - second_best_score) >= 0.04 {
+            if let Some((start_idx, end_idx)) = best_range {
+                let mut result_lines = Vec::new();
+                result_lines.extend_from_slice(&content_lines[..start_idx]);
+                result_lines.push(&normalized_new);
+                result_lines.extend_from_slice(&content_lines[end_idx..]);
+                return Ok(result_lines.join("\n"));
+            }
+        }
+    }
+
+    // Tier 7: Diagnostics reporting exact file lines
+    let mut best_hint_idx = None;
+    let mut highest_keyword_match = 0;
+
+    for (idx, line) in content_lines.iter().enumerate() {
+        let line_lower = line.to_lowercase();
+        let matches = old_lines
+            .iter()
+            .filter(|o| o.trim().len() >= 4 && line_lower.contains(&o.trim().to_lowercase()))
+            .count();
+        if matches > highest_keyword_match {
+            highest_keyword_match = matches;
+            best_hint_idx = Some(idx);
+        }
+    }
+
+    let hint_block = if let Some(center_idx) = best_hint_idx {
+        let start = center_idx.saturating_sub(4);
+        let end = (center_idx + 6).min(content_lines.len());
+        let snippet = content_lines[start..end]
+            .iter()
+            .enumerate()
+            .map(|(offset, l)| format!("{:>4} | {}", start + offset + 1, l))
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!(
+            "\nClosest actual content in '{}' (lines {}-{}):\n```\n{}\n```\nAction: Copy the exact lines above to form `old_text` or use `workspace_write_file` if replacing a large block.",
+            file_path, start + 1, end, snippet
+        )
+    } else {
+        format!(
+            "\nUse `workspace_read_file` to inspect the exact lines of '{}' before editing.",
+            file_path
+        )
+    };
+
+    bail!("'old_text' not found in file '{}'.{}", file_path, hint_block)
+}
+
+/// Builds a cross-platform shell Command with an enriched PATH environment so tools like
+/// npm, npx, pnpm, yarn, node, cargo, python, etc. are reliably found across Linux, macOS, and Windows.
+fn create_workspace_command(command_str: &str) -> std::process::Command {
+    #[cfg(target_os = "windows")]
+    {
+        let mut cmd = std::process::Command::new("powershell");
+        cmd.arg("-ExecutionPolicy")
+            .arg("Bypass")
+            .arg("-Command")
+            .arg(command_str);
+
+        // Enrich Windows PATH if needed
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        let mut path_entries: Vec<PathBuf> = std::env::split_paths(&current_path).collect();
+
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let npm_roaming = PathBuf::from(&appdata).join("npm");
+            if npm_roaming.exists() && !path_entries.contains(&npm_roaming) {
+                path_entries.insert(0, npm_roaming);
+            }
+        }
+        if let Ok(userprofile) = std::env::var("USERPROFILE") {
+            let cargo_bin = PathBuf::from(&userprofile).join(".cargo").join("bin");
+            if cargo_bin.exists() && !path_entries.contains(&cargo_bin) {
+                path_entries.insert(0, cargo_bin);
+            }
+        }
+        let node_prog = PathBuf::from(r"C:\Program Files\nodejs");
+        if node_prog.exists() && !path_entries.contains(&node_prog) {
+            path_entries.insert(0, node_prog);
+        }
+
+        if let Ok(new_path) = std::env::join_paths(path_entries) {
+            cmd.env("PATH", new_path);
+        }
+        cmd
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Enrich Unix PATH with common Node, Python, and Rust manager directories
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        let mut path_entries: Vec<PathBuf> = std::env::split_paths(&current_path).collect();
+
+        if let Ok(home) = std::env::var("HOME") {
+            let home_path = Path::new(&home);
+            let candidates = [
+                home_path.join(".local/bin"),
+                home_path.join(".cargo/bin"),
+                home_path.join(".bun/bin"),
+                home_path.join(".volta/bin"),
+                home_path.join(".fnm/current/bin"),
+                home_path.join(".asdf/shims"),
+                home_path.join(".asdf/bin"),
+                PathBuf::from("/usr/local/bin"),
+                PathBuf::from("/opt/homebrew/bin"),
+            ];
+
+            for candidate in candidates {
+                if candidate.exists() && !path_entries.contains(&candidate) {
+                    path_entries.insert(0, candidate);
+                }
+            }
+
+            // NVM active directory or latest installed node version
+            if let Ok(nvm_bin) = std::env::var("NVM_BIN") {
+                let nvm_path = PathBuf::from(nvm_bin);
+                if nvm_path.exists() && !path_entries.contains(&nvm_path) {
+                    path_entries.insert(0, nvm_path);
+                }
+            }
+
+            let nvm_node_dir = home_path.join(".nvm/versions/node");
+            if nvm_node_dir.is_dir() {
+                if let Ok(entries) = fs::read_dir(&nvm_node_dir) {
+                    let mut versions: Vec<PathBuf> = entries
+                        .filter_map(|e| e.ok())
+                        .map(|e| e.path().join("bin"))
+                        .filter(|p| p.is_dir())
+                        .collect();
+                    versions.sort();
+                    if let Some(latest) = versions.pop() {
+                        if !path_entries.contains(&latest) {
+                            path_entries.insert(0, latest);
+                        }
+                    }
+                }
+            }
+        }
+
+        let new_path = std::env::join_paths(path_entries).unwrap_or_else(|_| current_path.into());
+
+        let shell_var = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+        let (shell_bin, is_login) = if Path::new(&shell_var).exists() {
+            let login = shell_var.ends_with("bash") || shell_var.ends_with("zsh");
+            (shell_var, login)
+        } else if Path::new("/bin/bash").exists() {
+            ("/bin/bash".to_string(), true)
+        } else {
+            ("sh".to_string(), false)
+        };
+
+        let mut cmd = std::process::Command::new(&shell_bin);
+        if is_login {
+            cmd.arg("-l").arg("-c").arg(command_str);
+        } else {
+            cmd.arg("-c").arg(command_str);
+        }
+        cmd.env("PATH", new_path);
+        cmd
+    }
 }
 
 /// Automatically parse `@file` or `@file:start-end` tags in user messages
@@ -680,10 +1190,11 @@ pub fn expand_file_tags(text: &str, allowed_roots: &[String]) -> String {
                 }
             }
 
+            let display_path = to_workspace_folder_path(&resolved, allowed_roots);
             attached_snippets.push(format!(
                 "📁 Attached Directory Context for `@{}`:\n```\nPath: {}\nItems:\n{}\n```",
                 raw_file,
-                resolved.display(),
+                display_path,
                 if dir_files.is_empty() {
                     "  (empty folder)".to_string()
                 } else {
@@ -969,9 +1480,68 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_to_workspace_folder_path() {
+        let roots = vec!["/tmp/my-project".to_string()];
+        let path = Path::new("/tmp/my-project/src/components/Button.tsx");
+        assert_eq!(
+            to_workspace_folder_path(path, &roots),
+            "my-project/src/components/Button.tsx"
+        );
+    }
+
+    #[test]
     fn test_expand_file_tags_no_tags() {
         let roots = vec!["/tmp".to_string()];
         let input = "hello world without tags";
         assert_eq!(expand_file_tags(input, &roots), input);
+    }
+
+    #[test]
+    fn test_create_workspace_command_execution() {
+        let mut cmd = create_workspace_command("echo '__agent_shell_ok__'");
+        let output = cmd.output().expect("Failed to execute test command");
+        assert!(output.status.success());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("__agent_shell_ok__"));
+    }
+
+    #[test]
+    fn test_apply_resilient_edit_whitespace_and_indentation() {
+        let content = "function foo() {\n    const a = 1;\n    const b = 2;\n    return a + b;\n}";
+        // AI sent 2 spaces instead of 4 spaces
+        let old_text = "  const a = 1;\n  const b = 2;";
+        let new_text = "  const a = 10;\n  const b = 20;";
+        let updated = apply_resilient_edit(content, old_text, new_text, "test.ts").unwrap();
+        assert!(updated.contains("const a = 10;"));
+        assert!(updated.contains("return a + b;"));
+    }
+
+    #[test]
+    fn test_apply_resilient_edit_quote_and_semicolon_tolerance() {
+        let content = "export const config = {\n  mode: 'production',\n  port: 8080\n};";
+        // AI used double quotes and trailing comma
+        let old_text = "mode: \"production\",";
+        let new_text = "mode: 'staging',";
+        let updated = apply_resilient_edit(content, old_text, new_text, "config.ts").unwrap();
+        assert!(updated.contains("mode: 'staging'"));
+    }
+
+    #[test]
+    fn test_apply_resilient_edit_anchor_matching() {
+        let content = "class Service {\n  init() {\n    // comment here\n    setup();\n  }\n}";
+        // AI skipped the comment inside
+        let old_text = "init() {\n  setup();\n}";
+        let new_text = "init() {\n  initV2();\n}";
+        let updated = apply_resilient_edit(content, old_text, new_text, "service.ts").unwrap();
+        assert!(updated.contains("initV2();"));
+    }
+
+    #[test]
+    fn test_apply_resilient_edit_diagnostic_hint() {
+        let content = "line 1\nline 2\nconst specialFeature = true;\nline 4\nline 5";
+        let err = apply_resilient_edit(content, "function completelyDifferentNonExistentFeature() {\n  return 999;\n}", "new", "test.ts").unwrap_err();
+        let err_msg = err.to_string();
+        assert!(err_msg.contains("'old_text' not found"));
+        assert!(err_msg.contains("Use `workspace_read_file`") || err_msg.contains("Closest actual content in 'test.ts'"));
     }
 }

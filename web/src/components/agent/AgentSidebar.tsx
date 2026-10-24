@@ -11,7 +11,7 @@ import {
   RefreshCw, 
   ExternalLink, 
   Loader2, 
-  Bot 
+  Bot
 } from 'lucide-solid';
 import { Project, AgentSession, WorkspaceFileItem, parseProjectFolders } from '../../services';
 import { FileTreeNode, FileTreeNodeRow } from './FileTreeNodeRow';

@@ -308,3 +308,106 @@ fn test_embedded_thought_signature_in_tool_call_id() {
     assert_eq!(fr["id"].as_str().unwrap(), base_id);
     assert_eq!(fr["name"].as_str().unwrap(), "read_file");
 }
+
+#[test]
+fn test_thought_signature_model_family_scoping() {
+    let claude_call = "toolu_claude_123";
+    let gemini_call = "call_gemini_456";
+    let claude_sig = "EuwGCukClaudeValidSig01=";
+    let gemini_sig = "EuwGCukGeminiValidSig01=";
+
+    store_thought_signature_scoped(claude_call, claude_sig, Some("claude"));
+    store_thought_signature_scoped(gemini_call, gemini_sig, Some("gemini"));
+
+    // Scoped lookup prevents cross-pollination
+    assert_eq!(get_thought_signature_scoped(claude_call, Some("claude")), Some(claude_sig.to_string()));
+    assert_eq!(get_thought_signature_scoped(claude_call, Some("gemini")), None);
+
+    assert_eq!(get_thought_signature_scoped(gemini_call, Some("gemini")), Some(gemini_sig.to_string()));
+    assert_eq!(get_thought_signature_scoped(gemini_call, Some("claude")), None);
+
+    // Unscoped lookup fallback
+    assert_eq!(get_thought_signature(claude_call), Some(claude_sig.to_string()));
+    assert_eq!(get_thought_signature(gemini_call), Some(gemini_sig.to_string()));
+}
+
+#[test]
+fn test_claude_on_antigravity_attaches_claude_default_signature() {
+    let req = V1ChatRequest {
+        model: "ag/claude-sonnet-4-6".to_string(),
+        messages: vec![
+            crate::llm::v1_engine::V1Message {
+                role: "user".to_string(),
+                content: Some(serde_json::json!("run command")),
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+                thought_signature: None,
+            },
+            crate::llm::v1_engine::V1Message {
+                role: "assistant".to_string(),
+                content: None,
+                tool_calls: Some(vec![V1ToolCall {
+                    id: "toolu_vrtx_999".to_string(),
+                    call_type: "function".to_string(),
+                    function: V1ToolCallFunction {
+                        name: "bash".to_string(),
+                        arguments: "{\"command\":\"ls\"}".to_string(),
+                    },
+                    thought_signature: None,
+                    extra_content: None,
+                    provider_specific_fields: None,
+                }]),
+                tool_call_id: None,
+                name: None,
+                thought_signature: None,
+            },
+        ],
+        temperature: None,
+        max_tokens: None,
+        stream: None,
+        tools: None,
+        tool_choice: None,
+    };
+
+    let payload = build_gemini_payload(&req, "test-project");
+    let contents = payload["request"]["contents"].as_array().unwrap();
+    let model_turn = contents.iter().find(|c| c["role"] == "model").unwrap();
+    let fc_part = &model_turn["parts"][0];
+
+    // Claude on Antigravity without cached signature must use DEFAULT_THINKING_CLAUDE_SIGNATURE
+    assert_eq!(
+        fc_part["thoughtSignature"].as_str().unwrap(),
+        crate::llm::providers::antigravity::constants::DEFAULT_THINKING_CLAUDE_SIGNATURE
+    );
+
+    // Claude generationConfig must not contain Gemini thinkingConfig
+    let gen_config = &payload["request"]["generationConfig"];
+    assert!(gen_config.get("thinkingConfig").is_none());
+}
+
+#[test]
+fn test_gemini_thinking_config_auto_enabled() {
+    let req = V1ChatRequest {
+        model: "ag/gemini-3.8-flash-high".to_string(),
+        messages: vec![crate::llm::v1_engine::V1Message {
+            role: "user".to_string(),
+            content: Some(serde_json::json!("Explain Rust async")),
+            tool_calls: None,
+            tool_call_id: None,
+            name: None,
+            thought_signature: None,
+        }],
+        temperature: None,
+        max_tokens: None,
+        stream: None,
+        tools: None,
+        tool_choice: None,
+    };
+
+    let payload = build_gemini_payload(&req, "test-project");
+    let thinking_config = &payload["request"]["generationConfig"]["thinkingConfig"];
+    assert!(thinking_config.is_object());
+    assert_eq!(thinking_config["thinkingBudget"].as_i64().unwrap(), -1);
+    assert_eq!(thinking_config["includeThoughts"].as_bool().unwrap(), true);
+}

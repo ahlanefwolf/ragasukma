@@ -54,7 +54,12 @@ export function useWorkspaceFiles(
 
   const isDirExpanded = (dirPath: string) => {
     if (fileSearch().trim()) return true;
-    return expandedDirs()[dirPath] === true;
+    const current = expandedDirs();
+    // Default root folder nodes to expanded so files are immediately visible
+    if (!dirPath.includes('/') && current[dirPath] === undefined) {
+      return true;
+    }
+    return current[dirPath] === true;
   };
 
   const loadProjectFiles = async (projectId: string) => {

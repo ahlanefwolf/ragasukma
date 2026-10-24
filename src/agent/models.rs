@@ -83,6 +83,61 @@ pub struct Message {
     pub created_at: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Goal {
+    pub id: String,
+    pub project_id: String,
+    pub session_id: Option<String>,
+    pub parent_goal_id: Option<String>,
+    pub title: String,
+    pub demand: String,
+    pub success_criteria: String, // JSON Array
+    pub constraints: String,      // JSON Array
+    pub phase: String,            // 'discovery', 'action', 'verification', 'concluded'
+    pub status: String,           // 'in_progress', 'completed', 'failed'
+    pub target_files: String,     // JSON Array of locked target files
+    pub discovery_count: i64,
+    pub conclusion: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct EvidenceCache {
+    pub id: String,
+    pub project_id: String,
+    pub file_path: String,
+    pub file_version: String,
+    pub start_line: Option<i64>,
+    pub end_line: Option<i64>,
+    pub symbol_name: Option<String>,
+    pub summary: String,
+    pub raw_snippet: Option<String>,
+    pub is_stale: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GoalEvidence {
+    pub goal_id: String,
+    pub evidence_id: String,
+    pub relevance_score: f64,
+    pub is_active: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GoalVerification {
+    pub id: String,
+    pub goal_id: String,
+    pub iteration: i64,
+    pub test_command: String,
+    pub test_output: String,
+    pub is_passed: i64,
+    pub feedback: Option<String>,
+    pub created_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data")]
 pub enum AgentSessionEvent {

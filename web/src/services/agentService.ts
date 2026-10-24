@@ -80,6 +80,47 @@ export interface AgentMessage {
   created_at: number;
 }
 
+export interface Goal {
+  id: string;
+  project_id: string;
+  session_id?: string;
+  parent_goal_id?: string;
+  title: string;
+  demand: string;
+  success_criteria: string; // JSON Array
+  constraints: string;      // JSON Array
+  status: 'initialized' | 'discovery' | 'action' | 'verification' | 'completed' | 'failed';
+  conclusion?: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface EvidenceCacheItem {
+  id: string;
+  project_id: string;
+  file_path: string;
+  file_version: string;
+  start_line?: number;
+  end_line?: number;
+  symbol_name?: string;
+  summary: string;
+  raw_snippet?: string;
+  is_stale: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface GoalVerificationItem {
+  id: string;
+  goal_id: string;
+  iteration: number;
+  test_command: string;
+  test_output: string;
+  is_passed: number;
+  feedback?: string;
+  created_at: number;
+}
+
 export function parseProjectFolders(rootPath?: string): string[] {
   if (!rootPath) return [];
   try {
@@ -489,6 +530,100 @@ export const agentService = {
     } catch (e) {
       console.error('Failed to get MCP servers:', e);
       return [];
+    }
+  },
+
+  // Goals & Evidence
+  async getProjectGoals(projectId: string): Promise<Goal[]> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/projects/${projectId}/goals`);
+      if (!res.ok) return [];
+      return await res.json();
+    } catch (e) {
+      console.error('Failed to get project goals:', e);
+      return [];
+    }
+  },
+
+  async createGoal(
+    projectId: string,
+    payload: {
+      id?: string;
+      session_id?: string;
+      parent_goal_id?: string;
+      title: string;
+      demand: string;
+      success_criteria?: string[];
+      constraints?: string[];
+      reuse_keywords?: string[];
+    }
+  ): Promise<{ ok: boolean; goal?: Goal; error?: string }> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/projects/${projectId}/goals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { ok: false, error: data?.error || 'Failed to create goal' };
+      }
+      return { ok: true, goal: data };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'Network error' };
+    }
+  },
+
+  async getGoalDetails(goalId: string): Promise<Goal | null> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/goals/${goalId}`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      console.error('Failed to get goal details:', e);
+      return null;
+    }
+  },
+
+  async getGoalEvidence(goalId: string): Promise<EvidenceCacheItem[]> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/goals/${goalId}/evidence`);
+      if (!res.ok) return [];
+      return await res.json();
+    } catch (e) {
+      console.error('Failed to get goal evidence:', e);
+      return [];
+    }
+  },
+
+  async getGoalVerifications(goalId: string): Promise<GoalVerificationItem[]> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/goals/${goalId}/verifications`);
+      if (!res.ok) return [];
+      return await res.json();
+    } catch (e) {
+      console.error('Failed to get goal verifications:', e);
+      return [];
+    }
+  },
+
+  async concludeGoal(
+    goalId: string,
+    conclusion: string
+  ): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/goals/${goalId}/conclude`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conclusion }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { ok: false, error: data?.error || 'Failed to conclude goal' };
+      }
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'Network error' };
     }
   },
 };

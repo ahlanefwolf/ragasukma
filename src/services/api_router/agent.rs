@@ -43,6 +43,12 @@ pub fn register_agent_routes(
         // MCP Servers
         .route("/api/agent/mcp", get(list_mcp_servers).post(save_mcp_server))
         .route("/api/agent/mcp/:id/delete", post(delete_mcp_server))
+        // Goals & Evidence
+        .route("/api/agent/projects/:id/goals", get(list_project_goals).post(create_project_goal))
+        .route("/api/agent/goals/:id", get(get_goal_details))
+        .route("/api/agent/goals/:id/evidence", get(get_goal_evidences))
+        .route("/api/agent/goals/:id/verifications", get(get_goal_verifications_list))
+        .route("/api/agent/goals/:id/conclude", post(conclude_goal_handler))
 }
 
 // -----------------------------------------------------------------------------
@@ -881,6 +887,133 @@ async fn delete_mcp_server(Path(id): Path<String>) -> impl IntoResponse {
         Ok(_) => (StatusCode::OK, Json(json!({"status": "deleted"}))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        ),
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Goals & Evidence Cache Endpoints
+// -----------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct CreateGoalPayload {
+    pub id: Option<String>,
+    pub session_id: Option<String>,
+    pub parent_goal_id: Option<String>,
+    pub title: String,
+    pub demand: String,
+    pub success_criteria: Option<Vec<String>>,
+    pub constraints: Option<Vec<String>>,
+    pub reuse_keywords: Option<Vec<String>>,
+}
+
+async fn list_project_goals(Path(project_id): Path<String>) -> impl IntoResponse {
+    match repository::list_project_goals(&project_id).await {
+        Ok(goals) => (StatusCode::OK, Json(json!(goals))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        ),
+    }
+}
+
+async fn create_project_goal(
+    Path(project_id): Path<String>,
+    Json(payload): Json<CreateGoalPayload>,
+) -> impl IntoResponse {
+    let goal_id = payload.id.unwrap_or_else(|| {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        format!("G_{}", now)
+    });
+
+    let sc = payload.success_criteria.unwrap_or_default();
+    let constraints = payload.constraints.unwrap_or_default();
+    let kw = payload.reuse_keywords.unwrap_or_default();
+    let kw_refs: Vec<&str> = kw.iter().map(|s| s.as_str()).collect();
+
+    // Check project workspace roots for file revalidation
+    let workspace_roots = match repository::get_project(&project_id).await {
+        Ok(Some(p)) => crate::agent::executor::parse_project_folders(p.root_path.as_deref()),
+        _ => Vec::new(),
+    };
+
+    match crate::agent::orchestrator::GoalOrchestrator::initialize_demand(
+        &goal_id,
+        &project_id,
+        payload.session_id.as_deref(),
+        payload.parent_goal_id.as_deref(),
+        &payload.title,
+        &payload.demand,
+        &sc,
+        &constraints,
+        &kw_refs,
+        &workspace_roots,
+    )
+    .await
+    {
+        Ok(goal) => (StatusCode::CREATED, Json(json!(goal))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        ),
+    }
+}
+
+async fn get_goal_details(Path(id): Path<String>) -> impl IntoResponse {
+    match repository::get_goal(&id).await {
+        Ok(Some(goal)) => (StatusCode::OK, Json(json!(goal))),
+        Ok(None) => (StatusCode::NOT_FOUND, Json(json!({"error": "Goal not found"}))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        ),
+    }
+}
+
+async fn get_goal_evidences(Path(id): Path<String>) -> impl IntoResponse {
+    match repository::get_active_evidences_for_goal(&id).await {
+        Ok(evidences) => (StatusCode::OK, Json(json!(evidences))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        ),
+    }
+}
+
+async fn get_goal_verifications_list(Path(id): Path<String>) -> impl IntoResponse {
+    match repository::list_goal_verifications(&id).await {
+        Ok(verifs) => (StatusCode::OK, Json(json!(verifs))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        ),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ConcludeGoalPayload {
+    pub conclusion: String,
+}
+
+async fn conclude_goal_handler(
+    Path(id): Path<String>,
+    Json(payload): Json<ConcludeGoalPayload>,
+) -> impl IntoResponse {
+    let goal = match repository::get_goal(&id).await {
+        Ok(Some(g)) => g,
+        Ok(None) => return (StatusCode::NOT_FOUND, Json(json!({"error": "Goal not found"}))),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))),
+    };
+
+    let orch = crate::agent::orchestrator::GoalOrchestrator::new(&goal.id, &goal.project_id);
+    match orch.conclude(&payload.conclusion).await {
+        Ok(_) => (StatusCode::OK, Json(json!({"status": "completed"}))),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
             Json(json!({"error": e.to_string()})),
         ),
     }

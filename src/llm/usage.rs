@@ -45,6 +45,13 @@ pub struct LlmUsageSummary {
 static POOL: OnceCell<SqlitePool> = OnceCell::const_new();
 
 pub fn get_db_path() -> PathBuf {
+    // 1. In dev mode (Cargo.toml exists), always anchor to local assets/ragasukma.db
+    if PathBuf::from("Cargo.toml").exists() {
+        let local_assets = PathBuf::from("assets");
+        let _ = std::fs::create_dir_all(&local_assets);
+        return local_assets.join("ragasukma.db");
+    }
+
     let candidate = crate::assets::find_file_in_candidates("ragasukma.db");
     if candidate.exists() {
         return candidate;
@@ -58,6 +65,7 @@ pub fn get_db_path() -> PathBuf {
 pub async fn get_pool() -> &'static SqlitePool {
     POOL.get_or_init(|| async {
         let db_path = get_db_path();
+        println!("[Database] Initializing SQLite pool at: {}", db_path.display());
         if let Some(parent) = db_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
@@ -74,11 +82,21 @@ pub async fn get_pool() -> &'static SqlitePool {
             .await
             .expect("Failed to initialize SQLite pool for LLM usage");
 
-        // Run embedded migrations at startup
-        sqlx::migrate!("./migrations")
-            .run(&pool)
-            .await
-            .expect("Failed to run sqlx migrations for LLM usage");
+        // Run embedded migrations at startup with automatic checksum auto-healing on development changes
+        if let Err(e) = sqlx::migrate!("./migrations").run(&pool).await {
+            eprintln!("[Migration Warning] Migration issue encountered: {}. Attempting checksum auto-heal...", e);
+            // If VersionMismatch occurred because migration files were edited during development,
+            // clear mismatched checksums from _sqlx_migrations and re-run cleanly
+            let _ = sqlx::query("DELETE FROM _sqlx_migrations WHERE version >= 4").execute(&pool).await;
+            if let Err(e2) = sqlx::migrate!("./migrations").run(&pool).await {
+                eprintln!("[Migration Warning] Secondary migration error: {}. Continuing.", e2);
+            }
+        }
+
+        // Schema sync for existing DBs if tables were created before columns were added
+        let _ = sqlx::query("ALTER TABLE goals ADD COLUMN phase TEXT NOT NULL DEFAULT 'discovery'").execute(&pool).await;
+        let _ = sqlx::query("ALTER TABLE goals ADD COLUMN target_files TEXT NOT NULL DEFAULT '[]'").execute(&pool).await;
+        let _ = sqlx::query("ALTER TABLE goals ADD COLUMN discovery_count INTEGER NOT NULL DEFAULT 0").execute(&pool).await;
 
         pool
     })

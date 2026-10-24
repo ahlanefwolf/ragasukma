@@ -10,12 +10,29 @@ use std::io::BufRead;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-static THOUGHT_SIGNATURE_STORE: LazyLock<Mutex<HashMap<String, (String, Instant)>>> =
+type ThoughtSignatureEntry = (String, Option<String>, Instant);
+
+static THOUGHT_SIGNATURE_STORE: LazyLock<Mutex<HashMap<String, ThoughtSignatureEntry>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// Default thinking signature for Antigravity Gemini 3+ models when missing from store (ported from 9router)
-pub const DEFAULT_THINKING_AG_SIGNATURE: &str =
-    "EuwGCukGAXLI2nxwZIq54WWSoL/YN0P3TsDZ7zRnLi8g0S4aVr2HUGxvaHKySuY6HAVzcE0GPGjXrytLIldxthSvfxgUlJh6Qa9Z+Oj5QZBlYdg6HaJ6yuY5R7waE6rdwBsRf7Ft2j3DJ9rMi9qhWFqApewYtPhls3VHtuvND3l8Rm09+lbAXQs6KKWEWrxNLKTBkfpMgXhRERc/TQRMZu1twAablm6/Zk1tsYRvfWKLsNbeKF+CCojJdXJKvnR/8Ouuoa+Y2Ti20hcW7aZIIjZDFYPU//k6Ybmhg69J/imbFai2ckhfLaisqdDkdoIiBJScTOUvYqP6AE9d4MsydSC+UlhIMk4hoP76R8vUSCZRMkjOaDXstf/QoVZKbt94wyRZgAJ1G0BqI8L5ow86kLpA4wJEtxsRGymOE4bKUvApveBakYDNM9APkf+LbtbzWSseGjoZcSlycF9iN8Q2XNYKRrHbv3Lr5Y8JjdH/5y/6SHkNehTEZugaeGnSPSyCTWto1kQgHpxdWmhkLfJGNUGLmue7Mesj4TSms4J33mRpYVhNB/J333FCqIP0hr/E7BkkjEn7yZ4X7SQlh+xKPurapsnHRwiKmtsilmEFrnTE9iQr+pMr6M29qqFNv1tr5yumbaJw8JW9sB15tNsRv+dW6BjNanbsKz7HCgKUBc8tGy+7YuhXzAfViyRefcjK7eZW0Fbyt7AbybJTKz78W8NH7ye6LAwzOebXpeZ4D43fNIt8bKh26qgduSQv/7o+pAflkuqHZ99YWgHQ8h8OkZFi3eOiSYjsjhdZ/czWOdoPI/OnqIldzMPF5YlrKBLFX8VhRKVmqgsmWf5PHGulHhMkVlS+XG2UIseGy69ARa93D78Gsa+1n1kJr7EEB7Rh+27vUMxVYLdz1yMSvE5nalTAlg/ZeG8+XQ0cHuAI3KbQpHW2Q++RdXfm5JzD5WdJZUU+Zn8t8UUn85BH4RxZLeE0qJikgSsKoYVBc6YhiMjhPgkR95ReimY4Z0xCJdRo1gjexOFeODZMpQF6Yxnoic7IrdgsFA3iePTbFnPp3IAM1fAThWhXJUn3QInUOTd5o1qmTmn6REbL15g/JQNl+dqUoPkhleeb2V3kjqp1okmO3wMZbPknR3S1LZNmlS72/iBQUm+n2b/RCn4PjmM2";
+/// Model family that produced / will consume a signature. Antigravity serves Gemini and Claude
+/// models behind the same API, and each backend only accepts its own signatures: a Claude
+/// signature replayed to Gemini fails with 400 "Corrupted thought signature." (and vice versa).
+pub fn signature_family(model: &str) -> &'static str {
+    let m = model.to_lowercase();
+    if m.contains("claude") {
+        "claude"
+    } else {
+        "gemini"
+    }
+}
+
+fn is_signature_compatible(entry_family: Option<&str>, target_family: Option<&str>) -> bool {
+    match (entry_family, target_family) {
+        (Some(ef), Some(tf)) => ef.eq_ignore_ascii_case(tf),
+        _ => true,
+    }
+}
 
 /// Validate if a string is a valid standard or URL-safe Base64 encoded string
 pub fn is_valid_base64(s: &str) -> bool {
@@ -78,8 +95,8 @@ pub fn sanitize_thought_signature(sig: &str) -> Option<String> {
     }
 }
 
-/// Store a Gemini 3+ thoughtSignature for a tool call ID with a 2-hour TTL
-pub fn store_thought_signature(call_id: &str, signature: &str) {
+/// Store a thoughtSignature for a tool call ID with optional model family and a 2-hour TTL
+pub fn store_thought_signature_scoped(call_id: &str, signature: &str, family: Option<&str>) {
     let clean_id = call_id.trim();
     let clean_sig = sanitize_thought_signature(signature);
     let Some(valid_sig) = clean_sig else {
@@ -88,10 +105,11 @@ pub fn store_thought_signature(call_id: &str, signature: &str) {
     if clean_id.is_empty() {
         return;
     }
+    let family_str = family.map(|f| f.to_lowercase());
     if let Ok(mut store) = THOUGHT_SIGNATURE_STORE.lock() {
         if store.len() >= 5000 {
             let now = Instant::now();
-            store.retain(|_, (_, exp)| *exp > now);
+            store.retain(|_, (_, _, exp)| *exp > now);
             if store.len() >= 5000 {
                 let keys_to_remove: Vec<String> = store.keys().take(1000).cloned().collect();
                 for k in keys_to_remove {
@@ -100,19 +118,25 @@ pub fn store_thought_signature(call_id: &str, signature: &str) {
             }
         }
         let expires_at = Instant::now() + std::time::Duration::from_secs(2 * 3600);
-        store.insert(clean_id.to_string(), (valid_sig, expires_at));
+        store.insert(clean_id.to_string(), (valid_sig, family_str, expires_at));
     }
 }
 
-/// Retrieve a cached thoughtSignature by tool call ID
-pub fn get_thought_signature(call_id: &str) -> Option<String> {
+/// Store a Gemini 3+ thoughtSignature for a tool call ID with a 2-hour TTL (unscoped legacy)
+#[allow(dead_code)]
+pub fn store_thought_signature(call_id: &str, signature: &str) {
+    store_thought_signature_scoped(call_id, signature, None);
+}
+
+/// Retrieve a cached thoughtSignature by tool call ID scoped to a target model family
+pub fn get_thought_signature_scoped(call_id: &str, target_family: Option<&str>) -> Option<String> {
     let clean_id = call_id.trim();
     if clean_id.is_empty() {
         return None;
     }
     if let Ok(store) = THOUGHT_SIGNATURE_STORE.lock() {
-        if let Some((sig, exp)) = store.get(clean_id) {
-            if *exp > Instant::now() {
+        if let Some((sig, entry_fam, exp)) = store.get(clean_id) {
+            if *exp > Instant::now() && is_signature_compatible(entry_fam.as_deref(), target_family) {
                 return sanitize_thought_signature(sig);
             }
         }
@@ -120,8 +144,14 @@ pub fn get_thought_signature(call_id: &str) -> Option<String> {
     None
 }
 
-/// Resolve thoughtSignature from embedded ID (e.g. `call_123__thought__<sig>`) or cache
-pub fn resolve_call_signature(call_id: &str) -> Option<String> {
+/// Retrieve a cached thoughtSignature by tool call ID
+#[allow(dead_code)]
+pub fn get_thought_signature(call_id: &str) -> Option<String> {
+    get_thought_signature_scoped(call_id, None)
+}
+
+/// Resolve thoughtSignature from embedded ID (e.g. `call_123__thought__<sig>`) or cache with family scoping
+pub fn resolve_call_signature_scoped(call_id: &str, target_family: Option<&str>) -> Option<String> {
     let clean_id = call_id.trim();
     if clean_id.is_empty() {
         return None;
@@ -130,11 +160,17 @@ pub fn resolve_call_signature(call_id: &str) -> Option<String> {
         if let Some(valid_sig) = sanitize_thought_signature(sig) {
             return Some(valid_sig);
         }
-        if let Some(cached) = get_thought_signature(base) {
+        if let Some(cached) = get_thought_signature_scoped(base, target_family) {
             return Some(cached);
         }
     }
-    get_thought_signature(clean_id)
+    get_thought_signature_scoped(clean_id, target_family)
+}
+
+/// Resolve thoughtSignature from embedded ID (e.g. `call_123__thought__<sig>`) or cache
+#[allow(dead_code)]
+pub fn resolve_call_signature(call_id: &str) -> Option<String> {
+    resolve_call_signature_scoped(call_id, None)
 }
 
 pub fn resolve_model_alias(input: &str) -> String {
@@ -462,6 +498,7 @@ pub fn sanitize_system_prompt(prompt: &str) -> String {
 
 pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json::Value {
     let clean_model = resolve_model_alias(&req.model);
+    let family = signature_family(&req.model);
 
     let mut system_prompts = Vec::new();
     let mut tool_call_names: HashMap<String, String> = HashMap::new();
@@ -528,12 +565,11 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                                     .and_then(sanitize_thought_signature)
                             });
 
-                        let cached_sig = direct_sig.or_else(|| resolve_call_signature(&tc.id));
+                        let cached_sig = direct_sig.or_else(|| resolve_call_signature_scoped(&tc.id, Some(family)));
                         if let Some(ref s) = cached_sig {
-                            store_thought_signature(clean_tc_id, s);
+                            store_thought_signature_scoped(clean_tc_id, s, Some(family));
                         }
-                        let call_sig = cached_sig
-                            .or_else(|| Some(DEFAULT_THINKING_AG_SIGNATURE.to_string()));
+                        let call_sig = cached_sig;
 
                         let mut part = serde_json::json!({
                             "functionCall": {
@@ -659,6 +695,7 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                     true
                 });
 
+                let mut first_fc_seen = false;
                 for p in parts.iter_mut() {
                     if let Some(fc) = p.get("functionCall") {
                         let call_id = fc.get("id").and_then(|i| i.as_str()).unwrap_or("");
@@ -669,14 +706,24 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                             .and_then(sanitize_thought_signature);
 
                         let cached_sig = if !call_id.is_empty() {
-                            resolve_call_signature(call_id)
+                            resolve_call_signature_scoped(call_id, Some(family))
                         } else {
                             None
                         };
 
-                        let call_sig = existing_sig
-                            .or(cached_sig)
-                            .or_else(|| Some(DEFAULT_THINKING_AG_SIGNATURE.to_string()));
+                        // Segregated by model family (aligned with 9router specification):
+                        // - If an existing or cached signature exists and is compatible with target family, use it.
+                        // - If missing: for Claude models on Antigravity, inject DEFAULT_THINKING_CLAUDE_SIGNATURE on first functionCall.
+                        // - For Gemini models: do not inject synthetic signatures when none exists to prevent Google API 400 TYPE_BYTES / Corrupted signature errors.
+                        // - Sibling function calls remain unsigned unless they explicitly have a cached signature.
+                        let call_sig = existing_sig.or(cached_sig).or_else(|| {
+                            if !first_fc_seen && family == "claude" {
+                                Some(DEFAULT_THINKING_CLAUDE_SIGNATURE.to_string())
+                            } else {
+                                None
+                            }
+                        });
+                        first_fc_seen = true;
 
                         if let Some(sig) = call_sig.as_deref().and_then(sanitize_thought_signature)
                         {
@@ -686,6 +733,10 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                                     serde_json::Value::String(sig),
                                 );
                             }
+                        } else if let Some(obj) = p.as_object_mut() {
+                            // Strip invalid/corrupted thoughtSignature so Google does not reject request
+                            obj.remove("thoughtSignature");
+                            obj.remove("thought_signature");
                         }
                     }
                 }
@@ -707,6 +758,16 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
                 "parts": [{ "text": "..." }]
             }),
         );
+    }
+
+    // Ensure the last turn is NOT a model turn (Gemini API returns 400 "Requests ending with a model turn are not supported")
+    if let Some(last) = normalized_contents.last() {
+        if last.get("role").and_then(|r| r.as_str()) == Some("model") {
+            normalized_contents.push(serde_json::json!({
+                "role": "user",
+                "parts": [{ "text": "Please continue and complete the remaining requested actions." }]
+            }));
+        }
     }
 
     // Tools conversion
@@ -763,14 +824,23 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
         .as_millis();
     let request_id = format!("agent/{conversation_id}/{now_ms}/{trajectory_id}/{step}");
 
+    let mut gen_config = serde_json::json!({
+        "temperature": req.temperature.unwrap_or(0.7),
+        "topP": 0.95,
+        "topK": 40,
+        "maxOutputTokens": req.max_tokens.unwrap_or(64000).min(64000)
+    });
+
+    if family == "gemini" {
+        gen_config["thinkingConfig"] = serde_json::json!({
+            "thinkingBudget": -1,
+            "includeThoughts": true
+        });
+    }
+
     let mut inner_request = serde_json::json!({
         "contents": normalized_contents,
-        "generationConfig": {
-            "temperature": req.temperature.unwrap_or(0.7),
-            "topP": 0.95,
-            "topK": 40,
-            "maxOutputTokens": req.max_tokens.unwrap_or(64000).min(64000)
-        },
+        "generationConfig": gen_config,
         "sessionId": session_id
     });
 
@@ -838,6 +908,7 @@ where
     let mut function_index = 0;
     let mut finish_reason = "stop".to_string();
     let mut pending_thought_signature: Option<String> = None;
+    let target_family = signature_family(&req.model);
 
     for line in reader.lines() {
         let line = line?;
@@ -944,9 +1015,9 @@ where
 
                                     let call_id = if let Some(ref s) = sig {
                                         if let Some(valid_sig) = sanitize_thought_signature(s) {
-                                            store_thought_signature(&base_id, &valid_sig);
+                                            store_thought_signature_scoped(&base_id, &valid_sig, Some(target_family));
                                             let embedded_id = format!("{base_id}__thought__{valid_sig}");
-                                            store_thought_signature(&embedded_id, &valid_sig);
+                                            store_thought_signature_scoped(&embedded_id, &valid_sig, Some(target_family));
                                             embedded_id
                                         } else {
                                             base_id
