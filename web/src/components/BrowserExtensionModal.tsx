@@ -60,7 +60,7 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
               <div>
                 <h3 class="text-theme-text flex items-center gap-2 m-0 leading-tight">
                   Install Browser Extension (.ZIP)
-                  <span class="text-[10px] font-mono font-bold px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan">
+                  <span class="text-2xs font-mono font-bold px-2 py-0.5 bg-theme-card border border-theme-border text-theme-cyan">
                     Cross-Platform
                   </span>
                 </h3>
@@ -87,7 +87,7 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
                   <Puzzle size={16} class="text-theme-cyan" />
                   <span class="text-xs uppercase tracking-wider font-mono">Extension Package (.ZIP):</span>
                 </div>
-                <code class="text-[11px] font-mono text-theme-cyan block select-all bg-theme-bg px-2.5 py-1.5 border border-theme-border font-medium">
+                <code class="text-xs font-mono text-theme-cyan block select-all bg-theme-bg px-2.5 py-1.5 border border-theme-border font-medium">
                   {zipPath()}
                 </code>
               </div>
@@ -124,26 +124,26 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
                   <span class="px-2.5 py-1 text-xs font-bold uppercase bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 tracking-wide font-mono">
                     Installation for Chrome / Brave / Edge
                   </span>
-                  <span class="text-[11px] font-mono text-theme-cyan font-semibold">1-Step Unpack</span>
+                  <span class="text-xs font-mono text-theme-cyan font-semibold">1-Step Unpack</span>
                 </div>
 
                 <div class="space-y-2.5 text-theme-text/85 leading-relaxed text-xs sm:text-sm">
                   <div class="flex items-start gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
+                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-2xs flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
                       1
                     </span>
                     <span>Extract <code class="px-1.5 py-0.5 bg-theme-card border border-theme-border font-mono text-xs font-bold text-theme-cyan">ragasukma-companion.zip</code> to a folder of your choice (e.g. the <code>extension</code> folder).</span>
                   </div>
 
                   <div class="flex items-start gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
+                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-2xs flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
                       2
                     </span>
                     <span>Open a new tab and navigate to <code class="px-1.5 py-0.5 bg-theme-card border border-theme-border font-mono text-xs font-bold text-theme-cyan">chrome://extensions</code> in Chromium, then toggle on <strong>Developer mode</strong> in the top-right corner.</span>
                   </div>
 
                   <div class="flex items-start gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
+                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-2xs flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
                       3
                     </span>
                     <div>

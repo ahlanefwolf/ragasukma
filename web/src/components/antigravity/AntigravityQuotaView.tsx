@@ -182,7 +182,7 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
                             </span>
                             <button
                               type="button"
-                              class="text-theme-text/40 group-hover:text-theme-cyan transition-colors"
+                              class="text-theme-text/70 group-hover:text-theme-cyan transition-colors"
                             >
                               <Show when={isCopied()} fallback={<Copy size={12} />}>
                                 <Check size={12} class="text-gi-status-success" />
@@ -212,7 +212,7 @@ export const AntigravityQuotaView: Component<AntigravityQuotaViewProps> = (props
                 }}
               </For>
             </div>
-            <div class="text-xs text-theme-text/40 italic">
+            <div class="text-xs text-theme-text/70 italic">
               Prefix model ID with <span class="font-mono text-theme-cyan">ag/</span> when configuring tools if not auto-detected.
             </div>
           </div>

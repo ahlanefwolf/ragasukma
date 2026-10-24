@@ -85,7 +85,7 @@ export const CodexAccountCard: Component<CodexAccountCardProps> = (props) => {
               </span>
               <span class="text-theme-border">•</span>
             </Show>
-            <span class="font-mono text-xs text-theme-text/40 select-text">
+            <span class="font-mono text-xs text-theme-text/70 select-text">
               ID: {props.account.id}
             </span>
           </div>

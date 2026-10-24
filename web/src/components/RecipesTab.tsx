@@ -109,7 +109,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
   const handleDeleteRecipe = async (recipe: AutomationRecipe) => {
     const ok = await showConfirm({
       title: 'Delete Recipe',
-      message: `Are you sure you want to delete recipe "${recipe.title}"?`,
+      message: `Are you sure you want to delete recipe "${recipe.name}"?`,
       confirmText: 'Delete',
       isDanger: true,
     });
@@ -314,7 +314,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
       }>
         <Show when={recipes().length > 0} fallback={
           <div class="p-12 text-center border border-theme-border bg-theme-surface space-y-3">
-            <Workflow size={36} class="mx-auto text-theme-text/30" />
+            <Workflow size={36} class="mx-auto text-theme-text/60" />
             <p class="text-sm font-semibold text-theme-text/70">
               No automation recipes saved yet.
             </p>
@@ -438,12 +438,12 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
                                     )}
                                   </div>
                                   {st.value && (
-                                    <div class="text-[11px] text-theme-cyan">
+                                    <div class="text-xs text-theme-cyan">
                                       Value: <span class="bg-theme-card px-1.5 py-0.5 border border-theme-border">{st.value}</span>
                                     </div>
                                   )}
                                   {st.fallback_selectors && st.fallback_selectors.length > 0 && (
-                                    <div class="text-[10.5px] text-theme-text/50 truncate">
+                                    <div class="text-2xs text-theme-text/50 truncate">
                                       Fallbacks: {st.fallback_selectors.join(' • ')}
                                     </div>
                                   )}
@@ -576,7 +576,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
                     <button
                       type="button"
                       onClick={() => setFormRecipeId(generateSlug(formName()))}
-                      class="text-[10.5px] font-mono text-theme-cyan hover:underline cursor-pointer"
+                      class="text-2xs font-mono text-theme-cyan hover:underline cursor-pointer"
                       title="Generate slug from name"
                     >
                       Sync from Name
@@ -656,10 +656,10 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
                       <div class="p-3 bg-theme-bg border border-theme-border space-y-2 relative">
                         <div class="flex items-center justify-between gap-2">
                           <div class="flex items-center gap-2">
-                            <span class="w-5 h-5 bg-theme-cyan text-theme-card font-mono font-bold flex items-center justify-center text-[11px]">
+                            <span class="w-5 h-5 bg-theme-cyan text-theme-card font-mono font-bold flex items-center justify-center text-xs">
                               {idx() + 1}
                             </span>
-                            <span class="font-mono font-semibold text-theme-text/80 text-[11px]">
+                            <span class="font-mono font-semibold text-theme-text/80 text-xs">
                               Step #{idx() + 1}
                             </span>
                           </div>
@@ -696,7 +696,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
 
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                           <div>
-                            <label class="block text-[10px] font-mono text-theme-text/60 mb-0.5">Action</label>
+                            <label class="block text-2xs font-mono text-theme-text/60 mb-0.5">Action</label>
                             <select
                               value={stepItem.action}
                               onChange={(e) => updateStepField(idx(), 'action', e.currentTarget.value)}
@@ -710,7 +710,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
                           </div>
 
                           <div class="sm:col-span-2">
-                            <label class="block text-[10px] font-mono text-theme-text/60 mb-0.5">CSS Selector / Target</label>
+                            <label class="block text-2xs font-mono text-theme-text/60 mb-0.5">CSS Selector / Target</label>
                             <input
                               type="text"
                               value={stepItem.selector}
@@ -723,7 +723,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
-                            <label class="block text-[10px] font-mono text-theme-text/60 mb-0.5">Value (Template or static)</label>
+                            <label class="block text-2xs font-mono text-theme-text/60 mb-0.5">Value (Template or static)</label>
                             <input
                               type="text"
                               value={stepItem.value || ''}
@@ -734,7 +734,7 @@ export const RecipesTab: Component<RecipesTabProps> = (props) => {
                           </div>
 
                           <div>
-                            <label class="block text-[10px] font-mono text-theme-text/60 mb-0.5">Target Text / Label</label>
+                            <label class="block text-2xs font-mono text-theme-text/60 mb-0.5">Target Text / Label</label>
                             <input
                               type="text"
                               value={stepItem.target_text || ''}

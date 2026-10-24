@@ -109,7 +109,7 @@ export const SearchableSelect: Component<SearchableSelectProps> = (props) => {
         >
           {/* Search Box */}
           <div class="p-2 border-b border-white/10 flex items-center gap-2 bg-black/20 shrink-0">
-            <Search size={13} class="text-white/40 shrink-0 ml-1" />
+            <Search size={13} class="text-white/70 shrink-0 ml-1" />
             <input
               ref={searchInputRef}
               type="text"
@@ -122,7 +122,7 @@ export const SearchableSelect: Component<SearchableSelectProps> = (props) => {
               <button
                 type="button"
                 onClick={() => setSearch('')}
-                class="text-xs text-white/40 hover:text-white px-1 font-mono"
+                class="text-xs text-white/70 hover:text-white px-1 font-mono"
               >
                 ×
               </button>
@@ -134,7 +134,7 @@ export const SearchableSelect: Component<SearchableSelectProps> = (props) => {
             <For
               each={filteredOptions()}
               fallback={
-                <div class="px-3 py-4 text-center text-xs text-white/40 font-mono">
+                <div class="px-3 py-4 text-center text-xs text-white/70 font-mono">
                   No matching options found
                 </div>
               }
@@ -155,13 +155,13 @@ export const SearchableSelect: Component<SearchableSelectProps> = (props) => {
                       <div class="truncate flex items-center gap-1.5">
                         <span class="truncate">{opt.label}</span>
                         <Show when={opt.badge}>
-                          <span class="text-[9px] px-1.5 py-0.2 rounded bg-white/10 text-white/60 font-sans">
+                          <span class="text-2xs px-1.5 py-0.2 rounded bg-white/10 text-white/60 font-sans">
                             {opt.badge}
                           </span>
                         </Show>
                       </div>
                       <Show when={opt.sublabel}>
-                        <div class="text-[10px] text-white/40 truncate">{opt.sublabel}</div>
+                        <div class="text-2xs text-white/70 truncate">{opt.sublabel}</div>
                       </Show>
                     </div>
                     <Show when={isSelected()}>

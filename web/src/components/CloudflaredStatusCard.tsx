@@ -64,7 +64,7 @@ export const CloudflaredStatusCard: Component<CloudflaredStatusCardProps> = (pro
               <span class="text-xs text-theme-text/70">Installed & ready to use</span>
             </div>
             <Show when={props.info()?.path}>
-              <p class="text-[11px] font-mono text-theme-text/50 truncate">
+              <p class="text-xs font-mono text-theme-text/50 truncate">
                 Location: {props.info()!.path}
               </p>
             </Show>
@@ -115,7 +115,7 @@ export const CloudflaredStatusCard: Component<CloudflaredStatusCardProps> = (pro
                         {item.os}
                       </span>
                       <div class="flex items-center gap-1.5">
-                        <code class="text-[11px] font-mono bg-theme-card px-2 py-1 flex-1 border border-theme-border text-theme-cyan truncate">
+                        <code class="text-xs font-mono bg-theme-card px-2 py-1 flex-1 border border-theme-border text-theme-cyan truncate">
                           {item.cmd}
                         </code>
                         <button

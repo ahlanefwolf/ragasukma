@@ -47,7 +47,7 @@ export const CreateProjectModal: Component<{
             </h3>
             <button
               onClick={props.onClose}
-              class="text-white/40 hover:text-white"
+              class="text-white/70 hover:text-white"
             >
               <X class="w-4 h-4" />
             </button>
@@ -115,7 +115,7 @@ export const CreateProjectModal: Component<{
 
               {/* Validation message badge */}
               <Show when={props.folderValidationMsg}>
-                <div class={`text-[11px] mb-2 px-2.5 py-1 rounded flex items-center gap-1.5 ${
+                <div class={`text-xs mb-2 px-2.5 py-1 rounded flex items-center gap-1.5 ${
                   props.folderValidationMsg?.valid
                     ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
                     : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
@@ -128,14 +128,14 @@ export const CreateProjectModal: Component<{
               <div class="space-y-1 max-h-32 overflow-y-auto">
                 <For each={props.projFolders}>
                   {(f) => (
-                    <div class="flex items-center justify-between p-2 bg-white/5 border border-white/5 rounded-lg font-mono text-[11px]">
+                    <div class="flex items-center justify-between p-2 bg-white/5 border border-white/5 rounded-lg font-mono text-xs">
                       <span class="truncate flex items-center gap-1.5 text-white/90">
                         <Folder class="w-3.5 h-3.5 text-amber-400 shrink-0" />
                         {f}
                       </span>
                       <button
                         onClick={() => props.onRemoveFolder(f)}
-                        class="text-white/40 hover:text-rose-400 p-0.5 rounded ml-2"
+                        class="text-white/70 hover:text-rose-400 p-0.5 rounded ml-2"
                       >
                         <X class="w-3.5 h-3.5" />
                       </button>
@@ -204,7 +204,7 @@ export const CreateSkillModal: Component<{
             </h3>
             <button
               onClick={props.onClose}
-              class="text-theme-text/40 hover:text-theme-text"
+              class="text-theme-text/70 hover:text-theme-text"
             >
               <X class="w-4 h-4" />
             </button>
@@ -212,8 +212,8 @@ export const CreateSkillModal: Component<{
 
           <div class="space-y-3 text-xs">
             <div class="flex items-center justify-between">
-              <label class="block text-theme-text/70 font-medium">SKILL.md Format (Markdown + YAML Frontmatter)</label>
-              <span class="text-[10px] text-theme-text/40">Auto-detects name, description & tags</span>
+              <label class="block text-theme-text/70 font-medium">Skill Prompt Configuration</label>
+              <span class="text-2xs text-theme-text/70">Markdown + YAML Frontmatter</span>
             </div>
 
             <div>
@@ -228,30 +228,30 @@ tags: web, coding
 Full prompt instructions for the AI model...`}
                 value={props.skillMarkdown}
                 onInput={(e) => props.setSkillMarkdown(e.currentTarget.value)}
-                class="w-full px-3 py-2.5 bg-theme-bg border border-theme-border rounded-lg text-theme-text font-mono text-[11px] leading-relaxed focus:outline-none focus:border-theme-cyan custom-scrollbar"
+                class="w-full px-3 py-2.5 bg-theme-bg border border-theme-border rounded-lg text-theme-text font-mono text-xs leading-relaxed focus:outline-none focus:border-theme-cyan custom-scrollbar"
               />
             </div>
 
             {/* Live Preview of parsed metadata */}
-            <div class="p-2.5 rounded-lg bg-theme-bg/60 border border-theme-border/60 space-y-1 text-[11px]">
+            <div class="p-2.5 rounded-lg bg-theme-bg/60 border border-theme-border/60 space-y-1 text-xs">
               <div class="flex items-center gap-2">
-                <span class="text-theme-text/40">Name:</span>
+                <span class="text-theme-text/70">Name:</span>
                 <span class="text-theme-cyan font-semibold">{props.parseSkillMarkdown(props.skillMarkdown).name || '-'}</span>
                 <span class="text-theme-border">•</span>
-                <span class="text-theme-text/40">Slug:</span>
+                <span class="text-theme-text/70">Slug:</span>
                 <span class="text-theme-text/60 font-mono">{props.parseSkillMarkdown(props.skillMarkdown).slug || '-'}</span>
               </div>
               <div class="flex items-center gap-2">
-                <span class="text-theme-text/40">Description:</span>
+                <span class="text-theme-text/70">Description:</span>
                 <span class="text-theme-text/70 truncate">{props.parseSkillMarkdown(props.skillMarkdown).description || '(No description)'}</span>
               </div>
               <Show when={props.parseSkillMarkdown(props.skillMarkdown).tags.length > 0}>
                 <div class="flex items-center gap-1.5 pt-0.5">
-                  <span class="text-theme-text/40">Tags:</span>
+                  <span class="text-theme-text/70">Tags:</span>
                   <div class="flex flex-wrap gap-1">
                     <For each={props.parseSkillMarkdown(props.skillMarkdown).tags}>
                       {(t) => (
-                        <span class="px-1.5 py-0.2 rounded bg-theme-cyan/15 text-theme-cyan text-[10px] border border-theme-cyan/30">
+                        <span class="px-1.5 py-0.2 rounded bg-theme-cyan/15 text-theme-cyan text-2xs border border-theme-cyan/30">
                           {t}
                         </span>
                       )}

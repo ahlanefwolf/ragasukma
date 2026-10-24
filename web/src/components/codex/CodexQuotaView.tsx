@@ -176,7 +176,7 @@ export const CodexQuotaView: Component<CodexQuotaViewProps> = (props) => {
             <button
               onClick={fetchLiveModels}
               disabled={isLoadingModels()}
-              class="text-[10px] text-theme-text/50 hover:text-theme-cyan flex items-center gap-1 transition-colors"
+              class="text-2xs text-theme-text/50 hover:text-theme-cyan flex items-center gap-1 transition-colors"
               title="Refresh models list"
             >
               <RefreshCw size={10} class={isLoadingModels() ? 'animate-spin text-theme-cyan' : ''} />
@@ -195,9 +195,9 @@ export const CodexQuotaView: Component<CodexQuotaViewProps> = (props) => {
                   >
                     <div class="truncate">
                       <code class="text-xs font-mono font-bold text-theme-cyan truncate select-all block">{model.id}</code>
-                      <span class="text-[10px] text-theme-text/50 truncate block">{model.display_name}</span>
+                      <span class="text-2xs text-theme-text/50 truncate block">{model.display_name}</span>
                     </div>
-                    <button type="button" class="text-theme-text/40 group-hover:text-theme-cyan transition-colors shrink-0">
+                    <button type="button" class="text-theme-text/70 group-hover:text-theme-cyan transition-colors shrink-0">
                       <Show when={isCopied()} fallback={<Copy size={13} />}>
                         <Check size={13} class="text-gi-status-success" />
                       </Show>

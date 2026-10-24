@@ -59,7 +59,7 @@ export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props
       <button
         type="button"
         onClick={props.onCycleQuality}
-        class={`p-2 font-mono text-[11px] font-bold tracking-wider active:scale-85 transition-transform drop-shadow-sm cursor-pointer ${qualityColor()}`}
+        class={`p-2 font-mono text-xs font-bold tracking-wider active:scale-85 transition-transform drop-shadow-sm cursor-pointer ${qualityColor()}`}
         title={`Render Quality: ${qualityLabel()} (Tap to switch SD / HD / 4K)`}
       >
         <span>{qualityLabel()}</span>
@@ -69,7 +69,7 @@ export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props
       <button
         type="button"
         onClick={props.onCycleFps}
-        class={`p-2 font-mono text-[11px] font-bold tracking-wider active:scale-85 transition-transform drop-shadow-sm cursor-pointer ${
+        class={`p-2 font-mono text-xs font-bold tracking-wider active:scale-85 transition-transform drop-shadow-sm cursor-pointer ${
           props.fpsLimit === 30 ? 'text-gi-status-success hover:opacity-85' : props.fpsLimit === 60 ? 'text-gi-primary hover:text-gi-primary-hover' : 'text-gi-status-info hover:opacity-85'
         }`}
         title={`FPS Limit: ${props.fpsLimit === 0 ? 'Max' : `${props.fpsLimit} FPS`} (Tap to switch 30 / 60 / Max)`}

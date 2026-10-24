@@ -92,7 +92,7 @@ export const ModelLoadingOverlay: Component<ModelLoadingOverlayProps> = (props) 
 
         {/* Dynamic Model Badge */}
         <Show when={!isError() && modelName()}>
-          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 mb-2.5 text-[11px] font-mono tracking-wider uppercase bg-theme-cyan/10 border border-theme-cyan/30 text-theme-cyan rounded-full">
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 mb-2.5 text-xs font-mono tracking-wider uppercase bg-theme-cyan/10 border border-theme-cyan/30 text-theme-cyan rounded-full">
             <Layers class="w-3 h-3 animate-pulse" />
             <span>Target: {modelName()}</span>
           </div>
@@ -148,7 +148,7 @@ export const ModelLoadingOverlay: Component<ModelLoadingOverlayProps> = (props) 
         </Show>
 
         <Show when={!isError()}>
-          <div class="text-[11px] text-theme-text/60 tracking-wider uppercase font-mono mt-1">
+          <div class="text-xs text-theme-text/60 tracking-wider uppercase font-mono mt-1">
             Navigation and chat locked until ready
           </div>
         </Show>

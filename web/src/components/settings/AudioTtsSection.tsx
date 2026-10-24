@@ -410,7 +410,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 <button
                   type="button"
                   onClick={() => handleLanguageChange('id')}
-                  class={`px-1.5 py-0.5 text-[10px] font-mono border ${
+                  class={`px-1.5 py-0.5 text-2xs font-mono border ${
                     currentLangCode() === 'id'
                       ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold'
                       : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-cyan'
@@ -421,7 +421,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 <button
                   type="button"
                   onClick={() => handleLanguageChange('en')}
-                  class={`px-1.5 py-0.5 text-[10px] font-mono border ${
+                  class={`px-1.5 py-0.5 text-2xs font-mono border ${
                     currentLangCode() === 'en'
                       ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold'
                       : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-cyan'
@@ -432,7 +432,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 <button
                   type="button"
                   onClick={() => handleLanguageChange('ja')}
-                  class={`px-1.5 py-0.5 text-[10px] font-mono border ${
+                  class={`px-1.5 py-0.5 text-2xs font-mono border ${
                     currentLangCode() === 'ja'
                       ? 'bg-theme-cyan text-theme-card border-theme-cyan font-bold'
                       : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-cyan'
@@ -487,7 +487,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                   <Mic size={14} class="text-theme-cyan" />
                   Voice Threshold (VAD Noise Gate)
                 </span>
-                <span class="text-[10px] px-1.5 py-0.5 border border-theme-cyan/40 bg-theme-cyan/10 text-theme-cyan font-mono font-bold">
+                <span class="text-2xs px-1.5 py-0.5 border border-theme-cyan/40 bg-theme-cyan/10 text-theme-cyan font-mono font-bold">
                   {Math.round((props.vadThreshold || 0.15) * 100)}%
                 </span>
               </div>
@@ -529,7 +529,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 <div class="absolute -top-1 -left-1.5 w-3.5 h-3.5 bg-gi-primary rotate-45 border border-black shadow-sm"></div>
               </div>
 
-              <div class="absolute inset-0 flex items-center justify-between px-3 text-[11px] font-mono pointer-events-none">
+              <div class="absolute inset-0 flex items-center justify-between px-3 text-xs font-mono pointer-events-none">
                 <span class="text-white/60">
                   {isMicTesting() ? `Mic: ${currentMicLevel()}%` : 'Click "Live Mic Test" to calibrate'}
                 </span>
@@ -548,7 +548,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
             </div>
 
             <div class="flex items-center gap-3">
-              <span class="text-[11px] font-mono text-theme-text/50">Sensitive (3%)</span>
+              <span class="text-xs font-mono text-theme-text/50">Sensitive (3%)</span>
               <input
                 type="range"
                 min="0.03"
@@ -558,7 +558,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 onInput={(e) => props.setVadThreshold(parseFloat(e.currentTarget.value))}
                 class="flex-1 accent-gi-primary cursor-pointer h-1.5 bg-theme-border rounded-none"
               />
-              <span class="text-[11px] font-mono text-theme-text/50">Strict (50%)</span>
+              <span class="text-xs font-mono text-theme-text/50">Strict (50%)</span>
             </div>
           </div>
 
@@ -568,7 +568,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 <Shield size={14} class="text-theme-cyan" />
                 <span>Noise Suppression</span>
               </label>
-              <p class="text-[11px] text-theme-text/60">
+              <p class="text-xs text-theme-text/60">
                 WebRTC filter to suppress laptop fan hum and room reverb.
               </p>
             </div>
@@ -648,7 +648,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
           <div class="space-y-1.5">
             <div class="flex justify-between items-center">
               <label class="text-xs font-semibold text-theme-text/80">Select Supertonic Voice Character</label>
-              <span class="text-[10px] text-theme-rose font-mono flex items-center gap-1 font-bold">
+              <span class="text-2xs text-theme-rose font-mono flex items-center gap-1 font-bold">
                 <Sparkles size={11} /> 44.1kHz Hi-Fi
               </span>
             </div>
@@ -768,11 +768,11 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                   Reference Voice Timbre (Zero-Shot OpenVoice V2)
                 </span>
                 {refVoiceExists() ? (
-                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-mono bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 font-semibold">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-2xs font-mono bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 font-semibold">
                     <CheckCircle2 size={10} /> Active Clone
                   </span>
                 ) : (
-                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-mono bg-theme-bg text-theme-text/60 border border-theme-border">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-2xs font-mono bg-theme-bg text-theme-text/60 border border-theme-border">
                     Native Supertonic
                   </span>
                 )}
@@ -835,10 +835,10 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 </button>
                 <div class="truncate">
                   <span class="font-mono font-bold text-theme-text">{refVoiceFilename()}</span>
-                  <span class="text-theme-text/50 text-[11px] ml-2">({refVoiceSizeMb().toFixed(2)} MB)</span>
+                  <span class="text-theme-text/50 text-xs ml-2">({refVoiceSizeMb().toFixed(2)} MB)</span>
                 </div>
               </div>
-              <span class="text-[11px] text-theme-text/60 italic hidden sm:inline">
+              <span class="text-xs text-theme-text/60 italic hidden sm:inline">
                 OpenVoice V2 Tone Color Converter ONNX Active
               </span>
             </div>

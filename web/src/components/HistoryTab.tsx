@@ -252,7 +252,7 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
           <div class="flex items-center gap-2 px-2 py-1 text-xs font-mono text-theme-text/60 border-b border-theme-border pb-2">
             <Calendar size={14} />
             <span class="font-bold uppercase tracking-wider">Dates Logged</span>
-            <span class="ml-auto text-[10px] bg-theme-card px-1.5 py-0.5 border border-theme-border">
+            <span class="ml-auto text-2xs bg-theme-card px-1.5 py-0.5 border border-theme-border">
               {dates().length}
             </span>
           </div>
@@ -296,7 +296,7 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
                           class={`p-1 transition-colors ${
                             isSelected()
                               ? 'text-theme-card/70 hover:text-theme-card'
-                              : 'text-theme-text/40 hover:text-theme-rose'
+                              : 'text-theme-text/70 hover:text-theme-rose'
                           }`}
                           title={`Delete history for ${date}`}
                         >
@@ -340,7 +340,7 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
             }>
               <Show when={currentHistory() && currentHistory()!.turns.length > 0} fallback={
                 <div class="p-12 text-center text-xs font-mono text-theme-text/50 space-y-2">
-                  <MessageSquare size={32} class="mx-auto text-theme-text/30" />
+                  <MessageSquare size={32} class="mx-auto text-theme-text/60" />
                   <p>No messages recorded for this date.</p>
                 </div>
               }>
@@ -372,16 +372,16 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
                                 {turn.speaker}
                               </span>
                             </div>
-                            <span class="text-[10.5px] font-mono text-theme-text/50 flex items-center gap-1.5">
+                            <span class="text-2xs font-mono text-theme-text/50 flex items-center gap-1.5">
                               <Clock size={11} />
                               <span>{turn.time.split('+')[0].split('-')[0]}</span>
                               {turn.time.includes('+') && (
-                                <span class="px-1.5 py-0.2 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30 text-[9.5px] font-bold">
+                                <span class="px-1.5 py-0.2 bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30 text-2xs font-bold">
                                   UTC+{turn.time.split('+')[1]}
                                 </span>
                               )}
                               {turn.time.includes('-') && turn.time.split('-').length > 1 && !turn.time.startsWith('-') && (
-                                <span class="px-1.5 py-0.2 bg-theme-card text-theme-text/70 border border-theme-border text-[9.5px] font-bold">
+                                <span class="px-1.5 py-0.2 bg-theme-card text-theme-text/70 border border-theme-border text-2xs font-bold">
                                   UTC-{turn.time.split('-')[1]}
                                 </span>
                               )}
@@ -396,7 +396,7 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
                             <div class="mt-2.5 pt-2 border-t border-theme-border/30 flex justify-end">
                               <button
                                 onClick={() => handleSendToProject(turn.id!, turn.message)}
-                                class="text-[11px] font-mono text-theme-cyan/80 hover:text-theme-cyan hover:bg-theme-cyan/10 px-2 py-1 rounded transition-colors flex items-center gap-1.5"
+                                class="text-xs font-mono text-theme-cyan/80 hover:text-theme-cyan hover:bg-theme-cyan/10 px-2 py-1 rounded transition-colors flex items-center gap-1.5"
                                 title="Jadikan percakapan ini sebagai sesi task di Project Workspace"
                               >
                                 <FolderGit2 size={12} />
@@ -488,7 +488,7 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
                 />
               </div>
 
-              <div class="p-2.5 bg-theme-card/60 border border-theme-border text-[11px] text-theme-text/60 leading-relaxed">
+              <div class="p-2.5 bg-theme-card/60 border border-theme-border text-xs text-theme-text/60 leading-relaxed">
                 Task baru akan dibuat di dalam project terpilih dengan menyertakan seluruh konteks percakapan ini ke sesi agent secara terisolasi.
               </div>
             </div>

@@ -207,7 +207,7 @@ export const TunerControls: Component<TunerControlsProps> = (props) => {
           <label class="text-xs font-semibold text-theme-text/70">
             Keyframe List ({props.posesList.length} Registered Poses)
           </label>
-          <span class="text-[11px] text-theme-text/50">
+          <span class="text-xs text-theme-text/50">
             Select a pose below to edit bone sliders in real-time
           </span>
         </div>
@@ -226,7 +226,7 @@ export const TunerControls: Component<TunerControlsProps> = (props) => {
                     : 'bg-theme-card text-theme-text/80 border-theme-border hover:border-theme-cyan/50 hover:text-theme-text'
                 }`}
               >
-                <span class={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-mono ${
+                <span class={`w-4 h-4 rounded-full flex items-center justify-center text-2xs font-mono ${
                   isActive() ? 'bg-theme-card text-theme-cyan' : 'bg-theme-surface text-theme-text/70'
                 }`}>
                   {idx + 1}

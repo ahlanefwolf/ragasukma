@@ -46,11 +46,11 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
                 <span class="text-xs font-semibold text-white truncate" title={props.file?.name}>
                   {props.file?.name}
                 </span>
-                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-white/50 shrink-0">
+                <span class="text-2xs font-mono px-1.5 py-0.5 rounded bg-white/5 text-white/50 shrink-0">
                   {props.highlightedCodeLines.length} lines
                 </span>
               </div>
-              <p class="text-[11px] font-mono text-white/40 truncate" title={props.file?.relative_path}>
+              <p class="text-xs font-mono text-white/70 truncate" title={props.file?.relative_path}>
                 {props.file?.relative_path}
               </p>
             </div>
@@ -63,7 +63,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
               <button
                 type="button"
                 onClick={props.onCopyTag}
-                class="px-2 py-1 text-[11px] font-mono bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 rounded transition-all flex items-center gap-1 active:scale-95"
+                class="px-2 py-1 text-xs font-mono bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 rounded transition-all flex items-center gap-1 active:scale-95"
                 title="Copy tag reference to clipboard"
               >
                 <Copy class="w-3 h-3" />
@@ -77,7 +77,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
                     props.onInsertTag(props.file.relative_path, props.tagStartLine, props.tagEndLine);
                   }
                 }}
-                class="px-2.5 py-1 text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded transition-all flex items-center gap-1 shadow-sm shadow-indigo-600/30 active:scale-95"
+                class="px-2.5 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded transition-all flex items-center gap-1 shadow-sm shadow-indigo-600/30 active:scale-95"
                 title="Insert tag into chat input"
               >
                 <Plus class="w-3 h-3" />
@@ -87,7 +87,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
               <button
                 type="button"
                 onClick={props.onResetSelection}
-                class="p-1 text-white/40 hover:text-white/80 rounded hover:bg-white/5 transition-colors"
+                class="p-1 text-white/70 hover:text-white/80 rounded hover:bg-white/5 transition-colors"
                 title="Reset selection (reference whole file)"
               >
                 <RotateCcw class="w-3.5 h-3.5" />
@@ -98,7 +98,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
             <button
               type="button"
               onClick={props.onClose}
-              class="p-1 text-white/40 hover:text-white rounded hover:bg-white/10 transition-colors ml-1"
+              class="p-1 text-white/70 hover:text-white rounded hover:bg-white/10 transition-colors ml-1"
               title="Close code viewer panel"
               aria-label="Close Code Viewer"
             >
@@ -108,13 +108,13 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
         </div>
 
         {/* Selected Range Status Bar */}
-        <div class="px-3 py-1 bg-white/[0.015] border-b border-white/5 flex items-center justify-between text-[11px] font-mono text-white/50 select-none shrink-0">
+        <div class="px-3 py-1 bg-white/[0.015] border-b border-white/5 flex items-center justify-between text-xs font-mono text-white/50 select-none shrink-0">
           <div class="flex items-center gap-1.5 truncate">
             <AtSign class="w-3 h-3 text-indigo-400 shrink-0" />
             <Show
               when={props.tagStartLine}
               fallback={
-                <span class="text-white/40">Whole file reference (Click or drag line numbers to select range)</span>
+                <span class="text-white/70">Whole file reference (Click or drag line numbers to select range)</span>
               }
             >
               <span class="text-indigo-300 font-medium">
@@ -129,7 +129,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
             <button
               type="button"
               onClick={props.onResetSelection}
-              class="text-[10px] text-indigo-400/80 hover:text-indigo-300 underline underline-offset-2 ml-2 shrink-0"
+              class="text-2xs text-indigo-400/80 hover:text-indigo-300 underline underline-offset-2 ml-2 shrink-0"
             >
               Select All
             </button>
@@ -147,7 +147,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
         >
           {/* Loading State */}
           <Show when={props.loadingFilePreview}>
-            <div class="flex flex-col items-center justify-center h-full py-16 text-white/40 gap-2 select-none">
+            <div class="flex flex-col items-center justify-center h-full py-16 text-white/70 gap-2 select-none">
               <Loader2 class="w-6 h-6 animate-spin text-indigo-400" />
               <span>Loading file & highlighting syntax...</span>
             </div>
@@ -155,7 +155,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
 
           {/* Empty State */}
           <Show when={!props.loadingFilePreview && props.highlightedCodeLines.length === 0}>
-            <div class="text-center py-16 text-white/30 italic select-none">
+            <div class="text-center py-16 text-white/60 italic select-none">
               File is empty or contains no readable text content
             </div>
           </Show>
@@ -181,10 +181,10 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
                         onMouseDown={() => props.onGutterMouseDown(lineNum)}
                         onMouseEnter={() => props.onGutterMouseEnter(lineNum)}
                         onClick={(e) => props.onLineClick(lineNum, e.shiftKey)}
-                        class={`w-12 select-none text-right pr-3 font-mono text-[11px] cursor-pointer transition-colors shrink-0 ${
+                        class={`w-12 select-none text-right pr-3 font-mono text-xs cursor-pointer transition-colors shrink-0 ${
                           selected()
                             ? 'text-indigo-300 font-bold bg-indigo-500/30'
-                            : 'text-white/30 hover:text-white/70'
+                            : 'text-white/60 hover:text-white/70'
                         }`}
                         title={`Line ${lineNum} (Click or drag to select)`}
                       >
@@ -193,7 +193,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
 
                       {/* Code Content */}
                       <div
-                        class="pl-3 pr-4 flex-1 whitespace-pre overflow-x-visible font-mono text-[12px] text-white/90"
+                        class="pl-3 pr-4 flex-1 whitespace-pre overflow-x-visible font-mono text-xs text-white/90"
                         innerHTML={lineHtml || ' '}
                       />
                     </div>
@@ -206,7 +206,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
 
         {/* Panel Footer */}
         <div class="px-3 py-2 bg-white/[0.02] border-t border-white/10 flex items-center justify-between shrink-0 select-none">
-          <span class="text-[11px] text-white/40 truncate">
+          <span class="text-xs text-white/70 truncate">
             Drag gutter to pick range • Click line to toggle
           </span>
 

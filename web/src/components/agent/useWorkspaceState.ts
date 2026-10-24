@@ -438,7 +438,7 @@ ${skill.system_prompt}
   const handleDeleteSkill = async (id: string, name: string) => {
     const ok = await showConfirm({
       title: 'Delete Rule',
-      message: `Delete rule "${targetRule.name}"?`,
+      message: `Delete rule "${name}"?`,
       confirmText: 'Delete Rule',
       cancelText: 'Cancel',
       isDanger: true,

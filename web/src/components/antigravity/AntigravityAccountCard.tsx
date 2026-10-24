@@ -83,7 +83,7 @@ export const AntigravityAccountCard: Component<AntigravityAccountCardProps> = (p
               Project: {props.account.project_id || 'cloudaicompanion-default'}
             </span>
             <span class="text-theme-border">•</span>
-            <span class="font-mono text-xs text-theme-text/40 select-text">
+            <span class="font-mono text-xs text-theme-text/70 select-text">
               ID: {props.account.id}
             </span>
           </div>

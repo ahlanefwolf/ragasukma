@@ -332,7 +332,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
               <div class="h-full bg-white/[0.02] border border-white/10 rounded-xl p-8 flex flex-col items-center justify-center text-center">
                 <FolderGit2 class="w-12 h-12 text-white/20 mb-3" />
                 <h3 class="text-sm font-semibold text-white">Select or Create a Workspace</h3>
-                <p class="text-xs text-white/40 max-w-sm mt-1">
+                <p class="text-xs text-white/70 max-w-sm mt-1">
                   Select a workspace from the list on the left or create a new workspace by attaching existing local folders.
                 </p>
               </div>

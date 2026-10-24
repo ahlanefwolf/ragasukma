@@ -83,7 +83,7 @@ export const MusicTrackTable: Component<MusicTrackTableProps> = (props) => {
           <div class="relative flex-1 sm:w-52">
             <Search
               size={14}
-              class="absolute left-2.5 top-1/2 -translate-y-1/2 text-theme-text/40"
+              class="absolute left-2.5 top-1/2 -translate-y-1/2 text-theme-text/70"
             />
             <input
               type="text"
@@ -123,7 +123,7 @@ export const MusicTrackTable: Component<MusicTrackTableProps> = (props) => {
         <Show when={!props.loading() && props.library().length === 0}>
           <div class="p-10 text-center text-xs text-theme-text/50 space-y-3">
             <div class="w-14 h-14 bg-theme-card border border-theme-border flex items-center justify-center mx-auto">
-              <Music size={26} class="text-theme-text/40" />
+              <Music size={26} class="text-theme-text/70" />
             </div>
             <p class="font-medium text-sm text-theme-text/70">
               Music library is empty
@@ -293,7 +293,7 @@ export const MusicTrackTable: Component<MusicTrackTableProps> = (props) => {
             {/* Page Indicator */}
             <div class="px-3 py-1 bg-theme-bg border border-theme-border font-mono text-xs text-theme-text font-semibold">
               <span>{props.currentPage()}</span>
-              <span class="text-theme-text/40 mx-1">/</span>
+              <span class="text-theme-text/70 mx-1">/</span>
               <span>{props.totalPages()}</span>
             </div>
 

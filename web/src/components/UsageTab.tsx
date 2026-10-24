@@ -210,7 +210,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
           <div class="text-2xl font-mono font-bold text-theme-text">
             {formatNumber(summary().total_requests)}
           </div>
-          <div class="text-[11px] text-theme-text/50 font-mono mt-1">
+          <div class="text-xs text-theme-text/50 font-mono mt-1">
             Inference sessions executed
           </div>
         </div>
@@ -224,7 +224,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
           <div class="text-2xl font-mono font-bold text-theme-text">
             {formatNumber(summary().total_input_tokens)}
           </div>
-          <div class="text-[11px] text-theme-text/50 font-mono mt-1">
+          <div class="text-xs text-theme-text/50 font-mono mt-1">
             Prompt & context payload
           </div>
         </div>
@@ -240,12 +240,12 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
               {formatNumber(summary().total_cached_tokens)}
             </span>
             <Show when={summary().cache_hit_rate_pct > 0}>
-              <span class="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
+              <span class="text-2xs font-mono px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
                 {summary().cache_hit_rate_pct.toFixed(1)}% HIT
               </span>
             </Show>
           </div>
-          <div class="text-[11px] text-emerald-400/70 font-mono mt-1">
+          <div class="text-xs text-emerald-400/70 font-mono mt-1">
             Zero-latency KV cache reads
           </div>
         </div>
@@ -259,7 +259,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
           <div class="text-2xl font-mono font-bold text-theme-cyan">
             {formatNumber(summary().total_output_tokens)}
           </div>
-          <div class="text-[11px] text-theme-text/50 font-mono mt-1">
+          <div class="text-xs text-theme-text/50 font-mono mt-1">
             Assistant generated words
           </div>
         </div>
@@ -289,7 +289,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
             }`}
           >
             <span>Antigravity</span>
-            <span class="text-[10px] font-mono opacity-80">(ag)</span>
+            <span class="text-2xs font-mono opacity-80">(ag)</span>
           </button>
 
           <button
@@ -301,7 +301,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
             }`}
           >
             <span>OpenAI Codex</span>
-            <span class="text-[10px] font-mono opacity-80">(cx)</span>
+            <span class="text-2xs font-mono opacity-80">(cx)</span>
           </button>
         </div>
 
@@ -351,7 +351,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
               Inference Audit Trail
             </span>
             <Show when={selectedDate() !== 'all'}>
-              <span class="text-[10px] font-mono px-2 py-0.5 bg-theme-cyan/10 text-theme-cyan border border-theme-cyan/30">
+              <span class="text-2xs font-mono px-2 py-0.5 bg-theme-cyan/10 text-theme-cyan border border-theme-cyan/30">
                 {selectedDate() === getTodayDateString() ? 'Today' : selectedDate()}
               </span>
             </Show>
@@ -400,14 +400,14 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
                         <td class="py-3 px-4 whitespace-nowrap text-theme-text/80">
                           <div class="flex flex-col">
                             <span class="font-bold text-theme-text">{rec.time_str}</span>
-                            <span class="text-[10px] text-theme-text/50">{rec.date_str}</span>
+                            <span class="text-2xs text-theme-text/50">{rec.date_str}</span>
                           </div>
                         </td>
 
                         {/* Provider */}
                         <td class="py-3 px-4 whitespace-nowrap">
                           <span
-                            class={`px-2 py-0.5 text-[10px] font-bold uppercase border ${
+                            class={`px-2 py-0.5 text-2xs font-bold uppercase border ${
                               isAg()
                                 ? 'bg-theme-rose/15 text-theme-rose border-theme-rose/30'
                                 : isCx()
@@ -435,7 +435,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
                         <td class="py-3 px-4 text-right whitespace-nowrap">
                           <Show
                             when={hasCache()}
-                            fallback={<span class="text-theme-text/30">0</span>}
+                            fallback={<span class="text-theme-text/60">0</span>}
                           >
                             <span class="text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 border border-emerald-500/30">
                               ↻{formatNumber(rec.cached_tokens)}
@@ -461,7 +461,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
                         {/* Status */}
                         <td class="py-3 px-4 text-center whitespace-nowrap">
                           <span
-                            class={`px-1.5 py-0.5 text-[10px] uppercase font-bold ${
+                            class={`px-1.5 py-0.5 text-2xs uppercase font-bold ${
                               rec.status === 'success'
                                 ? 'bg-emerald-500/20 text-emerald-400'
                                 : 'bg-theme-rose/20 text-theme-rose'

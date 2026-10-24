@@ -159,7 +159,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
                     <Rocket size={15} class={props.activeTab === 'provider-antigravity' ? 'text-theme-rose' : 'text-theme-text/60'} />
                     <span>Antigravity</span>
                   </div>
-                  <span class="text-[10px] font-mono px-1.5 py-0.5 bg-theme-rose/20 text-theme-rose border border-theme-rose/40 uppercase font-bold">
+                  <span class="text-2xs font-mono px-1.5 py-0.5 bg-theme-rose/20 text-theme-rose border border-theme-rose/40 uppercase font-bold">
                     ag
                   </span>
                 </button>
@@ -176,7 +176,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
                     <Code2 size={15} class={props.activeTab === 'provider-codex' ? 'text-emerald-400' : 'text-theme-text/60'} />
                     <span>OpenAI Codex</span>
                   </div>
-                  <span class="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase font-bold">
+                  <span class="text-2xs font-mono px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase font-bold">
                     cx
                   </span>
                 </button>

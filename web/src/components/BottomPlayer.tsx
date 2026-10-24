@@ -112,7 +112,7 @@ export const BottomPlayer: Component<BottomPlayerProps> = (props) => {
                   {currentTrack()?.uploader || 'Local Library'}
                 </p>
                 <Show when={isFullMobileActive()}>
-                  <span class="inline-block mt-0.5 px-1.5 py-0.2 text-[9.5px] font-mono font-bold bg-theme-rose/20 text-theme-rose border border-theme-rose/40">
+                  <span class="inline-block mt-0.5 px-1.5 py-0.2 text-2xs font-mono font-bold bg-theme-rose/20 text-theme-rose border border-theme-rose/40">
                     AUDIO ON MOBILE (FULL HP)
                   </span>
                 </Show>

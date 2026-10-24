@@ -30,7 +30,7 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
       <Show when={props.lastSentText}>
         <div class="max-w-[92vw] px-3.5 py-1.5 bg-theme-surface border border-theme-border flex items-center gap-2 shadow-sm animate-in fade-in duration-200">
           <CheckCircle2 size={13} class="text-theme-cyan shrink-0" />
-          <span class="text-[11px] font-mono text-theme-cyan font-bold truncate max-w-[260px]">
+          <span class="text-xs font-mono text-theme-cyan font-bold truncate max-w-[260px]">
             "{props.lastSentText}"
           </span>
           <Show when={props.onDismissLastSent}>
@@ -83,7 +83,7 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
           </div>
 
           <div class="flex items-center justify-between gap-2">
-            <span class="text-[10px] font-mono text-theme-muted">
+            <span class="text-2xs font-mono text-theme-muted">
               Press Enter to send
             </span>
             <button

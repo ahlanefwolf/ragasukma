@@ -61,26 +61,26 @@ customRenderer.code = function ({ text, lang }: Tokens.Code) {
 
   return `
     <div class="code-block-wrapper my-2.5 rounded-xl bg-[#0d1117] border border-white/10 overflow-hidden shadow-lg font-mono">
-      <div class="flex items-center justify-between px-3 py-1.5 bg-white/[0.04] border-b border-white/10 text-[10px]">
+      <div class="flex items-center justify-between px-3 py-1.5 bg-white/[0.04] border-b border-white/10 text-2xs">
         <div class="flex items-center gap-1.5">
           <span class="w-2 h-2 rounded-full bg-indigo-500/80"></span>
           <span class="text-indigo-300 font-semibold uppercase tracking-wider">${cleanLang}</span>
         </div>
         <button
           type="button"
-          class="copy-code-btn px-2 py-0.5 rounded bg-white/5 hover:bg-white/15 text-white/60 hover:text-white transition-all flex items-center gap-1 cursor-pointer font-sans text-[10px]"
+          class="copy-code-btn px-2 py-0.5 rounded bg-white/5 hover:bg-white/15 text-white/60 hover:text-white transition-all flex items-center gap-1 cursor-pointer font-sans text-2xs"
         >
           Copy Code
         </button>
       </div>
-      <pre class="p-3 overflow-x-auto text-[11px] leading-relaxed custom-scrollbar whitespace-pre"><code class="language-${cleanLang}">${highlighted}</code></pre>
+      <pre class="p-3 overflow-x-auto text-xs leading-relaxed custom-scrollbar whitespace-pre"><code class="language-${cleanLang}">${highlighted}</code></pre>
     </div>
   `;
 };
 
 // Inline code (escape html to prevent rendering raw HTML tags like <textarea> or <script>)
 customRenderer.codespan = function ({ text }: Tokens.Codespan) {
-  return `<code class="px-1.5 py-0.5 mx-0.5 rounded bg-theme-cyan/10 text-theme-cyan font-mono text-[11px] border border-theme-cyan/20">${escapeHtml(text)}</code>`;
+  return `<code class="px-1.5 py-0.5 mx-0.5 rounded bg-theme-cyan/10 text-theme-cyan font-mono text-xs border border-theme-cyan/20">${escapeHtml(text)}</code>`;
 };
 
 // Raw HTML blocks/tags inside markdown should be escaped to prevent UI breaking

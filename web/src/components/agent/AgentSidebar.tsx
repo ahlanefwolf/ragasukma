@@ -79,10 +79,10 @@ export const AgentSidebar: Component<{
                 >
                   <div class="min-w-0 flex-1">
                     <div class="text-xs font-semibold truncate flex items-center gap-1.5">
-                      <FolderGit2 class={`w-3.5 h-3.5 ${isSelected() ? 'text-theme-cyan' : 'text-theme-text/40'}`} />
+                      <FolderGit2 class={`w-3.5 h-3.5 ${isSelected() ? 'text-theme-cyan' : 'text-theme-text/70'}`} />
                       {proj.name}
                     </div>
-                    <div class="text-[10px] text-theme-text/40 truncate mt-0.5">
+                    <div class="text-2xs text-theme-text/70 truncate mt-0.5">
                       {folders.length} attached folder{folders.length > 1 ? 's' : ''}
                     </div>
                   </div>
@@ -92,7 +92,7 @@ export const AgentSidebar: Component<{
                       e.stopPropagation();
                       props.onDeleteProject(proj.id, proj.name);
                     }}
-                    class="opacity-0 group-hover:opacity-100 p-1 text-theme-text/40 hover:text-theme-rose hover:bg-theme-rose/10 rounded transition-all ml-2"
+                    class="opacity-0 group-hover:opacity-100 p-1 text-theme-text/70 hover:text-gi-status-danger hover:bg-gi-status-danger/10 rounded transition-all ml-2"
                     title="Delete Workspace"
                   >
                     <Trash2 class="w-3.5 h-3.5" />
@@ -136,10 +136,10 @@ export const AgentSidebar: Component<{
           {/* Task Sessions List */}
           <Show when={props.sidebarTab === 'sessions'}>
             <div class="flex items-center justify-between shrink-0 px-0.5">
-              <span class="text-[10px] text-theme-text/40 uppercase font-semibold">Active Tasks</span>
+              <span class="text-2xs text-theme-text/70 uppercase font-semibold">Active Tasks</span>
               <button
                 onClick={props.onQuickCreateSession}
-                class="text-[10px] text-theme-cyan hover:underline flex items-center gap-0.5"
+                class="text-2xs text-theme-cyan hover:underline flex items-center gap-0.5"
               >
                 <Plus class="w-3 h-3" />
                 <span>New Task</span>
@@ -148,7 +148,7 @@ export const AgentSidebar: Component<{
 
             <div class="flex-1 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar min-h-0">
               <Show when={props.sessions.length === 0}>
-                <div class="text-xs text-theme-text/40 py-8 text-center flex flex-col items-center justify-center">
+                <div class="text-xs text-theme-text/70 py-8 text-center flex flex-col items-center justify-center">
                   <Bot class="w-7 h-7 text-theme-text/20 mb-2" />
                   <span>No tasks yet in this workspace</span>
                   <button
@@ -176,17 +176,17 @@ export const AgentSidebar: Component<{
                     >
                       <div class="min-w-0 flex-1">
                         <div class="text-xs font-medium truncate flex items-center gap-1.5">
-                          <MessageSquare class={`w-3.5 h-3.5 shrink-0 ${isSelected() ? 'text-theme-cyan' : 'text-theme-text/40'}`} />
+                          <MessageSquare class={`w-3.5 h-3.5 shrink-0 ${isSelected() ? 'text-theme-cyan' : 'text-theme-text/70'}`} />
                           <span class="truncate">{sess.title}</span>
                         </div>
-                        <div class="text-[10px] text-theme-text/40 flex items-center gap-1.5 mt-0.5">
+                        <div class="text-2xs text-theme-text/70 flex items-center gap-1.5 mt-0.5">
                           <Show when={isRunning()}>
-                            <span class="text-[9px] uppercase px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium flex items-center gap-1 animate-pulse">
+                            <span class="text-2xs uppercase px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium flex items-center gap-1 animate-pulse">
                               <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
                               running
                             </span>
                           </Show>
-                          <span class="text-[10px] text-theme-text/40 truncate">
+                          <span class="text-2xs text-theme-text/70 truncate">
                             {sess.model || 'default'}
                           </span>
                         </div>
@@ -197,7 +197,7 @@ export const AgentSidebar: Component<{
                           e.stopPropagation();
                           props.onDeleteSession(sess.id, sess.title);
                         }}
-                        class="opacity-0 group-hover:opacity-100 p-1 text-theme-text/40 hover:text-theme-rose hover:bg-theme-rose/10 rounded transition-all ml-2"
+                        class="opacity-0 group-hover:opacity-100 p-1 text-theme-text/70 hover:text-theme-rose hover:bg-theme-rose/10 rounded transition-all ml-2"
                         title="Delete Session"
                       >
                         <Trash2 class="w-3.5 h-3.5" />
@@ -214,7 +214,7 @@ export const AgentSidebar: Component<{
             <div class="flex-1 flex flex-col space-y-2 min-h-0 overflow-hidden">
               <div class="flex items-center gap-1.5 shrink-0">
                 <div class="relative flex-1">
-                  <Search class="w-3 h-3 text-theme-text/40 absolute left-2 top-2" />
+                  <Search class="w-3 h-3 text-theme-text/70 absolute left-2 top-2" />
                   <input
                     type="text"
                     placeholder="Filter files..."
@@ -260,7 +260,7 @@ export const AgentSidebar: Component<{
                 </Show>
 
                 <Show when={!props.loadingFiles && props.fileTree.length === 0}>
-                  <div class="text-xs text-theme-text/40 py-8 text-center flex flex-col items-center justify-center">
+                  <div class="text-xs text-theme-text/70 py-8 text-center flex flex-col items-center justify-center">
                     <Files class="w-7 h-7 text-theme-text/20 mb-2" />
                     <span>No files found in workspace folders</span>
                   </div>

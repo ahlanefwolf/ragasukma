@@ -87,7 +87,7 @@ export const MobileTopBar: Component<MobileTopBarProps> = (props) => {
           const ping = getPingBadge();
           return (
             <div
-              class={`flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono text-[10px] font-bold drop-shadow-md border border-white/5 bg-black/20 backdrop-blur-xs ${ping.color}`}
+              class={`flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono text-2xs font-bold drop-shadow-md border border-white/5 bg-black/20 backdrop-blur-xs ${ping.color}`}
               title={`Network Latency: ${ping.label}`}
             >
               <span class={`w-1.5 h-1.5 rounded-full ${ping.dotColor} ${props.pingMs !== null ? 'animate-pulse' : ''}`} />

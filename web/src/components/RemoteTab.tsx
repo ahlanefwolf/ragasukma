@@ -279,7 +279,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
                     alt="Scan QR Mobile Remote"
                     class="w-48 h-48 block select-none"
                   />
-                  <span class="text-[10px] text-gi-surface font-mono font-bold mt-1 uppercase tracking-wider">
+                  <span class="text-2xs text-gi-surface font-mono font-bold mt-1 uppercase tracking-wider">
                     Scan via Phone Camera
                   </span>
                 </div>
@@ -336,7 +336,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
 
         <Show when={tunnelStatus() === 'stopped'}>
           <div class="p-6 bg-theme-surface/50 border border-dashed border-theme-border text-center space-y-3">
-            <Radio size={36} class="mx-auto text-theme-text/30" />
+            <Radio size={36} class="mx-auto text-theme-text/60" />
             <div class="space-y-1">
               <p class="text-sm font-bold text-theme-text">Cloudflared Tunnel Inactive</p>
               <p class="text-xs text-theme-text/60 max-w-md mx-auto">

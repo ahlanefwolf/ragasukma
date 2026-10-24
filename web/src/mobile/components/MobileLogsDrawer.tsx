@@ -32,7 +32,7 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
             <h3 class="text-theme-text uppercase tracking-wider">
               Live Console Logs
             </h3>
-            <span class="text-[10px] px-1.5 py-0.2 bg-theme-surface text-theme-cyan border border-theme-border font-bold">
+            <span class="text-2xs px-1.5 py-0.2 bg-theme-surface text-theme-cyan border border-theme-border font-bold">
               {props.logs.length}
             </span>
           </div>
@@ -69,7 +69,7 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
         {/* Scrollable Logs Area Without Excessive Bottom Padding */}
         <div
           ref={containerRef}
-          class="flex-1 overflow-y-auto overscroll-contain px-3 py-2 font-mono text-[10.5px] leading-relaxed bg-theme-bg/80 select-text"
+          class="flex-1 overflow-y-auto overscroll-contain px-3 py-2 font-mono text-2xs leading-relaxed bg-theme-bg/80 select-text"
           style={{ "overscroll-behavior-y": "contain" }}
         >
           <Show
@@ -84,7 +84,7 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
             <For each={props.logs}>
               {(log, idx) => (
                 <div class="break-words py-0.5 border-b border-theme-border/20 last:border-b-0 hover:bg-theme-card/30 px-1 transition-colors">
-                  <span class="text-[9.5px] text-theme-muted/70 mr-1.5 font-mono select-none">
+                  <span class="text-2xs text-theme-muted/70 mr-1.5 font-mono select-none">
                     [{log.timestamp ? log.timestamp.split(' ')[1] || log.timestamp : ''}]
                   </span>
                   <span class={props.formatStyle(log.message, log.level)}>

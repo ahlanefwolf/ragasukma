@@ -26,14 +26,14 @@ export const MobileFloatingMusic: Component<MobileFloatingMusicProps> = (props) 
           </div>
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-1.5">
-              <span class="text-[9px] font-mono font-bold px-1.5 py-0.2 bg-theme-cyan text-theme-bg">
+              <span class="text-2xs font-mono font-bold px-1.5 py-0.2 bg-theme-cyan text-theme-bg">
                 {props.trackState.isPlaying ? 'PLAYING' : 'PAUSED'}
               </span>
               <p class="text-xs font-bold text-theme-text truncate leading-tight">
                 {props.trackState.track?.title}
               </p>
             </div>
-            <p class="text-[10.5px] text-theme-muted truncate mt-0.5">
+            <p class="text-2xs text-theme-muted truncate mt-0.5">
               {props.trackState.track?.uploader || (props.isHpAudio ? 'Mobile Audio' : 'Desktop Audio')}
             </p>
           </div>

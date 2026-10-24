@@ -317,7 +317,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                             {cap.title}
                           </h4>
                           {cap.id === 'vision' && (
-                            <span class={`text-[10px] font-mono font-semibold mt-0.5 flex items-center gap-1 ${
+                            <span class={`text-2xs font-mono font-semibold mt-0.5 flex items-center gap-1 ${
                               getClientOs() === 'linux' ? 'text-gi-status-warning' : 'text-theme-cyan'
                             }`}>
                               {getClientOs() === 'windows' && (
@@ -341,13 +341,13 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                             </span>
                           )}
                           {cap.linuxDeps && (
-                            <span class="text-[10px] font-mono text-theme-cyan font-semibold mt-0.5 flex items-center gap-1">
+                            <span class="text-2xs font-mono text-theme-cyan font-semibold mt-0.5 flex items-center gap-1">
                               <Terminal size={11} />
                               Linux: {cap.linuxDeps}
                             </span>
                           )}
                           {cap.category === 'web' && (
-                            <span class="text-[10px] font-mono text-theme-muted font-semibold mt-0.5 flex items-center gap-1">
+                            <span class="text-2xs font-mono text-theme-muted font-semibold mt-0.5 flex items-center gap-1">
                               <Puzzle size={11} class="text-gi-primary" />
                               Requires Extension (.zip)
                             </span>
@@ -365,16 +365,16 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                           <AlertTriangle size={14} class="shrink-0" />
                           <span>Notice: Linux Requires Tesseract OCR Package</span>
                         </div>
-                        <p class="text-[11px] text-theme-text/80 leading-relaxed">
+                        <p class="text-xs text-theme-text/80 leading-relaxed">
                           Linux distributions use the Tesseract OCR engine (streaming pipe in-memory). Install using your distribution's package manager:
                         </p>
-                        <div class="p-2 bg-theme-card border border-theme-border font-mono text-[10.5px] space-y-1 relative group">
-                          <div class="flex items-center justify-between pb-1 border-b border-theme-border/50 text-[10px] text-theme-text/60">
+                        <div class="p-2 bg-theme-card border border-theme-border font-mono text-2xs space-y-1 relative group">
+                          <div class="flex items-center justify-between pb-1 border-b border-theme-border/50 text-2xs text-theme-text/60">
                             <span>Package Installation Command:</span>
                             <button
                               type="button"
                               onClick={handleCopyTesseractCmd}
-                              class="px-2 py-0.5 bg-theme-bg hover:bg-theme-surface border border-theme-border text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shrink-0"
+                              class="px-2 py-0.5 bg-theme-bg hover:bg-theme-surface border border-theme-border text-2xs font-bold flex items-center gap-1 cursor-pointer transition-all shrink-0"
                               title="Copy command"
                             >
                               {copiedTesseractCmd() ? (
@@ -398,7 +398,7 @@ sudo pacman -S tesseract tesseract-data-eng tesseract-data-ind`;
                     )}
 
                     {cap.id === 'vision' && getClientOs() !== 'linux' && (
-                      <div class="mt-2 p-2 bg-theme-cyan/15 border border-theme-cyan/30 text-[11px] text-theme-text/90 flex items-center gap-1.5">
+                      <div class="mt-2 p-2 bg-theme-cyan/15 border border-theme-cyan/30 text-xs text-theme-text/90 flex items-center gap-1.5">
                         <Check size={13} class="text-theme-cyan shrink-0" />
                         <span>
                           {getClientOs() === 'macos'

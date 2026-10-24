@@ -269,7 +269,7 @@ export const CodexTab: Component<CodexTabProps> = (props) => {
             <ShieldCheck size={16} class="text-theme-cyan" />
             OpenAI Codex Accounts Pool
           </h3>
-          <span class="text-xs text-theme-text/40 font-mono">
+          <span class="text-xs text-theme-text/70 font-mono">
             Automatic Round-Robin Rotation
           </span>
         </div>

@@ -48,7 +48,7 @@ export const BoneSliders: Component<BoneSlidersProps> = (props) => {
                     <h4 class="text-theme-text">
                       {BONE_LABELS[boneName] || boneName}
                     </h4>
-                    <span class="text-xs font-mono text-theme-text/40">
+                    <span class="text-xs font-mono text-theme-text/70">
                       ID: {boneName}
                     </span>
                   </div>

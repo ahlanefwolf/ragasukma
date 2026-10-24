@@ -43,18 +43,18 @@ export const FileTreeNodeRow: Component<{
             <div class="flex items-center gap-1.5 min-w-0 flex-1">
               <Show
                 when={props.node.name.endsWith('.rs') || props.node.name.endsWith('.ts') || props.node.name.endsWith('.tsx') || props.node.name.endsWith('.js')}
-                fallback={<FileText class="w-3.5 h-3.5 text-theme-text/40 shrink-0" />}
+                fallback={<FileText class="w-3.5 h-3.5 text-theme-text/70 shrink-0" />}
               >
                 <FileCode class="w-3.5 h-3.5 text-theme-cyan shrink-0" />
               </Show>
-              <span class="truncate font-mono text-[11px] text-theme-text/80 group-hover:text-theme-text">
+              <span class="truncate font-mono text-xs text-theme-text/80 group-hover:text-theme-text">
                 {props.node.name}
               </span>
             </div>
 
             <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
               <Show when={props.node.item?.line_count !== undefined && props.node.item?.line_count !== null}>
-                <span class="text-[9px] text-theme-text/40 font-mono mr-1">
+                <span class="text-2xs text-theme-text/70 font-mono mr-1">
                   {props.node.item?.line_count}L
                 </span>
               </Show>
@@ -65,7 +65,7 @@ export const FileTreeNodeRow: Component<{
                   e.stopPropagation();
                   if (props.node.item) props.onOpenRange(props.node.item);
                 }}
-                class="p-1 text-theme-text/40 hover:text-theme-cyan hover:bg-theme-cyan/10 rounded transition-colors"
+                class="p-1 text-theme-text/70 hover:text-theme-cyan hover:bg-theme-cyan/10 rounded transition-colors"
                 title="Select line range (@file:lines) with visual code picker"
               >
                 <Hash class="w-3 h-3" />
@@ -77,7 +77,7 @@ export const FileTreeNodeRow: Component<{
                   e.stopPropagation();
                   props.onCopyTag(props.node.path);
                 }}
-                class="p-1 text-theme-text/40 hover:text-theme-text hover:bg-theme-bg rounded transition-colors"
+                class="p-1 text-theme-text/70 hover:text-theme-text hover:bg-theme-bg rounded transition-colors"
                 title="Copy @file tag to clipboard"
               >
                 <Copy class="w-3 h-3" />
@@ -94,7 +94,7 @@ export const FileTreeNodeRow: Component<{
         >
           <div class="flex items-center gap-1.5 min-w-0 flex-1">
             <ChevronRight
-              class={`w-3.5 h-3.5 text-theme-text/40 transition-transform ${
+              class={`w-3.5 h-3.5 text-theme-text/70 transition-transform ${
                 props.isExpanded(props.node.path) ? 'rotate-90 text-theme-text/80' : ''
               }`}
             />
@@ -103,8 +103,8 @@ export const FileTreeNodeRow: Component<{
                 props.isExpanded(props.node.path) ? 'text-amber-400' : 'text-amber-400/80'
               } shrink-0`}
             />
-            <span class="truncate font-semibold text-[11px]">{props.node.name}</span>
-            <span class="text-[10px] text-theme-text/40 font-mono">({props.node.children.length})</span>
+            <span class="truncate font-semibold text-xs">{props.node.name}</span>
+            <span class="text-2xs text-theme-text/70 font-mono">({props.node.children.length})</span>
           </div>
 
           <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -114,7 +114,7 @@ export const FileTreeNodeRow: Component<{
                 e.stopPropagation();
                 props.onTagFolder(props.node.path);
               }}
-              class="p-1 text-theme-text/40 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
+              class="p-1 text-theme-text/70 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
               title="Mention folder in chat prompt"
             >
               <AtSign class="w-3 h-3" />

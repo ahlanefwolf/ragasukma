@@ -182,13 +182,13 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
           <div class="flex flex-col sm:flex-row sm:items-center gap-2.5 flex-1 max-w-full lg:max-w-xl">
             {/* Search Box */}
             <div class="relative flex-1">
-              <Search size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text/40" />
+              <Search size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text/70" />
               <input
                 type="text"
                 placeholder="Search log keywords..."
                 value={searchQuery()}
                 onInput={(e) => setSearchQuery(e.currentTarget.value)}
-                class="w-full pl-8 pr-3 py-1.5 bg-theme-card border border-theme-border text-xs text-theme-text focus:border-theme-cyan focus:outline-none transition-all placeholder:text-theme-text/30 font-mono"
+                class="w-full pl-8 pr-3 py-1.5 bg-theme-card border border-theme-border text-xs text-theme-text focus:border-theme-cyan focus:outline-none transition-all placeholder:text-theme-text/60 font-mono"
               />
             </div>
 
@@ -295,10 +295,10 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
           <Show
             when={filteredLogs().length > 0}
             fallback={
-              <div class="h-full flex flex-col items-center justify-center text-theme-text/40 py-16">
+              <div class="h-full flex flex-col items-center justify-center text-theme-text/70 py-16">
                 <Terminal size={40} class="mb-3 stroke-1 text-theme-text/20" />
                 <p class="text-sm font-semibold">No matching activity logs found.</p>
-                <p class="text-xs text-theme-text/30 mt-1">Start speaking to the avatar or trigger a skill to inspect logs.</p>
+                <p class="text-xs text-theme-text/60 mt-1">Start speaking to the avatar or trigger a skill to inspect logs.</p>
               </div>
             }
           >
@@ -306,7 +306,7 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
               {(entry) => (
                 <div class="flex items-start gap-3 py-0.5 hover:bg-theme-card/40 px-2 -mx-2 transition-colors">
                   {/* Timestamp */}
-                  <span class="text-theme-text/40 select-none shrink-0 text-xs">
+                  <span class="text-theme-text/70 select-none shrink-0 text-xs">
                     [{entry.timestamp}]
                   </span>
 

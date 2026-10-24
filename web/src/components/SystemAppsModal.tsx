@@ -155,11 +155,11 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
                       </div>
                     </div>
 
-                    <div class="flex items-center justify-between gap-2 pt-1 border-t border-theme-border/50 text-[10px] font-mono text-theme-cyan">
+                    <div class="flex items-center justify-between gap-2 pt-1 border-t border-theme-border/50 text-2xs font-mono text-theme-cyan">
                       <span class="truncate max-w-[200px]" title={app.exec}>
                         cmd: {app.exec.split(' ')[0]}
                       </span>
-                      <span class="text-theme-text/40 shrink-0">
+                      <span class="text-theme-text/70 shrink-0">
                         "Open {app.name.split(' ')[0]}"
                       </span>
                     </div>

@@ -87,7 +87,7 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
         <button
           type="button"
           onClick={props.onCycleQuality}
-          class={`p-2 font-mono text-[11px] font-bold tracking-wider active:scale-85 transition-transform drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer ${qualityColor()}`}
+          class={`p-2 font-mono text-xs font-bold tracking-wider active:scale-85 transition-transform drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer ${qualityColor()}`}
           title={`AR Render Quality: ${qualityLabel()}`}
         >
           <span>{qualityLabel()}</span>
@@ -97,7 +97,7 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
         <button
           type="button"
           onClick={props.onCycleFps}
-          class={`p-2 font-mono text-[11px] font-bold tracking-wider active:scale-85 transition-transform drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer ${
+          class={`p-2 font-mono text-xs font-bold tracking-wider active:scale-85 transition-transform drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer ${
             props.fpsLimit === 30 ? 'text-gi-status-success hover:opacity-85' : props.fpsLimit === 60 ? 'text-gi-primary hover:text-gi-primary-hover' : 'text-gi-status-info hover:opacity-85'
           }`}
           title={`AR FPS Limit: ${props.fpsLimit === 0 ? 'Max' : `${props.fpsLimit} FPS`}`}

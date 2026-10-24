@@ -39,21 +39,21 @@ export const SkillsSubTab: Component<{
                   <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                     <button
                       onClick={() => props.onEditSkill(skill)}
-                      class="p-1 text-theme-text/40 hover:text-theme-cyan rounded transition-colors"
+                      class="p-1 text-theme-text/70 hover:text-theme-cyan rounded transition-colors"
                       title="Edit Skill"
                     >
                       <Pencil class="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => props.onDeleteSkill(skill.id, skill.name)}
-                      class="p-1 text-theme-text/40 hover:text-theme-rose rounded transition-colors"
+                      class="p-1 text-theme-text/70 hover:text-theme-rose rounded transition-colors"
                       title="Delete Skill"
                     >
                       <Trash2 class="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
-                <span class="text-[10px] font-mono bg-theme-cyan/10 px-2 py-0.5 rounded text-theme-cyan border border-theme-cyan/20">
+                <span class="text-2xs font-mono bg-theme-cyan/10 px-2 py-0.5 rounded text-theme-cyan border border-theme-cyan/20">
                   @{skill.slug}
                 </span>
                 <p class="text-xs text-theme-text/60 mt-2 line-clamp-2">
@@ -62,8 +62,8 @@ export const SkillsSubTab: Component<{
               </div>
 
               <div class="pt-2 border-t border-theme-border/60">
-                <div class="text-[10px] text-theme-text/40 uppercase tracking-wider mb-1 font-mono">System Prompt Preview:</div>
-                <p class="text-[11px] font-mono text-theme-text/80 line-clamp-3 bg-theme-bg/60 p-2 rounded border border-theme-border/60">
+                <div class="text-2xs text-theme-text/70 uppercase tracking-wider mb-1 font-mono">System Prompt Preview:</div>
+                <p class="text-xs font-mono text-theme-text/80 line-clamp-3 bg-theme-bg/60 p-2 rounded border border-theme-border/60">
                   {skill.system_prompt}
                 </p>
               </div>
@@ -71,10 +71,10 @@ export const SkillsSubTab: Component<{
           )}
         </For>
         <Show when={props.skills.length === 0}>
-          <div class="col-span-full py-12 text-center text-theme-text/40 bg-theme-card/40 border border-theme-border rounded-xl">
+          <div class="col-span-full py-12 text-center text-theme-text/70 bg-theme-card/40 border border-theme-border rounded-xl">
             <Sparkles class="w-10 h-10 mx-auto text-theme-text/20 mb-2" />
             <p class="text-xs">No custom prompt skills created yet.</p>
-            <p class="text-[11px] text-theme-text/30 mt-1">
+            <p class="text-xs text-theme-text/60 mt-1">
               Add skills like "Senior Rust Reviewer" or "SolidJS Expert" to inject specialized guidance.
             </p>
           </div>
@@ -107,7 +107,7 @@ export const McpSubTab: Component<{
                   <Server class="w-3.5 h-3.5 text-theme-cyan" />
                   {server.name}
                 </span>
-                <span class="text-[10px] px-2 py-0.5 rounded uppercase font-semibold bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30">
+                <span class="text-2xs px-2 py-0.5 rounded uppercase font-semibold bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30">
                   {server.transport}
                 </span>
               </div>
@@ -118,10 +118,10 @@ export const McpSubTab: Component<{
           )}
         </For>
         <Show when={props.mcpServers.length === 0}>
-          <div class="col-span-full py-12 text-center text-theme-text/40 bg-theme-card/40 border border-theme-border rounded-xl">
+          <div class="col-span-full py-12 text-center text-theme-text/70 bg-theme-card/40 border border-theme-border rounded-xl">
             <Server class="w-10 h-10 mx-auto text-theme-text/20 mb-2" />
             <p class="text-xs">No MCP servers registered yet.</p>
-            <p class="text-[11px] text-theme-text/30 mt-1">
+            <p class="text-xs text-theme-text/60 mt-1">
               MCP servers can be registered in configuration to safely extend the agent's tool-calling capabilities.
             </p>
           </div>

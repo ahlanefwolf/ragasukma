@@ -218,17 +218,17 @@ const GitDiffViewer: Component<{
   return (
     <div class="rounded-xl border border-white/10 overflow-hidden bg-[#0d1117] font-mono text-xs my-1 shadow-md w-full max-w-full min-w-0">
       {/* Diff Header */}
-      <div class="flex items-center justify-between px-3 py-1.5 bg-white/[0.04] border-b border-white/10 text-[11px]">
+      <div class="flex items-center justify-between px-3 py-1.5 bg-white/[0.04] border-b border-white/10 text-xs">
         <div class="flex items-center gap-2">
           <FileCode class="w-3.5 h-3.5 text-indigo-400 shrink-0" />
           <span class="text-white/90 font-semibold">{props.filename || 'Diff Changes'}</span>
           <Show when={props.isNewFile}>
-            <span class="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold">
+            <span class="text-2xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold tracking-wide">
               NEW FILE
             </span>
           </Show>
         </div>
-        <div class="flex items-center gap-1.5 text-[10px]">
+        <div class="flex items-center gap-1.5 text-2xs">
           <span class="text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-mono">
             +{stats().added}
           </span>
@@ -252,7 +252,7 @@ const GitDiffViewer: Component<{
               <For each={rawLines}>
                 {(line) => (
                   <div
-                    class={`flex items-start px-3 py-0.5 font-mono text-[11px] ${
+                    class={`flex items-start px-3 py-0.5 font-mono text-xs ${
                       isAdded
                         ? 'bg-emerald-500/15 text-emerald-200 border-l-2 border-emerald-400'
                         : isRemoved
@@ -314,7 +314,7 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
           <Bot class="w-3.5 h-3.5 text-indigo-400 shrink-0" />
           <span class="font-medium text-indigo-200 truncate">{headerSummary()}</span>
         </div>
-        <div class="flex items-center gap-1.5 text-[10px] text-indigo-300/60 shrink-0">
+        <div class="flex items-center gap-1.5 text-2xs text-indigo-300/60 shrink-0">
           <span>{isCardCollapsed() ? 'Details' : 'Collapse'}</span>
           <ChevronDown class={`w-3.5 h-3.5 transition-transform ${isCardCollapsed() ? '' : 'rotate-180'}`} />
         </div>
@@ -326,16 +326,16 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
           <For each={parsedCalls()}>
             {(tc) => (
               <div class="bg-black/30 rounded-lg p-2.5 border border-white/5 space-y-1.5">
-                <div class="flex items-center justify-between font-mono text-[11px]">
+                <div class="flex items-center justify-between font-mono text-xs">
                   <span class="text-indigo-300 font-semibold flex items-center gap-1.5">
                     <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
                     {tc.name}
                   </span>
-                  <span class="text-white/30 text-[10px]">{cleanToolCallId(tc.id)}</span>
+                  <span class="text-white/60 text-2xs">{cleanToolCallId(tc.id)}</span>
                 </div>
 
                 {/* Structured arguments preview */}
-                <div class="space-y-1 pt-1 font-mono text-[11px]">
+                <div class="space-y-1 pt-1 font-mono text-xs">
                   <For each={Object.entries(tc.argsObj)}>
                     {([key, val]) => {
                       const strVal = typeof val === 'string' ? val : JSON.stringify(val, null, 2);
@@ -344,7 +344,7 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
 
                       return (
                         <div class="bg-white/[0.02] p-1.5 rounded border border-white/5">
-                          <div class="flex items-center justify-between text-white/50 text-[10px] mb-0.5">
+                          <div class="flex items-center justify-between text-white/50 text-2xs mb-0.5">
                             <span class="text-indigo-400/80 font-bold">{key}:</span>
                             <Show when={isLong}>
                               <button
@@ -375,7 +375,7 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
             )}
           </For>
 
-          <div class="flex items-center justify-between pt-1 text-[10px]">
+          <div class="flex items-center justify-between pt-1 text-2xs">
             <button
               type="button"
               onClick={() => setShowRaw(!showRaw())}
@@ -386,7 +386,7 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
           </div>
 
           <Show when={showRaw()}>
-            <pre class="text-[10px] font-mono text-white/60 bg-black/50 p-2.5 rounded overflow-x-auto max-h-40 custom-scrollbar select-all">
+            <pre class="text-2xs font-mono text-white/60 bg-black/50 p-2.5 rounded overflow-x-auto max-h-40 custom-scrollbar select-all">
               {props.toolCalls}
             </pre>
           </Show>
@@ -433,8 +433,8 @@ export const ToolResultCard: Component<{ toolCallId?: string | null; content?: s
             {info().summary}
           </span>
         </div>
-        <div class="flex items-center gap-1.5 text-[10px] opacity-60 shrink-0">
-          <span class="font-mono text-[9px] mr-1">{cleanId()}</span>
+        <div class="flex items-center gap-1.5 text-2xs opacity-60 shrink-0">
+          <span class="font-mono text-2xs mr-1">{cleanId()}</span>
           <span>{isCardCollapsed() ? 'Expand' : 'Collapse'}</span>
           <ChevronDown class={`w-3.5 h-3.5 transition-transform ${isCardCollapsed() ? '' : 'rotate-180'}`} />
         </div>
@@ -456,10 +456,10 @@ export const ToolResultCard: Component<{ toolCallId?: string | null; content?: s
           {/* 2. Text/Code Preview Standar */}
           <Show when={info().codePreview && !info().diffData}>
             <div class="rounded-lg bg-black/40 border border-white/5 overflow-hidden">
-              <div class="flex items-center justify-between px-2.5 py-1 bg-white/[0.02] border-b border-white/5 text-[10px] text-white/40">
+              <div class="flex items-center justify-between px-2.5 py-1 bg-white/[0.02] border-b border-white/5 text-2xs text-white/70">
                 <span>{info().filename || 'Output Data'}</span>
               </div>
-              <div class="p-2.5 font-mono text-[11px] text-white/80 overflow-x-auto max-h-60 custom-scrollbar whitespace-pre leading-relaxed select-text">
+              <div class="p-2.5 font-mono text-xs text-white/80 overflow-x-auto max-h-60 custom-scrollbar whitespace-pre leading-relaxed select-text">
                 <For each={info().codePreview?.split('\n') || []}>
                   {(line) => (
                     <div class="leading-relaxed" innerHTML={highlightLine(line, info().filename)} />

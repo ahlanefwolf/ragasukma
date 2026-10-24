@@ -102,7 +102,7 @@ export const NowPlayingHeroCard: Component = () => {
                     </span>
                   </div>
                   <Show when={isFullMobileActive()}>
-                    <span class="px-2 py-0.5 text-[11px] font-mono font-bold bg-theme-rose/20 text-theme-rose border border-theme-rose/40">
+                    <span class="px-2 py-0.5 text-xs font-mono font-bold bg-theme-rose/20 text-theme-rose border border-theme-rose/40">
                       MODE FULL HP (Controlled on Mobile)
                     </span>
                   </Show>
