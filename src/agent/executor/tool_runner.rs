@@ -330,7 +330,8 @@ pub async fn execute_turn_tool_calls(
                 }
 
                 if crate::agent::languages::is_verification_command(cmd) {
-                    let is_passed = !is_err;
+                    let was_rejected = is_breaker_trip || tool_output.starts_with("Tool execution rejected");
+                    let is_passed = !is_err && !was_rejected;
                     state.verification_attempts += 1;
                     let _ = repository::record_verification(
                         &state.goal_id,
@@ -429,19 +430,10 @@ pub async fn execute_turn_tool_calls(
                 let start_line = args_val.get("start_line").and_then(|v| v.as_i64());
                 let end_line = args_val.get("end_line").and_then(|v| v.as_i64());
                 let preview_summary = format!("Read {} (lines {:?}-{:?})", file_path, start_line.unwrap_or(1), end_line.unwrap_or(0));
-                let file_ver = {
-                    let mut ver = "live_mtime".to_string();
-                    for root in allowed_folders {
-                        let full = std::path::Path::new(root).join(file_path);
-                        if full.exists() {
-                            if let Ok(hash) = crate::agent::context_builder::compute_file_version(&full) {
-                                ver = hash;
-                                break;
-                            }
-                        }
-                    }
-                    ver
-                };
+                let file_ver = crate::agent::tools::fs::resolve_allowed_path(file_path, allowed_folders)
+                    .ok()
+                    .and_then(|p| crate::agent::context_builder::compute_file_version(&p).ok())
+                    .unwrap_or_else(|| "live_mtime".to_string());
                 if let Ok(saved_ev) = repository::save_evidence(
                     project_id,
                     file_path,
@@ -458,19 +450,10 @@ pub async fn execute_turn_tool_calls(
         } else if is_edit_op && !tool_output.starts_with("Tool execution error") {
             if let Some(file_path) = target_arg_file.as_deref() {
                 let preview_summary = format!("Modified/Created file {}", file_path);
-                let file_ver = {
-                    let mut ver = "live_mtime".to_string();
-                    for root in allowed_folders {
-                        let full = std::path::Path::new(root).join(file_path);
-                        if full.exists() {
-                            if let Ok(hash) = crate::agent::context_builder::compute_file_version(&full) {
-                                ver = hash;
-                                break;
-                            }
-                        }
-                    }
-                    ver
-                };
+                let file_ver = crate::agent::tools::fs::resolve_allowed_path(file_path, allowed_folders)
+                    .ok()
+                    .and_then(|p| crate::agent::context_builder::compute_file_version(&p).ok())
+                    .unwrap_or_else(|| "live_mtime".to_string());
                 if let Ok(saved_ev) = repository::save_evidence(
                     project_id,
                     file_path,

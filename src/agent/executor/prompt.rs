@@ -58,6 +58,10 @@ pub async fn build_system_prompt(
             - When code files are modified and the project has an automated test/build command, run verification before concluding.\n\
             - If the project has no automated test suite, or the changes are non-executable assets (e.g. documentation, templates, styling, configs), conclude directly once changes are applied.\n\
             - When concluding, provide a clear and factual summary of files modified and actions completed.\n\
+         6. GROUND-TRUTH DELIVERABLE VERIFICATION (Anti-Hallucination):\n\
+            - A passing test or build command (exit code 0) only confirms existing tests pass; it does NOT prove new files or features exist.\n\
+            - Never mark a checklist item as completed `[x]` or claim a feature is implemented without physically verifying that every requested file was actually created and non-empty (via `workspace_list_dir` or `workspace_read_file`) and that required exports/logic exist.\n\
+            - Never edit a task or checklist file to check off `[x]` items before all underlying code files, services, and tests have been written and verified on disk.\n\
          </core-guidelines>\n\n",
         os_name, arch_name, shell_desc, verifier_hint
     );

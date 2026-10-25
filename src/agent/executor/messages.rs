@@ -1,12 +1,12 @@
 use serde_json::json;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use crate::agent::compressor::{compact_tool_output, estimate_message_tokens, summarize_evicted_messages};
+use crate::agent::compressor::{compact_tool_output_smart, estimate_message_tokens, summarize_evicted_messages};
 use crate::agent::models::Message;
 use crate::agent::tools::expand_file_tags;
 use crate::llm::v1_engine::{V1Message, V1ToolCall};
 
-pub const MAX_HISTORY_TOKEN_BUDGET: usize = 32_000;
+pub const MAX_HISTORY_TOKEN_BUDGET: usize = 12_000;
 
 pub fn prepare_turn_messages(
     session_id: &str,
@@ -97,15 +97,17 @@ pub fn prepare_turn_messages(
         }
     }
 
-    // Bidirectional Tool Call Validation:
-    // 1. Collect all valid tool_call IDs emitted by assistant messages in this window
+    // Bidirectional Tool Call Validation & Mapping:
+    // 1. Collect all valid tool_call IDs and their associated function names emitted by assistant messages
     let mut known_tool_call_ids = HashSet::new();
+    let mut tool_id_to_name: HashMap<String, String> = HashMap::new();
     for msg in &messages_to_send {
         if msg.role == "assistant" {
             if let Some(ref tc_raw) = msg.tool_calls {
                 if let Ok(calls) = serde_json::from_str::<Vec<V1ToolCall>>(tc_raw) {
                     for c in calls {
-                        known_tool_call_ids.insert(c.id);
+                        known_tool_call_ids.insert(c.id.clone());
+                        tool_id_to_name.insert(c.id, c.function.name);
                     }
                 }
             }
@@ -158,8 +160,9 @@ pub fn prepare_turn_messages(
         } else if msg.role == "tool" {
             tool_counter += 1;
             let is_recent_tail = tool_counter > total_tool_msgs.saturating_sub(3);
+            let tool_name = msg.tool_call_id.as_ref().and_then(|id| tool_id_to_name.get(id)).map(|s| s.as_str());
             msg.content.as_ref().map(|c| {
-                let compacted = compact_tool_output(c, is_recent_tail);
+                let compacted = compact_tool_output_smart(c, tool_name, is_recent_tail);
                 json!(compacted)
             })
         } else if msg.role == "assistant" && tc_parsed.is_none() {

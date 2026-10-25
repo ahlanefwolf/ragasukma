@@ -63,23 +63,57 @@ pub fn evaluate_turn_gates(
         !relevant.is_empty()
     };
 
-    let are_all_docs_or_configs = !state.modified_files.is_empty() && state.modified_files.iter().all(|f| {
-        let lower = f.to_lowercase();
-        lower.ends_with(".md")
-            || lower.ends_with(".txt")
-            || lower.ends_with(".json")
-            || lower.ends_with(".yml")
-            || lower.ends_with(".yaml")
-            || lower.ends_with(".toml")
-            || lower.ends_with(".css")
-            || lower.ends_with(".scss")
-            || lower.ends_with(".html")
-            || lower.ends_with(".svg")
-            || lower.ends_with(".env")
-            || lower.contains(".env.")
-            || lower.ends_with(".lock")
-            || lower.ends_with(".gitignore")
-    });
+    let is_task_or_checklist_file = |path: &str| -> bool {
+        let lower = path.to_lowercase();
+        (lower.ends_with(".md") || lower.ends_with(".txt"))
+            && (lower.contains("task") || lower.contains("todo") || lower.contains("checklist") || lower.contains("plan"))
+    };
+
+    let has_task_or_checklist_mod = state.modified_files.iter().any(|f| is_task_or_checklist_file(f));
+
+    let are_all_docs_or_configs = !state.modified_files.is_empty()
+        && !has_task_or_checklist_mod
+        && state.modified_files.iter().all(|f| {
+            let lower = f.to_lowercase();
+            lower.ends_with(".md")
+                || lower.ends_with(".txt")
+                || lower.ends_with(".json")
+                || lower.ends_with(".yml")
+                || lower.ends_with(".yaml")
+                || lower.ends_with(".toml")
+                || lower.ends_with(".css")
+                || lower.ends_with(".scss")
+                || lower.ends_with(".html")
+                || lower.ends_with(".svg")
+                || lower.ends_with(".env")
+                || lower.contains(".env.")
+                || lower.ends_with(".lock")
+                || lower.ends_with(".gitignore")
+        });
+
+    if has_task_or_checklist_mod
+        && !state.has_passed_verification
+        && !state.verification_prompted
+        && !state.circuit_breaker_triggered
+        && !state.force_final_text_only
+        && state.iteration < state.max_safety_iterations - 1
+    {
+        state.verification_prompted = true;
+        let relevant_verifiers = crate::agent::languages::detect_verifiers_for_modified_files(allowed_folders, &state.modified_files);
+        let verifier_hint = if !relevant_verifiers.is_empty() {
+            format!("run verification (`{}`) and ", relevant_verifiers.join(" && "))
+        } else if let Some(pv) = detected_verifier {
+            format!("run verification (`{}`) and ", pv)
+        } else {
+            String::new()
+        };
+        state.ephemeral_directive = Some(format!(
+            "DELIVERABLE GROUND-TRUTH VERIFICATION: You updated a task/checklist file ({}). Before claiming complete status, {}physically verify that all requested deliverables and files exist and contain actual functional implementations (use `workspace_list_dir` or `workspace_read_file`). Never mark items complete without verifying the actual code on disk.",
+            state.modified_files.join(", "),
+            verifier_hint
+        ));
+        return GateResult::Continue;
+    }
 
     if !state.modified_files.is_empty()
         && has_detected_verifiers

@@ -140,33 +140,106 @@ pub fn sanitize_tool_output_for_memory(content: &str) -> String {
     }
 }
 
-/// Prunes older tool output results to optimize context window, token cost, and LLM inference latency.
-/// Preserves the live tail (the most recent 4 tool results) intact while eliding bulky older outputs,
-/// directly inspired by the `oh-my-pi` context pruning & shell output minimizer architecture.
-/// Never truncates failed command diagnostics or error banners.
+/// Prunes tool output results to optimize context window, token cost, and LLM inference latency.
+/// Preserves the live tail intact while eliding bulky older outputs.
+/// Retains compiler error diagnostics up to 12,000 chars while heavily compacting successful command runs
+/// and replacing historical file reads with lightweight DB cache references.
 pub fn compact_tool_output(content: &str, is_recent_tail: bool) -> String {
-    // Preserve command error diagnostics in full up to 24,000 chars so compiler feedback is never lost
+    compact_tool_output_smart(content, None, is_recent_tail)
+}
+
+/// Context-aware tool output compactor that differentiates by tool type.
+pub fn compact_tool_output_smart(content: &str, tool_name: Option<&str>, is_recent_tail: bool) -> String {
+    // 1. Preserve compiler/test error diagnostics up to 12,000 chars so actionable error messages are never lost
     if is_command_output_error(content) {
-        if content.len() > 24_000 {
-            return truncate_smart(content, 6_000, 18_000);
+        if content.len() > 12_000 {
+            return truncate_smart(content, 4_000, 8_000);
         }
         return content.to_string();
     }
 
-    if is_recent_tail {
-        // Keep recent tail intact up to 16,000 chars (6,000 head + 10,000 tail)
-        truncate_smart(content, 6_000, 10_000)
-    } else {
-        // For older historical turns: heavily distill large outputs to prevent context bloat
-        if content.len() > 600 {
-            let first_line = content.lines().next().unwrap_or("").trim();
-            format!(
-                "{}\n[... {} characters of historical tool output compacted to preserve token budget ...]",
-                first_line,
-                content.len()
-            )
-        } else {
-            content.to_string()
+    match tool_name {
+        Some("workspace_run_command") => {
+            // For successful commands (exit 0, tests passing, builds, etc.):
+            if is_recent_tail {
+                // Keep head + tail up to 1,500 chars (500 head + 1,000 tail)
+                truncate_smart(content, 500, 1_000)
+            } else {
+                // Older successful command runs: condense to 1-2 summary lines
+                let first_line = content.lines().next().unwrap_or("").trim();
+                let last_line = content.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim();
+                if content.len() > 300 {
+                    format!(
+                        "{}\n[... {} characters of successful command output omitted; exit code: 0 ...]\n{}",
+                        first_line,
+                        content.len(),
+                        last_line
+                    )
+                } else {
+                    content.to_string()
+                }
+            }
+        }
+        Some("workspace_read_file") => {
+            if is_recent_tail {
+                // In active recent turns: keep up to 8,000 chars for live edits
+                truncate_smart(content, 3_000, 5_000)
+            } else {
+                // In older historical turns: file is already indexed in SQLite evidence cache
+                let first_line = content.lines().next().unwrap_or("").trim();
+                if content.len() > 400 {
+                    format!(
+                        "{}\n[... {} characters of file content indexed in database evidence cache; consult active evidence or re-read slice if needed ...]",
+                        first_line,
+                        content.len()
+                    )
+                } else {
+                    content.to_string()
+                }
+            }
+        }
+        Some("workspace_list_dir") => {
+            if is_recent_tail {
+                truncate_smart(content, 1_000, 1_500)
+            } else if content.len() > 300 {
+                let first_line = content.lines().next().unwrap_or("").trim();
+                format!(
+                    "{}\n[... {} characters of directory listing omitted ...]",
+                    first_line,
+                    content.len()
+                )
+            } else {
+                content.to_string()
+            }
+        }
+        Some("workspace_grep") => {
+            if is_recent_tail {
+                truncate_smart(content, 1_500, 2_500)
+            } else if content.len() > 400 {
+                let first_line = content.lines().next().unwrap_or("").trim();
+                format!(
+                    "{}\n[... {} characters of grep search results omitted ...]",
+                    first_line,
+                    content.len()
+                )
+            } else {
+                content.to_string()
+            }
+        }
+        _ => {
+            // General fallback
+            if is_recent_tail {
+                truncate_smart(content, 3_000, 5_000)
+            } else if content.len() > 500 {
+                let first_line = content.lines().next().unwrap_or("").trim();
+                format!(
+                    "{}\n[... {} characters of historical tool output compacted to preserve token budget ...]",
+                    first_line,
+                    content.len()
+                )
+            } else {
+                content.to_string()
+            }
         }
     }
 }
@@ -191,6 +264,31 @@ mod tests {
         let huge_error = format!("❌ COMMAND FAILED with exit code 1\n{}", "error: type mismatch\n".repeat(2_000));
         assert!(huge_error.len() > 30_000);
         let compacted = compact_tool_output(&huge_error, true);
-        assert!(compacted.len() <= 26_000);
+        assert!(compacted.len() <= 15_000);
+    }
+
+    #[test]
+    fn test_compact_successful_command_output() {
+        let successful_build = format!("Compiling crates...\n{}Finished release [optimized] target(s) in 12.3s", "   Compiling dep v0.1\n".repeat(200));
+        assert!(successful_build.len() > 4_000);
+
+        // Recent tail should cap to <= 1,600 chars
+        let tail_compacted = compact_tool_output_smart(&successful_build, Some("workspace_run_command"), true);
+        assert!(tail_compacted.len() <= 1_600);
+
+        // Historical turn should distill to minimal summary
+        let hist_compacted = compact_tool_output_smart(&successful_build, Some("workspace_run_command"), false);
+        assert!(hist_compacted.len() < 400);
+        assert!(hist_compacted.contains("successful command output omitted"));
+    }
+
+    #[test]
+    fn test_compact_historical_file_reads() {
+        let file_content = format!("// Header\n{}", "fn do_something() { println!(\"hello\"); }\n".repeat(100));
+        assert!(file_content.len() > 3_000);
+
+        let hist_compacted = compact_tool_output_smart(&file_content, Some("workspace_read_file"), false);
+        assert!(hist_compacted.len() < 300);
+        assert!(hist_compacted.contains("database evidence cache"));
     }
 }

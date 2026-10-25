@@ -33,18 +33,16 @@ pub async fn revalidate_evidence_cache(
             continue;
         }
 
-        // Try to locate file in workspace roots
+        // Try to locate file in workspace roots using standard path resolver
         let mut matched = false;
         let mut current_version = None;
 
-        for root in workspace_roots {
-            let full_path = Path::new(root).join(&ev.file_path);
+        if let Ok(full_path) = crate::agent::tools::fs::resolve_allowed_path(&ev.file_path, workspace_roots) {
             if full_path.exists() {
                 matched = true;
                 if let Ok(hash) = compute_file_version(&full_path) {
                     current_version = Some(hash);
                 }
-                break;
             }
         }
 
@@ -130,6 +128,13 @@ pub async fn build_previous_goals_summary(
             out.push_str(&format!("  * Outcome: {}\n", conc_preview));
         }
 
+        if let Ok(verifs) = repository::list_goal_verifications(&g.id).await {
+            if let Some(last_v) = verifs.last() {
+                let status_str = if last_v.is_passed == 1 { "PASSED" } else { "FAILED" };
+                out.push_str(&format!("  * Last Verification: `{}` ({})\n", last_v.test_command, status_str));
+            }
+        }
+
         let evidences = repository::get_active_evidences_for_goal(&g.id).await.unwrap_or_default();
         if !evidences.is_empty() {
             out.push_str("  * Touched Files & Locations:\n");
@@ -204,7 +209,8 @@ pub async fn build_goal_context_prompt(goal: &Goal) -> Result<String> {
             if let Some(ref snippet) = ev.raw_snippet {
                 if !snippet.trim().is_empty() {
                     prompt.push_str("  Snippet:\n```\n");
-                    prompt.push_str(snippet.trim());
+                    let short_snippet: String = snippet.lines().take(12).collect::<Vec<_>>().join("\n");
+                    prompt.push_str(short_snippet.trim());
                     prompt.push_str("\n```\n");
                 }
             }
