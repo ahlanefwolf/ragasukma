@@ -1,0 +1,130 @@
+use anyhow::Result;
+
+use crate::agent::models::{Project, PromptSkill};
+use crate::agent::repository;
+
+pub async fn build_system_prompt(
+    project: &Project,
+    allowed_folders: &[String],
+    prompt_skills: &[PromptSkill],
+    session_id: &str,
+    goal_id: &str,
+) -> Result<String> {
+    let os_name = std::env::consts::OS;
+    let arch_name = std::env::consts::ARCH;
+    let detected_verifier = crate::agent::languages::detect_primary_verification_command(allowed_folders);
+    let verifier_hint = detected_verifier
+        .as_deref()
+        .unwrap_or("run project verification or test commands if available");
+
+    #[cfg(target_os = "windows")]
+    let shell_desc = "PowerShell. Use native PowerShell syntax for scripts and paths.";
+
+    #[cfg(target_os = "macos")]
+    let shell_desc = "macOS POSIX Shell (login shell with enriched PATH). Use standard Unix shell syntax.";
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    let shell_desc = "Linux POSIX Shell (login shell with enriched PATH). Use standard Unix/Linux shell syntax.";
+
+    let mut system_prompt = format!(
+        "<role>\n\
+         You are an autonomous senior software engineer and technical assistant operating directly in the workspace.\n\
+         You understand, write, refactor, inspect, test, and analyze any software project, regardless of programming language, framework, or architecture.\n\
+         </role>\n\n\
+         <environment>\n\
+         OS: {} ({}) | Shell: {}\n\
+         Default workspace verification: `{}`\n\
+         Tools available: `workspace_read_file`, `workspace_write_file`, `workspace_edit_file`, `workspace_grep`, `workspace_list_dir`, `workspace_run_command`.\n\
+         </environment>\n\n\
+         <core-guidelines>\n\
+         1. INTENT AWARENESS (Inquiry vs Action):\n\
+            - If the user asks a question, architectural explanation, code review, or exploratory analysis: Answer concisely and factually. Inspect only the files needed to answer accurately, and respond conversationally.\n\
+            - If the user requests a bug fix, feature, refactoring, or code change: Take direct action. Locate the target files, inspect them, apply edits directly using `workspace_edit_file` or `workspace_write_file`, and verify your work.\n\
+         2. CLEAN & ACCURATE FILE MODIFICATIONS:\n\
+            - Apply complete and cohesive updates. Avoid incomplete placeholders, fake mocks, or non-functional stubs.\n\
+            - Provide 3-5 lines of exact context in `old_text` when calling `workspace_edit_file` to ensure unique match.\n\
+            - If a file is small (under 300 lines) or needs structural overhaul, `workspace_write_file` is preferred for clean, one-shot updates.\n\
+         3. EFFICIENCY & PRAGMATISM (On-Demand & Targeted Slices):\n\
+            - When inspecting large files, use `workspace_read_file` with `start_line` and `end_line` around the target function/area rather than reading the entire file. For big files (>250 lines), a structural outline is provided automatically.\n\
+            - Directory listing via `workspace_list_dir` is shallow (depth 1) by default and shows subfolder item counts so you can navigate targeted subfolders without recursive dumps.\n\
+            - Avoid redundant reads of the same file. Formulate changes and apply them directly.\n\
+            - When running sequential terminal commands, chain them with `&&` where appropriate to save turn latency.\n\
+            - Do not run unnecessary exploratory commands (e.g. git logs, unprompted status checks) when the goal is direct code editing.\n\
+         4. MULTILINGUAL & POLYGLOT:\n\
+            - Communicate naturally in whichever human language the user addresses you in.\n\
+            - Maintain all technical identifiers, code, and tool arguments in standard technical format.\n\
+            - Adapt seamlessly to any programming language, build system, or configuration found in the workspace.\n\
+         5. ADAPTIVE VERIFICATION & CONCLUSION:\n\
+            - When code files are modified and the project has an automated test/build command, run verification before concluding.\n\
+            - If the project has no automated test suite, or the changes are non-executable assets (e.g. documentation, templates, styling, configs), conclude directly once changes are applied.\n\
+            - When concluding, provide a clear and factual summary of files modified and actions completed.\n\
+         </core-guidelines>\n\n",
+        os_name, arch_name, shell_desc, verifier_hint
+    );
+
+    if !allowed_folders.is_empty() {
+        system_prompt.push_str("### Workspace Attached Folders (Multi-Root Support):\n");
+        for (idx, f) in allowed_folders.iter().enumerate() {
+            let p = std::path::Path::new(f);
+            let folder_name = p.file_name().and_then(|n| n.to_str()).unwrap_or("root");
+            let marker = if idx == 0 { " (Primary Default CWD)" } else { "" };
+            system_prompt.push_str(&format!("- `{}` [Folder Name/Alias: `{}`]{}\n", f, folder_name, marker));
+        }
+        system_prompt.push_str("Multi-Project / Root Folder Conventions:\n\
+- File paths should include the root folder name prefix (e.g. `<folder>/src/file.ext` or `@<folder>/src/file.ext`) so targeting is 100% unambiguous.\n\
+- In `workspace_run_command`, specify `cwd` to target a folder alias or run commands in that subproject.\n\n");
+    }
+
+    if let Some(ref custom) = project.custom_instructions {
+        if !custom.trim().is_empty() {
+            system_prompt.push_str("### Project Instructions:\n");
+            system_prompt.push_str(custom.trim());
+            system_prompt.push_str("\n\n");
+        }
+    }
+
+    if !prompt_skills.is_empty() {
+        system_prompt.push_str("### Active Prompt Skills & Persona Guidelines:\n");
+        for skill in prompt_skills {
+            system_prompt.push_str(&format!("#### Skill: {}\n{}\n\n", skill.name, skill.system_prompt.trim()));
+        }
+    }
+
+    // 1. Inherit prior steps only within this same task/session (Zero cross-task pollution)
+    if let Ok(prev_summary) = crate::agent::context_builder::build_previous_goals_summary(session_id, Some(goal_id)).await {
+        if !prev_summary.is_empty() {
+            system_prompt.push_str(&prev_summary);
+        }
+    }
+
+    // 2. Inject only the high-signal, relevant code locations (file path, lines, summary)
+    let mut relevant_evs = repository::get_active_evidences_for_goal(goal_id).await.unwrap_or_default();
+    if relevant_evs.is_empty() {
+        if let Ok(proj_evs) = repository::list_evidences_by_project(&project.id).await {
+            relevant_evs = proj_evs.into_iter().filter(|e| e.is_stale == 0).take(10).collect();
+        }
+    }
+    if !relevant_evs.is_empty() {
+        system_prompt.push_str("### 🎯 Relevant Code Locations & Evidence Cache (Verified Fresh):\n");
+        for ev in relevant_evs.iter().take(15) {
+            let lines_info = match (ev.start_line, ev.end_line) {
+                (Some(s), Some(e)) => format!(" (Lines {}-{})", s, e),
+                (Some(s), None) => format!(" (Line {}+)", s),
+                _ => String::new(),
+            };
+            let sym_info = ev.symbol_name.as_deref().map(|s| format!(" [`{}`]", s)).unwrap_or_default();
+            system_prompt.push_str(&format!("- `{}`{}{}: {}\n", ev.file_path, lines_info, sym_info, ev.summary));
+        }
+        system_prompt.push_str("You already have awareness of the files listed above. Avoid redundant re-reading if their summary satisfies your task.\n\n");
+    }
+
+    system_prompt.push_str("\n### ⚙️ Deterministic Execution Phases:\n");
+    system_prompt.push_str("1. DISCOVERY: Locate and inspect necessary target files or context. For questions or analysis, formulate your answer directly.\n");
+    system_prompt.push_str("2. ACTION: If changes are requested, apply targeted modifications using `workspace_edit_file` or `workspace_write_file`.\n");
+    system_prompt.push_str(&format!(
+        "3. VERIFICATION: If changes were made and project test/build commands exist (`{}`), run verification. Conclude with a clear, concise summary of the results.\n\n",
+        verifier_hint
+    ));
+
+    Ok(system_prompt)
+}

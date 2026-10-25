@@ -114,17 +114,82 @@ pub fn detect_all_languages(allowed_folders: &[String]) -> Vec<ProjectLanguageIn
     results
 }
 
+/// Extracts the primary binary/executable name from a shell command string.
+/// E.g. "cargo check" -> "cargo", "cd sub && npm test" -> "npm", "(cd dir && pytest)" -> "pytest"
+pub fn extract_binary_from_command(cmd: &str) -> Option<String> {
+    let clean = cmd.trim().trim_start_matches('(').trim_end_matches(')');
+    let actual_cmd = if let Some((_, after)) = clean.split_once(" && ") {
+        after.trim()
+    } else {
+        clean
+    };
+    let first_token = actual_cmd.split_whitespace().next()?;
+    Some(first_token.to_string())
+}
+
+/// Checks if an executable binary is installed and reachable in the environment's PATH,
+/// or exists as a local script/binary in the workspace.
+pub fn is_executable_available(bin_name: &str, workspace_roots: &[String]) -> bool {
+    let trimmed = bin_name.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    // 1. If it's a relative path like ./gradlew or bin/test
+    if trimmed.starts_with("./") || trimmed.starts_with("../") || trimmed.contains('/') || trimmed.contains('\\') {
+        for root in workspace_roots {
+            let p = Path::new(root).join(trimmed);
+            if p.exists() {
+                return true;
+            }
+        }
+    }
+
+    // 2. Check system PATH
+    if let Some(paths) = std::env::var_os("PATH") {
+        for path in std::env::split_paths(&paths) {
+            let direct = path.join(trimmed);
+            if direct.is_file() {
+                return true;
+            }
+            #[cfg(windows)]
+            {
+                for ext in &[".exe", ".cmd", ".bat", ".ps1"] {
+                    let with_ext = path.join(format!("{}{}", trimmed, ext));
+                    if with_ext.is_file() {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    false
+}
+
 /// Returns the primary verification command for the detected workspace.
 /// For multi-component workspaces, chains each component verifier in a subshell.
+/// Probes host environment availability so uninstalled tools are not recommended.
 pub fn detect_primary_verification_command(allowed_folders: &[String]) -> Option<String> {
     let languages = detect_all_languages(allowed_folders);
-    if languages.is_empty() {
+    let verified_languages: Vec<ProjectLanguageInfo> = languages
+        .into_iter()
+        .filter(|lang| {
+            if let Some(bin) = extract_binary_from_command(&lang.primary_verifier) {
+                is_executable_available(&bin, allowed_folders)
+            } else {
+                true
+            }
+        })
+        .collect();
+
+    if verified_languages.is_empty() {
         None
-    } else if languages.len() == 1 {
-        Some(languages[0].primary_verifier.clone())
+    } else if verified_languages.len() == 1 {
+        Some(verified_languages[0].primary_verifier.clone())
     } else {
         // Multi-component: chain them together in subshells so cwd changes do not interfere
-        let chained = languages
+        let chained = verified_languages
             .into_iter()
             .map(|l| {
                 if l.primary_verifier.starts_with("cd ") {
@@ -140,6 +205,7 @@ pub fn detect_primary_verification_command(allowed_folders: &[String]) -> Option
 }
 
 /// Returns the verification commands relevant to the modified files, or all detected primary verifiers.
+/// Filters out commands whose executables are not installed on the system.
 pub fn detect_verifiers_for_modified_files(
     allowed_folders: &[String],
     modified_files: &[String],
@@ -149,38 +215,48 @@ pub fn detect_verifiers_for_modified_files(
         return Vec::new();
     }
 
-    if modified_files.is_empty() {
-        return languages.into_iter().map(|l| l.primary_verifier).collect();
-    }
-
-    let mut relevant = Vec::new();
-    for lang in &languages {
-        if let Some(rest) = lang.primary_verifier.strip_prefix("cd ") {
-            if let Some((sub_name, _)) = rest.split_once(" && ") {
-                let sub_trimmed = sub_name.trim();
-                let is_modified = modified_files.iter().any(|f| {
-                    let clean = f.trim_start_matches("./");
-                    clean.starts_with(sub_trimmed)
-                        || clean.contains(&format!("/{}/", sub_trimmed))
-                        || clean.contains(&format!("{}/", sub_trimmed))
-                });
-                if is_modified && !relevant.contains(&lang.primary_verifier) {
+    let mut candidate_verifiers: Vec<String> = if modified_files.is_empty() {
+        languages.into_iter().map(|l| l.primary_verifier).collect()
+    } else {
+        let mut relevant = Vec::new();
+        for lang in &languages {
+            if let Some(rest) = lang.primary_verifier.strip_prefix("cd ") {
+                if let Some((sub_name, _)) = rest.split_once(" && ") {
+                    let sub_trimmed = sub_name.trim();
+                    let is_modified = modified_files.iter().any(|f| {
+                        let clean = f.trim_start_matches("./");
+                        clean.starts_with(sub_trimmed)
+                            || clean.contains(&format!("/{}/", sub_trimmed))
+                            || clean.contains(&format!("{}/", sub_trimmed))
+                    });
+                    if is_modified && !relevant.contains(&lang.primary_verifier) {
+                        relevant.push(lang.primary_verifier.clone());
+                    }
+                }
+            } else {
+                // Root project verifier
+                if !relevant.contains(&lang.primary_verifier) {
                     relevant.push(lang.primary_verifier.clone());
                 }
             }
-        } else {
-            // Root project verifier
-            if !relevant.contains(&lang.primary_verifier) {
-                relevant.push(lang.primary_verifier.clone());
-            }
         }
-    }
+        if relevant.is_empty() {
+            languages.into_iter().map(|l| l.primary_verifier).collect()
+        } else {
+            relevant
+        }
+    };
 
-    if relevant.is_empty() {
-        languages.into_iter().map(|l| l.primary_verifier).collect()
-    } else {
-        relevant
-    }
+    // Filter by probe: only keep verifiers whose executables are actually available in the environment
+    candidate_verifiers.retain(|cmd| {
+        if let Some(bin) = extract_binary_from_command(cmd) {
+            is_executable_available(&bin, allowed_folders)
+        } else {
+            true
+        }
+    });
+
+    candidate_verifiers
 }
 
 /// Checks if an executed shell command is a verification / test / typecheck / build command across any language
@@ -192,6 +268,21 @@ pub fn is_verification_command(cmd: &str) -> bool {
         "git status", "git log", "git diff", "git show", "git branch", "git remote",
         "ls", "dir", "pwd", "cd ", "echo ", "cat ", "type ", "head ", "tail ", "find ",
         "which ", "where ", "whoami", "hostname", "uname",
+    ];
+
+    // Package installation / dependency management commands that MUST NOT count as verification
+    let pkg_mgmt_prefixes = [
+        "npm install", "npm i ", "npm i", "npm add", "npm update", "npm remove", "npm uninstall", "npm list", "npm audit", "npm init",
+        "pnpm install", "pnpm i ", "pnpm i", "pnpm add", "pnpm update", "pnpm remove", "pnpm list", "pnpm audit",
+        "yarn add", "yarn install", "yarn remove", "yarn list", "yarn why", "yarn init",
+        "bun install", "bun i ", "bun i", "bun add", "bun remove", "bun init",
+        "cargo add", "cargo install", "cargo remove", "cargo update", "cargo tree", "cargo new", "cargo init", "cargo metadata", "cargo run",
+        "pip install", "pip uninstall", "pip list", "pip freeze",
+        "pip3 install", "pip3 uninstall", "pip3 list", "pip3 freeze",
+        "poetry add", "poetry install", "poetry remove", "poetry lock", "poetry show",
+        "uv add", "uv pip", "uv sync", "uv lock",
+        "composer install", "composer require", "composer update", "composer remove",
+        "go get", "go install", "go mod",
     ];
 
     // Handle chained shell commands e.g. "cd simulations/python_scenario && python3 -m unittest discover -s tests"
@@ -209,6 +300,11 @@ pub fn is_verification_command(cmd: &str) -> bool {
 
         // If the sub-command starts with a known pure-info command, skip it
         if pure_info_prefixes.iter().any(|info| sub_trimmed == *info || sub_trimmed.starts_with(info)) {
+            continue;
+        }
+
+        // If the sub-command is a package installation/management command, skip it
+        if pkg_mgmt_prefixes.iter().any(|pkg| sub_trimmed == *pkg || sub_trimmed.starts_with(pkg)) {
             continue;
         }
 
@@ -252,11 +348,11 @@ pub fn is_verification_command(cmd: &str) -> bool {
         let parts: Vec<&str> = sub_trimmed.split_whitespace().collect();
         if let Some(first) = parts.first() {
             let base_cmd = first.rsplit(['/', '\\']).next().unwrap_or(first);
-            // Standalone build & test tools (make, ninja, cmake, pytest, ctest, etc.)
+            // Dedicated build & test runners only (excluding multi-purpose package managers like cargo/npm)
             let build_tools = [
                 "make", "ninja", "cmake", "ctest", "just", "task", "bazel", "buck", "buck2",
                 "meson", "scons", "rake", "gradle", "mvn", "pytest", "vitest", "jest", "mocha",
-                "cargo", "npm", "pnpm", "yarn", "bun", "deno", "dune", "sbt", "mix",
+                "dune", "sbt",
             ];
             if build_tools.contains(&base_cmd) {
                 return true;
@@ -315,6 +411,13 @@ mod tests {
         assert!(!is_verification_command("git status"));
         assert!(!is_verification_command("git diff"));
         assert!(!is_verification_command("ls -la"));
+        assert!(!is_verification_command("npm install axios"));
+        assert!(!is_verification_command("npm i"));
+        assert!(!is_verification_command("cargo add serde"));
+        assert!(!is_verification_command("cargo tree"));
+        assert!(!is_verification_command("yarn add react"));
+        assert!(!is_verification_command("pip install requests"));
+        assert!(!is_verification_command("poetry add fastapi"));
         assert!(is_verification_command("node --test tests/*.test.js"));
         assert!(is_verification_command("go test ./..."));
         assert!(is_verification_command("flutter test"));

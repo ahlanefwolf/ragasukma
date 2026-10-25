@@ -153,59 +153,72 @@ pub fn apply_resilient_edit(
     if old_lines.len() >= 3 {
         let first_meaningful = old_lines
             .iter()
-            .find(|l| {
+            .enumerate()
+            .find(|(_, l)| {
                 let t = l.trim();
                 t.len() > 3 && t != "</div>" && t != "}" && t != "};" && t != "</button>" && t != "</div>;"
             })
-            .map(|l| l.trim());
+            .map(|(idx, l)| (idx, l.trim()));
 
         let last_meaningful = old_lines
             .iter()
+            .enumerate()
             .rev()
-            .find(|l| {
+            .find(|(_, l)| {
                 let t = l.trim();
                 t.len() > 3 && t != "</div>" && t != "}" && t != "};" && t != "</button>" && t != "</div>;"
             })
-            .map(|l| l.trim());
+            .map(|(idx, l)| (idx, l.trim()));
 
-        if let (Some(first_anchor), Some(last_anchor)) = (first_meaningful, last_meaningful) {
-            let mut anchor_matches = Vec::new();
-            for i in 0..content_lines.len() {
-                if content_lines[i].trim() == first_anchor {
-                    let min_end = i + 1;
-                    let max_end = (i + old_lines.len() + 15).min(content_lines.len());
-                    for (j, line) in content_lines.iter().enumerate().take(max_end).skip(min_end) {
-                        if line.trim() == last_anchor {
-                            anchor_matches.push((i, j));
+        if let (Some((first_idx_in_old, first_anchor)), Some((last_idx_in_old, last_anchor))) = (first_meaningful, last_meaningful) {
+            if first_idx_in_old < last_idx_in_old {
+                let mut anchor_matches = Vec::new();
+                for i in 0..content_lines.len() {
+                    if content_lines[i].trim() == first_anchor {
+                        let min_end = i + 1;
+                        let max_end = (i + old_lines.len() + 15).min(content_lines.len());
+                        for (j, line) in content_lines.iter().enumerate().take(max_end).skip(min_end) {
+                            if line.trim() == last_anchor {
+                                anchor_matches.push((i, j));
+                            }
                         }
                     }
                 }
-            }
 
-            if !anchor_matches.is_empty() {
-                let target_span = old_lines.len();
-                let mut best_anchor = anchor_matches[0];
-                let mut min_diff = (anchor_matches[0].1 - anchor_matches[0].0 + 1).abs_diff(target_span);
-                let mut second_diff = usize::MAX;
+                if !anchor_matches.is_empty() {
+                    let target_span = old_lines.len();
+                    let mut best_anchor = anchor_matches[0];
+                    let mut min_diff = (anchor_matches[0].1 - anchor_matches[0].0 + 1).abs_diff(target_span);
+                    let mut second_diff = usize::MAX;
 
-                for &(start, end) in &anchor_matches[1..] {
-                    let diff = (end - start + 1).abs_diff(target_span);
-                    if diff < min_diff {
-                        second_diff = min_diff;
-                        min_diff = diff;
-                        best_anchor = (start, end);
-                    } else if diff < second_diff {
-                        second_diff = diff;
+                    for &(start, end) in &anchor_matches[1..] {
+                        let diff = (end - start + 1).abs_diff(target_span);
+                        if diff < min_diff {
+                            second_diff = min_diff;
+                            min_diff = diff;
+                            best_anchor = (start, end);
+                        } else if diff < second_diff {
+                            second_diff = diff;
+                        }
                     }
-                }
 
-                if anchor_matches.len() == 1 || min_diff < second_diff {
-                    let (start_idx, end_idx) = best_anchor;
-                    let mut result_lines = Vec::new();
-                    result_lines.extend_from_slice(&content_lines[..start_idx]);
-                    result_lines.push(&normalized_new);
-                    result_lines.extend_from_slice(&content_lines[end_idx + 1..]);
-                    return Ok(result_lines.join("\n"));
+                    if anchor_matches.len() == 1 || min_diff < second_diff {
+                        let (start_idx, end_idx) = best_anchor;
+                        let suffix_count = old_lines.len() - 1 - last_idx_in_old;
+                        let effective_start = start_idx.saturating_sub(first_idx_in_old);
+                        let effective_end = (end_idx + suffix_count).min(content_lines.len().saturating_sub(1));
+
+                        let target_slice = &content_lines[effective_start..=effective_end];
+                        let adapted_new = adapt_indentation(target_slice, &old_lines, &normalized_new);
+
+                        let mut result_lines = Vec::new();
+                        result_lines.extend_from_slice(&content_lines[..effective_start]);
+                        result_lines.push(&adapted_new);
+                        if effective_end + 1 < content_lines.len() {
+                            result_lines.extend_from_slice(&content_lines[effective_end + 1..]);
+                        }
+                        return Ok(result_lines.join("\n"));
+                    }
                 }
             }
         }

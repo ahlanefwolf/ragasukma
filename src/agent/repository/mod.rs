@@ -1,5 +1,6 @@
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub mod goals;
@@ -10,6 +11,8 @@ pub use goals::*;
 pub use messages::*;
 pub use projects_and_sessions::*;
 
+static ID_COUNTER: AtomicU64 = AtomicU64::new(1);
+
 pub fn now_secs() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -17,10 +20,23 @@ pub fn now_secs() -> i64 {
         .as_secs() as i64
 }
 
+pub fn now_millis() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64
+}
+
 pub fn generate_id(prefix: &str) -> String {
-    let s = RandomState::new().build_hasher().finish();
-    let hex = format!("{:016x}", s);
-    format!("{}_{}_{}", prefix, now_secs(), &hex[..6])
+    let counter = ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let mut hasher = RandomState::new().build_hasher();
+    hasher.write_u128(now.as_nanos());
+    hasher.write_u64(counter);
+    let hash = hasher.finish();
+    format!("{}_{}_{:012x}", prefix, now.as_millis(), hash & 0xffffffffffff)
 }
 
 #[cfg(test)]

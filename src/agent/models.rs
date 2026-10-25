@@ -159,4 +159,6 @@ pub enum AgentSessionEvent {
     Delta { delta: String },
     #[serde(rename = "thought_delta")]
     ThoughtDelta { delta: String },
+    #[serde(rename = "stream_reset")]
+    StreamReset,
 }

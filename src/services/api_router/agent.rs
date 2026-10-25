@@ -487,6 +487,9 @@ async fn create_session(
 }
 
 async fn delete_session(Path(id): Path<String>) -> impl IntoResponse {
+    crate::agent::executor::cancel_session_task(&id);
+    crate::agent::executor::remove_session_broadcaster(&id);
+    crate::agent::diagnostics::clear_session_diagnostic_queue(&id);
     match repository::delete_session(&id).await {
         Ok(_) => (StatusCode::OK, Json(json!({"status": "deleted"}))),
         Err(e) => (
@@ -514,12 +517,18 @@ async fn run_session(
     };
 
     let session_id = id.clone();
-    // Spawn detached task in Tokio runtime, emitting real-time events via SSE
-    tokio::spawn(async move {
-        if let Err(e) = crate::agent::executor::execute_session_turn(&session_id, model_override.as_deref()).await {
-            eprintln!("[Agent] Execution error for session {}: {}", session_id, e);
+    // Cancel any previous task still running for this session to avoid multiple workers
+    crate::agent::executor::cancel_session_task(&session_id);
+
+    let sid_for_task = session_id.clone();
+    let handle = tokio::spawn(async move {
+        if let Err(e) = crate::agent::executor::execute_session_turn(&sid_for_task, model_override.as_deref()).await {
+            eprintln!("[Agent] Execution error for session {}: {}", sid_for_task, e);
         }
+        crate::agent::executor::unregister_session_task(&sid_for_task);
     });
+
+    crate::agent::executor::register_session_task(&session_id, handle.abort_handle());
 
     (StatusCode::OK, Json(json!({"status": "started", "session_id": id})))
 }
@@ -527,7 +536,16 @@ async fn run_session(
 async fn stop_session(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
+    // 1. Immediately abort the running Tokio background task (and kill any active child process)
+    let was_running = crate::agent::executor::cancel_session_task(&id);
+    if was_running {
+        println!("[Agent] Successfully aborted background task for session {}", id);
+    }
+
+    // 2. Persist idle status to database
     let _ = crate::agent::repository::update_session_status(&id, "idle").await;
+
+    // 3. Notify subscribers via SSE
     crate::agent::executor::broadcast_session_event(
         &id,
         crate::agent::models::AgentSessionEvent::StatusChange {
@@ -540,7 +558,7 @@ async fn stop_session(
             reply: "Task execution stopped by user.".to_string(),
         },
     );
-    (StatusCode::OK, Json(json!({"status": "stopped", "session_id": id})))
+    (StatusCode::OK, Json(json!({"status": "stopped", "session_id": id, "aborted_active_task": was_running})))
 }
 
 async fn session_events_sse(

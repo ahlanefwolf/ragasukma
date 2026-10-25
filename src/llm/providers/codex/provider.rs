@@ -704,7 +704,7 @@ impl CodexProvider {
                     }
                     _ => {}
                 }
-                let _ = on_event(ev);
+                on_event(ev)?;
             }
         }
 
@@ -757,7 +757,7 @@ impl CodexProvider {
             if let Some(delta) = parse_codex_sse_line(&line) {
                 if !delta.is_empty() {
                     full_content.push_str(&delta);
-                    let _ = on_raw_delta(&delta);
+                    on_raw_delta(&delta)?;
                 }
             }
         }

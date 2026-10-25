@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Verify that a target path is allowed within one of the project's root folders.
@@ -400,4 +401,147 @@ pub fn create_workspace_command(command_str: &str) -> std::process::Command {
         cmd.env("PATH", new_path);
         cmd
     }
+}
+
+/// Generate a language-agnostic structural outline for large files.
+/// Identifies major sections, top-level definitions, symbols, classes, functions, and headings
+/// along with their 1-based line numbers.
+pub fn generate_file_outline(content: &str, file_path: &str) -> String {
+    let lines: Vec<&str> = content.lines().collect();
+    let total_lines = lines.len();
+    let total_bytes = content.len();
+
+    let mut outline_entries: Vec<(usize, String, bool)> = Vec::new();
+
+    // Universal definition and heading markers across languages, formats, and configs
+    for (idx, line) in lines.iter().enumerate() {
+        let line_num = idx + 1;
+        let trimmed = line.trim();
+
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let indent = line.chars().take_while(|c| c.is_whitespace()).count();
+
+        // 1. Markdown / Documentation Headings (# Heading, ## Subheading)
+        if trimmed.starts_with('#') && trimmed.chars().nth(1).is_some_and(|c| c == '#' || c == ' ') {
+            outline_entries.push((line_num, trimmed.chars().take(120).collect(), true));
+            continue;
+        }
+
+        // 2. Config / Section headers ([section], [[table]])
+        if trimmed.starts_with('[') && trimmed.ends_with(']') && indent <= 2 {
+            outline_entries.push((line_num, trimmed.to_string(), true));
+            continue;
+        }
+
+        // 3. Top-level or shallow definition anchors (indentation <= 4 spaces or 1 tab)
+        if indent <= 4 {
+            let is_comment = trimmed.starts_with("//")
+                || trimmed.starts_with("/*")
+                || trimmed.starts_with('*')
+                || trimmed.starts_with('#')
+                || trimmed.starts_with("--")
+                || trimmed.starts_with(';');
+
+            if is_comment {
+                // Keep major section banners/comments (e.g. "// --- Section ---")
+                if trimmed.contains("---") || trimmed.contains("===") || trimmed.contains("###") {
+                    outline_entries.push((line_num, trimmed.chars().take(100).collect(), false));
+                }
+                continue;
+            }
+
+            let first_word = trimmed.split_whitespace().next().unwrap_or("");
+            let clean_first = first_word.trim_end_matches(':');
+
+            // Major structural declarations across languages (functions, types, classes, modules)
+            let is_major_decl = matches!(
+                clean_first,
+                "fn" | "pub" | "function" | "func" | "def" | "class" | "struct" | "enum" |
+                "interface" | "type" | "trait" | "impl" | "export" | "mod" | "module" |
+                "package" | "async" | "namespace" | "sub" | "proc" | "method" | "actor" |
+                "record" | "schema" | "table" | "CREATE" | "SELECT" | "ALTER" | "DROP" |
+                "router" | "endpoint" | "contract" | "service" | "proto"
+            );
+
+            // Top-level declarations only (indent == 0) for constants, variables, imports, config keys
+            let is_toplevel_decl = indent == 0 && matches!(
+                clean_first,
+                "import" | "from" | "const" | "let" | "var" | "val" | "static" | "data" | "entity" | "message"
+            );
+
+            let is_block_header = indent == 0 && (trimmed.ends_with('{') || trimmed.ends_with(':') || trimmed.contains("=> {"));
+            let is_top_key = indent == 0 && (trimmed.contains(':') && !trimmed.contains("::")) && !trimmed.starts_with('{');
+
+            if is_major_decl || is_toplevel_decl || is_block_header || is_top_key {
+                let display = if trimmed.chars().count() > 140 {
+                    format!("{} ...", trimmed.chars().take(140).collect::<String>())
+                } else {
+                    trimmed.to_string()
+                };
+                outline_entries.push((line_num, display, is_major_decl));
+            }
+        }
+    }
+
+    // If file is large but unstructured / minified, provide periodic sample lines
+    if outline_entries.is_empty() {
+        let step = (total_lines / 20).max(1);
+        for idx in (0..total_lines).step_by(step).take(20) {
+            let line_num = idx + 1;
+            let trimmed = lines[idx].trim();
+            if !trimmed.is_empty() {
+                let display = trimmed.chars().take(100).collect::<String>();
+                outline_entries.push((line_num, display, false));
+            }
+        }
+    }
+
+    // Limit outline size to maximum 80 landmark symbols, prioritizing major declarations
+    if outline_entries.len() > 80 {
+        let major_count = outline_entries.iter().filter(|(_, _, is_maj)| *is_maj).count();
+        if major_count > 0 && major_count <= 80 {
+            let mut result = Vec::new();
+            let step = (outline_entries.len() as f64 / 40.0).ceil() as usize;
+            for (idx, entry) in outline_entries.iter().enumerate() {
+                if entry.2 || idx % step == 0 {
+                    result.push(entry.clone());
+                }
+            }
+            result.dedup_by_key(|e| e.0);
+            outline_entries = result;
+        } else {
+            let step = (outline_entries.len() as f64 / 70.0).ceil() as usize;
+            let mut sampled = Vec::new();
+            for (i, entry) in outline_entries.iter().enumerate() {
+                if i % step == 0 || i == outline_entries.len() - 1 || entry.2 {
+                    sampled.push(entry.clone());
+                }
+            }
+            sampled.dedup_by_key(|e| e.0);
+            outline_entries = sampled;
+        }
+    }
+
+    let mut out = String::new();
+    out.push_str(&format!(
+        "# File outline for '{}' (total {} lines, {} bytes):\n\
+         # File is large: to inspect specific code sections, call `workspace_read_file` with `start_line` and `end_line`.\n\
+         # To read the full raw file anyway, call `workspace_read_file` with `mode: \"full\"`.\n\n",
+        file_path, total_lines, total_bytes
+    ));
+
+    for (line_num, line_str, _) in &outline_entries {
+        out.push_str(&format!("L{:4}: {}\n", line_num, line_str));
+    }
+
+    out.push_str(&format!(
+        "\n# Showing {} structural landmarks across {} lines. Use `start_line` and `end_line` to inspect targeted ranges.",
+        outline_entries.len(),
+        total_lines
+    ));
+
+    out
 }

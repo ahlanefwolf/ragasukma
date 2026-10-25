@@ -13,8 +13,8 @@ use std::sync::OnceLock;
 pub use dialogs::{open_path_in_file_manager, pick_folder_dialog};
 pub use editor::apply_resilient_edit;
 pub use fs::{
-    create_workspace_command, ensure_git_and_gitignore, generate_smart_gitignore,
-    resolve_allowed_path, to_workspace_folder_path,
+    create_workspace_command, ensure_git_and_gitignore, generate_file_outline,
+    generate_smart_gitignore, resolve_allowed_path, to_workspace_folder_path,
 };
 pub use search::{list_workspace_files, run_workspace_grep, WorkspaceFileInfo};
 pub use tags::expand_file_tags;
@@ -54,13 +54,17 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
                     "type": "function",
                     "function": {
                         "name": "workspace_list_dir",
-                        "description": "List files and subdirectories in the specified workspace directory.",
+                        "description": "List files and subdirectories in a directory with shallow depth (default depth 1). Shows child counts for subdirectories so you know what is inside without full recursion. Specify 'depth' (1-3) if needed.",
                         "parameters": {
                             "type": "object",
                             "properties": {
                                 "path": {
                                     "type": "string",
                                     "description": "Relative or absolute path to the directory within the workspace"
+                                },
+                                "depth": {
+                                    "type": "integer",
+                                    "description": "Directory traversal depth (1 to 3, default: 1 for shallow listing)"
                                 }
                             },
                             "required": ["path"]
@@ -71,7 +75,7 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
                     "type": "function",
                     "function": {
                         "name": "workspace_read_file",
-                        "description": "Read text content of a file in the workspace. You can read the full file by omitting start_line and end_line, or specify lines around a target. AVOID reading files in repetitive 50-100 line chunks; read the target section directly in one call.",
+                        "description": "Read text content of a file in the workspace. For large files (>250 lines), automatically returns a structural outline with symbol names and line numbers to save tokens. Use `start_line` and `end_line` to read specific slices, or set `mode: \"full\"` to force reading the entire file.",
                         "parameters": {
                             "type": "object",
                             "properties": {
@@ -86,6 +90,11 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
                                 "end_line": {
                                     "type": "integer",
                                     "description": "End line number (1-indexed, optional)"
+                                },
+                                "mode": {
+                                    "type": "string",
+                                    "enum": ["outline", "full"],
+                                    "description": "Reading mode: 'outline' returns a structural outline with line numbers; 'full' forces reading the full file even if large; default automatically returns outline for files >250 lines."
                                 }
                             },
                             "required": ["file_path"]
@@ -178,6 +187,10 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
                                 "cwd": {
                                     "type": "string",
                                     "description": "Working directory relative to workspace or folder alias (optional, defaults to primary workspace root)"
+                                },
+                                "timeout_seconds": {
+                                    "type": "integer",
+                                    "description": "Optional maximum execution timeout in seconds (default: 120, maximum: 600). Use higher values for large builds, long test suites, or heavy compilations."
                                 }
                             },
                             "required": ["command"]
@@ -230,7 +243,7 @@ pub fn normalize_workspace_command(command: &str, work_dir: &Path, allowed_roots
     normalized
 }
 
-pub fn execute_tool_call(
+pub async fn execute_tool_call(
     name: &str,
     args: &serde_json::Value,
     allowed_roots: &[String],
@@ -250,9 +263,15 @@ pub fn execute_tool_call(
                 bail!("'{}' is not a directory", path_str);
             }
 
+            let requested_depth = args
+                .get("depth")
+                .and_then(|v| v.as_u64())
+                .map(|d| (d as usize).clamp(1, 3))
+                .unwrap_or(1);
+
             let mut builder = ignore::WalkBuilder::new(&resolved);
             builder
-                .max_depth(Some(1))
+                .max_depth(Some(requested_depth))
                 .hidden(false)
                 .git_ignore(true)
                 .git_global(true)
@@ -269,6 +288,9 @@ pub fn execute_tool_call(
             }
 
             let mut entries = Vec::new();
+            let mut total_files = 0;
+            let mut total_dirs = 0;
+
             for entry in builder.build().flatten() {
                 if entry.depth() == 0 {
                     continue;
@@ -278,11 +300,45 @@ pub fn execute_tool_call(
                     continue;
                 }
                 let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
-                entries.push(format!("{}{}", name, if is_dir { "/" } else { "" }));
+                let entry_path = entry.path();
+
+                let rel_display = if requested_depth > 1 {
+                    entry_path
+                        .strip_prefix(&resolved)
+                        .map(|p| p.to_string_lossy().replace('\\', "/"))
+                        .unwrap_or_else(|_| name.clone())
+                } else {
+                    name.clone()
+                };
+
+                if is_dir {
+                    total_dirs += 1;
+                    // Count immediate children inside this directory (shallow check)
+                    let child_count = std_fs::read_dir(entry_path)
+                        .map(|rd| {
+                            rd.flatten()
+                                .filter(|e| {
+                                    let n = e.file_name().to_string_lossy().to_string();
+                                    n != ".git" && n != ".DS_Store" && n != "Thumbs.db"
+                                })
+                                .count()
+                        })
+                        .unwrap_or(0);
+
+                    entries.push(format!("{}/ ({} item{})", rel_display, child_count, if child_count == 1 { "" } else { "s" }));
+                } else {
+                    total_files += 1;
+                    entries.push(rel_display);
+                }
             }
             entries.sort();
             let display_path = to_workspace_folder_path(&resolved, allowed_roots);
-            Ok(json!({ "path": display_path, "entries": entries }).to_string())
+            Ok(json!({
+                "path": display_path,
+                "total_files": total_files,
+                "total_dirs": total_dirs,
+                "entries": entries
+            }).to_string())
         }
 
         "workspace_read_file" => {
@@ -312,6 +368,9 @@ pub fn execute_tool_call(
             };
             let start = parse_line("start_line");
             let end = parse_line("end_line");
+            let mode = args.get("mode").and_then(|v| v.as_str()).unwrap_or("");
+            let is_explicit_outline = mode == "outline" || args.get("outline").and_then(|v| v.as_bool()).unwrap_or(false);
+            let is_explicit_full = mode == "full" || args.get("full").and_then(|v| v.as_bool()).unwrap_or(false);
 
             if start.is_some() || end.is_some() {
                 let lines: Vec<&str> = content.lines().collect();
@@ -323,6 +382,9 @@ pub fn execute_tool_call(
                     String::new()
                 };
                 Ok(sliced)
+            } else if is_explicit_outline || (!is_explicit_full && content.lines().count() > 250) {
+                let display_path = to_workspace_folder_path(&resolved, allowed_roots);
+                Ok(generate_file_outline(&content, &display_path))
             } else {
                 Ok(content)
             }
@@ -339,8 +401,7 @@ pub fn execute_tool_call(
                 .context("Parameter 'content' is required")?;
             let resolved = resolve_allowed_path(file_path, allowed_roots)?;
 
-            let old_content = std_fs::read_to_string(&resolved).ok();
-            let is_new_file = old_content.is_none();
+            let is_new_file = !resolved.exists();
 
             if let Some(parent) = resolved.parent() {
                 let _ = std_fs::create_dir_all(parent);
@@ -355,8 +416,6 @@ pub fn execute_tool_call(
                 "file_path": file_path,
                 "bytes_written": content.len(),
                 "is_new_file": is_new_file,
-                "old_content": old_content,
-                "new_content": content,
             });
 
             Ok(result_json.to_string())
@@ -416,7 +475,31 @@ pub fn execute_tool_call(
             let resolved = resolve_allowed_path(sub_path, allowed_roots)?;
 
             let grep_result = run_workspace_grep(&resolved, query, allowed_roots)?;
-            Ok(grep_result.to_string())
+
+            // Format into token-efficient tabular grep format for LLM context
+            let matches = grep_result.get("results").and_then(|r| r.as_array());
+            let truncated = grep_result.get("truncated").and_then(|t| t.as_bool()).unwrap_or(false);
+            if let Some(list) = matches {
+                if list.is_empty() {
+                    Ok(format!("No matches found for query '{}'", query))
+                } else {
+                    let mut out = format!(
+                        "Found {} match(es) for query '{}'{}:\n",
+                        list.len(),
+                        query,
+                        if truncated { " (truncated at limit)" } else { "" }
+                    );
+                    for item in list {
+                        let file = item.get("file").and_then(|f| f.as_str()).unwrap_or("");
+                        let line = item.get("line").and_then(|l| l.as_u64()).unwrap_or(0);
+                        let content = item.get("content").and_then(|c| c.as_str()).unwrap_or("");
+                        out.push_str(&format!("- {}:{}: {}\n", file, line, content));
+                    }
+                    Ok(out)
+                }
+            } else {
+                Ok(grep_result.to_string())
+            }
         }
 
         "workspace_run_command" => {
@@ -436,14 +519,46 @@ pub fn execute_tool_call(
 
             let effective_command = normalize_workspace_command(command_str, &work_dir, allowed_roots);
 
-            let mut proc = create_workspace_command(&effective_command);
-
+            let std_proc = create_workspace_command(&effective_command);
+            let mut proc = tokio::process::Command::from(std_proc);
             proc.current_dir(&work_dir);
+            proc.kill_on_drop(true);
 
-            // Execute command with output capture
-            let output = proc.output().with_context(|| {
-                format!("Failed to execute shell command: '{}'", command_str)
-            })?;
+            // Execute command with configurable asynchronous timeout (default 120s, max 600s)
+            let timeout_secs = args
+                .get("timeout_seconds")
+                .or_else(|| args.get("timeout"))
+                .and_then(|v| {
+                    v.as_u64()
+                        .or_else(|| v.as_i64().filter(|&n| n > 0).map(|n| n as u64))
+                        .or_else(|| v.as_str().and_then(|s| s.trim().parse::<u64>().ok()))
+                })
+                .map(|s| s.clamp(5, 600))
+                .unwrap_or(120);
+
+            let timeout_duration = std::time::Duration::from_secs(timeout_secs);
+            let output = match tokio::time::timeout(timeout_duration, proc.output()).await {
+                Ok(Ok(out)) => out,
+                Ok(Err(e)) => {
+                    bail!("Failed to execute shell command: '{}': {}", command_str, e);
+                }
+                Err(_) => {
+                    let mut res_map = serde_json::Map::new();
+                    res_map.insert("command".to_string(), serde_json::json!(command_str));
+                    res_map.insert("cwd".to_string(), serde_json::json!(work_dir.display().to_string()));
+                    res_map.insert("exit_code".to_string(), serde_json::json!(-1));
+                    res_map.insert("success".to_string(), serde_json::json!(false));
+                    res_map.insert("status".to_string(), serde_json::json!("TIMEOUT"));
+                    let timeout_msg = format!(
+                        "❌ COMMAND TIMED OUT after {} seconds: `{command_str}`. The process was automatically killed. Avoid long-running dev servers, interactive prompts, or hanging tests. If the build or test suite needs more time, specify `timeout_seconds` (up to 600s).",
+                        timeout_secs
+                    );
+                    res_map.insert("stdout".to_string(), serde_json::json!(""));
+                    res_map.insert("stderr".to_string(), serde_json::json!(&timeout_msg));
+                    res_map.insert("error_banner".to_string(), serde_json::json!(timeout_msg));
+                    return Ok(serde_json::Value::Object(res_map).to_string());
+                }
+            };
 
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -666,5 +781,170 @@ mod tests {
         let err_msg = err.to_string();
         assert!(err_msg.contains("'old_text' not found"));
         assert!(err_msg.contains("Use `workspace_read_file`") || err_msg.contains("Closest actual content in 'test.ts'"));
+    }
+
+    #[test]
+    fn test_generate_file_outline_polyglot() {
+        let mut sample_code = String::new();
+        sample_code.push_str("# Project Documentation Header\n");
+        sample_code.push_str("pub struct AppConfig {\n");
+        sample_code.push_str("    pub port: u16,\n");
+        sample_code.push_str("}\n\n");
+        sample_code.push_str("pub fn start_server() {\n");
+        sample_code.push_str("    println!(\"Server running\");\n");
+        sample_code.push_str("}\n\n");
+        sample_code.push_str("class UserService:\n");
+        sample_code.push_str("    def get_user(self, user_id):\n");
+        sample_code.push_str("        pass\n\n");
+        sample_code.push_str("[database_section]\n");
+        sample_code.push_str("host = \"localhost\"\n");
+
+        for i in 0..100 {
+            sample_code.push_str(&format!("// filler line {}\n", i));
+        }
+
+        let outline = generate_file_outline(&sample_code, "test/app.code");
+        assert!(outline.contains("# File outline for 'test/app.code'"));
+        assert!(outline.contains("Project Documentation Header"));
+        assert!(outline.contains("pub struct AppConfig"));
+        assert!(outline.contains("pub fn start_server"));
+        assert!(outline.contains("class UserService:"));
+        assert!(outline.contains("[database_section]"));
+        assert!(outline.contains("L   1:"));
+    }
+
+    #[tokio::test]
+    async fn test_workspace_read_file_slice_and_outline() {
+        let temp_dir = std::env::temp_dir().join(format!("ragasukma_read_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let _ = std_fs::create_dir_all(&temp_dir);
+
+        let mut lines = Vec::new();
+        for i in 1..=300 {
+            if i == 10 {
+                lines.push("pub fn initialize_core() {".to_string());
+            } else if i == 50 {
+                lines.push("pub fn terminate_core() {".to_string());
+            } else {
+                lines.push(format!("    let val_{} = {};", i, i));
+            }
+        }
+        let content = lines.join("\n");
+        let file_path = temp_dir.join("large_file.src");
+        let _ = std_fs::write(&file_path, &content);
+
+        let roots = vec![temp_dir.to_string_lossy().to_string()];
+
+        // 1. Unspecified lines on large file (>250 lines) returns outline by default
+        let out_default = execute_tool_call(
+            "workspace_read_file",
+            &serde_json::json!({ "file_path": "large_file.src" }),
+            &roots,
+        ).await.unwrap();
+        assert!(out_default.contains("# File outline for"));
+        assert!(out_default.contains("initialize_core"));
+        assert!(out_default.contains("terminate_core"));
+
+        // 2. Targeted slice using start_line and end_line (lines 9, 10, 11, 12 = 4 lines)
+        let out_slice = execute_tool_call(
+            "workspace_read_file",
+            &serde_json::json!({
+                "file_path": "large_file.src",
+                "start_line": 9,
+                "end_line": 12
+            }),
+            &roots,
+        ).await.unwrap();
+        assert!(out_slice.contains("pub fn initialize_core"));
+        assert_eq!(out_slice.lines().count(), 4);
+
+        // 3. Explicit mode: "full" on large file returns raw content
+        let out_full = execute_tool_call(
+            "workspace_read_file",
+            &serde_json::json!({
+                "file_path": "large_file.src",
+                "mode": "full"
+            }),
+            &roots,
+        ).await.unwrap();
+        assert_eq!(out_full.lines().count(), 300);
+
+        let _ = std_fs::remove_dir_all(&temp_dir);
+    }
+
+    #[tokio::test]
+    async fn test_workspace_list_dir_shallow_with_counts() {
+        let temp_dir = std::env::temp_dir().join(format!("ragasukma_listdir_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let sub_dir = temp_dir.join("subfolder");
+        let _ = std_fs::create_dir_all(&sub_dir);
+
+        let _ = std_fs::write(temp_dir.join("root_file.txt"), "hello");
+        let _ = std_fs::write(sub_dir.join("child_1.txt"), "c1");
+        let _ = std_fs::write(sub_dir.join("child_2.txt"), "c2");
+
+        let roots = vec![temp_dir.to_string_lossy().to_string()];
+
+        let res_raw = execute_tool_call(
+            "workspace_list_dir",
+            &serde_json::json!({ "path": "." }),
+            &roots,
+        ).await.unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&res_raw).unwrap();
+        let entries = parsed.get("entries").and_then(|e| e.as_array()).unwrap();
+        assert_eq!(parsed["total_dirs"], 1);
+        assert_eq!(parsed["total_files"], 1);
+
+        let has_child_count = entries.iter().any(|e| {
+            e.as_str().map_or(false, |s| s.contains("subfolder/ (2 items)"))
+        });
+        assert!(has_child_count);
+
+        let _ = std_fs::remove_dir_all(&temp_dir);
+    }
+
+    #[tokio::test]
+    async fn test_workspace_write_file_compact_metadata() {
+        let temp_dir = std::env::temp_dir().join(format!("ragasukma_write_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let _ = std_fs::create_dir_all(&temp_dir);
+
+        let roots = vec![temp_dir.to_string_lossy().to_string()];
+        let out_json_str = execute_tool_call(
+            "workspace_write_file",
+            &serde_json::json!({
+                "file_path": "new_created_file.txt",
+                "content": "Line A\nLine B\nLine C"
+            }),
+            &roots,
+        ).await.unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&out_json_str).unwrap();
+        assert_eq!(parsed["status"], "ok");
+        assert_eq!(parsed["bytes_written"], 20);
+        assert_eq!(parsed["is_new_file"], true);
+        assert!(parsed.get("old_content").is_none());
+        assert!(parsed.get("new_content").is_none());
+
+        let _ = std_fs::remove_dir_all(&temp_dir);
+    }
+
+    #[tokio::test]
+    async fn test_workspace_grep_compact_tabular_format() {
+        let temp_dir = std::env::temp_dir().join(format!("ragasukma_grep_tab_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let _ = std_fs::create_dir_all(&temp_dir);
+
+        let test_file = temp_dir.join("logic.rs");
+        let _ = std_fs::write(&test_file, "pub fn calculate_price() {\n    let discount = 10;\n}\n");
+
+        let roots = vec![temp_dir.to_string_lossy().to_string()];
+        let grep_out = execute_tool_call(
+            "workspace_grep",
+            &serde_json::json!({ "query": "calculate_price" }),
+            &roots,
+        ).await.unwrap();
+
+        assert!(grep_out.contains("Found 1 match(es) for query 'calculate_price'"));
+        assert!(grep_out.contains("logic.rs:1: pub fn calculate_price() {"));
+
+        let _ = std_fs::remove_dir_all(&temp_dir);
     }
 }

@@ -15,15 +15,39 @@ pub fn estimate_message_tokens(msg: &Message) -> usize {
     (total / 4).max(1)
 }
 
-/// Generates a rolling semantic summary of older messages that are evicted from the active sliding window,
-/// preserving continuity without memory amnesia across long multi-turn sessions.
+/// Generates a rolling hierarchical semantic summary of older messages evicted from the active sliding window,
+/// preserving user directives, file mutations, actions, and decisions without memory amnesia across long multi-turn sessions.
 pub fn summarize_evicted_messages(evicted: &[&Message]) -> String {
+    let mut user_goals = Vec::new();
     let mut modified_files = Vec::new();
     let mut executed_cmds = Vec::new();
     let mut key_read_files = Vec::new();
+    let mut decisions = Vec::new();
 
     for msg in evicted {
-        if msg.role == "assistant" {
+        if msg.role == "user" {
+            if let Some(ref c) = msg.content {
+                let trimmed = c.trim();
+                // Filter out synthetic or tool-injected eviction summaries
+                if !trimmed.is_empty() && !trimmed.starts_with("### 🧠") && !trimmed.starts_with("VERIFICATION") {
+                    let first_line = trimmed.lines().next().unwrap_or(trimmed);
+                    let short: String = first_line.chars().take(120).collect();
+                    if !user_goals.contains(&short) {
+                        user_goals.push(short);
+                    }
+                }
+            }
+        } else if msg.role == "assistant" {
+            if let Some(ref thought) = msg.thought {
+                let trimmed = thought.trim();
+                if !trimmed.is_empty() {
+                    let first_line = trimmed.lines().next().unwrap_or(trimmed);
+                    let short: String = first_line.chars().take(140).collect();
+                    if !decisions.contains(&short) && decisions.len() < 4 {
+                        decisions.push(short);
+                    }
+                }
+            }
             if let Some(ref tc_raw) = msg.tool_calls {
                 if let Ok(calls) = serde_json::from_str::<Vec<V1ToolCall>>(tc_raw) {
                     for call in calls {
@@ -36,8 +60,9 @@ pub fn summarize_evicted_messages(evicted: &[&Message]) -> String {
                                 }
                             } else if call.function.name == "workspace_run_command" {
                                 if let Some(cmd) = args.get("command").and_then(|v| v.as_str()) {
-                                    if !executed_cmds.contains(&cmd.to_string()) {
-                                        executed_cmds.push(cmd.to_string());
+                                    let clean_cmd = cmd.trim().to_string();
+                                    if !executed_cmds.contains(&clean_cmd) {
+                                        executed_cmds.push(clean_cmd);
                                     }
                                 }
                             } else if call.function.name == "workspace_read_file" {
@@ -55,17 +80,23 @@ pub fn summarize_evicted_messages(evicted: &[&Message]) -> String {
     }
 
     let mut summary = String::new();
-    summary.push_str("### 🧠 Compact History Summary of Evicted Earlier Turns:\n");
+    summary.push_str("### 🧠 Hierarchical Memory Distillation (Earlier Evicted Turns):\n");
+    if !user_goals.is_empty() {
+        summary.push_str(&format!("- **User Directives**: {}\n", user_goals.join(" | ")));
+    }
     if !modified_files.is_empty() {
-        summary.push_str(&format!("- Files modified in earlier turns: {}\n", modified_files.join(", ")));
+        summary.push_str(&format!("- **Files Modified**: {}\n", modified_files.join(", ")));
     }
     if !executed_cmds.is_empty() {
-        summary.push_str(&format!("- Key commands executed earlier: {}\n", executed_cmds.iter().take(5).cloned().collect::<Vec<_>>().join(" | ")));
+        summary.push_str(&format!("- **Key Commands**: {}\n", executed_cmds.iter().take(4).cloned().collect::<Vec<_>>().join(" && ")));
     }
     if !key_read_files.is_empty() {
-        summary.push_str(&format!("- Files inspected earlier: {}\n", key_read_files.iter().take(6).cloned().collect::<Vec<_>>().join(", ")));
+        summary.push_str(&format!("- **Inspected Files**: {}\n", key_read_files.iter().take(5).cloned().collect::<Vec<_>>().join(", ")));
     }
-    summary.push_str("- Retain the above context while working on the current turn.\n\n");
+    if !decisions.is_empty() {
+        summary.push_str(&format!("- **Prior Reasoning & Decisions**: {}\n", decisions.join(" | ")));
+    }
+    summary.push_str("- Retain this context and build directly upon it without repeating earlier operations.\n\n");
     summary
 }
 
@@ -126,8 +157,17 @@ pub fn compact_tool_output(content: &str, is_recent_tail: bool) -> String {
         // Keep recent tail intact up to 16,000 chars (6,000 head + 10,000 tail)
         truncate_smart(content, 6_000, 10_000)
     } else {
-        // For older turns: prune older tool outputs while preserving meaningful head & tail
-        truncate_smart(content, 500, 200)
+        // For older historical turns: heavily distill large outputs to prevent context bloat
+        if content.len() > 600 {
+            let first_line = content.lines().next().unwrap_or("").trim();
+            format!(
+                "{}\n[... {} characters of historical tool output compacted to preserve token budget ...]",
+                first_line,
+                content.len()
+            )
+        } else {
+            content.to_string()
+        }
     }
 }
 
