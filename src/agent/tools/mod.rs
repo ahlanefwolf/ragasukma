@@ -13,7 +13,7 @@ use std::sync::OnceLock;
 pub use dialogs::{open_path_in_file_manager, pick_folder_dialog};
 pub use editor::apply_resilient_edit;
 pub use fs::{
-    create_workspace_command, ensure_git_and_gitignore, generate_file_outline,
+    create_workspace_command, ensure_git_and_gitignore, ensure_git_and_gitignore_opt, generate_file_outline,
     generate_smart_gitignore, resolve_allowed_path, to_workspace_folder_path,
 };
 pub use search::{list_workspace_files, run_workspace_grep, WorkspaceFileInfo};
@@ -119,6 +119,22 @@ pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
                                 }
                             },
                             "required": ["file_path", "content"]
+                        }
+                    }
+                }),
+                json!({
+                    "type": "function",
+                    "function": {
+                        "name": "workspace_rollback",
+                        "description": "Rollback modified files to their state prior to workspace_write_file or workspace_edit_file mutations. If 'file_path' is provided, rollbacks that specific file; otherwise rolls back all backed up files.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "file_path": {
+                                    "type": "string",
+                                    "description": "Optional relative or absolute file path to rollback"
+                                }
+                            }
                         }
                     }
                 }),
@@ -241,6 +257,70 @@ pub fn normalize_workspace_command(command: &str, work_dir: &Path, allowed_roots
     }
 
     normalized
+}
+
+/// Validates that a shell command does not contain obvious destructive or system-bricking operations.
+pub fn validate_safe_command(command: &str) -> Result<()> {
+    let lower = command.to_lowercase();
+    let trimmed = lower.trim();
+
+    // Check for fork bombs
+    if trimmed.contains(":(){ :|:& };:") || trimmed.contains(":(){:|:&};:") {
+        bail!("Operation blocked: Detected fork bomb pattern.");
+    }
+
+    // Check for root destruction patterns
+    let dangerous_rm = [
+        "rm -rf /",
+        "rm -fr /",
+        "rm -rf /*",
+        "rm -fr /*",
+        "rm -r -f /",
+        "rm -f -r /",
+    ];
+    for pat in &dangerous_rm {
+        if trimmed.contains(pat) {
+            bail!("Operation blocked: Destructive command pattern '{}' is not permitted.", pat);
+        }
+    }
+
+    // Check for raw block device writes / format
+    let block_dev_patterns = [
+        "> /dev/sd",
+        "> /dev/nvme",
+        "> /dev/hd",
+        ">/dev/sd",
+        ">/dev/nvme",
+        ">/dev/hd",
+        "mkfs.",
+        "mkfs ",
+    ];
+    for pat in &block_dev_patterns {
+        if trimmed.contains(pat) {
+            bail!("Operation blocked: Potential raw disk write or format pattern '{}' is not permitted.", pat);
+        }
+    }
+
+    // Check for shutdown / reboot commands
+    let shutdown_patterns = [
+        "shutdown -h",
+        "shutdown -r",
+        "shutdown now",
+        "poweroff",
+        "reboot",
+        "init 0",
+        "init 6",
+    ];
+    for pat in &shutdown_patterns {
+        for token in trimmed.split([';', '&', '|', '\n']) {
+            let token_trim = token.trim();
+            if token_trim == *pat || token_trim.starts_with(&format!("{} ", pat)) {
+                bail!("Operation blocked: System power control command '{}' is not permitted.", pat);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub async fn execute_tool_call(
@@ -377,7 +457,12 @@ pub async fn execute_tool_call(
                 let start_idx = start.unwrap_or(1).saturating_sub(1);
                 let end_idx = end.unwrap_or(lines.len()).min(lines.len());
                 let sliced = if start_idx < end_idx {
-                    lines[start_idx..end_idx].join("\n")
+                    lines[start_idx..end_idx]
+                        .iter()
+                        .enumerate()
+                        .map(|(idx, line)| format!("{:>6}\t{}", start_idx + idx + 1, line))
+                        .collect::<Vec<_>>()
+                        .join("\n")
                 } else {
                     String::new()
                 };
@@ -399,28 +484,42 @@ pub async fn execute_tool_call(
                 .get("content")
                 .and_then(|v| v.as_str())
                 .context("Parameter 'content' is required")?;
+
             let resolved = resolve_allowed_path(file_path, allowed_roots)?;
-
-            let is_new_file = !resolved.exists();
-
+            let _ = crate::agent::executor::snapshot::WorkspaceSnapshot::global().backup_file(&resolved);
             if let Some(parent) = resolved.parent() {
-                let _ = std_fs::create_dir_all(parent);
+                std_fs::create_dir_all(parent)
+                    .with_context(|| format!("Failed to create directories for '{}'", file_path))?;
             }
+            std_fs::write(&resolved, content)
+                .with_context(|| format!("Failed to write to '{}'", file_path))?;
 
-            std_fs::write(&resolved, content)?;
-
-            let display_path = to_workspace_folder_path(&resolved, allowed_roots);
-            let result_json = serde_json::json!({
-                "status": "ok",
-                "path": display_path,
-                "file_path": file_path,
+            Ok(json!({
+                "status": "success",
                 "bytes_written": content.len(),
-                "is_new_file": is_new_file,
-            });
-
-            Ok(result_json.to_string())
+                "file_path": file_path,
+            }).to_string())
         }
-
+        "workspace_rollback" => {
+            let file_path = args.get("file_path").and_then(|v| v.as_str());
+            if let Some(fp) = file_path {
+                let resolved = resolve_allowed_path(fp, allowed_roots)?;
+                let restored = crate::agent::executor::snapshot::WorkspaceSnapshot::global().rollback_file(&resolved)?;
+                Ok(json!({
+                    "status": "success",
+                    "restored": restored,
+                    "file_path": fp
+                }).to_string())
+            } else {
+                let restored = crate::agent::executor::snapshot::WorkspaceSnapshot::global().rollback_all()?;
+                let paths: Vec<String> = restored.into_iter().map(|p| p.to_string_lossy().to_string()).collect();
+                Ok(json!({
+                    "status": "success",
+                    "restored_count": paths.len(),
+                    "restored_files": paths
+                }).to_string())
+            }
+        }
         "workspace_edit_file" => {
             let file_path = args
                 .get("file_path")
@@ -434,7 +533,9 @@ pub async fn execute_tool_call(
                 .get("new_text")
                 .and_then(|v| v.as_str())
                 .context("Parameter 'new_text' is required")?;
+
             let resolved = resolve_allowed_path(file_path, allowed_roots)?;
+            let _ = crate::agent::executor::snapshot::WorkspaceSnapshot::global().backup_file(&resolved);
 
             if !resolved.exists() {
                 bail!("File '{}' not found to edit", file_path);
@@ -467,14 +568,23 @@ pub async fn execute_tool_call(
             let query = args
                 .get("query")
                 .and_then(|v| v.as_str())
-                .context("Parameter 'query' is required")?;
+                .context("Parameter 'query' is required")?
+                .to_string();
             let sub_path = args
                 .get("path")
                 .and_then(|v| v.as_str())
                 .unwrap_or(".");
             let resolved = resolve_allowed_path(sub_path, allowed_roots)?;
 
-            let grep_result = run_workspace_grep(&resolved, query, allowed_roots)?;
+            let resolved_clone = resolved.clone();
+            let roots_clone = allowed_roots.to_vec();
+            let query_clone = query.clone();
+
+            let grep_result = tokio::task::spawn_blocking(move || {
+                run_workspace_grep(&resolved_clone, &query_clone, &roots_clone)
+            })
+            .await
+            .context("Workspace grep worker failed")??;
 
             // Format into token-efficient tabular grep format for LLM context
             let matches = grep_result.get("results").and_then(|r| r.as_array());
@@ -518,6 +628,7 @@ pub async fn execute_tool_call(
             }
 
             let effective_command = normalize_workspace_command(command_str, &work_dir, allowed_roots);
+            validate_safe_command(&effective_command)?;
 
             let std_proc = create_workspace_command(&effective_command);
             let mut proc = tokio::process::Command::from(std_proc);
@@ -918,9 +1029,8 @@ mod tests {
         ).await.unwrap();
 
         let parsed: serde_json::Value = serde_json::from_str(&out_json_str).unwrap();
-        assert_eq!(parsed["status"], "ok");
+        assert_eq!(parsed["status"], "success");
         assert_eq!(parsed["bytes_written"], 20);
-        assert_eq!(parsed["is_new_file"], true);
         assert!(parsed.get("old_content").is_none());
         assert!(parsed.get("new_content").is_none());
 

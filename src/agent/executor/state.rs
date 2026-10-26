@@ -29,6 +29,7 @@ pub struct TurnState {
     pub has_passed_verification: bool,
     pub verification_attempts: usize,
     pub verification_prompted: bool,
+    pub consecutive_empty_turns: usize,
 }
 
 impl TurnState {
@@ -64,6 +65,7 @@ impl TurnState {
             has_passed_verification: false,
             verification_attempts: prior_verifs_count,
             verification_prompted: false,
+            consecutive_empty_turns: 0,
         }
     }
 
@@ -129,15 +131,21 @@ pub async fn resolve_or_create_goal(
             } else {
                 session.title.clone()
             };
-            let _ = repository::create_goal(
+            let prompt_keywords: Vec<&str> = last_user_prompt
+                .split_whitespace()
+                .filter(|w| w.len() > 3)
+                .collect();
+            let _ = crate::agent::orchestrator::GoalOrchestrator::initialize_demand(
                 &new_gid,
                 &project.id,
                 Some(&session.id),
                 latest_existing_goal.as_ref().map(|g| g.id.as_str()),
                 &title,
                 &last_user_prompt,
-                "[]",
-                "[]",
+                &[],
+                &[],
+                &prompt_keywords,
+                allowed_folders,
             ).await?;
             new_gid
         }

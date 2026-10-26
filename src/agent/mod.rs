@@ -8,4 +8,5 @@ pub mod mcp;
 pub mod models;
 pub mod orchestrator;
 pub mod repository;
+pub mod provider;
 pub mod tools;

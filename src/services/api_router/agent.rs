@@ -43,6 +43,7 @@ pub fn register_agent_routes(
         // MCP Servers
         .route("/api/agent/mcp", get(list_mcp_servers).post(save_mcp_server))
         .route("/api/agent/mcp/:id/delete", post(delete_mcp_server))
+        .route("/api/agent/mcp/test", post(test_mcp_server_handler))
         // Goals & Evidence
         .route("/api/agent/projects/:id/goals", get(list_project_goals).post(create_project_goal))
         .route("/api/agent/goals/:id", get(get_goal_details))
@@ -923,6 +924,36 @@ async fn delete_mcp_server(Path(id): Path<String>) -> impl IntoResponse {
             Json(json!({"error": e.to_string()})),
         ),
     }
+}
+
+async fn test_mcp_server_handler(Json(payload): Json<SaveMcpServerPayload>) -> impl IntoResponse {
+    let mut env_map = std::collections::HashMap::new();
+    if let Some(env_val) = payload.env {
+        if let Some(obj) = env_val.as_object() {
+            for (k, v) in obj {
+                if let Some(s) = v.as_str() {
+                    env_map.insert(k.clone(), s.to_string());
+                } else {
+                    env_map.insert(k.clone(), v.to_string());
+                }
+            }
+        }
+    }
+
+    let config = crate::agent::mcp::McpServerConfig {
+        id: payload.id,
+        name: payload.name,
+        transport: payload.transport.unwrap_or_else(|| "stdio".to_string()),
+        command: payload.command,
+        args: payload.args.unwrap_or_default(),
+        env: env_map,
+        url: payload.url,
+        is_enabled: payload.is_enabled.unwrap_or(true),
+    };
+
+    let client = crate::agent::mcp::McpClient::new(config);
+    let result = client.test_connection().await;
+    (StatusCode::OK, Json(json!(result)))
 }
 
 // -----------------------------------------------------------------------------

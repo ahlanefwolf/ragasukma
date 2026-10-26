@@ -9,7 +9,13 @@ pub fn resolve_allowed_path(raw_path: &str, allowed_roots: &[String]) -> Result<
         bail!("Workspace has no registered root folders.");
     }
 
-    let input_path = Path::new(raw_path);
+    let trimmed = raw_path.trim();
+    let cleaned = trimmed
+        .strip_prefix("@")
+        .or_else(|| trimmed.strip_prefix("./@"))
+        .unwrap_or(trimmed);
+
+    let input_path = Path::new(cleaned);
 
     // 1. If absolute path: verify it starts with an allowed root
     if input_path.is_absolute() {
@@ -245,13 +251,18 @@ pub fn generate_smart_gitignore(root_path: &Path) -> String {
 /// If .git does not exist, runs `git init`.
 /// If .gitignore does not exist, inspects project files and generates a smart .gitignore.
 pub fn ensure_git_and_gitignore(root_path: &Path) -> Result<()> {
+    ensure_git_and_gitignore_opt(root_path, true)
+}
+
+/// Ensures .gitignore exists, and conditionally runs `git init` based on `auto_git_init` configuration.
+pub fn ensure_git_and_gitignore_opt(root_path: &Path, auto_git_init: bool) -> Result<()> {
     if !root_path.exists() || !root_path.is_dir() {
         return Ok(());
     }
 
-    // 1. Check & init git if not present
+    // 1. Check & init git if not present and auto_git_init is enabled
     let git_dir = root_path.join(".git");
-    if !git_dir.exists() {
+    if !git_dir.exists() && auto_git_init {
         let mut cmd = std::process::Command::new("git");
         cmd.arg("init").current_dir(root_path);
         crate::engine::skills::configure_subprocess(&mut cmd);
@@ -271,6 +282,8 @@ pub fn ensure_git_and_gitignore(root_path: &Path) -> Result<()> {
                 eprintln!("[Agent Workspace] Could not execute 'git init' at {:?}: {}", root_path, e);
             }
         }
+    } else if !git_dir.exists() && !auto_git_init {
+        println!("[Agent Workspace] Git auto-init skipped (opt-in disabled) for {:?}", root_path);
     }
 
     // 2. Check & create smart .gitignore if missing

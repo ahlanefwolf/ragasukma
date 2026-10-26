@@ -3,7 +3,8 @@ import {
   agentService, 
   Project, 
   PromptSkill, 
-  McpServerConfig, 
+  McpServerConfig,
+  SaveMcpServerPayload,
   parseProjectFolders 
 } from '../../services';
 import { showConfirm } from '../ConfirmModal';
@@ -24,6 +25,8 @@ export function useWorkspaceState(showToast: (msg: string) => void) {
   const [showNewProjectModal, setShowNewProjectModal] = createSignal(false);
   const [showNewSkillModal, setShowNewSkillModal] = createSignal(false);
   const [editingSkillId, setEditingSkillId] = createSignal<string | null>(null);
+  const [showMcpModal, setShowMcpModal] = createSignal(false);
+  const [editingMcpServer, setEditingMcpServer] = createSignal<McpServerConfig | null>(null);
 
   // New Project Form
   const [projName, setProjName] = createSignal('');
@@ -510,5 +513,85 @@ ${skill.system_prompt}
     handleDeleteProject,
     handleCreateSkill,
     handleDeleteSkill,
+    showMcpModal,
+    setShowMcpModal,
+    editingMcpServer,
+    setEditingMcpServer,
+    handleOpenNewMcpServer: () => {
+      setEditingMcpServer(null);
+      setShowMcpModal(true);
+    },
+    handleOpenEditMcpServer: (server: McpServerConfig) => {
+      setEditingMcpServer(server);
+      setShowMcpModal(true);
+    },
+    handleSaveMcpServer: async (payload: SaveMcpServerPayload): Promise<boolean> => {
+      try {
+        const res = await agentService.saveMcpServer(payload);
+        if (res.ok) {
+          showToast(editingMcpServer() ? 'MCP server updated' : 'MCP server added');
+          const list = await agentService.getMcpServers();
+          setMcpServers(list);
+          setShowMcpModal(false);
+          setEditingMcpServer(null);
+          return true;
+        }
+        showToast(res.error || 'Failed to save MCP server');
+        return false;
+      } catch (e: any) {
+        showToast(e?.message || 'Error saving MCP server');
+        return false;
+      }
+    },
+    handleDeleteMcpServer: async (id: string, name: string) => {
+      const ok = await showConfirm({
+        title: 'Delete MCP Server',
+        message: `Are you sure you want to delete server "${name}"? External tools provided by this server will no longer be available to the agent.`,
+        confirmText: 'Delete Server',
+        cancelText: 'Cancel',
+        isDanger: true,
+      });
+      if (!ok) return;
+      try {
+        const res = await agentService.deleteMcpServer(id);
+        if (res.ok) {
+          showToast(`Deleted server "${name}"`);
+          const list = await agentService.getMcpServers();
+          setMcpServers(list);
+        } else {
+          showToast(res.error || 'Failed to delete MCP server');
+        }
+      } catch (e: any) {
+        showToast(e?.message || 'Failed to delete MCP server');
+      }
+    },
+    handleTestMcpServer: async (serverOrPayload: SaveMcpServerPayload | McpServerConfig) => {
+      let payload: SaveMcpServerPayload;
+      if ('created_at' in serverOrPayload) {
+        let args: string[] = [];
+        try {
+          const parsed = JSON.parse(serverOrPayload.args || '[]');
+          if (Array.isArray(parsed)) args = parsed;
+        } catch {}
+        let env: Record<string, string> = {};
+        try {
+          const parsed = JSON.parse(serverOrPayload.env || '{}');
+          if (typeof parsed === 'object' && parsed !== null) env = parsed;
+        } catch {}
+        payload = {
+          id: serverOrPayload.id,
+          name: serverOrPayload.name,
+          transport: serverOrPayload.transport,
+          command: serverOrPayload.command,
+          args,
+          env,
+          url: serverOrPayload.url,
+          is_enabled: true,
+        };
+      } else {
+        payload = serverOrPayload;
+      }
+      return await agentService.testMcpServer(payload);
+    },
   };
 }

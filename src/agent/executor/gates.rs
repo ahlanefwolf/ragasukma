@@ -17,11 +17,17 @@ pub fn evaluate_turn_gates(
     detected_verifier: Option<&str>,
 ) -> GateResult {
     // 1. If the model returned no conversational content to the user yet
-    if final_content.trim().is_empty() && state.iteration < state.max_safety_iterations {
-        state.ephemeral_directive = Some(
-            "You have finished running tools or inspecting the workspace. Now provide a clear, comprehensive summary of the work done, code changes, or answers to the user's request.".to_string(),
-        );
-        return GateResult::Continue;
+    if final_content.trim().is_empty() {
+        state.consecutive_empty_turns += 1;
+        if state.consecutive_empty_turns <= 1 && state.iteration < state.max_safety_iterations {
+            state.ephemeral_directive = Some(
+                "You have completed workspace operations. Provide a concise summary of the work done or directly answer the user's inquiry.".to_string(),
+            );
+            return GateResult::Continue;
+        }
+        return GateResult::Pass;
+    } else {
+        state.consecutive_empty_turns = 0;
     }
 
     // 2. Action Gate:
@@ -34,9 +40,11 @@ pub fn evaluate_turn_gates(
         && !state.circuit_breaker_triggered
         && !state.force_final_text_only;
 
-    if must_apply_changes && state.modified_files.is_empty() && state.iteration < state.max_safety_iterations - 2 {
+    let has_substantive_response = final_content.trim().len() >= 40;
+
+    if must_apply_changes && state.modified_files.is_empty() && !has_substantive_response && state.iteration < state.max_safety_iterations - 2 {
         state.ephemeral_directive = Some(
-            "CRITICAL REJECTION — UNRESOLVED CODE ERROR WITHOUT REPAIR: A terminal command or tool execution failed with compiler/code errors, but you have NOT successfully modified any files to fix it! You cannot conclude without applying the fix. You MUST invoke `workspace_edit_file` or `workspace_write_file` NOW to resolve the issue on disk.".to_string()
+            "Unresolved code error: A command or tool reported errors and no files were modified. If a fix is needed, apply it using `workspace_edit_file`. If explaining the issue, provide your complete analysis to the user.".to_string()
         );
         return GateResult::Continue;
     }
@@ -46,9 +54,9 @@ pub fn evaluate_turn_gates(
         (!state.has_passed_verification && state.verification_attempts > 0 && !is_pure_env_failure)
             || (!is_pure_env_failure && (state.last_command_had_error || state.last_tool_had_error))
     );
-    if has_failing_checks && state.iteration < state.max_safety_iterations - 2 {
+    if has_failing_checks && !has_substantive_response && state.iteration < state.max_safety_iterations - 2 {
         state.ephemeral_directive = Some(
-            "CRITICAL REJECTION — FAILING CHECKS OR UNRESOLVED ERRORS: A verification check, terminal command, or edit operation failed! You are strictly forbidden from concluding or claiming success while errors remain. Inspect the error messages, fix the code using `workspace_edit_file` or `workspace_write_file`, and re-run verification until all checks pass cleanly.".to_string()
+            "Failing checks or unresolved errors remain. Inspect the error messages and fix the code using `workspace_edit_file`, or explain the findings to the user.".to_string()
         );
         return GateResult::Continue;
     }
@@ -108,7 +116,7 @@ pub fn evaluate_turn_gates(
             String::new()
         };
         state.ephemeral_directive = Some(format!(
-            "DELIVERABLE GROUND-TRUTH VERIFICATION: You updated a task/checklist file ({}). Before claiming complete status, {}physically verify that all requested deliverables and files exist and contain actual functional implementations (use `workspace_list_dir` or `workspace_read_file`). Never mark items complete without verifying the actual code on disk.",
+            "Deliverable verification: You updated a task/checklist file ({}). Before claiming complete status, {}physically verify that all requested deliverables and files exist and contain actual functional implementations (use `workspace_list_dir` or `workspace_read_file`). Never mark items complete without verifying the actual code on disk.",
             state.modified_files.join(", "),
             verifier_hint
         ));
@@ -150,6 +158,8 @@ pub fn compose_final_turn_content(
     final_content: &str,
     final_thought: &str,
 ) -> String {
+    let trimmed_content = final_content.trim();
+
     let generated_summary = if !state.modified_files.is_empty() {
         let mut summary_lines = Vec::new();
         summary_lines.push("### 📋 Successfully Applied File Modifications:".to_string());
@@ -161,6 +171,15 @@ pub fn compose_final_turn_content(
         None
     };
 
+    // If the model provided substantive final content, preserve it directly without prepending alarming banners
+    if !trimmed_content.is_empty() {
+        return match generated_summary {
+            Some(summary) => format!("{}\n\n{}", trimmed_content, summary),
+            None => trimmed_content.to_string(),
+        };
+    }
+
+    // Only if final_content is empty, construct a fallback based on execution state
     let is_unresolved = (state.last_command_had_error && !state.last_command_is_environment_error)
         || state.last_tool_had_error
         || (state.verification_attempts > 0 && !state.has_passed_verification && !state.last_command_is_environment_error);
@@ -174,27 +193,15 @@ pub fn compose_final_turn_content(
             "Required verification check has not passed cleanly."
         };
         format!(
-            "⚠️ **Execution Ended with Unresolved Errors**\n\n{}\n\n{}",
-            error_details,
-            if final_content.trim().is_empty() {
-                "Please review the error outputs above or provide guidance."
-            } else {
-                final_content.trim()
-            }
+            "⚠️ **Execution Ended with Unresolved Errors**\n\n{}\n\nPlease review the error outputs above or provide guidance.",
+            error_details
         )
     } else if state.last_command_is_environment_error {
-        format!(
-            "⚠️ **Environment / Command Execution Notice**\n\nCommand exited with an external environment or configuration error:\n\n{}",
-            if final_content.trim().is_empty() {
-                "Please check system dependencies, environment variables, or service status."
-            } else {
-                final_content.trim()
-            }
-        )
+        "⚠️ **Environment / Command Execution Notice**\n\nCommand exited with an external environment or configuration error. Please check system dependencies, environment variables, or service status.".to_string()
     } else {
-        match (final_content.trim().is_empty(), generated_summary.as_ref()) {
-            (false, Some(summary)) => format!("{}\n\n{}", final_content.trim(), summary),
-            (false, None) => final_content.trim().to_string(),
+        match (trimmed_content.is_empty(), generated_summary.as_ref()) {
+            (false, Some(summary)) => format!("{}\n\n{}", trimmed_content, summary),
+            (false, None) => trimmed_content.to_string(),
             (true, Some(summary)) => summary.clone(),
             (true, None) if !final_thought.trim().is_empty() => final_thought.trim().to_string(),
             (true, None) => "I have completed the operations and workspace inspection as requested.".to_string(),
@@ -206,14 +213,27 @@ pub async fn handle_iteration_limit_fallback(
     session_id: &str,
     state: &TurnState,
 ) -> Result<String> {
+    // Check if there are recent assistant messages with substantive partial answers/findings
+    let recent_findings = repository::list_messages(session_id).await.ok().and_then(|msgs| {
+        msgs.into_iter()
+            .rev()
+            .find(|m| m.role == "assistant" && m.content.as_ref().map(|c| c.trim().len() >= 40).unwrap_or(false))
+            .and_then(|m| m.content)
+    });
+
     let fallback_summary = if !state.modified_files.is_empty() {
         format!(
             "### ⚠️ Iteration Limit Reached — Partial Changes Applied\n\nThe following files were updated in this turn:\n{}\n\nSome sections or files may still need further modifications. Please review the current workspace changes or prompt me to continue with the remaining parts.",
             state.modified_files.iter().map(|f| format!("- `{}`", f)).collect::<Vec<_>>().join("\n")
         )
+    } else if let Some(ref findings) = recent_findings {
+        format!(
+            "{}\n\n---\n*Note: Iteration limit reached for this turn. The findings above reflect workspace analysis completed so far.*",
+            findings.trim()
+        )
     } else {
         format!(
-            "### ⚠️ Completed Without File Modifications\n\nNo files were modified in this turn.\n- Commands executed: {}\n\nPlease provide specific instructions if there are components or lines you want to change.",
+            "### ⚠️ Iteration Limit Reached\n\nCompleted workspace inspection and operations without modifying files.\n- Commands executed: {}\n\nPlease provide specific instructions if there are components or lines you want to change.",
             if state.executed_commands.is_empty() { "None".to_string() } else { state.executed_commands.join(", ") }
         )
     };
@@ -232,11 +252,14 @@ pub async fn handle_iteration_limit_fallback(
     .await?;
 
     let final_fallback_status = if !state.modified_files.is_empty() {
-        "in_progress"
+        crate::agent::orchestrator::GoalState::Action
+    } else if recent_findings.is_some() {
+        crate::agent::orchestrator::GoalState::Completed
     } else {
-        "failed"
+        crate::agent::orchestrator::GoalState::Failed
     };
-    let _ = repository::conclude_goal(&state.goal_id, final_fallback_status, &fallback_summary).await;
+    let orch = crate::agent::orchestrator::GoalOrchestrator::new(&state.goal_id, "default");
+    let _ = orch.conclude_with_status(final_fallback_status, &fallback_summary).await;
 
     broadcast_session_event(
         session_id,

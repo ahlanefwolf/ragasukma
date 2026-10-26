@@ -12,7 +12,7 @@ import {
 } from '../../services';
 
 import { SkillsSubTab, McpSubTab } from './SkillsAndMcpTabs';
-import { CreateProjectModal, CreateSkillModal } from './AgentModals';
+import { CreateProjectModal, CreateSkillModal, McpServerModal } from './AgentModals';
 import { AgentCodePanel } from './AgentCodePanel';
 import { AgentSidebar } from './AgentSidebar';
 import { AgentWorkspaceHeader } from './AgentWorkspaceHeader';
@@ -132,6 +132,17 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
     }
   };
 
+  // Chat Input Send Shortcut Preference ('enter' | 'ctrl_enter')
+  const [sendShortcut, setSendShortcut] = createSignal<'enter' | 'ctrl_enter'>(
+    (localStorage.getItem('ragasukma_chat_shortcut') as 'ctrl_enter') || 'enter'
+  );
+
+  const toggleSendShortcut = () => {
+    const next = sendShortcut() === 'enter' ? 'ctrl_enter' : 'enter';
+    setSendShortcut(next);
+    localStorage.setItem('ragasukma_chat_shortcut', next);
+  };
+
   const handleChatKeyDown = (e: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) => {
     if (autocompleteOpen() && autocompleteSuggestions().length > 0) {
       if (e.key === 'ArrowDown') {
@@ -157,7 +168,11 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
       }
     }
 
-    if (e.key === 'Enter' && !e.shiftKey) {
+    const isSendTrigger = sendShortcut() === 'ctrl_enter'
+      ? (e.key === 'Enter' && (e.ctrlKey || e.metaKey))
+      : (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey);
+
+    if (isSendTrigger) {
       e.preventDefault();
       chat.handleSendMessage(() => {
         scrollToBottom(true, true);
@@ -396,6 +411,20 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
                   if (chatInputRef) chatInputRef.style.height = 'auto';
                 })}
                 onStopSession={chat.handleStopSession}
+                sendShortcut={sendShortcut()}
+                onToggleSendShortcut={toggleSendShortcut}
+                showToast={props.showToast}
+                onOpenFileInCodePanel={(filePath) => {
+                  const allFiles = files.workspaceFiles();
+                  const found = allFiles.find((f) => f.relative_path === filePath || filePath.endsWith(f.relative_path));
+                  const targetFile: WorkspaceFileItem = found || {
+                    relative_path: filePath,
+                    name: filePath.split(/[/\\]/).pop() || filePath,
+                    is_dir: false,
+                    size: 0,
+                  };
+                  files.openLineRangePicker(targetFile);
+                }}
               />
             </Show>
           </div>
@@ -444,7 +473,13 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
 
       {/* ── SUB-TAB: MCP SERVERS REGISTRY ──────────────────────────────── */}
       <Show when={ws.activeSubTab() === 'mcp'}>
-        <McpSubTab mcpServers={ws.mcpServers()} />
+        <McpSubTab
+          mcpServers={ws.mcpServers()}
+          onNewServer={ws.handleOpenNewMcpServer}
+          onEditServer={ws.handleOpenEditMcpServer}
+          onDeleteServer={ws.handleDeleteMcpServer}
+          onTestServer={ws.handleTestMcpServer}
+        />
       </Show>
 
       {/* ── MODALS ──────────────────────────────────────────────────────── */}
@@ -486,6 +521,18 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
         setSkillMarkdown={ws.setSkillMarkdown}
         parseSkillMarkdown={ws.parseSkillMarkdown}
         onCreateSkill={ws.handleCreateSkill}
+      />
+
+      <McpServerModal
+        isOpen={ws.showMcpModal()}
+        isEditing={!!ws.editingMcpServer()}
+        onClose={() => {
+          ws.setShowMcpModal(false);
+          ws.setEditingMcpServer(null);
+        }}
+        onSave={ws.handleSaveMcpServer}
+        onTest={ws.handleTestMcpServer}
+        initialData={ws.editingMcpServer()}
       />
     </div>
   );

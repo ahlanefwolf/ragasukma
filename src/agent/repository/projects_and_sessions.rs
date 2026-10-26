@@ -137,7 +137,7 @@ pub async fn create_session(
     let pool = crate::llm::usage::get_pool().await;
     let id = generate_id("sess");
     let now = now_secs();
-    let temp = temperature.unwrap_or(0.7);
+    let temp = temperature.unwrap_or(0.1);
 
     sqlx::query(
         "INSERT INTO sessions (id, project_id, title, status, model, temperature, source_chat_id, metadata, created_at, updated_at) \

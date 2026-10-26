@@ -206,6 +206,16 @@ impl GoalOrchestrator {
         Ok(())
     }
 
+    /// Step 6b: Conclude goal with specific state (Completed, Failed, etc.) via orchestrator
+    pub async fn conclude_with_status(
+        &self,
+        status: GoalState,
+        conclusion_summary: &str,
+    ) -> Result<()> {
+        repository::conclude_goal(&self.goal_id, status.as_str(), conclusion_summary).await?;
+        Ok(())
+    }
+
     /// Compiles current active prompt for this goal
     pub async fn get_current_prompt(&self) -> Result<String> {
         let goal = repository::get_goal(&self.goal_id)

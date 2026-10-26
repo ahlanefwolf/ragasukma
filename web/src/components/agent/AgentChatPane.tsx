@@ -1,4 +1,4 @@
-import { Component, For, Show, createMemo, createSignal, createEffect } from 'solid-js';
+import { Component, For, Show, createMemo, createSignal, createEffect, onCleanup } from 'solid-js';
 import { 
   MessageSquare, 
   Cpu, 
@@ -17,11 +17,18 @@ import {
   Loader2,
   Square,
   History,
-  ArrowDown
+  ArrowDown,
+  FolderGit2,
+  ExternalLink,
+  Download,
+  Copy,
+  Check,
+  FileText,
+  X
 } from 'lucide-solid';
 import { Project, AgentSession, AgentMessage, WorkspaceFileItem } from '../../services';
 import { MarkdownView } from './MarkdownView';
-import { ToolCallCard, ToolResultCard } from './ToolCards';
+import { ToolCallCard, ToolResultCard, GitDiffViewer, parseToolCalls, formatToolOutput } from './ToolCards';
 import { countMessageLines } from './highlightUtils';
 import { SearchableSelect } from '../SearchableSelect';
 
@@ -88,8 +95,210 @@ export const AgentChatPane: Component<{
   onChatKeyDown: (e: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) => void;
   onSendMessage: () => void;
   onStopSession: () => void;
+  sendShortcut?: 'enter' | 'ctrl_enter';
+  onToggleSendShortcut?: () => void;
+  showToast?: (message: string) => void;
+  onOpenFileInCodePanel?: (filePath: string) => void;
 }> = (props) => {
   let backdropRef: HTMLDivElement | undefined;
+
+  // Session Export & Copying State
+  const [exportMenuOpen, setExportMenuOpen] = createSignal(false);
+  const [copiedTranscript, setCopiedTranscript] = createSignal(false);
+
+  createEffect(() => {
+    if (!exportMenuOpen()) return;
+    const close = () => setExportMenuOpen(false);
+    window.addEventListener('click', close);
+    onCleanup(() => window.removeEventListener('click', close));
+  });
+
+  const generateMarkdownTranscript = () => {
+    const session = props.currentSession;
+    const msgs = props.visibleMessages || [];
+    const title = session?.title || 'Task Session';
+    const model = props.activeSessionModel || session?.model || 'default';
+    const dateStr = session?.created_at ? new Date(session.created_at).toLocaleString() : new Date().toLocaleString();
+
+    const lines: string[] = [
+      `# ${title}`,
+      `\n- **Project:** ${props.currentProject?.name || 'Workspace'}`,
+      `- **Date:** ${dateStr}`,
+      `- **Model:** \`${model}\``,
+      `- **Total Messages:** ${msgs.length}\n`,
+      `---\n`,
+    ];
+
+    for (const msg of msgs) {
+      if (msg.role === 'user') {
+        lines.push(`### 👤 User\n\n${msg.content || ''}\n`);
+      } else if (msg.role === 'assistant') {
+        lines.push(`### 🤖 Agent\n`);
+        if (msg.thought) {
+          lines.push(`> **Reasoning / Thought Process:**\n> ` + msg.thought.replace(/\n/g, '\n> ') + `\n`);
+        }
+        if (msg.content) {
+          lines.push(`${msg.content}\n`);
+        }
+        if (msg.tool_calls) {
+          const calls = parseToolCalls(msg.tool_calls);
+          if (calls.length > 0) {
+            lines.push(`**Tool Invocations:**\n`);
+            for (const call of calls) {
+              lines.push(`- **\`${call.name}\`**`);
+              if (Object.keys(call.argsObj).length > 0) {
+                lines.push(`\`\`\`json\n${JSON.stringify(call.argsObj, null, 2)}\n\`\`\``);
+              }
+            }
+            lines.push('');
+          }
+        }
+        if (msg.token_usage_input || msg.token_usage_output) {
+          lines.push(`*Telemetry: 📥 in=${msg.token_usage_input ?? 0} | 📤 out=${msg.token_usage_output ?? 0}*\n`);
+        }
+      } else if (msg.role === 'tool') {
+        lines.push(`#### 🔧 Tool Output\n`);
+        const formatted = formatToolOutput(msg.content);
+        if (formatted.diffData) {
+          lines.push(`**File Diff: \`${formatted.diffData.filename}\`** (${formatted.diffData.isNewFile ? 'New File' : 'Updated'})\n`);
+        } else {
+          lines.push(`\`\`\`\n${formatted.summary || msg.content || ''}\n\`\`\`\n`);
+        }
+      }
+      lines.push(`---\n`);
+    }
+
+    return lines.join('\n');
+  };
+
+  const sanitizeFilename = (name: string) => {
+    return name.replace(/[^a-zA-Z0-9_\-]/g, '_').replace(/_+/g, '_').toLowerCase();
+  };
+
+  const handleCopyTranscript = async () => {
+    const md = generateMarkdownTranscript();
+    try {
+      await navigator.clipboard.writeText(md);
+      setCopiedTranscript(true);
+      if (props.showToast) {
+        props.showToast('Transcript copied to clipboard!');
+      }
+      setTimeout(() => setCopiedTranscript(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy transcript', err);
+      if (props.showToast) {
+        props.showToast('Failed to copy to clipboard');
+      }
+    }
+    setExportMenuOpen(false);
+  };
+
+  const handleExportMarkdown = () => {
+    const md = generateMarkdownTranscript();
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const baseName = sanitizeFilename(props.currentSession?.title || props.currentSession?.id || 'session');
+    a.href = url;
+    a.download = `${baseName}_transcript.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setExportMenuOpen(false);
+    if (props.showToast) {
+      props.showToast('Markdown transcript exported!');
+    }
+  };
+
+  const handleExportJson = () => {
+    const data = {
+      project: props.currentProject,
+      session: props.currentSession,
+      messages: props.visibleMessages,
+      exportedAt: new Date().toISOString(),
+    };
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const baseName = sanitizeFilename(props.currentSession?.title || props.currentSession?.id || 'session');
+    a.href = url;
+    a.download = `${baseName}_data.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setExportMenuOpen(false);
+    if (props.showToast) {
+      props.showToast('JSON session log exported!');
+    }
+  };
+
+  // Session Changes Review Panel State
+  const [showChangesPanel, setShowChangesPanel] = createSignal(false);
+  const [selectedDiffFile, setSelectedDiffFile] = createSignal<{
+    filePath: string;
+    fileName: string;
+    status: 'modified' | 'created';
+    diffData?: {
+      oldContent: string;
+      newContent: string;
+      filename: string;
+      isNewFile: boolean;
+    };
+  } | null>(null);
+
+  const sessionModifiedFiles = createMemo(() => {
+    const map = new Map<string, {
+      filePath: string;
+      fileName: string;
+      status: 'modified' | 'created';
+      diffData?: {
+        oldContent: string;
+        newContent: string;
+        filename: string;
+        isNewFile: boolean;
+      };
+    }>();
+
+    const msgs = props.visibleMessages || [];
+    for (const m of msgs) {
+      if (m.tool_calls) {
+        const calls = parseToolCalls(m.tool_calls);
+        for (const c of calls) {
+          if (c.name === 'workspace_write_file' || c.name === 'workspace_edit_file') {
+            const fp = c.argsObj.file_path || c.argsObj.path;
+            if (fp) {
+              const fileName = fp.split(/[/\\]/).pop() || fp;
+              if (!map.has(fp)) {
+                map.set(fp, {
+                  filePath: fp,
+                  fileName,
+                  status: c.name === 'workspace_write_file' ? 'created' : 'modified',
+                });
+              }
+            }
+          }
+        }
+      }
+
+      if (m.role === 'tool' && m.content) {
+        const out = formatToolOutput(m.content);
+        if (out.diffData && out.filename) {
+          for (const [key, val] of map.entries()) {
+            if (val.fileName === out.filename || val.filePath.endsWith(out.filename)) {
+              val.diffData = out.diffData;
+              val.status = out.diffData.isNewFile ? 'created' : 'modified';
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    return Array.from(map.values());
+  });
 
   const tokens = createMemo(() => {
     const text = props.userInput || '';
@@ -245,6 +454,22 @@ export const AgentChatPane: Component<{
                 {props.currentSession?.status}
               </span>
             </Show>
+            {/* Modified Files Badge Button */}
+            <Show when={props.currentSession && sessionModifiedFiles().length > 0}>
+              <button
+                type="button"
+                onClick={() => setShowChangesPanel(!showChangesPanel())}
+                class={`px-2 py-0.5 rounded-lg text-2xs font-medium flex items-center gap-1 transition-colors border ${
+                  showChangesPanel()
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
+                    : 'bg-white/5 hover:bg-white/10 text-white/80 border-white/10'
+                }`}
+                title="View all files modified in this task session"
+              >
+                <FolderGit2 class="w-3 h-3 text-amber-400" />
+                <span>Modified Files ({sessionModifiedFiles().length})</span>
+              </button>
+            </Show>
           </div>
         </div>
 
@@ -291,8 +516,143 @@ export const AgentChatPane: Component<{
               <RefreshCw class={`w-3 h-3 ${props.isRefreshingModels ? 'animate-spin' : ''}`} />
             </button>
           </div>
+
+          {/* Session Export Menu */}
+          <div class="relative">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExportMenuOpen(!exportMenuOpen());
+              }}
+              class="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/80 hover:text-white transition-colors"
+              title="Export or copy session transcript"
+            >
+              <Download class="w-3.5 h-3.5 text-indigo-400" />
+              <span class="hidden sm:inline">Export</span>
+              <ChevronDown class={`w-3 h-3 text-white/50 transition-transform ${exportMenuOpen() ? 'rotate-180' : ''}`} />
+            </button>
+
+            <Show when={exportMenuOpen()}>
+              <div
+                class="absolute right-0 mt-2 w-52 bg-[#12161f] border border-white/10 rounded-xl shadow-2xl z-50 p-1.5 space-y-1 text-xs"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={handleCopyTranscript}
+                  class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors text-left"
+                >
+                  <Show when={copiedTranscript()} fallback={<Copy class="w-3.5 h-3.5 text-indigo-400 shrink-0" />}>
+                    <Check class="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  </Show>
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-medium text-white">{copiedTranscript() ? 'Copied!' : 'Copy Transcript'}</span>
+                    <span class="text-2xs text-white/40">Markdown to clipboard</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportMarkdown}
+                  class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors text-left"
+                >
+                  <FileText class="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-medium text-white">Export Markdown</span>
+                    <span class="text-2xs text-white/40">Download .md file</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportJson}
+                  class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors text-left"
+                >
+                  <FileCode class="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <div class="flex flex-col min-w-0">
+                    <span class="font-medium text-white">Export JSON</span>
+                    <span class="text-2xs text-white/40">Download full session log</span>
+                  </div>
+                </button>
+              </div>
+            </Show>
+          </div>
         </Show>
       </div>
+
+      {/* Session Changes Review Panel (Collapsible Drawer) */}
+      <Show when={showChangesPanel() && sessionModifiedFiles().length > 0}>
+        <div class="border-b border-white/10 bg-[#0c1017] p-3 space-y-2.5 shadow-md">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <FolderGit2 class="w-4 h-4 text-amber-400" />
+              <span class="text-xs font-semibold text-white">Session Changes Review</span>
+              <span class="text-2xs text-white/50">({sessionModifiedFiles().length} files touched)</span>
+            </div>
+            <button
+              onClick={() => {
+                setShowChangesPanel(false);
+                setSelectedDiffFile(null);
+              }}
+              class="text-white/50 hover:text-white p-0.5"
+            >
+              <X class="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* File list pills */}
+          <div class="flex flex-wrap gap-1.5">
+            <For each={sessionModifiedFiles()}>
+              {(file) => {
+                const isSelected = () => selectedDiffFile()?.filePath === file.filePath;
+                return (
+                  <div class="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDiffFile(isSelected() ? null : file)}
+                      class={`px-2 py-0.5 rounded text-xs font-mono flex items-center gap-1.5 transition-colors ${
+                        isSelected() ? 'bg-indigo-600 text-white font-bold' : 'text-white/80 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <FileCode class="w-3.5 h-3.5 text-indigo-400" />
+                      <span>{file.fileName}</span>
+                      <span class={`text-2xs px-1 rounded font-sans uppercase font-bold ${
+                        file.status === 'created' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                      }`}>
+                        {file.status}
+                      </span>
+                    </button>
+
+                    <Show when={props.onOpenFileInCodePanel}>
+                      <button
+                        type="button"
+                        onClick={() => props.onOpenFileInCodePanel?.(file.filePath)}
+                        class="p-1 text-white/50 hover:text-indigo-300 rounded"
+                        title="Open in Right Docked Code Viewer"
+                      >
+                        <ExternalLink class="w-3 h-3" />
+                      </button>
+                    </Show>
+                  </div>
+                );
+              }}
+            </For>
+          </div>
+
+          {/* Selected File Diff Viewer */}
+          <Show when={selectedDiffFile() && selectedDiffFile()?.diffData}>
+            <div class="mt-2 border-t border-white/10 pt-2">
+              <GitDiffViewer
+                oldContent={selectedDiffFile()!.diffData!.oldContent}
+                newContent={selectedDiffFile()!.diffData!.newContent}
+                filename={selectedDiffFile()!.fileName}
+                isNewFile={selectedDiffFile()!.diffData!.isNewFile}
+              />
+            </div>
+          </Show>
+        </div>
+      </Show>
 
       {/* Messages Stream */}
       <div 
@@ -435,6 +795,21 @@ export const AgentChatPane: Component<{
                         fallback={<div class="select-text">{msg.content || ''}</div>}
                       >
                         <MarkdownView content={msg.content || ''} />
+                      </Show>
+                    </div>
+                  </Show>
+
+                  {/* Telemetry Badge (Token Usage) */}
+                  <Show when={msg.role === 'assistant' && (msg.token_usage_input || msg.token_usage_output)}>
+                    <div class="flex items-center gap-2 text-2xs text-theme-text/50 font-mono px-1 select-none">
+                      <span class="flex items-center gap-1">
+                        ⚡ <span>Tokens:</span>
+                      </span>
+                      <Show when={msg.token_usage_input}>
+                        <span>📥 {msg.token_usage_input?.toLocaleString()} in</span>
+                      </Show>
+                      <Show when={msg.token_usage_output}>
+                        <span>📤 {msg.token_usage_output?.toLocaleString()} out</span>
                       </Show>
                     </div>
                   </Show>
@@ -627,9 +1002,15 @@ export const AgentChatPane: Component<{
               </div>
 
               <div class="flex items-center gap-2">
-                <span class="text-2xs text-white/25 hidden md:inline font-mono">
-                  ↵ send • shift+↵ line
-                </span>
+                <button
+                  type="button"
+                  onClick={props.onToggleSendShortcut}
+                  class="text-2xs text-white/40 hover:text-white/80 transition-colors font-mono px-2 py-0.5 rounded hover:bg-white/5 border border-transparent hover:border-white/10 hidden md:flex items-center gap-1 cursor-pointer select-none"
+                  title="Click to toggle send shortcut (Enter vs Ctrl+Enter)"
+                >
+                  <span class="text-white/70 font-semibold">{props.sendShortcut === 'ctrl_enter' ? 'Ctrl+↵' : '↵'} send</span>
+                  <span class="opacity-40">• {props.sendShortcut === 'ctrl_enter' ? '↵' : 'shift+↵'} line</span>
+                </button>
 
                 <Show
                   when={props.isCurrentSessionBusy}

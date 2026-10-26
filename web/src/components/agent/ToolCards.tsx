@@ -17,14 +17,14 @@ function cleanToolCallId(rawId?: string | null): string {
   return clean || rawId;
 }
 
-interface ParsedToolCallItem {
+export interface ParsedToolCallItem {
   id: string;
   name: string;
   argsObj: Record<string, any>;
   rawArgs: string;
 }
 
-function parseToolCalls(raw?: string | null): ParsedToolCallItem[] {
+export function parseToolCalls(raw?: string | null): ParsedToolCallItem[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -92,7 +92,7 @@ function formatToolCallHeader(tc: ParsedToolCallItem): { title: string; subtitle
   }
 }
 
-interface FormattedToolOutput {
+export interface FormattedToolOutput {
   summary: string;
   isError: boolean;
   codePreview?: string;
@@ -105,7 +105,7 @@ interface FormattedToolOutput {
   };
 }
 
-function formatToolOutput(content?: string | null): FormattedToolOutput {
+export function formatToolOutput(content?: string | null): FormattedToolOutput {
   if (!content) return { summary: 'No output', isError: false };
 
   const trimmed = content.trim();
@@ -194,7 +194,7 @@ function formatToolOutput(content?: string | null): FormattedToolOutput {
   }
 }
 
-const GitDiffViewer: Component<{
+export const GitDiffViewer: Component<{
   oldContent?: string;
   newContent: string;
   filename?: string;

@@ -30,7 +30,7 @@ pub async fn execute_turn_tool_calls(
             },
         );
 
-        let mut args_val = serde_json::from_str::<serde_json::Value>(&tc.function.arguments)
+        let args_val = serde_json::from_str::<serde_json::Value>(&tc.function.arguments)
             .unwrap_or_else(|_| json!({}));
 
         let is_edit_op = tc.function.name == "workspace_write_file"
@@ -61,43 +61,6 @@ pub async fn execute_turn_tool_calls(
             let clean = p.trim_start_matches("./");
             state.pending_error_files.iter().any(|ef| ef == clean || clean.ends_with(ef) || ef.ends_with(clean))
         }).unwrap_or(false);
-
-        // HYBRID TARGETED SLICE RULE:
-        if tc.function.name == "workspace_read_file" {
-            if let Some(ref path) = target_arg_file {
-                let clean = path.trim_start_matches("./").to_string();
-                let is_first_read = !state.files_read_in_full.contains(&clean);
-                if is_target_in_error_list && is_first_read {
-                    if let Some(obj) = args_val.as_object_mut() {
-                        obj.remove("start_line");
-                        obj.remove("end_line");
-                    }
-                } else if let Some(obj) = args_val.as_object_mut() {
-                    let parse_line_val = |v: Option<&serde_json::Value>| -> Option<i64> {
-                        v.and_then(|val| {
-                            val.as_i64()
-                                .or_else(|| val.as_u64().map(|n| n as i64))
-                                .or_else(|| val.as_str().and_then(|s| s.trim().parse::<i64>().ok()))
-                        })
-                    };
-                    let has_start = parse_line_val(obj.get("start_line"));
-                    let has_end = parse_line_val(obj.get("end_line"));
-
-                    if let (Some(s), Some(e)) = (has_start, has_end) {
-                        let padded_start = (s - 15).max(1);
-                        let padded_end = e + 15;
-                        obj.insert("start_line".to_string(), json!(padded_start));
-                        obj.insert("end_line".to_string(), json!(padded_end));
-                    } else if let Some(s) = has_start {
-                        let padded_start = (s - 15).max(1);
-                        obj.insert("start_line".to_string(), json!(padded_start));
-                    } else if let Some(e) = has_end {
-                        let padded_end = e + 15;
-                        obj.insert("end_line".to_string(), json!(padded_end));
-                    }
-                }
-            }
-        }
 
         let is_accessing_unmodified_target = target_arg_file.as_ref().map(|p| {
             let clean = p.trim_start_matches("./");
@@ -152,14 +115,11 @@ pub async fn execute_turn_tool_calls(
             let path = target_arg_file.clone().unwrap_or_default();
             let is_exact_duplicate = state.recent_read_slices.contains(&(path.clone(), start_line, end_line));
             let same_file_count = target_arg_file.as_ref().map(|p| state.consecutive_read_same_file.get(p).copied().unwrap_or(0)).unwrap_or(0);
-            // Differentiate chunked reads: only trip breaker if exact same slice was already read or file inspected repeatedly without slicing
-            is_exact_duplicate && same_file_count >= 3
+            is_exact_duplicate && same_file_count >= 5
         } {
-            is_breaker_trip = true;
             let path = target_arg_file.as_deref().unwrap_or("target");
             format!(
-                "Read limit reached for `{}`. You already have its contents in history. Tool calling is now closed. Conclude your response or plan to the user now.",
-                path
+                "Notice: You have already read this exact slice of `{path}` multiple times. Its content is available in your conversation history. Please proceed with modifying the file using `workspace_edit_file` or answering the user's question directly."
             )
         } else {
             match execute_tool_call(
@@ -382,19 +342,19 @@ pub async fn execute_turn_tool_calls(
         if tc.function.name == "workspace_edit_file" {
             if tool_output.contains("'old_text' not found") {
                 state.ephemeral_directive = Some(
-                    "CRITICAL EDIT RECOVERY: Your `workspace_edit_file` failed because 'old_text' did not match disk. The error message includes the exact lines currently on disk! EITHER copy those exact lines into `old_text` with 2-3 lines of context, OR immediately call `workspace_write_file` to write the whole file directly. You MUST apply this fix now; do NOT attempt to conclude or wander off.".to_string()
+                    "Edit recovery: `workspace_edit_file` failed because 'old_text' did not match the file on disk. Inspect the exact slice using `workspace_read_file` if needed, and re-call `workspace_edit_file` with matching lines and 2-3 lines of surrounding context.".to_string()
                 );
             } else if tool_output.contains("matches ") || tool_output.contains("matched ") {
                 state.ephemeral_directive = Some(
-                    "CRITICAL: 'old_text' matched multiple locations in the file. Include the parent object key, function declaration, or 2-3 additional surrounding lines in 'old_text' to make it 100% unique, or use `workspace_write_file` directly. Apply the change now.".to_string()
+                    "Edit recovery: 'old_text' matched multiple locations in the file. Include the enclosing block, function declaration, or 2-3 additional surrounding lines in 'old_text' to make it unique, and re-call `workspace_edit_file`.".to_string()
                 );
             }
         }
 
         // Check inspection streaks (advise model to apply changes or conclude)
-        if state.global_inspection_streak >= 6 {
+        if state.global_inspection_streak >= 15 {
             state.ephemeral_directive = Some(format!(
-                "DIRECTIVE: You have completed {} consecutive inspection steps without modifying code. Gathered context is sufficient. Stop browsing files. Apply your changes using `workspace_edit_file` or `workspace_write_file` NOW, or run verification.",
+                "Suggestion: You have completed {} consecutive inspection steps without modifying code. If you have gathered sufficient context, proceed with applying edits via `workspace_edit_file` or respond directly with your findings.",
                 state.global_inspection_streak
             ));
         }
@@ -414,10 +374,9 @@ pub async fn execute_turn_tool_calls(
                 if is_exact_dup || (start_line.is_none() && end_line.is_none()) {
                     let count = state.consecutive_read_same_file.entry(path.to_string()).or_insert(0);
                     *count += 1;
-                    if *count >= 4 {
+                    if *count >= 5 {
                         state.ephemeral_directive = Some(format!(
-                            "DIRECTIVE: You have inspected `{}` {} times this turn. You have sufficient information. STOP CALLING READ TOOLS ON THIS FILE. If your task requires code modifications, call `workspace_edit_file` or `workspace_write_file` now. If answering a question, respond directly to the user.",
-                            path, count
+                            "Notice: You have inspected `{path}` {count} times this turn. If your task requires code modifications, call `workspace_edit_file` now. If answering a question, respond directly to the user."
                         ));
                     }
                 }
@@ -434,6 +393,7 @@ pub async fn execute_turn_tool_calls(
                     .ok()
                     .and_then(|p| crate::agent::context_builder::compute_file_version(&p).ok())
                     .unwrap_or_else(|| "live_mtime".to_string());
+                let snippet: String = tool_output.chars().take(1500).collect();
                 if let Ok(saved_ev) = repository::save_evidence(
                     project_id,
                     file_path,
@@ -442,7 +402,7 @@ pub async fn execute_turn_tool_calls(
                     end_line,
                     None,
                     &preview_summary,
-                    None,
+                    Some(&snippet),
                 ).await {
                     let _ = repository::link_evidence_to_goal(&state.goal_id, &saved_ev.id, 0.8, true).await;
                 }

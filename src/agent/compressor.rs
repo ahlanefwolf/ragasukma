@@ -10,7 +10,14 @@ pub fn estimate_message_tokens(msg: &Message) -> usize {
         total += c.len();
     }
     if let Some(ref tc) = msg.tool_calls {
-        total += tc.len();
+        // If the message has tool calls with large arguments (like workspace_write_file or edit),
+        // in historical context those arguments are compacted to a lightweight summary (~200 chars).
+        let tc_len = if tc.len() > 1_000 && (tc.contains("workspace_write_file") || tc.contains("workspace_edit_file")) {
+            1_000
+        } else {
+            tc.len()
+        };
+        total += tc_len;
     }
     (total / 4).max(1)
 }
@@ -148,6 +155,60 @@ pub fn compact_tool_output(content: &str, is_recent_tail: bool) -> String {
     compact_tool_output_smart(content, None, is_recent_tail)
 }
 
+/// Compacts assistant tool_call arguments in older history.
+/// In particular, historical `workspace_write_file` or `workspace_edit_file` calls that have
+/// already completed on disk do not need to repeat thousands of characters of file content
+/// in every subsequent turn.
+pub fn compact_assistant_tool_calls_smart(calls: &mut [crate::llm::v1_engine::V1ToolCall], is_recent_tail: bool) {
+    if is_recent_tail {
+        return;
+    }
+    for tc in calls.iter_mut() {
+        let name = tc.function.name.as_str();
+        if name == "workspace_write_file" {
+            if let Ok(mut val) = serde_json::from_str::<serde_json::Value>(&tc.function.arguments) {
+                let file_path = val.get("file_path").and_then(|p| p.as_str()).unwrap_or("file").to_string();
+                let content_len = val.get("content").and_then(|c| c.as_str()).map(|s| s.len()).unwrap_or(0);
+                if content_len > 200 {
+                    val["content"] = serde_json::json!(format!(
+                        "[Content omitted: {} chars written to `{}`]",
+                        content_len,
+                        file_path
+                    ));
+                    if let Ok(compacted_args) = serde_json::to_string(&val) {
+                        tc.function.arguments = compacted_args;
+                    }
+                }
+            }
+        } else if name == "workspace_edit_file" {
+            if let Ok(mut val) = serde_json::from_str::<serde_json::Value>(&tc.function.arguments) {
+                let file_path = val.get("file_path").and_then(|p| p.as_str()).unwrap_or("file").to_string();
+                let (should_compact, edits_count, total_chars) = if let Some(edits) = val.get("edits").and_then(|e| e.as_array()) {
+                    let total_chars: usize = edits.iter().map(|e| {
+                        let old_len = e.get("old_text").and_then(|t| t.as_str()).map(|t| t.len()).unwrap_or(0);
+                        let new_len = e.get("new_text").and_then(|t| t.as_str()).map(|t| t.len()).unwrap_or(0);
+                        old_len + new_len
+                    }).sum();
+                    (total_chars > 300, edits.len(), total_chars)
+                } else {
+                    (false, 0, 0)
+                };
+
+                if should_compact {
+                    val["edits"] = serde_json::json!([
+                        {
+                            "summary": format!("[{} edit hunk(s) applied to `{}` ({} chars)]", edits_count, file_path, total_chars)
+                        }
+                    ]);
+                    if let Ok(compacted_args) = serde_json::to_string(&val) {
+                        tc.function.arguments = compacted_args;
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Context-aware tool output compactor that differentiates by tool type.
 pub fn compact_tool_output_smart(content: &str, tool_name: Option<&str>, is_recent_tail: bool) -> String {
     // 1. Preserve compiler/test error diagnostics up to 12,000 chars so actionable error messages are never lost
@@ -162,40 +223,20 @@ pub fn compact_tool_output_smart(content: &str, tool_name: Option<&str>, is_rece
         Some("workspace_run_command") => {
             // For successful commands (exit 0, tests passing, builds, etc.):
             if is_recent_tail {
-                // Keep head + tail up to 1,500 chars (500 head + 1,000 tail)
-                truncate_smart(content, 500, 1_000)
+                // Keep up to 6,000 chars (2,000 head + 4,000 tail)
+                truncate_smart(content, 2_000, 4_000)
             } else {
-                // Older successful command runs: condense to 1-2 summary lines
-                let first_line = content.lines().next().unwrap_or("").trim();
-                let last_line = content.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim();
-                if content.len() > 300 {
-                    format!(
-                        "{}\n[... {} characters of successful command output omitted; exit code: 0 ...]\n{}",
-                        first_line,
-                        content.len(),
-                        last_line
-                    )
-                } else {
-                    content.to_string()
-                }
+                // Older successful command runs: retain up to 3,000 chars
+                truncate_smart(content, 1_000, 2_000)
             }
         }
         Some("workspace_read_file") => {
             if is_recent_tail {
-                // In active recent turns: keep up to 8,000 chars for live edits
-                truncate_smart(content, 3_000, 5_000)
+                // In active recent turns: keep up to 16,000 chars for live edits
+                truncate_smart(content, 6_000, 10_000)
             } else {
-                // In older historical turns: file is already indexed in SQLite evidence cache
-                let first_line = content.lines().next().unwrap_or("").trim();
-                if content.len() > 400 {
-                    format!(
-                        "{}\n[... {} characters of file content indexed in database evidence cache; consult active evidence or re-read slice if needed ...]",
-                        first_line,
-                        content.len()
-                    )
-                } else {
-                    content.to_string()
-                }
+                // In older historical turns: retain up to 4,000 chars so code context is never completely lost
+                truncate_smart(content, 1_500, 2_500)
             }
         }
         Some("workspace_list_dir") => {
@@ -244,9 +285,65 @@ pub fn compact_tool_output_smart(content: &str, tool_name: Option<&str>, is_rece
     }
 }
 
+/// Estimates token count with a high-accuracy, language-agnostic heuristic (similar to BPE tokenizer approximations).
+/// Accounts for word boundaries, punctuation, numbers, whitespace sequences, and special characters.
+pub fn estimate_tokens(text: &str) -> usize {
+    if text.is_empty() {
+        return 0;
+    }
+
+    let mut tokens = 0usize;
+    let chars: Vec<char> = text.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+
+    while i < len {
+        let ch = chars[i];
+        if ch.is_whitespace() {
+            // Consecutive whitespaces (spaces, tabs, newlines)
+            let start = i;
+            while i < len && chars[i].is_whitespace() {
+                i += 1;
+            }
+            let ws_len = i - start;
+            // Indentations or multiple spaces: roughly 1 token per 4 spaces or newlines
+            tokens += ws_len.div_ceil(4);
+        } else if ch.is_ascii_alphanumeric() {
+            // Consecutive alphanumeric characters
+            let start = i;
+            while i < len && chars[i].is_ascii_alphanumeric() {
+                i += 1;
+            }
+            let word_len = i - start;
+            // Standard average BPE token is ~3.8-4 characters
+            tokens += word_len.div_ceil(4);
+        } else if ch.is_ascii_punctuation() {
+            // Punctuation characters are usually 1 token each in BPE, or pairs
+            tokens += 1;
+            i += 1;
+        } else {
+            // Non-ASCII (Unicode, CJK, Emoji, accented chars)
+            // CJK characters or complex unicode symbols typically consume 1-2 tokens per char
+            tokens += 2;
+            i += 1;
+        }
+    }
+
+    // Safety lower bound
+    tokens.max(1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_estimate_tokens() {
+        assert_eq!(estimate_tokens(""), 0);
+        assert!(estimate_tokens("hello world") >= 2);
+        assert!(estimate_tokens("function test() { return true; }") >= 5);
+        assert!(estimate_tokens("こんにちは世界") >= 4);
+    }
 
     #[test]
     fn test_sanitize_tool_output_for_memory_capping() {
@@ -269,26 +366,78 @@ mod tests {
 
     #[test]
     fn test_compact_successful_command_output() {
-        let successful_build = format!("Compiling crates...\n{}Finished release [optimized] target(s) in 12.3s", "   Compiling dep v0.1\n".repeat(200));
-        assert!(successful_build.len() > 4_000);
+        let successful_build = format!("Compiling crates...\n{}Finished release [optimized] target(s) in 12.3s", "   Compiling dep v0.1\n".repeat(600));
+        assert!(successful_build.len() > 10_000);
 
-        // Recent tail should cap to <= 1,600 chars
+        // Recent tail preserves up to 6,000 chars
         let tail_compacted = compact_tool_output_smart(&successful_build, Some("workspace_run_command"), true);
-        assert!(tail_compacted.len() <= 1_600);
+        assert!(tail_compacted.len() <= 7_000);
+        assert!(tail_compacted.contains("characters omitted to preserve token budget"));
 
-        // Historical turn should distill to minimal summary
+        // Historical turn retains up to 3,000 chars
         let hist_compacted = compact_tool_output_smart(&successful_build, Some("workspace_run_command"), false);
-        assert!(hist_compacted.len() < 400);
-        assert!(hist_compacted.contains("successful command output omitted"));
+        assert!(hist_compacted.len() <= 3_500);
+        assert!(hist_compacted.contains("characters omitted to preserve token budget"));
     }
 
     #[test]
     fn test_compact_historical_file_reads() {
-        let file_content = format!("// Header\n{}", "fn do_something() { println!(\"hello\"); }\n".repeat(100));
-        assert!(file_content.len() > 3_000);
+        let file_content = format!("// Header\n{}", "fn do_something() { println!(\"hello\"); }\n".repeat(200));
+        assert!(file_content.len() > 8_000);
 
+        // Historical file read preserves code context (up to 4,000 chars) instead of a 1-line tombstone
         let hist_compacted = compact_tool_output_smart(&file_content, Some("workspace_read_file"), false);
-        assert!(hist_compacted.len() < 300);
-        assert!(hist_compacted.contains("database evidence cache"));
+        assert!(hist_compacted.len() <= 4_500);
+        assert!(hist_compacted.contains("fn do_something()"));
+        assert!(hist_compacted.contains("characters omitted to preserve token budget"));
+    }
+
+    #[test]
+    fn test_compact_assistant_tool_calls_smart() {
+        use crate::llm::v1_engine::{V1ToolCall, V1ToolCallFunction};
+
+        let mut calls = vec![
+            V1ToolCall {
+                id: "call_write_1".to_string(),
+                call_type: "function".to_string(),
+                function: V1ToolCallFunction {
+                    name: "workspace_write_file".to_string(),
+                    arguments: serde_json::json!({
+                        "file_path": "src/App.tsx",
+                        "content": "A".repeat(10_000)
+                    }).to_string(),
+                },
+                thought_signature: None,
+                extra_content: None,
+                provider_specific_fields: None,
+            },
+            V1ToolCall {
+                id: "call_edit_1".to_string(),
+                call_type: "function".to_string(),
+                function: V1ToolCallFunction {
+                    name: "workspace_edit_file".to_string(),
+                    arguments: serde_json::json!({
+                        "file_path": "src/index.ts",
+                        "edits": [
+                            {"old_text": "B".repeat(200), "new_text": "C".repeat(200)}
+                        ]
+                    }).to_string(),
+                },
+                thought_signature: None,
+                extra_content: None,
+                provider_specific_fields: None,
+            },
+        ];
+
+        // Tail call is preserved verbatim
+        let mut tail_calls = calls.clone();
+        compact_assistant_tool_calls_smart(&mut tail_calls, true);
+        assert!(tail_calls[0].function.arguments.contains(&"A".repeat(500)));
+
+        // Historical call is compacted
+        compact_assistant_tool_calls_smart(&mut calls, false);
+        assert!(!calls[0].function.arguments.contains(&"A".repeat(500)));
+        assert!(calls[0].function.arguments.contains("[Content omitted: 10000 chars written to `src/App.tsx`]"));
+        assert!(calls[1].function.arguments.contains("[1 edit hunk(s) applied to `src/index.ts`"));
     }
 }

@@ -1,7 +1,10 @@
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 
-use crate::agent::compressor::{compact_tool_output_smart, estimate_message_tokens, summarize_evicted_messages};
+use crate::agent::compressor::{
+    compact_assistant_tool_calls_smart, compact_tool_output_smart, estimate_message_tokens,
+    summarize_evicted_messages,
+};
 use crate::agent::models::Message;
 use crate::agent::tools::expand_file_tags;
 use crate::llm::v1_engine::{V1Message, V1ToolCall};
@@ -15,9 +18,6 @@ pub fn prepare_turn_messages(
     allowed_folders: &[String],
     ephemeral_directive: Option<String>,
 ) -> Vec<V1Message> {
-    let total_tool_msgs = db_messages.iter().filter(|m| m.role == "tool").count();
-    let mut tool_counter = 0;
-
     let mut v1_messages = Vec::new();
 
     // Push System prompt first
@@ -126,6 +126,11 @@ pub fn prepare_turn_messages(
         }
     }
 
+    let total_tool_msgs = messages_to_send.iter().filter(|m| m.role == "tool").count();
+    let total_assistant_msgs = messages_to_send.iter().filter(|m| m.role == "assistant").count();
+    let mut tool_counter = 0;
+    let mut assistant_counter = 0;
+
     for msg in messages_to_send {
         // Drop orphaned tool messages whose parent assistant tool_call was pruned out
         if msg.role == "tool" {
@@ -143,11 +148,35 @@ pub fn prepare_turn_messages(
 
         // Bidirectional safety: If assistant has tool_calls whose tool responses were pruned out,
         // prune the unfulfilled tool_calls so API providers (OpenAI, Gemini, Codex) do not reject with HTTP 400.
+        // Also compact older historical file writes/edits to prevent prompt bloat.
         if msg.role == "assistant" {
+            assistant_counter += 1;
+            let is_recent_tail = assistant_counter > total_assistant_msgs.saturating_sub(4);
             if let Some(ref mut calls) = tc_parsed {
                 calls.retain(|c| retained_tool_ids.contains(&c.id));
                 if calls.is_empty() {
                     tc_parsed = None;
+                } else {
+                    compact_assistant_tool_calls_smart(calls, is_recent_tail);
+                }
+            }
+        }
+
+        // If a tool message is directly followed by a user message in history
+        // (e.g. previous turn was interrupted or aborted before assistant replied),
+        // insert an intermediate assistant acknowledgement so that API providers (Gemini, Claude, OpenAI)
+        // do not see an unacknowledged tool response directly followed by a new user turn.
+        if msg.role == "user" {
+            if let Some(last_v1) = v1_messages.last() {
+                if last_v1.role == "tool" {
+                    v1_messages.push(V1Message {
+                        role: "assistant".to_string(),
+                        content: Some(json!("I have executed the requested tool operations and inspected the workspace.")),
+                        tool_calls: None,
+                        tool_call_id: None,
+                        name: None,
+                        thought_signature: None,
+                    });
                 }
             }
         }
@@ -159,7 +188,7 @@ pub fn prepare_turn_messages(
             })
         } else if msg.role == "tool" {
             tool_counter += 1;
-            let is_recent_tail = tool_counter > total_tool_msgs.saturating_sub(3);
+            let is_recent_tail = tool_counter > total_tool_msgs.saturating_sub(8);
             let tool_name = msg.tool_call_id.as_ref().and_then(|id| tool_id_to_name.get(id)).map(|s| s.as_str());
             msg.content.as_ref().map(|c| {
                 let compacted = compact_tool_output_smart(c, tool_name, is_recent_tail);
@@ -229,14 +258,32 @@ pub fn prepare_turn_messages(
     }
 
     if let Some(directive) = final_directive {
-        v1_messages.push(V1Message {
-            role: "user".to_string(),
-            content: Some(serde_json::Value::String(directive)),
-            tool_calls: None,
-            tool_call_id: None,
-            name: None,
-            thought_signature: None,
-        });
+        let is_last_tool = v1_messages.last().map(|m| m.role == "tool").unwrap_or(false);
+        if is_last_tool {
+            if let Some(last_msg) = v1_messages.last_mut() {
+                let existing_text = last_msg
+                    .content
+                    .as_ref()
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let combined = if existing_text.is_empty() {
+                    format!("[System Directive]: {}", directive)
+                } else {
+                    format!("{}\n\n[System Directive]: {}", existing_text, directive)
+                };
+                last_msg.content = Some(serde_json::Value::String(combined));
+            }
+        } else {
+            v1_messages.push(V1Message {
+                role: "user".to_string(),
+                content: Some(serde_json::Value::String(directive)),
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+                thought_signature: None,
+            });
+        }
     }
 
     v1_messages

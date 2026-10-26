@@ -685,7 +685,7 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
         }
     }
 
-    // Turn Normalization: Merge adjacent same-role messages
+    // Turn Normalization: Merge adjacent same-role messages without violating Gemini schema
     let mut normalized_contents: Vec<serde_json::Value> = Vec::new();
     for item in raw_contents {
         let role = item.get("role").and_then(|r| r.as_str()).unwrap_or("user");
@@ -702,7 +702,41 @@ pub fn build_gemini_payload(req: &V1ChatRequest, project_id: &str) -> serde_json
         if let Some(last) = normalized_contents.last_mut() {
             let last_role = last.get("role").and_then(|r| r.as_str()).unwrap_or("");
             if last_role == role {
-                if let Some(last_parts) = last.get_mut("parts").and_then(|p| p.as_array_mut()) {
+                if role == "user" {
+                    let last_has_fr = last
+                        .get("parts")
+                        .and_then(|p| p.as_array())
+                        .map(|arr| arr.iter().any(|part| part.get("functionResponse").is_some()))
+                        .unwrap_or(false);
+                    let curr_has_fr = parts.iter().any(|part| part.get("functionResponse").is_some());
+
+                    let last_has_text = last
+                        .get("parts")
+                        .and_then(|p| p.as_array())
+                        .map(|arr| arr.iter().any(|part| part.get("text").is_some()))
+                        .unwrap_or(false);
+                    let curr_has_text = parts.iter().any(|part| part.get("text").is_some());
+
+                    // Gemini strictly rejects mixing functionResponse and text in the same user turn.
+                    if (last_has_fr && curr_has_text) || (last_has_text && curr_has_fr) {
+                        // Insert a synthetic model acknowledgment turn to preserve strict user <-> model turn alternation
+                        normalized_contents.push(serde_json::json!({
+                            "role": "model",
+                            "parts": [{ "text": "Tool execution completed." }]
+                        }));
+                        normalized_contents.push(serde_json::json!({
+                            "role": role,
+                            "parts": parts
+                        }));
+                        continue;
+                    }
+
+                    // Safe to merge (both are functionResponse or both are text)
+                    if let Some(last_parts) = last.get_mut("parts").and_then(|p| p.as_array_mut()) {
+                        last_parts.extend(parts);
+                        continue;
+                    }
+                } else if let Some(last_parts) = last.get_mut("parts").and_then(|p| p.as_array_mut()) {
                     last_parts.extend(parts);
                     continue;
                 }

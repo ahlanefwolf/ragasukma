@@ -1,4 +1,4 @@
-import { Component, For, Show } from 'solid-js';
+import { Component, For, Show, createSignal } from 'solid-js';
 import {
   Folder,
   ChevronRight,
@@ -123,22 +123,41 @@ export const FileTreeNodeRow: Component<{
         </div>
 
         <Show when={props.isExpanded(props.node.path)}>
-          <div class="space-y-0.5">
-            <For each={props.node.children}>
-              {(child) => (
-                <FileTreeNodeRow
-                  node={child}
-                  depth={props.depth + 1}
-                  isExpanded={props.isExpanded}
-                  onToggleDir={props.onToggleDir}
-                  onSelectFile={props.onSelectFile}
-                  onOpenRange={props.onOpenRange}
-                  onCopyTag={props.onCopyTag}
-                  onTagFolder={props.onTagFolder}
-                />
-              )}
-            </For>
-          </div>
+          {(() => {
+            const [limit, setLimit] = createSignal(100);
+            const total = () => props.node.children.length;
+            const visible = () => props.node.children.slice(0, limit());
+            const hasMore = () => total() > limit();
+
+            return (
+              <div class="space-y-0.5">
+                <For each={visible()}>
+                  {(child) => (
+                    <FileTreeNodeRow
+                      node={child}
+                      depth={props.depth + 1}
+                      isExpanded={props.isExpanded}
+                      onToggleDir={props.onToggleDir}
+                      onSelectFile={props.onSelectFile}
+                      onOpenRange={props.onOpenRange}
+                      onCopyTag={props.onCopyTag}
+                      onTagFolder={props.onTagFolder}
+                    />
+                  )}
+                </For>
+                <Show when={hasMore()}>
+                  <button
+                    type="button"
+                    onClick={() => setLimit((prev) => prev + 100)}
+                    style={{ 'padding-left': `${(props.depth + 1) * 14 + 6}px` }}
+                    class="w-full text-left py-1 text-2xs text-theme-cyan hover:underline font-mono"
+                  >
+                    ... Show {total() - limit()} more items
+                  </button>
+                </Show>
+              </div>
+            );
+          })()}
         </Show>
       </Show>
     </div>

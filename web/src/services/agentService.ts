@@ -14,6 +14,17 @@ export interface PromptSkill {
   updated_at: number;
 }
 
+export interface SaveMcpServerPayload {
+  id?: string;
+  name: string;
+  transport?: 'stdio' | 'sse' | 'http';
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  is_enabled?: boolean;
+}
+
 export interface McpServerConfig {
   id: string;
   name: string;
@@ -530,6 +541,55 @@ export const agentService = {
     } catch (e) {
       console.error('Failed to get MCP servers:', e);
       return [];
+    }
+  },
+
+  async saveMcpServer(server: SaveMcpServerPayload): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(server),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return { ok: false, error: data.error || `HTTP ${res.status}` };
+      }
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'Failed to save MCP server' };
+    }
+  },
+
+  async deleteMcpServer(id: string): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/mcp/${encodeURIComponent(id)}/delete`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return { ok: false, error: data.error || `HTTP ${res.status}` };
+      }
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'Failed to delete MCP server' };
+    }
+  },
+
+  async testMcpServer(server: SaveMcpServerPayload): Promise<{ ok: boolean; tools_count?: number; error?: string }> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/mcp/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(server),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        return { ok: false, error: data.error || `HTTP ${res.status}` };
+      }
+      return { ok: true, tools_count: data.tools ? data.tools.length : 0 };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'Test connection failed' };
     }
   },
 

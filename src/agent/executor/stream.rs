@@ -36,8 +36,8 @@ pub async fn execute_model_stream(
     let chat_req = V1ChatRequest {
         model: model.to_string(),
         messages,
-        temperature: temperature.map(|t| t as f32).or(Some(0.7)),
-        max_tokens: Some(4096),
+        temperature: temperature.map(|t| (t as f32).min(0.2)).or(Some(0.1)),
+        max_tokens: Some(8192),
         stream: Some(true),
         tools: tools_payload,
         tool_choice: tool_choice_payload,

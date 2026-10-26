@@ -47,13 +47,29 @@ pub fn apply_resilient_edit(
     let content_lines: Vec<&str> = normalized_content.lines().collect();
     let raw_old_lines: Vec<&str> = normalized_old.lines().collect();
 
-    // Strip leading & trailing empty lines from old_lines
-    let start_empty = raw_old_lines.iter().take_while(|l| l.trim().is_empty()).count();
-    let end_empty = raw_old_lines.iter().rev().take_while(|l| l.trim().is_empty()).count();
-    let old_lines: Vec<&str> = if start_empty + end_empty < raw_old_lines.len() {
-        raw_old_lines[start_empty..raw_old_lines.len() - end_empty].to_vec()
+    // Check if lines have line-number prefixes (e.g. "   42\t" or "   42 | ") from tool output
+    let has_line_prefixes = raw_old_lines.iter().any(|l| {
+        let t = l.trim_start();
+        t.find(|c: char| !c.is_ascii_digit()).map(|idx| {
+            idx > 0 && (t[idx..].starts_with('\t') || t[idx..].starts_with('|') || t[idx..].starts_with(": "))
+        }).unwrap_or(false)
+    });
+
+    let cleaned_old_lines_owned: Vec<String>;
+    let effective_raw_old_lines: Vec<&str> = if has_line_prefixes {
+        cleaned_old_lines_owned = raw_old_lines.iter().map(|l| strip_line_prefix(l)).collect();
+        cleaned_old_lines_owned.iter().map(|s| s.as_str()).collect()
     } else {
         raw_old_lines
+    };
+
+    // Strip leading & trailing empty lines from old_lines
+    let start_empty = effective_raw_old_lines.iter().take_while(|l| l.trim().is_empty()).count();
+    let end_empty = effective_raw_old_lines.iter().rev().take_while(|l| l.trim().is_empty()).count();
+    let old_lines: Vec<&str> = if start_empty + end_empty < effective_raw_old_lines.len() {
+        effective_raw_old_lines[start_empty..effective_raw_old_lines.len() - end_empty].to_vec()
+    } else {
+        effective_raw_old_lines
     };
 
     if old_lines.is_empty() {
@@ -266,6 +282,23 @@ pub fn apply_resilient_edit(
 // =========================================================================
 // Git 3-Way Fuzzy Patch & LCS Matching Helpers
 // =========================================================================
+
+pub fn strip_line_prefix(line: &str) -> String {
+    let trimmed = line.trim_start();
+    if let Some(idx) = trimmed.find(|c: char| !c.is_ascii_digit()) {
+        if idx > 0 {
+            let rem = &trimmed[idx..];
+            if let Some(after_tab) = rem.strip_prefix('\t') {
+                return after_tab.to_string();
+            } else if let Some(after_pipe) = rem.strip_prefix('|') {
+                return after_pipe.strip_prefix(' ').unwrap_or(after_pipe).to_string();
+            } else if let Some(after_colon) = rem.strip_prefix(": ") {
+                return after_colon.to_string();
+            }
+        }
+    }
+    line.to_string()
+}
 
 #[derive(Debug, Clone)]
 pub struct Git3WayHunk {

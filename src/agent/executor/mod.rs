@@ -4,6 +4,7 @@ pub mod gates;
 pub mod helpers;
 pub mod messages;
 pub mod prompt;
+pub mod snapshot;
 pub mod state;
 pub mod stream;
 pub mod tool_runner;
@@ -13,6 +14,7 @@ pub use super::compressor::*;
 pub use super::diagnostics::*;
 pub use super::events::*;
 pub use helpers::{detect_project_verification_commands, is_verification_command, parse_project_folders};
+pub use snapshot::WorkspaceSnapshot;
 pub use state::TurnState;
 
 use crate::agent::models::AgentSessionEvent;
@@ -234,13 +236,12 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
         let content_to_save = composed_content.as_str();
 
         let final_goal_status = if state.last_command_had_error || state.last_tool_had_error {
-            "failed"
-        } else if !state.modified_files.is_empty() && !state.has_passed_verification {
-            "completed_unverified"
+            crate::agent::orchestrator::GoalState::Failed
         } else {
-            "completed"
+            crate::agent::orchestrator::GoalState::Completed
         };
-        let _ = repository::conclude_goal(&goal_id, final_goal_status, content_to_save).await;
+        let orch = crate::agent::orchestrator::GoalOrchestrator::new(&goal_id, &project.id);
+        let _ = orch.conclude_with_status(final_goal_status, content_to_save).await;
 
         let final_msg = repository::create_message(
             session_id,
