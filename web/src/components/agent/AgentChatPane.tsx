@@ -24,7 +24,10 @@ import {
   Copy,
   Check,
   FileText,
-  X
+  X,
+  Zap,
+  ArrowDownToLine,
+  ArrowUpToLine
 } from 'lucide-solid';
 import { Project, AgentSession, AgentMessage, WorkspaceFileItem } from '../../services';
 import { MarkdownView } from './MarkdownView';
@@ -60,6 +63,71 @@ const ThoughtBubble: Component<{ thought: string }> = (props) => {
           {props.thought}
         </div>
       </Show>
+    </div>
+  );
+};
+
+// Render user message content with color highlighting for tagged @files
+const UserMessageBody: Component<{
+  content: string;
+  onOpenFile?: (path: string) => void;
+}> = (props) => {
+  const parsed = createMemo(() => {
+    const text = props.content || '';
+    if (!text) return [];
+    const regex = /(?:^|\s)(@[a-zA-Z0-9_\-\./\\]+(?::\d+(?:-\d+)?)?)/g;
+    const result: { text: string; isTag: boolean; filePath?: string }[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(text)) !== null) {
+      const fullMatch = match[0];
+      const tag = match[1];
+      const tagIndex = match.index + fullMatch.indexOf(tag);
+
+      if (tagIndex > lastIndex) {
+        result.push({ text: text.substring(lastIndex, tagIndex), isTag: false });
+      }
+
+      const rawPath = tag.startsWith('@') ? tag.slice(1) : tag;
+      const filePath = rawPath.replace(/:\d+(?:-\d+)?$/, '');
+      result.push({ text: tag, isTag: true, filePath });
+      lastIndex = tagIndex + tag.length;
+    }
+
+    if (lastIndex < text.length) {
+      result.push({ text: text.substring(lastIndex), isTag: false });
+    }
+
+    return result;
+  });
+
+  return (
+    <div class="select-text whitespace-pre-wrap break-words">
+      <For each={parsed()}>
+        {(token) => (
+          <Show
+            when={token.isTag}
+            fallback={<span>{token.text}</span>}
+          >
+            <span
+              class={`inline-flex items-center gap-1 font-mono text-cyan-400 bg-cyan-500/15 border border-cyan-500/30 px-1.5 py-0.5 rounded text-[11px] font-medium align-baseline mx-0.5 select-none ${
+                props.onOpenFile ? 'hover:bg-cyan-500/25 hover:border-cyan-400/50 cursor-pointer transition-all' : ''
+              }`}
+              onClick={(e) => {
+                if (props.onOpenFile && token.filePath) {
+                  e.stopPropagation();
+                  props.onOpenFile(token.filePath);
+                }
+              }}
+              title={props.onOpenFile ? `Open ${token.filePath}` : undefined}
+            >
+              <FileCode class="w-3 h-3 opacity-80 shrink-0" />
+              <span>{token.text}</span>
+            </span>
+          </Show>
+        )}
+      </For>
     </div>
   );
 };
@@ -105,6 +173,26 @@ export const AgentChatPane: Component<{
   // Session Export & Copying State
   const [exportMenuOpen, setExportMenuOpen] = createSignal(false);
   const [copiedTranscript, setCopiedTranscript] = createSignal(false);
+
+  // Calculate cumulative token usage up to each message
+  const messageCumulativeTokens = createMemo(() => {
+    const msgs = props.visibleMessages || [];
+    let runningIn = 0;
+    let runningOut = 0;
+    const map = new Map<string, { totalIn: number; totalOut: number; total: number }>();
+    for (const m of msgs) {
+      if (m.token_usage_input || m.token_usage_output) {
+        runningIn += (m.token_usage_input || 0);
+        runningOut += (m.token_usage_output || 0);
+        map.set(m.id, {
+          totalIn: runningIn,
+          totalOut: runningOut,
+          total: runningIn + runningOut,
+        });
+      }
+    }
+    return map;
+  });
 
   createEffect(() => {
     if (!exportMenuOpen()) return;
@@ -154,7 +242,9 @@ export const AgentChatPane: Component<{
           }
         }
         if (msg.token_usage_input || msg.token_usage_output) {
-          lines.push(`*Telemetry: 📥 in=${msg.token_usage_input ?? 0} | 📤 out=${msg.token_usage_output ?? 0}*\n`);
+          const inTokens = msg.token_usage_input ?? 0;
+          const outTokens = msg.token_usage_output ?? 0;
+          lines.push(`*Telemetry: Total=${(inTokens + outTokens).toLocaleString()} tokens (in=${inTokens.toLocaleString()}, out=${outTokens.toLocaleString()})*\n`);
         }
       } else if (msg.role === 'tool') {
         lines.push(`#### 🔧 Tool Output\n`);
@@ -792,26 +882,48 @@ export const AgentChatPane: Component<{
                     >
                       <Show
                         when={msg.role === 'assistant'}
-                        fallback={<div class="select-text">{msg.content || ''}</div>}
+                        fallback={
+                          <UserMessageBody
+                            content={msg.content || ''}
+                            onOpenFile={props.onOpenFileInCodePanel}
+                          />
+                        }
                       >
                         <MarkdownView content={msg.content || ''} />
                       </Show>
                     </div>
                   </Show>
 
-                  {/* Telemetry Badge (Token Usage) */}
+                  {/* Telemetry Badge (Cumulative Token Usage) */}
                   <Show when={msg.role === 'assistant' && (msg.token_usage_input || msg.token_usage_output)}>
-                    <div class="flex items-center gap-2 text-2xs text-theme-text/50 font-mono px-1 select-none">
-                      <span class="flex items-center gap-1">
-                        ⚡ <span>Tokens:</span>
-                      </span>
-                      <Show when={msg.token_usage_input}>
-                        <span>📥 {msg.token_usage_input?.toLocaleString()} in</span>
-                      </Show>
-                      <Show when={msg.token_usage_output}>
-                        <span>📤 {msg.token_usage_output?.toLocaleString()} out</span>
-                      </Show>
-                    </div>
+                    {(() => {
+                      const stats = () => messageCumulativeTokens().get(msg.id) || {
+                        totalIn: msg.token_usage_input || 0,
+                        totalOut: msg.token_usage_output || 0,
+                        total: (msg.token_usage_input || 0) + (msg.token_usage_output || 0),
+                      };
+                      return (
+                        <div
+                          class="flex items-center gap-2 text-2xs text-theme-text/60 font-mono px-1 select-none"
+                          title={`Cumulative: ${stats().total.toLocaleString()} tokens (Step: ${((msg.token_usage_input || 0) + (msg.token_usage_output || 0)).toLocaleString()})`}
+                        >
+                          <span class="flex items-center gap-1 text-amber-400/90 font-medium">
+                            <Zap class="w-3 h-3 text-amber-400 shrink-0" />
+                            <span>{stats().total.toLocaleString()}</span>
+                            <span class="text-theme-text/40 font-normal">total</span>
+                          </span>
+                          <span class="text-theme-text/25">•</span>
+                          <span class="flex items-center gap-1 text-cyan-400/80">
+                            <ArrowDownToLine class="w-3 h-3 shrink-0" />
+                            <span>{stats().totalIn.toLocaleString()} in</span>
+                          </span>
+                          <span class="flex items-center gap-1 text-emerald-400/80">
+                            <ArrowUpToLine class="w-3 h-3 shrink-0" />
+                            <span>{stats().totalOut.toLocaleString()} out</span>
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </Show>
                 </div>
               </Show>
