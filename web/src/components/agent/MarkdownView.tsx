@@ -60,7 +60,7 @@ customRenderer.code = function ({ text, lang }: Tokens.Code) {
   const highlighted = highlightMarkdownCode(text, cleanLang);
 
   return `
-    <div class="code-block-wrapper my-2.5 rounded-xl bg-[#0d1117] border border-white/10 overflow-hidden shadow-lg font-mono">
+    <div class="code-block-wrapper my-2.5 rounded-xl bg-[#0d1117] border border-white/10 overflow-hidden shadow-lg font-mono max-w-full min-w-0">
       <div class="flex items-center justify-between px-3 py-1.5 bg-white/[0.04] border-b border-white/10 text-2xs">
         <div class="flex items-center gap-1.5">
           <span class="w-2 h-2 rounded-full bg-indigo-500/80"></span>
@@ -110,10 +110,22 @@ export const MarkdownView: Component<MarkdownViewProps> = (props) => {
   return (
     <div class="markdown-view-wrapper">
       <style>{`
+        .markdown-view-wrapper {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          overflow-wrap: break-word;
+          word-break: break-word;
+        }
         .markdown-view-wrapper .markdown-content {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
           color: var(--text);
           font-size: 0.75rem;
           line-height: 1.625;
+          overflow-wrap: break-word;
+          word-break: break-word;
         }
         .markdown-view-wrapper .markdown-content p {
           margin-top: 0.35rem;
@@ -167,7 +179,9 @@ export const MarkdownView: Component<MarkdownViewProps> = (props) => {
           font-style: italic;
         }
         .markdown-view-wrapper .markdown-content table {
-          width: 100%;
+          display: block;
+          max-width: 100%;
+          overflow-x: auto;
           border-collapse: collapse;
           margin-top: 0.6rem;
           margin-bottom: 0.6rem;

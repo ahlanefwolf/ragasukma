@@ -69,13 +69,17 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
     });
   };
 
+  // Reset scrolled up state on session switch
   createEffect(() => {
-    chat.messages();
+    chat.selectedSessionId();
+    isUserScrolledUp = false;
+  });
+
+  // Scroll to bottom when sending message
+  createEffect(() => {
     if (chat.sendingMessage()) {
       isUserScrolledUp = false;
       setTimeout(() => scrollToBottom(true, true), 30);
-    } else {
-      setTimeout(() => scrollToBottom(true, false), 40);
     }
   });
 
@@ -386,6 +390,10 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
                 onMessagesScroll={handleMessagesScroll}
                 visibleMessages={chat.visibleMessages()}
                 loadingMessages={chat.loadingMessages()}
+                hasMoreMessages={chat.hasMoreMessages()}
+                loadingEarlier={chat.loadingEarlier()}
+                onLoadOlderMessages={chat.loadOlderMessages}
+                onLoadAllMessages={chat.loadAllMessages}
                 isMessageCollapsed={chat.isMessageCollapsed}
                 toggleCollapseMessage={chat.toggleCollapseMessage}
                 isCurrentSessionBusy={chat.isCurrentSessionBusy()}

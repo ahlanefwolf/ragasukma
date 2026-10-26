@@ -22,6 +22,9 @@ export function useChatSession(
   const [selectedSessionId, setSelectedSessionId] = createSignal<string | null>(null);
   const [messages, setMessages] = createSignal<AgentMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = createSignal(false);
+  const PAGE_SIZE = 25;
+  const [hasMoreMessages, setHasMoreMessages] = createSignal(false);
+  const [loadingEarlier, setLoadingEarlier] = createSignal(false);
 
   // Filter prodding/internal system messages from UI
   const visibleMessages = createMemo(() => {
@@ -203,8 +206,14 @@ export function useChatSession(
 
       es.onerror = () => {
         if (selectedSessionId() === sessionId) {
-          agentService.getMessages(sessionId).then((msgs) => {
-            if (msgs && msgs.length > 0) setMessages(msgs);
+          agentService.getMessages(sessionId, { limit: PAGE_SIZE }).then((msgs) => {
+            if (msgs && msgs.length > 0) {
+              setMessages((prev) => {
+                const existingIds = new Set(prev.map((m) => m.id));
+                const newOnes = msgs.filter((m) => !existingIds.has(m.id));
+                return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+              });
+            }
           }).catch(() => {});
 
           // Auto-reconnect with exponential backoff if task is still running or active
@@ -239,12 +248,76 @@ export function useChatSession(
   const loadMessages = async (sessionId: string) => {
     setLoadingMessages(true);
     try {
-      const msgs = await agentService.getMessages(sessionId);
+      const msgs = await agentService.getMessages(sessionId, { limit: PAGE_SIZE });
       setMessages(msgs);
+      setHasMoreMessages(msgs.length >= PAGE_SIZE);
     } catch (e) {
       console.error(e);
     } finally {
       setLoadingMessages(false);
+    }
+  };
+
+  const loadOlderMessages = async (): Promise<boolean> => {
+    const sId = selectedSessionId();
+    if (!sId || loadingEarlier() || loadingMessages() || !hasMoreMessages()) return false;
+
+    const cur = messages();
+    if (cur.length === 0) return false;
+
+    let oldestSeq: number | null = null;
+    for (const m of cur) {
+      if (m.sequence_num !== undefined && m.sequence_num !== null) {
+        if (oldestSeq === null || m.sequence_num < oldestSeq) {
+          oldestSeq = m.sequence_num;
+        }
+      }
+    }
+
+    if (oldestSeq === null) return false;
+
+    setLoadingEarlier(true);
+    try {
+      const older = await agentService.getMessages(sId, {
+        limit: PAGE_SIZE,
+        before_sequence_num: oldestSeq,
+      });
+
+      if (older && older.length > 0) {
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id));
+          const uniqueOlder = older.filter((m) => !existingIds.has(m.id));
+          return [...uniqueOlder, ...prev];
+        });
+        setHasMoreMessages(older.length >= PAGE_SIZE);
+        return true;
+      } else {
+        setHasMoreMessages(false);
+        return false;
+      }
+    } catch (err) {
+      console.error('Failed to load older messages:', err);
+      return false;
+    } finally {
+      setLoadingEarlier(false);
+    }
+  };
+
+  const loadAllMessages = async (): Promise<boolean> => {
+    const sId = selectedSessionId();
+    if (!sId || loadingEarlier() || loadingMessages()) return false;
+
+    setLoadingEarlier(true);
+    try {
+      const allMsgs = await agentService.getMessages(sId);
+      setMessages(allMsgs);
+      setHasMoreMessages(false);
+      return true;
+    } catch (err) {
+      console.error('Failed to load all messages:', err);
+      return false;
+    } finally {
+      setLoadingEarlier(false);
     }
   };
 
@@ -492,6 +565,10 @@ export function useChatSession(
     isCurrentSessionBusy,
     loadSessions,
     loadMessages,
+    hasMoreMessages,
+    loadingEarlier,
+    loadOlderMessages,
+    loadAllMessages,
     selectSession,
     refreshDynamicModels,
     handleQuickCreateSession,

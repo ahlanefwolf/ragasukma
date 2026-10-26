@@ -145,6 +145,10 @@ export const AgentChatPane: Component<{
   onMessagesScroll: () => void;
   visibleMessages: AgentMessage[];
   loadingMessages: boolean;
+  hasMoreMessages?: boolean;
+  loadingEarlier?: boolean;
+  onLoadOlderMessages?: () => Promise<boolean>;
+  onLoadAllMessages?: () => Promise<boolean>;
   isMessageCollapsed: (id: string) => boolean;
   toggleCollapseMessage: (id: string) => void;
   isCurrentSessionBusy: boolean;
@@ -420,100 +424,136 @@ export const AgentChatPane: Component<{
 
   const hasTags = createMemo(() => tokens().some((t) => t.isTag));
 
-  // Upward Lazy Loading / Windowing for Long Conversation Tasks
-  const INITIAL_VISIBLE_COUNT = 25;
-  const [visibleWindowCount, setVisibleWindowCount] = createSignal(INITIAL_VISIBLE_COUNT);
+  // Upward Lazy Loading & Pin to Bottom Management
   const [isScrolledUp, setIsScrolledUp] = createSignal(false);
-
   let messagesContainerEl: HTMLDivElement | undefined;
-  let trackedSessionId: string | null = null;
-  let lastKnownMsgCount = 0;
+  let pinnedSessionId: string | null = null;
+  let lastSeenBottomMsgId: string | null = null;
 
-  // Track session change & initial loading accurately
-  createEffect(() => {
-    const sId = props.currentSession?.id ?? null;
-    const isLoading = props.loadingMessages;
-    const currentLen = props.visibleMessages?.length ?? 0;
-
-    if (sId !== trackedSessionId) {
-      // Switched session or initial session mount
-      trackedSessionId = sId;
-      setVisibleWindowCount(INITIAL_VISIBLE_COUNT);
-      lastKnownMsgCount = currentLen;
-      return;
-    }
-
-    if (isLoading) {
-      // When backend is fetching messages for session, ensure window count is clamped to initial
-      setVisibleWindowCount(INITIAL_VISIBLE_COUNT);
-      return;
-    }
-
-    // When initial fetch finishes (transitioned from 0 messages to loaded list)
-    if (lastKnownMsgCount === 0 && currentLen > 0) {
-      lastKnownMsgCount = currentLen;
-      setVisibleWindowCount(INITIAL_VISIBLE_COUNT);
-      return;
-    }
-
-    // Live message additions during active chat session
-    if (currentLen > lastKnownMsgCount) {
-      const added = currentLen - lastKnownMsgCount;
-      if (added <= 10) {
-        setVisibleWindowCount((prev) => prev + added);
-      }
-      lastKnownMsgCount = currentLen;
-    } else if (currentLen < lastKnownMsgCount) {
-      lastKnownMsgCount = currentLen;
-    }
-  });
-
-  const totalMessagesCount = () => props.visibleMessages?.length ?? 0;
-  const hasEarlierMessages = () => totalMessagesCount() > visibleWindowCount();
-  const hiddenEarlierCount = () => Math.max(0, totalMessagesCount() - visibleWindowCount());
-
-  const renderedMessages = createMemo(() => {
-    const msgs = props.visibleMessages || [];
-    if (msgs.length <= visibleWindowCount()) {
-      return msgs;
-    }
-    return msgs.slice(msgs.length - visibleWindowCount());
-  });
-
-  const loadEarlierMessages = () => {
-    if (!messagesContainerEl) {
-      setVisibleWindowCount((c) => c + 25);
-      return;
-    }
-    const prevScrollHeight = messagesContainerEl.scrollHeight;
-    const prevScrollTop = messagesContainerEl.scrollTop;
-
-    setVisibleWindowCount((c) => c + 25);
-
-    requestAnimationFrame(() => {
-      if (messagesContainerEl) {
-        const heightDiff = messagesContainerEl.scrollHeight - prevScrollHeight;
-        messagesContainerEl.scrollTop = prevScrollTop + heightDiff;
-      }
-    });
+  const pinToBottom = () => {
+    if (!messagesContainerEl) return;
+    messagesContainerEl.scrollTop = messagesContainerEl.scrollHeight;
+    setIsScrolledUp(false);
   };
 
-  const loadAllMessages = () => {
+  // Ensure scroll is pinned to the bottom ONLY on initial load / session switch
+  createEffect(() => {
+    const sId = props.currentSession?.id;
+    const loading = props.loadingMessages;
+    const count = props.visibleMessages?.length ?? 0;
+
+    if (sId && !loading && count > 0) {
+      if (pinnedSessionId !== sId) {
+        pinnedSessionId = sId;
+        const msgs = props.visibleMessages || [];
+        lastSeenBottomMsgId = msgs[msgs.length - 1]?.id ?? null;
+
+        pinToBottom();
+        requestAnimationFrame(() => {
+          pinToBottom();
+          requestAnimationFrame(pinToBottom);
+        });
+        setTimeout(pinToBottom, 50);
+        setTimeout(pinToBottom, 150);
+        setTimeout(pinToBottom, 350);
+      }
+    } else if (!sId) {
+      pinnedSessionId = null;
+      lastSeenBottomMsgId = null;
+    }
+  });
+
+  // Auto-scroll only when a NEW message arrives at the bottom (not when older messages are prepended)
+  createEffect(() => {
+    const msgs = props.visibleMessages || [];
+    if (msgs.length === 0) return;
+    const latestId = msgs[msgs.length - 1]?.id;
+    if (latestId && pinnedSessionId === props.currentSession?.id) {
+      if (lastSeenBottomMsgId && latestId !== lastSeenBottomMsgId) {
+        lastSeenBottomMsgId = latestId;
+        if (!isScrolledUp()) {
+          scrollToBottom();
+        }
+      } else if (!lastSeenBottomMsgId) {
+        lastSeenBottomMsgId = latestId;
+      }
+    }
+  });
+
+  // Auto-scroll as streaming text/thought flows in (unless user intentionally scrolled up)
+  createEffect(() => {
+    const text = props.streamingText;
+    const thought = props.streamingThought;
+    if ((text || thought) && !isScrolledUp()) {
+      if (messagesContainerEl) {
+        messagesContainerEl.scrollTop = messagesContainerEl.scrollHeight;
+      }
+    }
+  });
+
+  let isLoadingEarlier = false;
+  const handleLoadEarlier = async () => {
+    if (isLoadingEarlier || !props.onLoadOlderMessages || props.loadingEarlier || !props.hasMoreMessages) return;
     if (!messagesContainerEl) {
-      setVisibleWindowCount(totalMessagesCount());
+      await props.onLoadOlderMessages();
       return;
     }
+
+    isLoadingEarlier = true;
     const prevScrollHeight = messagesContainerEl.scrollHeight;
     const prevScrollTop = messagesContainerEl.scrollTop;
 
-    setVisibleWindowCount(totalMessagesCount());
-
-    requestAnimationFrame(() => {
-      if (messagesContainerEl) {
-        const heightDiff = messagesContainerEl.scrollHeight - prevScrollHeight;
-        messagesContainerEl.scrollTop = prevScrollTop + heightDiff;
+    try {
+      const ok = await props.onLoadOlderMessages();
+      if (ok) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (messagesContainerEl) {
+              const heightDiff = messagesContainerEl.scrollHeight - prevScrollHeight;
+              messagesContainerEl.scrollTop = prevScrollTop + heightDiff;
+              setIsScrolledUp(true);
+            }
+            isLoadingEarlier = false;
+          });
+        });
+      } else {
+        isLoadingEarlier = false;
       }
-    });
+    } catch {
+      isLoadingEarlier = false;
+    }
+  };
+
+  const handleLoadAll = async () => {
+    if (isLoadingEarlier || !props.onLoadAllMessages || props.loadingEarlier) return;
+    if (!messagesContainerEl) {
+      await props.onLoadAllMessages();
+      return;
+    }
+
+    isLoadingEarlier = true;
+    const prevScrollHeight = messagesContainerEl.scrollHeight;
+    const prevScrollTop = messagesContainerEl.scrollTop;
+
+    try {
+      const ok = await props.onLoadAllMessages();
+      if (ok) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (messagesContainerEl) {
+              const heightDiff = messagesContainerEl.scrollHeight - prevScrollHeight;
+              messagesContainerEl.scrollTop = prevScrollTop + heightDiff;
+              setIsScrolledUp(true);
+            }
+            isLoadingEarlier = false;
+          });
+        });
+      } else {
+        isLoadingEarlier = false;
+      }
+    } catch {
+      isLoadingEarlier = false;
+    }
   };
 
   const handleScroll = (e: Event) => {
@@ -521,6 +561,11 @@ export const AgentChatPane: Component<{
     const distanceToBottom = el.scrollHeight - (el.scrollTop + el.clientHeight);
     setIsScrolledUp(distanceToBottom > 150);
     props.onMessagesScroll();
+
+    // Auto lazy-load earlier messages when scrolled near top
+    if (el.scrollTop <= 80 && props.hasMoreMessages && !props.loadingEarlier) {
+      handleLoadEarlier();
+    }
   };
 
   const scrollToBottom = () => {
@@ -751,27 +796,31 @@ export const AgentChatPane: Component<{
           props.setMessagesContainerRef(el);
         }}
         onScroll={handleScroll}
-        class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar"
+        class="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3 custom-scrollbar min-w-0 w-full"
       >
         {/* Upward Lazy Load Banner for Earlier Messages */}
-        <Show when={props.currentSession && hasEarlierMessages()}>
+        <Show when={props.currentSession && props.hasMoreMessages}>
           <div class="flex items-center justify-center gap-2 py-2 mb-1 border-b border-white/[0.06] bg-white/[0.02] rounded-lg select-none">
             <button
               type="button"
-              onClick={loadEarlierMessages}
-              class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 active:scale-95 text-white/80 hover:text-white text-xs flex items-center gap-1.5 border border-white/10 transition-colors shadow-sm font-sans"
+              onClick={handleLoadEarlier}
+              disabled={props.loadingEarlier}
+              class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 active:scale-95 text-white/80 hover:text-white text-xs flex items-center gap-1.5 border border-white/10 transition-colors shadow-sm font-sans disabled:opacity-50"
             >
-              <History class="w-3.5 h-3.5 text-indigo-400" />
-              <span>Load 25 Earlier Messages ({hiddenEarlierCount()} hidden)</span>
+              <History class={`w-3.5 h-3.5 text-indigo-400 ${props.loadingEarlier ? 'animate-spin' : ''}`} />
+              <span>{props.loadingEarlier ? 'Loading earlier messages...' : 'Load 25 Earlier Messages'}</span>
             </button>
-            <button
-              type="button"
-              onClick={loadAllMessages}
-              class="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 active:scale-95 text-white/50 hover:text-white/80 text-xs transition-colors font-sans"
-              title="Load all earlier messages in this session"
-            >
-              Show All
-            </button>
+            <Show when={props.onLoadAllMessages}>
+              <button
+                type="button"
+                onClick={handleLoadAll}
+                disabled={props.loadingEarlier}
+                class="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 active:scale-95 text-white/50 hover:text-white/80 text-xs transition-colors font-sans disabled:opacity-50"
+                title="Load all earlier messages in this session"
+              >
+                Show All
+              </button>
+            </Show>
           </div>
         </Show>
 
@@ -799,7 +848,7 @@ export const AgentChatPane: Component<{
           </div>
         </Show>
 
-        <For each={renderedMessages()}>
+        <For each={props.visibleMessages || []}>
           {(msg) => (
             <div class={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
               <div class="text-2xs text-theme-text/70 mb-1 px-1 flex items-center gap-1.5">

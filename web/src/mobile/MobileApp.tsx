@@ -11,6 +11,7 @@ import { MobileLogsDrawer } from './components/MobileLogsDrawer';
 import { MobileAudioUnlockModal } from './components/MobileAudioUnlockModal';
 import { MobileFloatingMusic } from './components/MobileFloatingMusic';
 import { MobileChatModal } from './components/MobileChatModal';
+import { MobileAgentModal } from './components/MobileAgentModal';
 import { ModelLoadingOverlay } from '../components/ModelLoadingOverlay';
 import { ModelDownloadStatus } from '../services/eventsService';
 
@@ -26,6 +27,8 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
   const [showLogsDrawer, setShowLogsDrawer] = createSignal(false);
   const [showSettings, setShowSettings] = createSignal(false);
   const [showChatModal, setShowChatModal] = createSignal(false);
+  const [showAgentModal, setShowAgentModal] = createSignal(false);
+  const [isAgentRunning, setIsAgentRunning] = createSignal(false);
   const [showTextInput, setShowTextInput] = createSignal(false);
   const [config, setConfig] = createSignal<{ name?: string; callsign?: string }>({});
   const [viewportHeight, setViewportHeight] = createSignal<string>('100dvh');
@@ -126,6 +129,14 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     }
   };
   
+  // Incoming chat message state for realtime WhatsApp-style modal
+  const [incomingChatMessage, setIncomingChatMessage] = createSignal<{
+    id?: string;
+    sender: 'assistant' | 'user';
+    text: string;
+    emotion?: string;
+  } | null>(null);
+
   // Audio & Mic Mode Status on Mobile (Remote Desktop vs Full Mobile)
   const getInitialAudioMode = (): MobileAudioMode => {
     try {
@@ -634,6 +645,17 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         setEmotion(em);
       }
 
+      // Propagate assistant speech to realtime chat modal as message turn
+      if (textToSpeak.trim()) {
+        const turnId = sessionId ? `${sessionId}-${chunkIndex}` : `turn-${Date.now()}`;
+        setIncomingChatMessage({
+          id: turnId,
+          sender: 'assistant',
+          text: textToSpeak.trim(),
+          emotion: em || 'neutral',
+        });
+      }
+
       if (isFinish) {
         if (totalChunks !== undefined && totalChunks > chunkTotalExpected) {
           chunkTotalExpected = totalChunks;
@@ -921,6 +943,28 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
 
     fetchLogs();
 
+    // Check once on initial mount if agent has any active session
+    const checkAgentStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/agent/projects`);
+        if (!res.ok) return;
+        const projects = await res.json();
+        let running = false;
+        for (const proj of (projects || []).slice(0, 3)) {
+          const sessRes = await fetch(`${API_BASE}/api/agent/projects/${proj.id}/sessions`);
+          if (sessRes.ok) {
+            const sessions = await sessRes.json();
+            if (sessions.some((s: any) => s.status === 'running' || s.status === 'waiting_tool')) {
+              running = true;
+              break;
+            }
+          }
+        }
+        setIsAgentRunning(running);
+      } catch {}
+    };
+    checkAgentStatus();
+
     // Monitor virtual keyboard on mobile via VisualViewport so layout is not obscured
     const updateViewport = () => {
       if (window.visualViewport) {
@@ -954,6 +998,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         requestWakeLock();
+        measurePing();
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -997,7 +1042,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       setModelStatus(status);
     });
 
-    // ── Network Latency Ping Monitor (Check every 4s) ──
+    // ── Network Latency Ping Monitor (Lightweight 15s check, pause on screen lock) ──
     let pingInterval: number | null = null;
     const measurePing = async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
@@ -1012,7 +1057,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     };
 
     measurePing();
-    pingInterval = window.setInterval(measurePing, 4000);
+    pingInterval = window.setInterval(measurePing, 15000);
 
     // Session recovery helper: restore full mic & voice to desktop on close
     const restoreDesktopSession = () => {
@@ -1226,6 +1271,8 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
                 lastSentText={lastSentText()}
                 showInput={showTextInput()}
                 onToggleShowInput={() => setShowTextInput(!showTextInput())}
+                onOpenAgent={() => setShowAgentModal(true)}
+                isAgentRunning={isAgentRunning()}
                 onDismissLastSent={() => setLastSentText('')}
               />
             </div>
@@ -1284,9 +1331,18 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
           lastSentText={lastSentText()}
           showInput={showTextInput()}
           onToggleShowInput={() => setShowChatModal(true)}
+          onOpenAgent={() => setShowAgentModal(true)}
+          isAgentRunning={isAgentRunning()}
           onDismissLastSent={() => setLastSentText('')}
         />
       </div>
+
+      {/* Autonomous Coding Agent Monitor Modal */}
+      <MobileAgentModal
+        isOpen={showAgentModal()}
+        onClose={() => setShowAgentModal(false)}
+        onAgentRunningChange={setIsAgentRunning}
+      />
 
       {/* WhatsApp Style Chat Modal with History Lazy Load */}
       <MobileChatModal
@@ -1300,6 +1356,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         onSend={(text) => sendTextToHost(text)}
         assistantStatus={visualState()}
         currentEmotion={emotion()}
+        incomingMessage={incomingChatMessage()}
       />
 
       {/* 5. Slide-Up Bottom Sheet Console Logs */}

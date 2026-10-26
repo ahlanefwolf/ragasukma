@@ -1,6 +1,17 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use std::sync::LazyLock;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::broadcast;
+
+static CHAT_EVENT_SENDER: LazyLock<broadcast::Sender<ChatTurnItem>> = LazyLock::new(|| {
+    let (tx, _) = broadcast::channel(128);
+    tx
+});
+
+pub fn get_chat_event_sender() -> broadcast::Sender<ChatTurnItem> {
+    CHAT_EVENT_SENDER.clone()
+}
 
 #[cfg(windows)]
 pub fn get_local_date_and_time() -> (String, String) {
@@ -195,6 +206,24 @@ pub fn log_conversation_turn(
     };
 
     let rec = record;
+    // Broadcast user and assistant turns in realtime to SSE subscribers with distinct unique IDs
+    let user_turn = ChatTurnItem {
+        time: rec.time_str.clone(),
+        speaker: rec.callsign.clone(),
+        message: rec.user_msg.clone(),
+        id: Some(format!("{}-user", rec.id)),
+        timestamp: Some(rec.timestamp),
+    };
+    let assistant_turn = ChatTurnItem {
+        time: rec.time_str.clone(),
+        speaker: rec.assistant_name.clone(),
+        message: rec.assistant_msg.clone(),
+        id: Some(format!("{}-asst", rec.id)),
+        timestamp: Some(rec.timestamp),
+    };
+    let _ = CHAT_EVENT_SENDER.send(user_turn);
+    let _ = CHAT_EVENT_SENDER.send(assistant_turn);
+
     crate::app_state::spawn_db_task(async move {
         let pool = crate::llm::usage::get_pool().await;
         let _ = sqlx::query(
@@ -283,14 +312,14 @@ pub async fn get_history_by_date_paginated(
             time: r.time_str.clone(),
             speaker: r.callsign,
             message: r.user_msg,
-            id: Some(r.id.clone()),
+            id: Some(format!("{}-user", r.id)),
             timestamp: Some(r.timestamp),
         });
         turns.push(ChatTurnItem {
             time: r.time_str,
             speaker: r.assistant_name,
             message: r.assistant_msg,
-            id: Some(r.id),
+            id: Some(format!("{}-asst", r.id)),
             timestamp: Some(r.timestamp),
         });
     }

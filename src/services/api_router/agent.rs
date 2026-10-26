@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 use axum::{
-    extract::Path,
+    extract::{Path, Query},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -568,12 +568,21 @@ async fn session_events_sse(
     let sender = crate::agent::executor::get_session_sender(&session_id);
     let mut rx = sender.subscribe();
 
+    // Query current session status from database to send an immediate snapshot
+    let current_status = crate::agent::repository::get_session(&session_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|s| s.status)
+        .unwrap_or_else(|| "idle".to_string());
+
     let stream = async_stream::stream! {
-        // Initial connection confirmation event
+        // Initial connection confirmation event with status snapshot
         let init_json = serde_json::json!({
             "type": "connected",
             "data": {
                 "session_id": session_id,
+                "status": current_status,
             }
         });
         yield Ok::<_, std::convert::Infallible>(format!("data: {}\n\n", init_json));
@@ -596,9 +605,9 @@ async fn session_events_sse(
                         }
                     }
                 }
-                _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {
-                    // Send periodic keep-alive comment every 5s to prevent browser/OS connection drop
-                    yield Ok(":\n\n".to_string());
+                _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
+                    // Send periodic keep-alive event every 3s to flush Cloudflare & proxy buffers
+                    yield Ok("event: ping\ndata: {}\n\n".to_string());
                 }
             }
         }
@@ -715,8 +724,25 @@ pub struct CreateMessagePayload {
     pub token_usage_output: Option<i64>,
 }
 
-async fn list_messages(Path(session_id): Path<String>) -> impl IntoResponse {
-    match repository::list_messages(&session_id).await {
+#[derive(Debug, Deserialize, Default)]
+pub struct ListMessagesQuery {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    pub before_sequence_num: Option<i64>,
+}
+
+async fn list_messages(
+    Path(session_id): Path<String>,
+    Query(query): Query<ListMessagesQuery>,
+) -> impl IntoResponse {
+    match repository::list_messages_paginated(
+        &session_id,
+        query.limit,
+        query.offset,
+        query.before_sequence_num,
+    )
+    .await
+    {
         Ok(list) => (StatusCode::OK, Json(json!(list))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,

@@ -1,5 +1,5 @@
 import { Component, Show } from 'solid-js';
-import { Send, Mic, MicOff, MessageSquare, X, Trash2, CheckCircle2 } from 'lucide-solid';
+import { Send, Mic, MicOff, MessageSquare, X, Trash2, CheckCircle2, Bot } from 'lucide-solid';
 
 interface MobileInteractionDockProps {
   inputText: string;
@@ -12,6 +12,8 @@ interface MobileInteractionDockProps {
   showInput: boolean;
   onToggleShowInput: () => void;
   onDismissLastSent?: () => void;
+  onOpenAgent?: () => void;
+  isAgentRunning?: boolean;
 }
 
 export const MobileInteractionDock: Component<MobileInteractionDockProps> = (props) => {
@@ -100,7 +102,30 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
       </Show>
 
       {/* 3. Primary Button Bar: Equal sizing, symmetrical, touch-friendly */}
-      <div class="flex items-center justify-center gap-5">
+      <div class="flex items-center justify-center gap-4">
+        {/* Autonomous Agent Monitor Button (Adjacent to Message button) */}
+        <Show when={props.onOpenAgent}>
+          <button
+            type="button"
+            onClick={props.onOpenAgent}
+            style={{ "border-radius": "9999px" }}
+            class={`relative w-14 h-14 border flex items-center justify-center transition-all shadow-md active:scale-90 select-none ${
+              props.isAgentRunning
+                ? 'bg-theme-cyan/20 border-theme-cyan text-theme-cyan shadow-[0_0_15px_rgba(6,182,212,0.35)] animate-pulse'
+                : 'bg-theme-surface/90 border-theme-border text-theme-muted hover:text-theme-cyan hover:border-theme-cyan'
+            }`}
+            title="Monitor Autonomous Agent"
+          >
+            <Bot size={22} class={props.isAgentRunning ? 'animate-bounce' : ''} />
+            <Show when={props.isAgentRunning}>
+              <span class="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-theme-cyan opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-theme-cyan"></span>
+              </span>
+            </Show>
+          </button>
+        </Show>
+
         {/* Message / Keyboard Button (56x56 px, symmetric with Mic button) */}
         <button
           type="button"

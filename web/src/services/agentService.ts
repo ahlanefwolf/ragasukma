@@ -399,9 +399,17 @@ export const agentService = {
   },
 
   // Messages
-  async getMessages(sessionId: string): Promise<AgentMessage[]> {
+  async getMessages(
+    sessionId: string,
+    opts?: { limit?: number; offset?: number; before_sequence_num?: number }
+  ): Promise<AgentMessage[]> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/agent/sessions/${sessionId}/messages`);
+      const params = new URLSearchParams();
+      if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+      if (opts?.offset !== undefined) params.set('offset', String(opts.offset));
+      if (opts?.before_sequence_num !== undefined) params.set('before_sequence_num', String(opts.before_sequence_num));
+      const qs = params.toString();
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/sessions/${sessionId}/messages${qs ? `?${qs}` : ''}`);
       if (!res.ok) return [];
       return await res.json();
     } catch (e) {

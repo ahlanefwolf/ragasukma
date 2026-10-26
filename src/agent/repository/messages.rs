@@ -7,15 +7,59 @@ use super::{generate_id, now_secs};
 // ============================================================================
 
 pub async fn list_messages(session_id: &str) -> Result<Vec<Message>> {
+    list_messages_paginated(session_id, None, None, None).await
+}
+
+pub async fn list_messages_paginated(
+    session_id: &str,
+    limit: Option<i64>,
+    offset: Option<i64>,
+    before_seq: Option<i64>,
+) -> Result<Vec<Message>> {
     let pool = crate::llm::usage::get_pool().await;
-    let messages = sqlx::query_as::<_, Message>(
-        "SELECT id, session_id, sequence_num, role, content, thought, tool_calls, tool_call_id, \
-         status, token_usage_input, token_usage_output, created_at \
-         FROM messages WHERE session_id = ?1 ORDER BY sequence_num ASC",
-    )
-    .bind(session_id)
-    .fetch_all(pool)
-    .await?;
+    let messages = match (limit, before_seq) {
+        (Some(lim), Some(b_seq)) => {
+            let mut list = sqlx::query_as::<_, Message>(
+                "SELECT id, session_id, sequence_num, role, content, thought, tool_calls, tool_call_id, \
+                 status, token_usage_input, token_usage_output, created_at \
+                 FROM messages WHERE session_id = ?1 AND sequence_num < ?2 \
+                 ORDER BY sequence_num DESC LIMIT ?3",
+            )
+            .bind(session_id)
+            .bind(b_seq)
+            .bind(lim)
+            .fetch_all(pool)
+            .await?;
+            list.reverse();
+            list
+        }
+        (Some(lim), None) => {
+            let off = offset.unwrap_or(0);
+            let mut list = sqlx::query_as::<_, Message>(
+                "SELECT id, session_id, sequence_num, role, content, thought, tool_calls, tool_call_id, \
+                 status, token_usage_input, token_usage_output, created_at \
+                 FROM messages WHERE session_id = ?1 \
+                 ORDER BY sequence_num DESC LIMIT ?2 OFFSET ?3",
+            )
+            .bind(session_id)
+            .bind(lim)
+            .bind(off)
+            .fetch_all(pool)
+            .await?;
+            list.reverse();
+            list
+        }
+        (None, _) => {
+            sqlx::query_as::<_, Message>(
+                "SELECT id, session_id, sequence_num, role, content, thought, tool_calls, tool_call_id, \
+                 status, token_usage_input, token_usage_output, created_at \
+                 FROM messages WHERE session_id = ?1 ORDER BY sequence_num ASC",
+            )
+            .bind(session_id)
+            .fetch_all(pool)
+            .await?
+        }
+    };
     Ok(messages)
 }
 

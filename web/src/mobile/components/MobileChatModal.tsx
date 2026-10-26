@@ -1,4 +1,4 @@
-import { Component, For, Show, createSignal, createEffect, onMount } from 'solid-js';
+import { Component, For, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { 
   ArrowLeft, 
   Send, 
@@ -12,6 +12,15 @@ import {
   RefreshCw
 } from 'lucide-solid';
 import { historyService, ChatTurnItem } from '../../services/historyService';
+import { MarkdownView } from '../../components/agent/MarkdownView';
+
+export interface IncomingChatEvent {
+  id?: string;
+  sender: 'assistant' | 'user';
+  text: string;
+  emotion?: string;
+  time?: string;
+}
 
 export interface MobileChatModalProps {
   isOpen: boolean;
@@ -24,6 +33,7 @@ export interface MobileChatModalProps {
   onSend: (text?: string) => Promise<void> | void;
   assistantStatus?: string;
   currentEmotion?: string;
+  incomingMessage?: IncomingChatEvent | null;
 }
 
 export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
@@ -37,6 +47,17 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
   const [isInitialLoading, setIsInitialLoading] = createSignal<boolean>(false);
   const [historyDates, setHistoryDates] = createSignal<string[]>([]);
   const [currentDateIndex, setCurrentDateIndex] = createSignal<number>(0);
+
+  const scrollToBottom = () => {
+    requestAnimationFrame(() => {
+      if (scrollContainerRef) {
+        scrollContainerRef.scrollTo({
+          top: scrollContainerRef.scrollHeight,
+          behavior: 'smooth',
+        });
+      }
+    });
+  };
 
   const loadHistoryPage = async (page: number, dateStr?: string, preserveScroll = false) => {
     if (isLoadingMore()) return;
@@ -126,7 +147,93 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
       setTimeout(() => {
         if (inputRef) inputRef.focus();
       }, 250);
+
+      // Helper to match user speaker aliases (You, user, callsign)
+      const isUserSpeaker = (speaker: string) => {
+        const s = (speaker || '').toLowerCase();
+        const callsign = (props.callsign || '').toLowerCase();
+        return s === 'you' || s === 'user' || (callsign !== '' && s === callsign);
+      };
+
+      const isSameSpeaker = (s1: string, s2: string) => {
+        if (s1.toLowerCase() === s2.toLowerCase()) return true;
+        if (isUserSpeaker(s1) && isUserSpeaker(s2)) return true;
+        return false;
+      };
+
+      // Connect to native Axum Tokio SSE stream for real-time chat turns
+      const unsubscribeSSE = historyService.subscribeChatEvents((item) => {
+        setMessages((prev) => {
+          // Find matching message by exact ID or by speaker + text + timestamp proximity
+          const existingIndex = prev.findIndex((m) => {
+            if (item.id && m.id && item.id === m.id) return true;
+            return (
+              isSameSpeaker(m.speaker, item.speaker) &&
+              m.message.trim() === item.message.trim() &&
+              Math.abs((m.timestamp || 0) - (item.timestamp || 0)) <= 10
+            );
+          });
+
+          if (existingIndex !== -1) {
+            // Replace optimistic local message with verified server record
+            const updated = [...prev];
+            updated[existingIndex] = { ...updated[existingIndex], ...item };
+            return updated;
+          }
+
+          return [...prev, item];
+        });
+
+        if (scrollContainerRef) {
+          const isNearBottom = scrollContainerRef.scrollHeight - scrollContainerRef.scrollTop - scrollContainerRef.clientHeight < 150;
+          if (isNearBottom) {
+            scrollToBottom();
+          }
+        }
+      });
+
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          initHistory();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      onCleanup(() => {
+        unsubscribeSSE();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      });
     }
+  });
+
+  // Listen to incoming real-time messages from SSE / action stream
+  createEffect(() => {
+    const inc = props.incomingMessage;
+    if (!inc || !inc.text) return;
+
+    const now = new Date();
+    const timeStr = inc.time || `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const speakerName = inc.sender === 'user' ? (props.callsign || 'You') : (props.assistantName || 'Assistant');
+
+    setMessages((prev) => {
+      // Check if this message was already appended
+      if (inc.id && prev.some((m) => m.id === inc.id)) {
+        return prev;
+      }
+      return [
+        ...prev,
+        {
+          id: inc.id,
+          time: timeStr,
+          speaker: speakerName,
+          message: inc.text,
+          emotion: inc.emotion,
+          timestamp: Math.floor(Date.now() / 1000),
+        },
+      ];
+    });
+
+    scrollToBottom();
   });
 
   const handleSend = () => {
@@ -147,14 +254,9 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
     props.onSend(text);
 
     // Auto-scroll to bottom
-    setTimeout(() => {
-      if (scrollContainerRef) {
-        scrollContainerRef.scrollTo({
-          top: scrollContainerRef.scrollHeight,
-          behavior: 'smooth'
-        });
-      }
-    }, 50);
+    requestAnimationFrame(() => {
+      scrollToBottom();
+    });
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -248,12 +350,14 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
             </div>
           </Show>
 
-          {/* WhatsApp Bubbles Stream */}
+          {/* Chat Messages */}
           <For each={messages()}>
-            {(turn) => {
-              const isUser = turn.speaker.toLowerCase() === (props.callsign || 'user').toLowerCase() || 
-                             turn.speaker.toLowerCase() === 'user' || 
-                             turn.speaker.toLowerCase() === 'you';
+            {(turn: any) => {
+              const speaker = turn.speaker || turn.sender || 'Assistant';
+              const textContent = turn.message || turn.text || '';
+              const isUser = speaker.toLowerCase() === (props.callsign || 'user').toLowerCase() || 
+                             speaker.toLowerCase() === 'user' || 
+                             speaker.toLowerCase() === 'you';
 
               return (
                 <div class={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in duration-150`}>
@@ -267,13 +371,15 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                     {/* Speaker Header on Group/Bot */}
                     <Show when={!isUser}>
                       <span class="block text-2xs font-bold text-theme-cyan mb-0.5">
-                        {turn.speaker}
+                        {speaker}
                       </span>
                     </Show>
 
                     {/* Message Body Content */}
-                    <div class="whitespace-pre-wrap break-words leading-relaxed">
-                      {turn.message}
+                    <div class="break-words leading-relaxed">
+                      <Show when={isUser} fallback={<MarkdownView content={textContent} />}>
+                        <div class="whitespace-pre-wrap">{textContent}</div>
+                      </Show>
                     </div>
 
                     {/* Message Footer (Timestamp & WhatsApp Ticks) */}

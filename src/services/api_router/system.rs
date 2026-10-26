@@ -34,6 +34,7 @@ pub fn register_system_routes(
         .route("/api/history/dates", get(axum_get_history_dates))
         .route("/api/history/view", get(axum_get_history_view))
         .route("/api/history/delete", post(axum_delete_history))
+        .route("/api/chat/events", get(axum_chat_events_sse))
         // Logs
         .route("/api/logs", get(axum_get_logs))
         .route("/api/logs/clear", post(axum_clear_logs))
@@ -376,6 +377,57 @@ pub(crate) async fn axum_delete_history(Json(payload): Json<DeleteHistoryPayload
         )
             .into_response(),
     }
+}
+
+pub(crate) async fn axum_chat_events_sse() -> impl IntoResponse {
+    let sender = crate::llm::history::get_chat_event_sender();
+    let mut rx = sender.subscribe();
+
+    let stream = async_stream::stream! {
+        let init_json = serde_json::json!({
+            "type": "connected"
+        });
+        yield Ok::<_, std::convert::Infallible>(format!("data: {}\n\n", init_json));
+
+        loop {
+            tokio::select! {
+                res = rx.recv() => {
+                    match res {
+                        Ok(item) => {
+                            let evt = serde_json::json!({
+                                "type": "chat_turn",
+                                "item": item
+                            });
+                            if let Ok(json_str) = serde_json::to_string(&evt) {
+                                yield Ok(format!("data: {}\n\n", json_str));
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(missed)) => {
+                            eprintln!("[Chat SSE] Recv lagged by {} messages", missed);
+                            continue;
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            break;
+                        }
+                    }
+                }
+                _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
+                    // Send periodic keep-alive event every 3s to flush Cloudflare & proxy buffers
+                    yield Ok("event: ping\ndata: {}\n\n".to_string());
+                }
+            }
+        }
+    };
+
+    axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "text/event-stream; charset=utf-8")
+        .header("Cache-Control", "no-cache, no-transform")
+        .header("Connection", "keep-alive")
+        .header("X-Accel-Buffering", "no")
+        .header("Access-Control-Allow-Origin", "*")
+        .body(axum::body::Body::from_stream(stream))
+        .unwrap_or_else(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to create SSE stream").into_response())
 }
 
 // -----------------------------------------------------------------------------
