@@ -296,16 +296,25 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // Send message on Ctrl+Enter or Cmd+Enter
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       handleSend();
+      return;
+    }
+
+    // Plain Enter: allow newline (pindah baris) and expand textarea smoothly
+    if (e.key === 'Enter') {
+      requestAnimationFrame(() => {
+        if (inputRef) adjustInputHeight(inputRef);
+      });
     }
   };
 
   const adjustInputHeight = (el?: HTMLTextAreaElement | null) => {
     if (!el) return;
     el.style.height = 'auto';
-    const next = Math.min(Math.max(el.scrollHeight, 38), 128);
+    const next = Math.min(Math.max(el.scrollHeight, 38), 140);
     el.style.height = `${next}px`;
   };
 
@@ -407,15 +416,15 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
               return (
                 <div class={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in duration-150`}>
                   <div
-                    class={`relative max-w-[82%] sm:max-w-[70%] px-3.5 py-2 text-xs shadow-md select-text ${
+                    class={`relative max-w-[85%] sm:max-w-[75%] px-3.5 py-2.5 text-xs shadow-md select-text ${
                       isUser
-                        ? 'bg-gi-primary text-gi-primary-foreground font-medium rounded-tr-xs'
-                        : 'bg-theme-card border border-theme-border text-theme-text rounded-tl-xs'
+                        ? 'bg-gi-primary text-gi-primary-foreground font-medium rounded-2xl rounded-tr-xs'
+                        : 'bg-theme-card border border-theme-border/80 text-theme-text rounded-2xl rounded-tl-xs'
                     }`}
                   >
                     {/* Speaker Header on Group/Bot */}
                     <Show when={!isUser}>
-                      <span class="block text-2xs font-bold text-gi-primary mb-0.5">
+                      <span class="block text-2xs font-bold text-gi-primary mb-1">
                         {speaker}
                       </span>
                     </Show>
@@ -423,7 +432,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                     {/* Message Body Content */}
                     <div class="break-words leading-relaxed">
                       <Show when={isUser} fallback={<MarkdownView content={textContent} />}>
-                        <div class="whitespace-pre-wrap">{textContent}</div>
+                        <div class="whitespace-pre-wrap break-words leading-relaxed">{textContent}</div>
                       </Show>
                     </div>
 
@@ -445,9 +454,9 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
 
         {/* Bottom Input Area - Precision Engineered Modern Capsule */}
         <footer 
-          class="p-2.5 bg-gi-surface border-t border-theme-border/60 shrink-0 flex items-end w-full pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+          class="p-2.5 sm:p-3 bg-gi-surface/95 backdrop-blur-md border-t border-theme-border/60 shrink-0 flex items-end w-full pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
         >
-          <div class="relative w-full max-w-full bg-gi-surface-elevated border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-1 focus-within:ring-gi-primary/30 transition-all shadow-sm flex flex-col justify-between overflow-hidden">
+          <div class="relative w-full max-w-full bg-gi-surface-elevated/90 border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-2 focus-within:ring-gi-primary/20 rounded-2xl shadow-sm transition-all flex flex-col justify-between overflow-hidden">
             <textarea
               ref={inputRef}
               value={props.inputText}
@@ -462,12 +471,12 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
               placeholder="Type a message..."
               rows={1}
               disabled={props.isSending}
-              class="w-full min-w-0 px-3.5 pt-2.5 pb-1 bg-transparent text-xs text-theme-text placeholder:text-theme-muted/50 resize-none outline-none leading-relaxed min-h-[36px] max-h-[120px] custom-scrollbar disabled:opacity-60 font-sans"
+              class="w-full min-w-0 px-3.5 pt-2.5 pb-1.5 bg-transparent text-[14px] sm:text-xs text-theme-text placeholder:text-theme-muted/50 resize-none outline-none leading-relaxed min-h-[38px] max-h-[140px] custom-scrollbar disabled:opacity-60 font-sans"
             />
 
             {/* Bottom Micro Action Bar */}
-            <div class="flex items-center justify-between px-3 pb-2 pt-0.5 select-none">
-              <div class="flex items-center gap-2 min-w-0">
+            <div class="flex items-center justify-between px-3 pb-2 pt-1 select-none border-t border-theme-border/20">
+              <div class="flex items-center gap-1.5 min-w-0">
                 <Show when={props.inputText.length > 0}>
                   <button
                     type="button"
@@ -475,20 +484,20 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                       props.onInputText('');
                       if (inputRef) adjustInputHeight(inputRef);
                     }}
-                    class="p-1 text-theme-muted hover:text-theme-text active:scale-90 transition-transform cursor-pointer"
+                    class="w-5 h-5 rounded-full bg-theme-surface/80 border border-theme-border/60 text-theme-muted hover:text-theme-text flex items-center justify-center active:scale-90 transition-transform cursor-pointer"
                     title="Clear message"
                   >
-                    <X size={13} />
+                    <X size={11} />
                   </button>
-                  <Show when={props.inputText.length > 80}>
-                    <span class="text-2xs font-mono text-theme-muted/60">
+                  <Show when={props.inputText.length > 50}>
+                    <span class="text-[11px] font-mono text-theme-muted/70 bg-theme-bg/40 px-1.5 py-0.5 rounded">
                       {props.inputText.length} chars
                     </span>
                   </Show>
                 </Show>
                 <Show when={props.inputText.length === 0}>
-                  <span class="text-2xs font-mono text-theme-muted/40 hidden sm:inline">
-                    Shift+Enter for newline
+                  <span class="text-[11px] font-mono text-theme-muted/40 hidden sm:inline">
+                    Enter for newline • Ctrl+Enter to send
                   </span>
                 </Show>
               </div>
@@ -498,15 +507,15 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                   <button
                     type="button"
                     onClick={props.onToggleMic}
-                    class={`w-7 h-7 flex items-center justify-center transition-all active:scale-90 shadow-sm cursor-pointer ${
+                    class={`w-8 h-8 rounded-xl flex items-center justify-center transition-all active:scale-90 shadow-sm cursor-pointer ${
                       props.isListening
-                        ? 'bg-gi-status-danger text-white animate-pulse shadow-gi-status-danger/30'
-                        : 'bg-theme-surface border border-theme-border text-theme-muted hover:text-gi-primary-hover hover:border-gi-primary/50'
+                        ? 'bg-gi-status-danger text-white animate-pulse shadow-md shadow-gi-status-danger/40 ring-2 ring-gi-status-danger/30'
+                        : 'bg-theme-surface/80 border border-theme-border text-theme-muted hover:text-gi-primary-hover hover:border-gi-primary/50'
                     }`}
                     title={props.isListening ? 'Stop Listening' : 'Voice Input (PTT)'}
                   >
-                    <Show when={props.isListening} fallback={<Mic size={13} />}>
-                      <MicOff size={13} />
+                    <Show when={props.isListening} fallback={<Mic size={15} />}>
+                      <MicOff size={15} />
                     </Show>
                   </button>
                 </Show>
@@ -515,11 +524,11 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                   type="button"
                   onClick={handleSend}
                   disabled={!props.inputText.trim() || props.isSending}
-                  class="w-7 h-7 bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed active:scale-90 transition-all shadow-md shadow-gi-primary/25 cursor-pointer"
+                  class="w-8 h-8 rounded-xl bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed active:scale-90 transition-all shadow-md shadow-gi-primary/25 cursor-pointer"
                   title="Send Message"
                 >
-                  <Show when={props.isSending} fallback={<Send size={12} class="translate-x-px" />}>
-                    <Loader2 size={12} class="animate-spin" />
+                  <Show when={props.isSending} fallback={<Send size={14} class="translate-x-px" />}>
+                    <Loader2 size={14} class="animate-spin" />
                   </Show>
                 </button>
               </div>

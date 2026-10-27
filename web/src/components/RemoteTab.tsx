@@ -271,13 +271,13 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
             </div>
 
             {/* QR Code Container */}
-            <div class="flex flex-col sm:flex-row items-center gap-6 p-4 bg-theme-surface border border-theme-border">
+            <div class="flex flex-col sm:flex-row items-center gap-6 p-4 bg-theme-surface border border-theme-border rounded-xl">
               <Show when={qrDataUrl()}>
-                <div class="p-2.5 bg-white shadow-md border-2 border-theme-cyan shrink-0 flex flex-col items-center">
+                <div class="p-2.5 bg-white rounded-xl shadow-md border-2 border-theme-cyan shrink-0 flex flex-col items-center">
                   <img
                     src={qrDataUrl()}
                     alt="Scan QR Mobile Remote"
-                    class="w-48 h-48 block select-none"
+                    class="w-48 h-48 block select-none rounded-lg"
                   />
                   <span class="text-2xs text-gi-surface font-mono font-bold mt-1 uppercase tracking-wider">
                     Scan via Phone Camera
@@ -296,11 +296,11 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
                     type="text"
                     readonly
                     value={getFullRemoteUrl()}
-                    class="flex-1 px-3.5 py-2.5 bg-theme-card border border-theme-border text-xs font-mono text-theme-cyan select-all focus:outline-none focus:border-theme-cyan"
+                    class="flex-1 px-3.5 py-2.5 bg-theme-card border border-theme-border rounded-lg text-xs font-mono text-theme-cyan select-all focus:outline-none focus:border-theme-cyan"
                   />
                   <button
                     onClick={copyUrl}
-                    class="px-4 py-2.5 bg-theme-card border border-theme-border hover:border-theme-cyan text-theme-text text-xs font-bold flex items-center gap-2 transition-colors shrink-0"
+                    class="px-4 py-2.5 bg-theme-card border border-theme-border rounded-lg hover:border-theme-cyan text-theme-text text-xs font-bold flex items-center gap-2 transition-colors shrink-0"
                   >
                     <Show when={copied()} fallback={<Copy size={16} />}>
                       <Check size={16} class="text-theme-cyan" />
@@ -311,14 +311,14 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
                     href={getFullRemoteUrl()}
                     target="_blank"
                     rel="noreferrer"
-                    class="p-2.5 bg-theme-card border border-theme-border hover:border-theme-cyan text-theme-text transition-colors shrink-0"
+                    class="p-2.5 bg-theme-card border border-theme-border rounded-lg hover:border-theme-cyan text-theme-text transition-colors shrink-0 flex items-center justify-center"
                     title="Open Mobile Tab in Browser"
                   >
                     <ExternalLink size={16} />
                   </a>
                 </div>
 
-                <div class="p-3 bg-theme-card/60 border border-theme-border/50 text-xs text-theme-text/80 space-y-1.5">
+                <div class="p-3 bg-theme-card/60 border border-theme-border/50 rounded-xl text-xs text-theme-text/80 space-y-1.5">
                   <div class="font-bold flex items-center gap-1.5 text-theme-cyan">
                     <Sparkles size={14} />
                     <span>Mobile Client Features:</span>

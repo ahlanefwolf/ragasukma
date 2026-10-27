@@ -185,7 +185,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
   const adjustInputHeight = (el?: HTMLTextAreaElement | null) => {
     if (!el) return;
     el.style.height = 'auto';
-    const next = Math.min(Math.max(el.scrollHeight, 38), 128);
+    const next = Math.min(Math.max(el.scrollHeight, 38), 140);
     el.style.height = `${next}px`;
   };
 
@@ -1174,10 +1174,10 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 return (
                   <div class={`flex w-full max-w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in duration-150 overflow-hidden`}>
                     <div
-                      class={`relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2 text-xs shadow-md select-text overflow-hidden break-words ${
+                      class={`relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md select-text overflow-hidden break-words ${
                         isUser
-                          ? 'bg-gi-primary text-gi-primary-foreground font-medium rounded-tr-xs'
-                          : 'bg-theme-card border border-theme-border text-theme-text rounded-tl-xs'
+                          ? 'bg-gi-primary text-gi-primary-foreground font-medium rounded-2xl rounded-tr-xs'
+                          : 'bg-theme-card border border-theme-border/80 text-theme-text rounded-2xl rounded-tl-xs'
                       }`}
                     >
                       {/* Assistant Header */}
@@ -1273,7 +1273,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
             {/* Streaming Thought Card */}
             <Show when={streamingThought()}>
               <div class="flex w-full max-w-full min-w-0 justify-start animate-in fade-in duration-150 overflow-hidden">
-                <div class="relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md bg-theme-card border border-gi-primary/40 text-theme-text rounded-tl-xs overflow-hidden">
+                <div class="relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md bg-theme-card border border-gi-primary/40 text-theme-text rounded-2xl rounded-tl-xs overflow-hidden">
                   <div class="flex items-center gap-1.5 text-gi-primary font-mono text-2xs mb-1 min-w-0">
                     <Brain size={12} class="animate-pulse shrink-0" />
                     <span class="truncate">Thinking in progress...</span>
@@ -1288,7 +1288,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
             {/* Streaming Text Card */}
             <Show when={streamingText()}>
               <div class="flex w-full max-w-full min-w-0 justify-start animate-in fade-in duration-150 overflow-hidden">
-                <div class="relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md bg-theme-card border border-theme-border text-theme-text rounded-tl-xs overflow-hidden">
+                <div class="relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md bg-theme-card border border-theme-border/80 text-theme-text rounded-2xl rounded-tl-xs overflow-hidden">
                   <span class="text-2xs font-bold text-gi-primary mb-1 flex items-center gap-1">
                     <Bot size={12} /> Agent
                   </span>
@@ -1319,9 +1319,9 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
 
             {/* Bottom Input Area - Precision Engineered Modern Capsule */}
             <footer 
-              class="p-2.5 bg-gi-surface border-t border-theme-border/60 shrink-0 w-full max-w-full overflow-hidden pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+              class="p-2.5 sm:p-3 bg-gi-surface/95 backdrop-blur-md border-t border-theme-border/60 shrink-0 w-full max-w-full overflow-hidden pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
             >
-              <div class="relative w-full max-w-full bg-gi-surface-elevated border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-1 focus-within:ring-gi-primary/30 transition-all shadow-sm flex flex-col justify-between overflow-hidden">
+              <div class="relative w-full max-w-full bg-gi-surface-elevated/90 border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-2 focus-within:ring-gi-primary/20 rounded-2xl shadow-sm transition-all flex flex-col justify-between overflow-hidden">
                 <textarea
                   ref={inputRef}
                   value={promptText()}
@@ -1333,25 +1333,34 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                     adjustInputHeight(e.currentTarget);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
+                    // Send prompt on Ctrl+Enter or Cmd+Enter
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                       e.preventDefault();
                       if (!isExecuting()) {
                         handleSendPrompt();
                       }
+                      return;
+                    }
+
+                    // Plain Enter: allow newline (pindah baris) and expand textarea smoothly
+                    if (e.key === 'Enter') {
+                      requestAnimationFrame(() => {
+                        if (inputRef) adjustInputHeight(inputRef);
+                      });
                     }
                   }}
                   placeholder={isExecuting() ? 'Agent is working on your task...' : 'Message autonomous agent...'}
                   rows={1}
                   disabled={isExecuting()}
-                  class="w-full min-w-0 px-3.5 pt-2.5 pb-1 bg-transparent text-xs text-theme-text placeholder:text-theme-muted/50 resize-none outline-none leading-relaxed min-h-[36px] max-h-[120px] custom-scrollbar disabled:opacity-60 font-sans"
+                  class="w-full min-w-0 px-3.5 pt-2.5 pb-1.5 bg-transparent text-[14px] sm:text-xs text-theme-text placeholder:text-theme-muted/50 resize-none outline-none leading-relaxed min-h-[38px] max-h-[140px] custom-scrollbar disabled:opacity-60 font-sans"
                 />
 
                 {/* Bottom Micro Action Bar */}
-                <div class="flex items-center justify-between px-3 pb-2 pt-0.5 select-none">
-                  <div class="flex items-center gap-2 min-w-0">
+                <div class="flex items-center justify-between px-3 pb-2 pt-1 select-none border-t border-theme-border/20">
+                  <div class="flex items-center gap-1.5 min-w-0">
                     <Show when={isExecuting()}>
-                      <span class="inline-flex items-center gap-1.5 text-2xs font-mono text-gi-primary bg-gi-primary/10 border border-gi-primary/20 px-2 py-0.5 animate-pulse">
-                        <Loader2 size={10} class="animate-spin shrink-0" />
+                      <span class="inline-flex items-center gap-1.5 text-[11px] font-mono text-gi-primary bg-gi-primary/10 border border-gi-primary/20 px-2 py-0.5 rounded-md animate-pulse">
+                        <Loader2 size={11} class="animate-spin shrink-0" />
                         <span class="truncate">Running...</span>
                       </span>
                     </Show>
@@ -1362,20 +1371,20 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                           setPromptText('');
                           if (inputRef) adjustInputHeight(inputRef);
                         }}
-                        class="p-1 text-theme-muted hover:text-theme-text active:scale-90 transition-transform cursor-pointer"
+                        class="w-5 h-5 rounded-full bg-theme-surface/80 border border-theme-border/60 text-theme-muted hover:text-theme-text flex items-center justify-center active:scale-90 transition-transform cursor-pointer"
                         title="Clear prompt"
                       >
-                        <X size={13} />
+                        <X size={11} />
                       </button>
-                      <Show when={promptText().length > 80}>
-                        <span class="text-2xs font-mono text-theme-muted/60">
+                      <Show when={promptText().length > 50}>
+                        <span class="text-[11px] font-mono text-theme-muted/70 bg-theme-bg/40 px-1.5 py-0.5 rounded">
                           {promptText().length} chars
                         </span>
                       </Show>
                     </Show>
                     <Show when={!isExecuting() && promptText().length === 0}>
-                      <span class="text-2xs font-mono text-theme-muted/40 hidden sm:inline">
-                        Shift+Enter for newline
+                      <span class="text-[11px] font-mono text-theme-muted/40 hidden sm:inline">
+                        Enter for newline • Ctrl+Enter to send
                       </span>
                     </Show>
                   </div>
@@ -1388,20 +1397,20 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                           type="button"
                           onClick={handleSendPrompt}
                           disabled={!promptText().trim()}
-                          class="w-7 h-7 bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed active:scale-90 transition-all shadow-md shadow-gi-primary/25 cursor-pointer"
+                          class="w-8 h-8 rounded-xl bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed active:scale-90 transition-all shadow-md shadow-gi-primary/25 cursor-pointer"
                           title="Send Instruction"
                         >
-                          <Send size={12} class="translate-x-px" />
+                          <Send size={14} class="translate-x-px" />
                         </button>
                       }
                     >
                       <button
                         type="button"
                         onClick={handleStopSession}
-                        class="h-7 px-2.5 bg-gi-status-danger/20 hover:bg-gi-status-danger/30 text-gi-status-danger border border-gi-status-danger/40 flex items-center gap-1.5 active:scale-90 transition-all shadow-sm text-2xs font-semibold cursor-pointer"
+                        class="h-8 px-3 rounded-xl bg-gi-status-danger/15 hover:bg-gi-status-danger/25 text-gi-status-danger border border-gi-status-danger/35 flex items-center gap-1.5 active:scale-95 transition-all shadow-sm text-xs font-semibold cursor-pointer"
                         title="Stop Agent Execution"
                       >
-                        <Square size={10} class="fill-current" />
+                        <Square size={11} class="fill-current" />
                         <span>Stop</span>
                       </button>
                     </Show>
