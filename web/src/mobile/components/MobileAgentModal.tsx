@@ -806,13 +806,13 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
   const getStatusBadgeClass = (status?: string) => {
     switch (status) {
       case 'running':
-        return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+        return 'bg-gi-status-success/20 text-gi-status-success border border-gi-status-success/30';
       case 'waiting_tool':
-        return 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
+        return 'bg-gi-status-warning/20 text-gi-status-warning border border-gi-status-warning/30';
       case 'completed':
-        return 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
+        return 'bg-gi-status-info/20 text-gi-status-info border border-gi-status-info/30';
       case 'failed':
-        return 'bg-rose-500/20 text-rose-400 border border-rose-500/30';
+        return 'bg-gi-status-danger/20 text-gi-status-danger border border-gi-status-danger/30';
       default:
         return 'bg-theme-surface text-theme-muted border border-theme-border';
     }
@@ -836,7 +836,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
   return (
     <Show when={props.isOpen}>
       <div 
-        class="fixed inset-0 z-50 pointer-events-auto bg-[#0f1218] overflow-hidden flex flex-col select-none animate-in fade-in zoom-in-95 duration-200"
+        class="fixed inset-0 z-50 pointer-events-auto bg-gi-canvas overflow-hidden flex flex-col select-none animate-in fade-in zoom-in-95 duration-200"
         style={{
           height: viewportHeight(),
           "max-height": viewportHeight(),
@@ -1302,9 +1302,9 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
 
             {/* Bottom Input Area - Precision Engineered Modern Capsule */}
             <footer 
-              class="p-2.5 bg-[#181d26] border-t border-theme-border/60 shrink-0 w-full max-w-full overflow-hidden pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+              class="p-2.5 bg-gi-surface border-t border-theme-border/60 shrink-0 w-full max-w-full overflow-hidden pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
             >
-              <div class="relative w-full max-w-full bg-[#222936] border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-1 focus-within:ring-gi-primary/30 rounded-2xl transition-all shadow-sm flex flex-col justify-between overflow-hidden">
+              <div class="relative w-full max-w-full bg-gi-surface-elevated border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-1 focus-within:ring-gi-primary/30 rounded-2xl transition-all shadow-sm flex flex-col justify-between overflow-hidden">
                 <textarea
                   ref={inputRef}
                   value={promptText()}

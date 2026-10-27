@@ -28,7 +28,7 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
             onClick={props.onOpenAgent}
             class={`relative p-3 transition-all active:scale-75 cursor-pointer select-none ${
               props.isAgentRunning
-                ? 'text-gi-primary drop-shadow-[0_0_16px_rgba(229,184,92,0.85)] animate-pulse'
+                ? 'text-gi-primary drop-shadow-[0_0_16px_rgba(var(--gi-primary-rgb),0.85)] animate-pulse'
                 : 'text-gi-text-primary/80 hover:text-gi-primary-hover drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]'
             }`}
             title="Agent Tasks"
@@ -61,8 +61,8 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
           onClick={props.onToggleMic}
           class={`p-3 transition-all active:scale-75 cursor-pointer select-none ${
             props.isListening
-              ? 'text-gi-status-danger animate-pulse drop-shadow-[0_0_24px_rgba(224,83,69,0.9)]'
-              : 'text-gi-primary hover:text-gi-primary-hover drop-shadow-[0_0_18px_rgba(229,184,92,0.8)]'
+              ? 'text-gi-status-danger animate-pulse drop-shadow-[0_0_24px_rgba(var(--gi-status-danger-rgb),0.9)]'
+              : 'text-gi-primary hover:text-gi-primary-hover drop-shadow-[0_0_18px_rgba(var(--gi-primary-rgb),0.8)]'
           }`}
           title={props.isListening ? 'Stop Listening' : 'Push to Talk (PTT)'}
           aria-label={props.isListening ? 'Stop Listening' : 'Push to Talk (PTT)'}

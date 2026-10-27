@@ -33,12 +33,12 @@ export interface AgentCodePanelProps {
 export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
   return (
     <Show when={props.file}>
-      <aside class="h-full flex flex-col bg-[#0b0f17] border border-white/10 rounded-xl shadow-2xl overflow-hidden min-h-0 select-text">
+      <aside class="h-full flex flex-col bg-theme-surface border border-theme-border rounded-xl shadow-2xl overflow-hidden min-h-0 select-text">
         {/* Editor Tab Header */}
-        <div class="px-3 py-2 bg-white/[0.03] border-b border-white/10 flex items-center justify-between gap-2 shrink-0 select-none">
+        <div class="px-3 py-2 bg-theme-card/50 border-b border-theme-border flex items-center justify-between gap-2 shrink-0 select-none">
           {/* File Tab Info */}
           <div class="flex items-center gap-2 min-w-0 flex-1">
-            <div class="p-1 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
+            <div class="p-1 rounded bg-gi-primary/10 text-gi-primary border border-gi-primary/20 shrink-0">
               <FileCode class="w-4 h-4" />
             </div>
             <div class="min-w-0 flex-1">
@@ -63,7 +63,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
               <button
                 type="button"
                 onClick={props.onCopyTag}
-                class="px-2 py-1 text-xs font-mono bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 rounded transition-all flex items-center gap-1 active:scale-95"
+                class="px-2 py-1 text-xs font-mono bg-gi-primary/15 hover:bg-gi-primary/25 border border-gi-primary/30 text-gi-primary rounded transition-all flex items-center gap-1 active:scale-95"
                 title="Copy tag reference to clipboard"
               >
                 <Copy class="w-3 h-3" />
@@ -77,7 +77,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
                     props.onInsertTag(props.file.relative_path, props.tagStartLine, props.tagEndLine);
                   }
                 }}
-                class="px-2.5 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded transition-all flex items-center gap-1 shadow-sm shadow-indigo-600/30 active:scale-95"
+                class="px-2.5 py-1 text-xs bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-semibold rounded transition-all flex items-center gap-1 shadow-sm active:scale-95"
                 title="Insert tag into chat input"
               >
                 <Plus class="w-3 h-3" />
@@ -108,16 +108,16 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
         </div>
 
         {/* Selected Range Status Bar */}
-        <div class="px-3 py-1 bg-white/[0.015] border-b border-white/5 flex items-center justify-between text-xs font-mono text-white/50 select-none shrink-0">
+        <div class="px-3 py-1 bg-theme-bg/50 border-b border-theme-border/50 flex items-center justify-between text-xs font-mono text-white/50 select-none shrink-0">
           <div class="flex items-center gap-1.5 truncate">
-            <AtSign class="w-3 h-3 text-indigo-400 shrink-0" />
+            <AtSign class="w-3 h-3 text-gi-primary shrink-0" />
             <Show
               when={props.tagStartLine}
               fallback={
                 <span class="text-white/70">Whole file reference (Click or drag line numbers to select range)</span>
               }
             >
-              <span class="text-indigo-300 font-medium">
+              <span class="text-gi-primary font-semibold">
                 @{props.file?.relative_path}:
                 {props.tagStartLine}
                 {props.tagEndLine && props.tagEndLine !== props.tagStartLine ? `-${props.tagEndLine}` : ''}
@@ -129,7 +129,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
             <button
               type="button"
               onClick={props.onResetSelection}
-              class="text-2xs text-indigo-400/80 hover:text-indigo-300 underline underline-offset-2 ml-2 shrink-0"
+              class="text-2xs text-gi-primary/80 hover:text-gi-primary-hover underline underline-offset-2 ml-2 shrink-0"
             >
               Select All
             </button>
@@ -138,7 +138,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
 
         {/* Code Content Area */}
         <div
-          class="flex-1 min-h-0 overflow-auto bg-[#070a0f] p-1 font-mono text-xs select-text focus:outline-none"
+          class="flex-1 min-h-0 overflow-auto bg-theme-bg p-1 font-mono text-xs select-text focus:outline-none"
           onMouseUp={() => {
             props.onGutterMouseUp();
             props.onCodeTextMouseUp();
@@ -148,7 +148,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
           {/* Loading State */}
           <Show when={props.loadingFilePreview}>
             <div class="flex flex-col items-center justify-center h-full py-16 text-white/70 gap-2 select-none">
-              <Loader2 class="w-6 h-6 animate-spin text-indigo-400" />
+              <Loader2 class="w-6 h-6 animate-spin text-gi-primary" />
               <span>Loading file & highlighting syntax...</span>
             </div>
           </Show>
@@ -172,7 +172,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
                       data-line={lineNum}
                       class={`flex items-stretch hover:bg-white/[0.04] transition-colors leading-6 ${
                         selected()
-                          ? 'bg-indigo-500/20 border-l-2 border-indigo-400'
+                          ? 'bg-gi-primary/15 border-l-2 border-gi-primary'
                           : 'border-l-2 border-transparent'
                       }`}
                     >
@@ -183,7 +183,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
                         onClick={(e) => props.onLineClick(lineNum, e.shiftKey)}
                         class={`w-12 select-none text-right pr-3 font-mono text-xs cursor-pointer transition-colors shrink-0 ${
                           selected()
-                            ? 'text-indigo-300 font-bold bg-indigo-500/30'
+                            ? 'text-gi-primary font-bold bg-gi-primary/25'
                             : 'text-white/60 hover:text-white/70'
                         }`}
                         title={`Line ${lineNum} (Click or drag to select)`}
@@ -205,7 +205,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
         </div>
 
         {/* Panel Footer */}
-        <div class="px-3 py-2 bg-white/[0.02] border-t border-white/10 flex items-center justify-between shrink-0 select-none">
+        <div class="px-3 py-2 bg-theme-card/30 border-t border-theme-border flex items-center justify-between shrink-0 select-none">
           <span class="text-xs text-white/70 truncate">
             Drag gutter to pick range • Click line to toggle
           </span>
@@ -217,7 +217,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
                 props.onInsertTag(props.file.relative_path, props.tagStartLine, props.tagEndLine);
               }
             }}
-            class="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded font-medium flex items-center gap-1.5 transition-colors shadow-sm active:scale-95 ml-2 shrink-0"
+            class="px-3 py-1 text-xs bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground rounded font-semibold flex items-center gap-1.5 transition-colors shadow-sm active:scale-95 ml-2 shrink-0"
           >
             <Sparkles class="w-3.5 h-3.5" />
             <span>Insert Tag</span>

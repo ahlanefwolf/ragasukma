@@ -1210,13 +1210,13 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       return 'text-gi-status-danger font-semibold';
     }
     if (msg.includes('[User]')) {
-      return 'text-[#E5B85C] font-bold';
+      return 'text-gi-primary font-bold';
     }
     if (msg.includes('[LLM]') || msg.includes('responding')) {
       return 'text-theme-rose font-medium';
     }
     if (msg.includes('[RESUMED]') || msg.includes('[Music Controller]')) {
-      return 'text-[#E5B85C]';
+      return 'text-gi-primary';
     }
     return 'text-theme-text/80';
   };
@@ -1285,7 +1285,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
                 onClick={toggleHpMic}
                 class={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg cursor-pointer ${
                   isHpMicListening()
-                    ? 'bg-gi-status-danger text-white animate-pulse shadow-[0_0_20px_rgba(224,83,69,0.7)]'
+                    ? 'bg-gi-status-danger text-white animate-pulse shadow-[0_0_20px_rgba(var(--gi-status-danger-rgb),0.7)]'
                     : 'bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/50 text-gi-primary hover:text-gi-primary-hover'
                 }`}
                 title={isHpMicListening() ? 'Mute Microphone' : 'Voice Input (PTT)'}

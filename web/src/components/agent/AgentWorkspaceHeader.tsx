@@ -74,10 +74,10 @@ export const AgentWorkspaceHeader: Component<{
             <For each={props.mcpServers.filter(s => props.activeProjectMcpServerIds.includes(s.id))}>
               {(server) => (
                 <span
-                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shadow-xs transition-all hover:bg-indigo-500/25"
+                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-gi-status-info/15 text-gi-status-info border border-gi-status-info/30 shadow-xs transition-all hover:bg-gi-status-info/25"
                   title={`Active MCP Server: ${server.name} (${server.transport})`}
                 >
-                  <Server class="w-2.5 h-2.5 shrink-0 text-indigo-400" />
+                  <Server class="w-2.5 h-2.5 shrink-0 text-gi-status-info" />
                   <span class="truncate max-w-[120px]">{server.name}</span>
                   <button
                     type="button"
@@ -86,7 +86,7 @@ export const AgentWorkspaceHeader: Component<{
                       e.stopPropagation();
                       props.onToggleProjectMcpServer(server.id);
                     }}
-                    class="hover:text-rose-400 p-0.5 rounded-full hover:bg-theme-bg/50 transition-colors"
+                    class="hover:text-gi-status-danger p-0.5 rounded-full hover:bg-theme-bg/50 transition-colors"
                     title="Disable this MCP server from workspace"
                   >
                     <X class="w-2.5 h-2.5" />
@@ -171,7 +171,7 @@ export const AgentWorkspaceHeader: Component<{
             <div class="flex items-center justify-between">
               <div>
                 <label class="text-xs text-theme-text font-semibold flex items-center gap-1.5">
-                  <Server class="w-3.5 h-3.5 text-indigo-400" />
+                  <Server class="w-3.5 h-3.5 text-gi-status-info" />
                   Workspace MCP Servers & Tools
                 </label>
                 <p class="text-xs text-theme-text/50 mt-0.5">
@@ -196,20 +196,20 @@ export const AgentWorkspaceHeader: Component<{
                       onClick={() => !props.savingProjectMcpServers && props.onToggleProjectMcpServer(server.id)}
                       class={`cursor-pointer rounded-lg p-2.5 border transition-all text-left flex flex-col justify-between gap-2 select-none ${
                         isActive()
-                          ? 'bg-indigo-500/10 border-indigo-500/50 shadow-xs'
+                          ? 'bg-gi-status-info/10 border-gi-status-info/50 shadow-xs'
                           : 'bg-theme-card/60 border-theme-border hover:border-theme-border-hover hover:bg-theme-card opacity-70'
                       }`}
                     >
                       <div class="space-y-1">
                         <div class="flex items-center justify-between gap-1.5">
                           <span class="text-xs font-semibold text-theme-text truncate flex items-center gap-1.5">
-                            <span class={`w-2 h-2 rounded-full shrink-0 ${isActive() ? 'bg-indigo-400 shadow-xs shadow-indigo-400/50' : 'bg-theme-text/20'}`} />
+                            <span class={`w-2 h-2 rounded-full shrink-0 ${isActive() ? 'bg-gi-status-info shadow-xs' : 'bg-theme-text/20'}`} />
                             {server.name}
                           </span>
                           <span
                             class={`text-2xs px-1.5 py-0.5 rounded font-mono font-medium ${
                               isActive()
-                                ? 'bg-indigo-500/20 text-indigo-300'
+                                ? 'bg-gi-status-info/20 text-gi-status-info'
                                 : 'bg-theme-bg text-theme-text/70'
                             }`}
                           >
@@ -259,7 +259,7 @@ export const AgentWorkspaceHeader: Component<{
               <For each={parseProjectFolders(props.currentProject?.root_path)}>
                 {(folder) => (
                   <div class="flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg border border-theme-border text-xs text-theme-text/80 font-mono">
-                    <Folder class="w-3 h-3 text-amber-400 shrink-0" />
+                    <Folder class="w-3 h-3 text-gi-status-warning shrink-0" />
                     <span class="truncate max-w-[200px]" title={folder}>{folder}</span>
                     <button
                       type="button"

@@ -43,10 +43,10 @@ export const CreateProjectModal: Component<{
   return (
     <Show when={props.isOpen}>
       <div class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-[#181d26] border border-white/10 rounded-xl max-w-lg w-full p-5 space-y-4 shadow-2xl">
-          <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <div class="bg-theme-surface border border-theme-border rounded-xl max-w-lg w-full p-5 space-y-4 shadow-2xl">
+          <div class="flex items-center justify-between border-b border-theme-border pb-3">
             <h3 class="text-sm font-semibold text-white flex items-center gap-2">
-              <FolderPlus class="w-4 h-4 text-indigo-400" />
+              <FolderPlus class="w-4 h-4 text-gi-primary" />
               Create New Workspace Project
             </h3>
             <button
@@ -65,7 +65,7 @@ export const CreateProjectModal: Component<{
                 placeholder="e.g. Backend API, Frontend App"
                 value={props.projName}
                 onInput={(e) => props.setProjName(e.currentTarget.value)}
-                class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+                class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-gi-primary"
               />
             </div>
 
@@ -76,7 +76,7 @@ export const CreateProjectModal: Component<{
                 placeholder="Brief workspace description..."
                 value={props.projDesc}
                 onInput={(e) => props.setProjDesc(e.currentTarget.value)}
-                class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+                class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-gi-primary"
               />
             </div>
 
@@ -91,12 +91,12 @@ export const CreateProjectModal: Component<{
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') props.onValidateAndAddFolder();
                   }}
-                  class="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white font-mono placeholder-white/30 focus:outline-none focus:border-indigo-500"
+                  class="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white font-mono placeholder-white/30 focus:outline-none focus:border-gi-primary"
                 />
                 <button
                   onClick={props.onValidateAndAddFolder}
                   disabled={props.validatingFolder || !props.folderInput.trim()}
-                  class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-medium flex items-center gap-1 transition-colors shrink-0"
+                  class="px-3 py-2 bg-gi-primary hover:bg-gi-primary-hover disabled:opacity-50 text-gi-primary-foreground rounded-lg font-semibold flex items-center gap-1 transition-colors shrink-0"
                 >
                   <Show when={props.validatingFolder} fallback={<Plus class="w-3.5 h-3.5" />}>
                     <Loader2 class="w-3.5 h-3.5 animate-spin" />
@@ -110,7 +110,7 @@ export const CreateProjectModal: Component<{
                   class="px-3 py-2 bg-white/10 hover:bg-white/15 disabled:opacity-50 text-white rounded-lg font-medium flex items-center gap-1.5 transition-colors shrink-0 border border-white/10"
                   title="Open OS file manager to choose a folder directly"
                 >
-                  <Show when={props.browsingFolder} fallback={<FolderOpen class="w-3.5 h-3.5 text-indigo-400" />}>
+                  <Show when={props.browsingFolder} fallback={<FolderOpen class="w-3.5 h-3.5 text-gi-primary" />}>
                     <Loader2 class="w-3.5 h-3.5 animate-spin" />
                   </Show>
                   Browse Folder
@@ -121,8 +121,8 @@ export const CreateProjectModal: Component<{
               <Show when={props.folderValidationMsg}>
                 <div class={`text-xs mb-2 px-2.5 py-1 rounded flex items-center gap-1.5 ${
                   props.folderValidationMsg?.valid
-                    ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
-                    : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
+                    ? 'bg-gi-status-success/10 text-gi-status-success border border-gi-status-success/20'
+                    : 'bg-gi-status-danger/10 text-gi-status-danger border border-gi-status-danger/20'
                 }`}>
                   <span>{props.folderValidationMsg?.text}</span>
                 </div>
@@ -134,12 +134,12 @@ export const CreateProjectModal: Component<{
                   {(f) => (
                     <div class="flex items-center justify-between p-2 bg-white/5 border border-white/5 rounded-lg font-mono text-xs">
                       <span class="truncate flex items-center gap-1.5 text-white/90">
-                        <Folder class="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <Folder class="w-3.5 h-3.5 text-gi-status-warning shrink-0" />
                         {f}
                       </span>
                       <button
                         onClick={() => props.onRemoveFolder(f)}
-                        class="text-white/70 hover:text-rose-400 p-0.5 rounded ml-2"
+                        class="text-white/70 hover:text-gi-status-danger p-0.5 rounded ml-2"
                       >
                         <X class="w-3.5 h-3.5" />
                       </button>
@@ -156,12 +156,12 @@ export const CreateProjectModal: Component<{
                 placeholder="Specific instructions that will always be included in the system prompt for this project..."
                 value={props.projInstructions}
                 onInput={(e) => props.setProjInstructions(e.currentTarget.value)}
-                class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+                class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-gi-primary"
               />
             </div>
           </div>
 
-          <div class="flex items-center justify-end gap-2 border-t border-white/10 pt-3">
+          <div class="flex items-center justify-end gap-2 border-t border-theme-border pt-3">
             <button
               onClick={props.onClose}
               class="px-3.5 py-1.5 text-xs text-white/60 hover:text-white rounded-lg"
@@ -171,7 +171,7 @@ export const CreateProjectModal: Component<{
             <button
               onClick={props.onCreateProject}
               disabled={!props.projName.trim()}
-              class="px-4 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-medium"
+              class="px-4 py-1.5 text-xs bg-gi-primary hover:bg-gi-primary-hover disabled:opacity-50 text-gi-primary-foreground rounded-lg font-semibold"
             >
               Create Workspace
             </button>
@@ -546,11 +546,11 @@ export const McpServerModal: Component<{
                     when={!jsonError() && jsonText().trim()}
                     fallback={
                       <Show when={jsonError()}>
-                        <span class="text-2xs text-rose-400 font-mono">Invalid JSON</span>
+                        <span class="text-2xs text-gi-status-danger font-mono">Invalid JSON</span>
                       </Show>
                     }
                   >
-                    <span class="text-2xs text-emerald-400 font-medium flex items-center gap-1">
+                    <span class="text-2xs text-gi-status-success font-medium flex items-center gap-1">
                       <Check class="w-3 h-3" /> Valid JSON
                     </span>
                   </Show>
@@ -565,7 +565,7 @@ export const McpServerModal: Component<{
                   onInput={(e) => parseAndValidateJson(e.currentTarget.value)}
                   placeholder={`// Paste single server config, e.g.:\n{\n  "name": "SQLite Explorer",\n  "command": "npx",\n  "args": ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./test.db"]\n}\n\n// Or paste Claude Desktop "mcpServers" config directly!`}
                   class={`w-full p-3 font-mono text-xs bg-theme-bg border rounded-lg text-theme-text focus:outline-none custom-scrollbar leading-relaxed ${
-                    jsonError() ? 'border-rose-500/60 focus:border-rose-400' : 'border-theme-border focus:border-theme-cyan'
+                    jsonError() ? 'border-gi-status-danger/60 focus:border-gi-status-danger' : 'border-theme-border focus:border-gi-primary'
                   }`}
                 />
               </div>
@@ -612,7 +612,7 @@ export const McpServerModal: Component<{
 
               {/* Error message */}
               <Show when={jsonError()}>
-                <div class="text-2xs text-rose-400 font-mono bg-rose-500/10 p-2 rounded border border-rose-500/20 flex items-start gap-1.5">
+                <div class="text-2xs text-gi-status-danger font-mono bg-gi-status-danger/10 p-2 rounded border border-gi-status-danger/20 flex items-start gap-1.5">
                   <AlertCircle class="w-3.5 h-3.5 shrink-0 mt-0.5" />
                   <span>{jsonError()}</span>
                 </div>

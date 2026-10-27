@@ -28,11 +28,11 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
         {/* Drawer Header */}
         <div class="px-4 py-2.5 bg-theme-card border-b border-theme-border flex items-center justify-between shrink-0 select-none">
           <div class="flex items-center gap-2 font-mono">
-            <Terminal size={15} class="text-[#E5B85C]" />
+            <Terminal size={15} class="text-gi-primary" />
             <h3 class="text-theme-text uppercase tracking-wider">
               Live Console Logs
             </h3>
-            <span class="text-2xs px-1.5 py-0.2 bg-theme-surface text-[#E5B85C] border border-theme-border font-bold">
+            <span class="text-2xs px-1.5 py-0.2 bg-theme-surface text-gi-primary border border-theme-border font-bold">
               {props.logs.length}
             </span>
           </div>
@@ -41,7 +41,7 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
             <button
               type="button"
               onClick={props.onCopy}
-              class="p-1.5 text-theme-muted hover:text-[#F3CE7A] active:scale-90 transition-colors"
+              class="p-1.5 text-theme-muted hover:text-gi-primary-hover active:scale-90 transition-colors"
               title="Copy All Logs"
             >
               <Copy size={14} />
@@ -49,10 +49,10 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
             <button
               type="button"
               onClick={props.onRefresh}
-              class="p-1.5 text-theme-muted hover:text-[#F3CE7A] active:scale-90 transition-colors"
+              class="p-1.5 text-theme-muted hover:text-gi-primary-hover active:scale-90 transition-colors"
               title="Refresh Logs"
             >
-              <RefreshCw size={14} class={props.isRefreshing ? 'animate-spin text-[#E5B85C]' : ''} />
+              <RefreshCw size={14} class={props.isRefreshing ? 'animate-spin text-gi-primary' : ''} />
             </button>
             <div class="w-px h-3.5 bg-theme-border mx-0.5" />
             <button

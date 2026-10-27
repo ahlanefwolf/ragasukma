@@ -41,25 +41,25 @@ const ThoughtBubble: Component<{ thought: string }> = (props) => {
   const charCount = () => props.thought?.length ?? 0;
 
   return (
-    <div class="w-full max-w-full mb-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 font-mono overflow-hidden transition-all">
+    <div class="w-full max-w-full mb-2 rounded-lg bg-gi-status-warning/10 border border-gi-status-warning/20 text-xs text-theme-text/90 font-mono overflow-hidden transition-all">
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded())}
-        class="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-amber-500/15 cursor-pointer text-left transition-colors select-none"
+        class="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-gi-status-warning/15 cursor-pointer text-left transition-colors select-none"
       >
-        <div class="flex items-center gap-1.5 font-semibold text-2xs text-amber-400 uppercase tracking-wider">
-          <Brain class="w-3.5 h-3.5 text-amber-400 shrink-0" />
+        <div class="flex items-center gap-1.5 font-semibold text-2xs text-gi-status-warning uppercase tracking-wider">
+          <Brain class="w-3.5 h-3.5 text-gi-status-warning shrink-0" />
           <span>Reasoning / Thought Process</span>
           <span class="text-2xs lowercase font-normal opacity-70">({charCount()} chars)</span>
         </div>
-        <div class="flex items-center gap-1 text-2xs text-amber-400/80">
+        <div class="flex items-center gap-1 text-2xs text-gi-status-warning/80">
           <span>{isExpanded() ? 'Hide' : 'Show'}</span>
           <ChevronDown class={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded() ? 'rotate-180' : ''}`} />
         </div>
       </button>
 
       <Show when={isExpanded()}>
-        <div class="p-2.5 pt-1.5 border-t border-amber-500/15 whitespace-pre-wrap text-xs leading-relaxed opacity-90 max-h-80 overflow-y-auto custom-scrollbar">
+        <div class="p-2.5 pt-1.5 border-t border-gi-status-warning/15 whitespace-pre-wrap text-xs leading-relaxed opacity-90 max-h-80 overflow-y-auto custom-scrollbar">
           {props.thought}
         </div>
       </Show>
@@ -579,39 +579,38 @@ export const AgentChatPane: Component<{
       {/* Session Header */}
       <div class="px-4 py-2.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-2 bg-white/[0.01]">
         <div class="flex items-center gap-2 min-w-0">
-          <MessageSquare class="w-4 h-4 text-indigo-400 shrink-0" />
+          <MessageSquare class="w-4 h-4 text-gi-primary shrink-0" />
           <div class="min-w-0 flex items-center gap-2">
             <span class="text-xs font-semibold text-white truncate">
               {props.currentSession?.title || 'Select or Create a Task Session'}
             </span>
             <Show when={props.currentSession}>
-              <span class="text-2xs uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+              <span class="text-2xs uppercase px-1.5 py-0.5 rounded bg-gi-status-success/10 text-gi-status-success border border-gi-status-success/20 font-medium">
                 {props.currentSession?.status}
               </span>
             </Show>
-            {/* Modified Files Badge Button */}
-            <Show when={props.currentSession && sessionModifiedFiles().length > 0}>
+            <Show when={sessionModifiedFiles().length > 0}>
               <button
                 type="button"
                 onClick={() => setShowChangesPanel(!showChangesPanel())}
-                class={`px-2 py-0.5 rounded-lg text-2xs font-medium flex items-center gap-1 transition-colors border ${
+                class={`flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono font-medium transition-colors border ${
                   showChangesPanel()
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
+                    ? 'bg-gi-status-warning/20 text-gi-status-warning border-gi-status-warning/40 shadow-sm'
                     : 'bg-white/5 hover:bg-white/10 text-white/80 border-white/10'
                 }`}
                 title="View all files modified in this task session"
               >
-                <FolderGit2 class="w-3 h-3 text-amber-400" />
-                <span>Modified Files ({sessionModifiedFiles().length})</span>
+                <FolderGit2 class="w-3 h-3 text-gi-status-warning" />
+                <span>{sessionModifiedFiles().length} modified</span>
               </button>
             </Show>
           </div>
         </div>
 
-        {/* Dynamic Model Switcher */}
+        {/* Model Switcher & Session Controls */}
         <Show when={props.currentSession}>
           <div class="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs">
-            <Cpu class="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <Cpu class="w-3.5 h-3.5 text-gi-primary shrink-0" />
             <SearchableSelect
               value={props.activeSessionModel || props.currentSession?.model || props.defaultBrainModel}
               onChange={(val) => props.setActiveSessionModel(val)}
@@ -621,7 +620,7 @@ export const AgentChatPane: Component<{
                       {
                         value: props.defaultBrainModel,
                         label: `⭐ ${props.defaultBrainModel}`,
-                        badge: 'Brain',
+                        badge: 'default',
                       },
                     ]
                   : []),
@@ -630,15 +629,21 @@ export const AgentChatPane: Component<{
                   .map((m) => ({
                     value: m.id,
                     label: m.label || m.id,
-                    badge: m.id.startsWith('ag/')
-                      ? 'Antigravity'
+                    sublabel: m.id.startsWith('claude-')
+                      ? 'Anthropic'
+                      : m.id.startsWith('gpt-')
+                      ? 'OpenAI'
+                      : m.id.startsWith('gemini-')
+                      ? 'Google'
+                      : m.id.startsWith('deepseek')
+                      ? 'DeepSeek'
                       : m.id.startsWith('cx/')
                       ? 'Codex'
                       : undefined,
                   })),
               ]}
-              buttonClass="flex items-center justify-between gap-1.5 text-white font-mono text-xs max-w-[210px] truncate hover:text-indigo-300 transition-colors"
-              dropdownClass="absolute right-0 mt-2 w-72 bg-[#12161f] border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden flex flex-col max-h-80"
+              buttonClass="flex items-center justify-between gap-1.5 text-white font-mono text-xs max-w-[210px] truncate hover:text-gi-primary-hover transition-colors"
+              dropdownClass="absolute right-0 mt-2 w-72 bg-theme-surface border border-theme-border rounded-lg shadow-2xl z-50 overflow-hidden flex flex-col max-h-80"
               searchPlaceholder="Filter AI models..."
             />
             <button
@@ -663,14 +668,14 @@ export const AgentChatPane: Component<{
               class="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/80 hover:text-white transition-colors"
               title="Export or copy session transcript"
             >
-              <Download class="w-3.5 h-3.5 text-indigo-400" />
+              <Download class="w-3.5 h-3.5 text-gi-primary" />
               <span class="hidden sm:inline">Export</span>
               <ChevronDown class={`w-3 h-3 text-white/50 transition-transform ${exportMenuOpen() ? 'rotate-180' : ''}`} />
             </button>
 
             <Show when={exportMenuOpen()}>
               <div
-                class="absolute right-0 mt-2 w-52 bg-[#12161f] border border-white/10 rounded-xl shadow-2xl z-50 p-1.5 space-y-1 text-xs"
+                class="absolute right-0 mt-2 w-52 bg-theme-surface border border-theme-border rounded-xl shadow-2xl z-50 p-1.5 space-y-1 text-xs"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button
@@ -678,8 +683,8 @@ export const AgentChatPane: Component<{
                   onClick={handleCopyTranscript}
                   class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors text-left"
                 >
-                  <Show when={copiedTranscript()} fallback={<Copy class="w-3.5 h-3.5 text-indigo-400 shrink-0" />}>
-                    <Check class="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <Show when={copiedTranscript()} fallback={<Copy class="w-3.5 h-3.5 text-gi-primary shrink-0" />}>
+                    <Check class="w-3.5 h-3.5 text-gi-status-success shrink-0" />
                   </Show>
                   <div class="flex flex-col min-w-0">
                     <span class="font-medium text-white">{copiedTranscript() ? 'Copied!' : 'Copy Transcript'}</span>
@@ -692,7 +697,7 @@ export const AgentChatPane: Component<{
                   onClick={handleExportMarkdown}
                   class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors text-left"
                 >
-                  <FileText class="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <FileText class="w-3.5 h-3.5 text-gi-status-warning shrink-0" />
                   <div class="flex flex-col min-w-0">
                     <span class="font-medium text-white">Export Markdown</span>
                     <span class="text-2xs text-white/40">Download .md file</span>
@@ -704,7 +709,7 @@ export const AgentChatPane: Component<{
                   onClick={handleExportJson}
                   class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors text-left"
                 >
-                  <FileCode class="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <FileCode class="w-3.5 h-3.5 text-gi-status-info shrink-0" />
                   <div class="flex flex-col min-w-0">
                     <span class="font-medium text-white">Export JSON</span>
                     <span class="text-2xs text-white/40">Download full session log</span>
@@ -718,10 +723,10 @@ export const AgentChatPane: Component<{
 
       {/* Session Changes Review Panel (Collapsible Drawer) */}
       <Show when={showChangesPanel() && sessionModifiedFiles().length > 0}>
-        <div class="border-b border-white/10 bg-[#0c1017] p-3 space-y-2.5 shadow-md">
+        <div class="border-b border-theme-border bg-theme-bg p-3 space-y-2.5 shadow-md">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <FolderGit2 class="w-4 h-4 text-amber-400" />
+              <FolderGit2 class="w-4 h-4 text-gi-status-warning" />
               <span class="text-xs font-semibold text-white">Session Changes Review</span>
               <span class="text-2xs text-white/50">({sessionModifiedFiles().length} files touched)</span>
             </div>
@@ -747,23 +752,22 @@ export const AgentChatPane: Component<{
                       type="button"
                       onClick={() => setSelectedDiffFile(isSelected() ? null : file)}
                       class={`px-2 py-0.5 rounded text-xs font-mono flex items-center gap-1.5 transition-colors ${
-                        isSelected() ? 'bg-indigo-600 text-white font-bold' : 'text-white/80 hover:text-white hover:bg-white/10'
+                        isSelected() ? 'bg-gi-primary text-gi-primary-foreground font-bold' : 'text-white/80 hover:text-white hover:bg-white/10'
                       }`}
                     >
-                      <FileCode class="w-3.5 h-3.5 text-indigo-400" />
+                      <FileCode class="w-3.5 h-3.5 text-gi-primary" />
                       <span>{file.fileName}</span>
                       <span class={`text-2xs px-1 rounded font-sans uppercase font-bold ${
-                        file.status === 'created' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                        file.status === 'created' ? 'bg-gi-status-success/20 text-gi-status-success' : 'bg-gi-status-warning/20 text-gi-status-warning'
                       }`}>
                         {file.status}
                       </span>
                     </button>
-
                     <Show when={props.onOpenFileInCodePanel}>
                       <button
                         type="button"
                         onClick={() => props.onOpenFileInCodePanel?.(file.filePath)}
-                        class="p-1 text-white/50 hover:text-indigo-300 rounded"
+                        class="p-1 text-white/50 hover:text-gi-primary-hover rounded"
                         title="Open in Right Docked Code Viewer"
                       >
                         <ExternalLink class="w-3 h-3" />
@@ -775,7 +779,7 @@ export const AgentChatPane: Component<{
             </For>
           </div>
 
-          {/* Selected File Diff Viewer */}
+          {/* Inline Diff Viewer */}
           <Show when={selectedDiffFile() && selectedDiffFile()?.diffData}>
             <div class="mt-2 border-t border-white/10 pt-2">
               <GitDiffViewer
@@ -807,7 +811,7 @@ export const AgentChatPane: Component<{
               disabled={props.loadingEarlier}
               class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 active:scale-95 text-white/80 hover:text-white text-xs flex items-center gap-1.5 border border-white/10 transition-colors shadow-sm font-sans disabled:opacity-50"
             >
-              <History class={`w-3.5 h-3.5 text-indigo-400 ${props.loadingEarlier ? 'animate-spin' : ''}`} />
+              <History class={`w-3.5 h-3.5 text-gi-primary ${props.loadingEarlier ? 'animate-spin' : ''}`} />
               <span>{props.loadingEarlier ? 'Loading earlier messages...' : 'Load 25 Earlier Messages'}</span>
             </button>
             <Show when={props.onLoadAllMessages}>
@@ -830,7 +834,7 @@ export const AgentChatPane: Component<{
             <p class="text-xs">Select a task session on the left or create a new session to start the agent.</p>
             <button
               onClick={props.onQuickCreateSession}
-              class="mt-3 px-3.5 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium flex items-center gap-1.5 transition-colors"
+              class="mt-3 px-3.5 py-1.5 text-xs bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground rounded-lg font-semibold flex items-center gap-1.5 transition-colors"
             >
               <Plus class="w-3.5 h-3.5" />
               New Task
@@ -840,7 +844,7 @@ export const AgentChatPane: Component<{
 
         <Show when={props.currentSession && props.visibleMessages.length === 0 && !props.loadingMessages}>
           <div class="h-full flex flex-col items-center justify-center text-center text-white/70 py-12">
-            <Sparkles class="w-8 h-8 mb-2 text-indigo-400/40" />
+            <Sparkles class="w-8 h-8 mb-2 text-gi-primary/40" />
             <p class="text-xs font-medium text-white/60">This task session is empty</p>
             <p class="text-xs text-white/60 max-w-xs mt-1">
               Type instructions or goals below to run the autonomous agent on the workspace folders.
@@ -859,7 +863,7 @@ export const AgentChatPane: Component<{
                       <span>Agent</span>
                     </div>
                   }>
-                    <div class="flex items-center gap-1 text-emerald-400">
+                    <div class="flex items-center gap-1 text-gi-status-success">
                       <Wrench class="w-3 h-3" />
                       <span>Tool Output</span>
                     </div>
@@ -956,17 +960,17 @@ export const AgentChatPane: Component<{
                           class="flex items-center gap-2 text-2xs text-theme-text/60 font-mono px-1 select-none"
                           title={`Cumulative: ${stats().total.toLocaleString()} tokens (Step: ${((msg.token_usage_input || 0) + (msg.token_usage_output || 0)).toLocaleString()})`}
                         >
-                          <span class="flex items-center gap-1 text-amber-400/90 font-medium">
-                            <Zap class="w-3 h-3 text-amber-400 shrink-0" />
+                          <span class="flex items-center gap-1 text-gi-status-warning/90 font-medium">
+                            <Zap class="w-3 h-3 text-gi-status-warning shrink-0" />
                             <span>{stats().total.toLocaleString()}</span>
                             <span class="text-theme-text/40 font-normal">total</span>
                           </span>
                           <span class="text-theme-text/25">•</span>
-                          <span class="flex items-center gap-1 text-cyan-400/80">
+                          <span class="flex items-center gap-1 text-gi-status-info/80">
                             <ArrowDownToLine class="w-3 h-3 shrink-0" />
                             <span>{stats().totalIn.toLocaleString()} in</span>
                           </span>
-                          <span class="flex items-center gap-1 text-emerald-400/80">
+                          <span class="flex items-center gap-1 text-gi-status-success/80">
                             <ArrowUpToLine class="w-3 h-3 shrink-0" />
                             <span>{stats().totalOut.toLocaleString()} out</span>
                           </span>
@@ -983,13 +987,13 @@ export const AgentChatPane: Component<{
         {/* Live Streaming Reasoning / Thought Output */}
         <Show when={props.streamingThought && props.streamingThought.trim().length > 0}>
           <div class="flex flex-col items-start w-full max-w-full mb-3">
-            <div class="text-2xs text-amber-400 mb-1 px-1 flex items-center gap-1.5 font-semibold uppercase tracking-wider">
-              <Brain class="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+            <div class="text-2xs text-gi-status-warning mb-1 px-1 flex items-center gap-1.5 font-semibold uppercase tracking-wider">
+              <Brain class="w-3.5 h-3.5 text-gi-status-warning shrink-0 animate-pulse" />
               <span>Reasoning (Live...)</span>
             </div>
-            <div class="w-full max-w-full rounded-xl px-4 py-3 text-xs leading-relaxed bg-amber-500/10 border border-amber-500/25 text-amber-200/90 font-mono whitespace-pre-wrap max-h-56 overflow-y-auto custom-scrollbar shadow-sm">
+            <div class="w-full max-w-full rounded-xl px-4 py-3 text-xs leading-relaxed bg-gi-status-warning/10 border border-gi-status-warning/25 text-theme-text/90 font-mono whitespace-pre-wrap max-h-56 overflow-y-auto custom-scrollbar shadow-sm">
               {props.streamingThought}
-              <span class="inline-block w-1.5 h-3.5 bg-amber-400 animate-pulse ml-1 align-middle rounded-xs" />
+              <span class="inline-block w-1.5 h-3.5 bg-gi-status-warning animate-pulse ml-1 align-middle rounded-xs" />
             </div>
           </div>
         </Show>
@@ -998,22 +1002,22 @@ export const AgentChatPane: Component<{
         <Show when={props.streamingText && props.streamingText.trim().length > 0}>
           <div class="flex flex-col items-start w-full max-w-full">
             <div class="text-2xs text-white/70 mb-1 px-1 flex items-center gap-1.5">
-              <div class="flex items-center gap-1 text-indigo-400">
+              <div class="flex items-center gap-1 text-gi-primary">
                 <Bot class="w-3 h-3 animate-pulse" />
                 <span class="font-medium">Agent (Generating response...)</span>
               </div>
             </div>
-            <div class="w-fit max-w-full rounded-xl px-4 py-3 text-xs leading-relaxed bg-white/[0.04] border border-indigo-500/30 text-white/90 rounded-bl-none shadow-md">
+            <div class="w-fit max-w-full rounded-xl px-4 py-3 text-xs leading-relaxed bg-white/[0.04] border border-gi-primary/30 text-white/90 rounded-bl-none shadow-md">
               <MarkdownView content={props.streamingText || ''} />
-              <span class="inline-block w-1.5 h-3.5 bg-indigo-400 animate-pulse ml-1 align-middle rounded-sm" />
+              <span class="inline-block w-1.5 h-3.5 bg-gi-primary animate-pulse ml-1 align-middle rounded-sm" />
             </div>
           </div>
         </Show>
 
         {/* Active Execution Spinner */}
         <Show when={props.isCurrentSessionBusy}>
-          <div class="flex items-center gap-2.5 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-xs text-indigo-300 w-fit animate-pulse">
-            <Loader2 class="w-4 h-4 animate-spin text-amber-400 shrink-0" />
+          <div class="flex items-center gap-2.5 p-3 bg-gi-primary/10 border border-gi-primary/20 rounded-xl text-xs text-gi-primary w-fit animate-pulse">
+            <Loader2 class="w-4 h-4 animate-spin text-gi-status-warning shrink-0" />
             <div>
               <div class="font-semibold text-white">
                 {props.currentStepInfo || 'Agent is processing this task session...'}
@@ -1031,7 +1035,7 @@ export const AgentChatPane: Component<{
         <button
           type="button"
           onClick={scrollToBottom}
-          class="absolute right-6 bottom-24 z-30 flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/90 hover:bg-indigo-600 active:scale-95 text-white text-xs font-medium rounded-full shadow-xl border border-indigo-400/40 backdrop-blur-md transition-all hover:scale-105 select-none"
+          class="absolute right-6 bottom-24 z-30 flex items-center gap-1.5 px-3 py-1.5 bg-gi-primary hover:bg-gi-primary-hover active:scale-95 text-gi-primary-foreground text-xs font-semibold rounded-full shadow-xl border border-gi-primary-hover/40 backdrop-blur-md transition-all hover:scale-105 select-none"
           title="Jump to latest message"
         >
           <ArrowDown class="w-3.5 h-3.5" />
@@ -1042,11 +1046,11 @@ export const AgentChatPane: Component<{
       {/* Chat Input Bar (Unified Modern Card) */}
       <Show when={props.currentSession}>
         <div class="p-3 border-t border-white/10 bg-white/[0.01]">
-          <div class="relative bg-white/[0.03] hover:bg-white/[0.04] focus-within:bg-white/[0.05] border border-white/10 focus-within:border-indigo-500/60 rounded-2xl p-2.5 transition-all shadow-sm">
+          <div class="relative bg-white/[0.03] hover:bg-white/[0.04] focus-within:bg-white/[0.05] border border-white/10 focus-within:border-gi-primary/60 rounded-2xl p-2.5 transition-all shadow-sm">
             {/* Autocomplete Dropdown Popup */}
             <Show when={props.autocompleteOpen && props.autocompleteSuggestions.length > 0}>
-              <div class="absolute bottom-full mb-2 left-0 right-0 max-h-60 z-50 overflow-y-auto bg-slate-900/95 border border-indigo-500/30 rounded-xl shadow-2xl backdrop-blur-md p-1.5 custom-scrollbar">
-                <div class="px-2 py-1 text-2xs font-semibold text-indigo-400 border-b border-white/10 flex items-center justify-between mb-1">
+              <div class="absolute bottom-full mb-2 left-0 right-0 max-h-60 z-50 overflow-y-auto bg-theme-surface/95 border border-theme-border rounded-xl shadow-2xl backdrop-blur-md p-1.5 custom-scrollbar">
+                <div class="px-2 py-1 text-2xs font-semibold text-gi-primary border-b border-theme-border flex items-center justify-between mb-1">
                   <span class="flex items-center gap-1"><AtSign class="w-3 h-3" /> Tag Workspace File</span>
                   <span class="text-white/70 font-normal">Use ↑ ↓ then Enter / Tab</span>
                 </div>
@@ -1055,14 +1059,14 @@ export const AgentChatPane: Component<{
                     <div
                       class={`px-2.5 py-1.5 rounded-lg text-xs font-mono flex items-center justify-between cursor-pointer transition-colors ${
                         idx() === props.autocompleteIndex
-                          ? 'bg-indigo-600 text-white shadow-sm'
+                          ? 'bg-gi-primary text-gi-primary-foreground font-semibold shadow-sm'
                           : 'hover:bg-white/10 text-white/80'
                       }`}
                       onClick={() => props.onSelectAutocompleteFile(file)}
                     >
                       <div class="flex items-center gap-2 min-w-0">
                         <Show when={file.is_dir} fallback={<FileCode class="w-3.5 h-3.5 shrink-0 opacity-70" />}>
-                          <Folder class="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <Folder class="w-3.5 h-3.5 text-gi-status-warning shrink-0" />
                         </Show>
                         <span class="font-semibold truncate">{file.name}{file.is_dir ? '/' : ''}</span>
                         <span class="text-2xs opacity-50 truncate">@{file.relative_path}</span>
@@ -1072,7 +1076,7 @@ export const AgentChatPane: Component<{
                           <span class="text-2xs opacity-40 shrink-0 ml-2">{file.line_count}L</span>
                         </Show>
                       }>
-                        <span class="text-2xs text-amber-400/80 shrink-0 ml-2 font-mono">folder</span>
+                        <span class="text-2xs text-gi-status-warning/80 shrink-0 ml-2 font-mono">folder</span>
                       </Show>
                     </div>
                   )}
@@ -1101,7 +1105,7 @@ export const AgentChatPane: Component<{
                       when={token.isTag}
                       fallback={<span class="text-white">{token.text}</span>}
                     >
-                      <span class="text-cyan-400 bg-cyan-500/20 rounded-[2px]">{token.text}</span>
+                      <span class="text-gi-accent bg-gi-accent/20 rounded-[2px]">{token.text}</span>
                     </Show>
                   )}
                 </For>
@@ -1136,7 +1140,7 @@ export const AgentChatPane: Component<{
                 }}
                 onKeyDown={props.onChatKeyDown}
                 class={`relative z-10 w-full bg-transparent border-0 px-1 py-0.5 text-xs focus:outline-none focus:ring-0 resize-none min-h-[38px] max-h-52 custom-scrollbar leading-relaxed font-sans ${
-                  hasTags() ? 'text-transparent caret-cyan-400 selection:bg-cyan-500/30 selection:text-white' : 'text-white placeholder-white/35'
+                  hasTags() ? 'text-transparent caret-gi-primary selection:bg-gi-primary/30 selection:text-white' : 'text-white placeholder-white/35'
                 }`}
                 style={{
                   "word-break": "break-word",
@@ -1154,7 +1158,7 @@ export const AgentChatPane: Component<{
                   class="px-2 py-1 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-lg text-xs font-mono flex items-center gap-1 border border-white/5 transition-colors"
                   title="Mention project file (@file:lines)"
                 >
-                  <AtSign class="w-3 h-3 text-indigo-400" />
+                  <AtSign class="w-3 h-3 text-gi-primary" />
                   <span>Files</span>
                 </button>
                 <span class="text-2xs text-white/60 hidden sm:inline">
@@ -1180,7 +1184,7 @@ export const AgentChatPane: Component<{
                       type="button"
                       onClick={props.onSendMessage}
                       disabled={!props.userInput.trim()}
-                      class="h-[30px] px-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors shrink-0 shadow-sm"
+                      class="h-[30px] px-3.5 bg-gi-primary hover:bg-gi-primary-hover disabled:opacity-40 text-gi-primary-foreground rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shrink-0 shadow-sm"
                     >
                       <Send class="w-3 h-3" />
                       <span>Send</span>
@@ -1190,7 +1194,7 @@ export const AgentChatPane: Component<{
                   <button
                     type="button"
                     onClick={props.onStopSession}
-                    class="h-[30px] px-3.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors shrink-0 shadow-md animate-pulse"
+                    class="h-[30px] px-3.5 bg-gi-status-danger hover:bg-gi-status-danger/90 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors shrink-0 shadow-md animate-pulse"
                     title="Stop active agent task"
                   >
                     <Square class="w-3 h-3 fill-current" />

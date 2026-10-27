@@ -29,7 +29,7 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
             }
           >
             <div class="flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-gi-status-success shadow-[0_0_8px_rgba(69,184,118,0.9)]" />
+              <span class="w-2 h-2 rounded-full bg-gi-status-success shadow-[0_0_8px_rgba(var(--gi-status-success-rgb),0.9)]" />
               <span class="text-2xs font-mono text-gi-text-secondary">Anchored</span>
             </div>
           </Show>
@@ -62,7 +62,7 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
               disabled={!props.hasFoundSurface}
               class={`pointer-events-auto w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                 props.hasFoundSurface
-                  ? 'bg-gi-primary text-gi-primary-foreground shadow-[0_0_24px_rgba(229,184,92,0.65)] active:scale-90 animate-pulse'
+                  ? 'bg-gi-primary text-gi-primary-foreground shadow-[0_0_24px_rgba(var(--gi-primary-rgb),0.65)] active:scale-90 animate-pulse'
                   : 'bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/50 text-gi-text-muted/40 cursor-not-allowed opacity-40'
               }`}
               aria-label="Anchor Avatar"

@@ -190,7 +190,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
               </button>
               <button
                 onClick={handleClear}
-                class="px-3 py-1.5 text-xs font-semibold bg-theme-rose text-white hover:bg-theme-rose/90 font-bold"
+                class="px-3 py-1.5 text-xs bg-theme-rose text-white hover:bg-theme-rose/90 font-bold"
               >
                 Yes, Clear All
               </button>
@@ -205,7 +205,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
         <div class="p-4 bg-theme-card border border-theme-border relative overflow-hidden group hover:border-theme-cyan/50 transition-colors">
           <div class="flex items-center justify-between text-theme-text/60 mb-2">
             <span class="text-xs font-mono font-semibold uppercase tracking-wider">Total Requests</span>
-            <Zap size={16} class="text-amber-400 group-hover:scale-110 transition-transform" />
+            <Zap size={16} class="text-gi-status-warning group-hover:scale-110 transition-transform" />
           </div>
           <div class="text-2xl font-mono font-bold text-theme-text">
             {formatNumber(summary().total_requests)}
@@ -219,7 +219,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
         <div class="p-4 bg-theme-card border border-theme-border relative overflow-hidden group hover:border-theme-cyan/50 transition-colors">
           <div class="flex items-center justify-between text-theme-text/60 mb-2">
             <span class="text-xs font-mono font-semibold uppercase tracking-wider">Total Input Tokens</span>
-            <ArrowDownLeft size={16} class="text-sky-400 group-hover:scale-110 transition-transform" />
+            <ArrowDownLeft size={16} class="text-gi-status-info group-hover:scale-110 transition-transform" />
           </div>
           <div class="text-2xl font-mono font-bold text-theme-text">
             {formatNumber(summary().total_input_tokens)}
@@ -230,22 +230,22 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
         </div>
 
         {/* Cached Tokens */}
-        <div class="p-4 bg-theme-card border border-theme-border relative overflow-hidden group hover:border-emerald-500/50 transition-colors">
+        <div class="p-4 bg-theme-card border border-theme-border relative overflow-hidden group hover:border-gi-status-success/50 transition-colors">
           <div class="flex items-center justify-between text-theme-text/60 mb-2">
             <span class="text-xs font-mono font-semibold uppercase tracking-wider">Cached Tokens</span>
-            <RotateCcw size={16} class="text-emerald-400 group-hover:scale-110 transition-transform" />
+            <RotateCcw size={16} class="text-gi-status-success group-hover:scale-110 transition-transform" />
           </div>
           <div class="flex items-baseline gap-2">
-            <span class="text-2xl font-mono font-bold text-emerald-400">
+            <span class="text-2xl font-mono font-bold text-gi-status-success">
               {formatNumber(summary().total_cached_tokens)}
             </span>
             <Show when={summary().cache_hit_rate_pct > 0}>
-              <span class="text-2xs font-mono px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
+              <span class="text-2xs font-mono px-1.5 py-0.5 bg-gi-status-success/20 text-gi-status-success border border-gi-status-success/30 font-bold">
                 {summary().cache_hit_rate_pct.toFixed(1)}% HIT
               </span>
             </Show>
           </div>
-          <div class="text-xs text-emerald-400/70 font-mono mt-1">
+          <div class="text-xs text-gi-status-success/70 font-mono mt-1">
             Zero-latency KV cache reads
           </div>
         </div>
@@ -296,7 +296,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
             onClick={() => handleProviderChange('codex')}
             class={`px-3 py-1.5 text-xs font-semibold tracking-wide border transition-all flex items-center gap-1.5 ${
               selectedProvider() === 'codex'
-                ? 'bg-emerald-600 text-white border-emerald-500 font-bold shadow-sm'
+                ? 'bg-gi-status-success text-white border-gi-status-success font-bold shadow-sm'
                 : 'bg-theme-card text-theme-text/70 border-theme-border hover:text-theme-text'
             }`}
           >
@@ -411,7 +411,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
                               isAg()
                                 ? 'bg-theme-rose/15 text-theme-rose border-theme-rose/30'
                                 : isCx()
-                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                ? 'bg-gi-status-success/15 text-gi-status-success border-gi-status-success/30'
                                 : 'bg-theme-cyan/15 text-theme-cyan border-theme-cyan/30'
                             }`}
                           >
@@ -437,7 +437,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
                             when={hasCache()}
                             fallback={<span class="text-theme-text/60">0</span>}
                           >
-                            <span class="text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 border border-emerald-500/30">
+                            <span class="text-gi-status-success font-bold bg-gi-status-success/10 px-1.5 py-0.5 border border-gi-status-success/30">
                               ↻{formatNumber(rec.cached_tokens)}
                             </span>
                           </Show>
@@ -463,7 +463,7 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
                           <span
                             class={`px-1.5 py-0.5 text-2xs uppercase font-bold ${
                               rec.status === 'success'
-                                ? 'bg-emerald-500/20 text-emerald-400'
+                                ? 'bg-gi-status-success/20 text-gi-status-success'
                                 : 'bg-theme-rose/20 text-theme-rose'
                             }`}
                           >

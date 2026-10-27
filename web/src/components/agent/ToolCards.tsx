@@ -216,24 +216,24 @@ export const GitDiffViewer: Component<{
   });
 
   return (
-    <div class="rounded-xl border border-white/10 overflow-hidden bg-[#0d1117] font-mono text-xs my-1 shadow-md w-full max-w-full min-w-0">
+    <div class="rounded-xl border border-theme-border overflow-hidden bg-theme-bg font-mono text-xs my-1 shadow-md w-full max-w-full min-w-0">
       {/* Diff Header */}
-      <div class="flex items-center justify-between px-3 py-1.5 bg-white/[0.04] border-b border-white/10 text-xs">
+      <div class="flex items-center justify-between px-3 py-1.5 bg-theme-card/40 border-b border-theme-border text-xs">
         <div class="flex items-center gap-2">
-          <FileCode class="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+          <FileCode class="w-3.5 h-3.5 text-gi-primary shrink-0" />
           <span class="text-white/90 font-semibold">{props.filename || 'Diff Changes'}</span>
           <Show when={props.isNewFile}>
-            <span class="text-2xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold tracking-wide">
+            <span class="text-2xs px-2 py-0.5 rounded bg-gi-status-success/20 text-gi-status-success font-bold tracking-wide">
               NEW FILE
             </span>
           </Show>
         </div>
         <div class="flex items-center gap-1.5 text-2xs">
-          <span class="text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-mono">
+          <span class="text-gi-status-success font-bold bg-gi-status-success/10 px-1.5 py-0.5 rounded border border-gi-status-success/20 font-mono">
             +{stats().added}
           </span>
           <Show when={!props.isNewFile}>
-            <span class="text-rose-400 font-bold bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 font-mono">
+            <span class="text-gi-status-danger font-bold bg-gi-status-danger/10 px-1.5 py-0.5 rounded border border-gi-status-danger/20 font-mono">
               -{stats().removed}
             </span>
           </Show>
@@ -254,15 +254,15 @@ export const GitDiffViewer: Component<{
                   <div
                     class={`flex items-start px-3 py-0.5 font-mono text-xs ${
                       isAdded
-                        ? 'bg-emerald-500/15 text-emerald-200 border-l-2 border-emerald-400'
+                        ? 'bg-gi-status-success/15 text-gi-status-success border-l-2 border-gi-status-success'
                         : isRemoved
-                        ? 'bg-rose-500/15 text-rose-200 border-l-2 border-rose-400 line-through opacity-80'
+                        ? 'bg-gi-status-danger/15 text-gi-status-danger border-l-2 border-gi-status-danger line-through opacity-80'
                         : 'text-white/60 hover:bg-white/[0.02] border-l-2 border-transparent'
                     }`}
                   >
                     <span
                       class={`w-5 select-none font-bold shrink-0 ${
-                        isAdded ? 'text-emerald-400' : isRemoved ? 'text-rose-400' : 'text-white/20'
+                        isAdded ? 'text-gi-status-success' : isRemoved ? 'text-gi-status-danger' : 'text-white/20'
                       }`}
                     >
                       {isAdded ? '+' : isRemoved ? '-' : ' '}
@@ -304,17 +304,17 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
   });
 
   return (
-    <div class="my-1.5 rounded-xl border border-indigo-500/20 bg-indigo-950/20 overflow-hidden shadow-sm transition-all text-xs">
+    <div class="my-1.5 rounded-xl border border-gi-primary/20 bg-theme-card overflow-hidden shadow-sm transition-all text-xs">
       {/* Header bar: Click to collapse/expand */}
       <div
         onClick={() => setIsCardCollapsed(!isCardCollapsed())}
-        class="flex items-center justify-between px-3 py-2 bg-indigo-900/30 hover:bg-indigo-900/40 cursor-pointer transition-colors border-b border-indigo-500/10 select-none"
+        class="flex items-center justify-between px-3 py-2 bg-gi-primary/10 hover:bg-gi-primary/15 cursor-pointer transition-colors border-b border-gi-primary/15 select-none"
       >
         <div class="flex items-center gap-2 min-w-0">
-          <Bot class="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-          <span class="font-medium text-indigo-200 truncate">{headerSummary()}</span>
+          <Bot class="w-3.5 h-3.5 text-gi-primary shrink-0" />
+          <span class="font-medium text-gi-primary truncate">{headerSummary()}</span>
         </div>
-        <div class="flex items-center gap-1.5 text-2xs text-indigo-300/60 shrink-0">
+        <div class="flex items-center gap-1.5 text-2xs text-theme-muted shrink-0">
           <span>{isCardCollapsed() ? 'Details' : 'Collapse'}</span>
           <ChevronDown class={`w-3.5 h-3.5 transition-transform ${isCardCollapsed() ? '' : 'rotate-180'}`} />
         </div>
@@ -327,8 +327,8 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
             {(tc) => (
               <div class="bg-black/30 rounded-lg p-2.5 border border-white/5 space-y-1.5">
                 <div class="flex items-center justify-between font-mono text-xs">
-                  <span class="text-indigo-300 font-semibold flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                  <span class="text-gi-primary font-semibold flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-gi-primary"></span>
                     {tc.name}
                   </span>
                   <span class="text-white/60 text-2xs">{cleanToolCallId(tc.id)}</span>
@@ -345,12 +345,12 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
                       return (
                         <div class="bg-white/[0.02] p-1.5 rounded border border-white/5">
                           <div class="flex items-center justify-between text-white/50 text-2xs mb-0.5">
-                            <span class="text-indigo-400/80 font-bold">{key}:</span>
+                            <span class="text-gi-primary/80 font-bold">{key}:</span>
                             <Show when={isLong}>
                               <button
                                 type="button"
                                 onClick={() => toggleArgExpand(`${tc.id}_${key}`)}
-                                class="text-indigo-300 hover:underline"
+                                class="text-gi-primary hover:underline"
                               >
                                 {isArgExpanded() ? 'Show less' : 'Show more'}
                               </button>
@@ -379,7 +379,7 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
             <button
               type="button"
               onClick={() => setShowRaw(!showRaw())}
-              class="text-blue-400 hover:text-blue-200 underline"
+              class="text-gi-status-info hover:underline"
             >
               {showRaw() ? 'Hide Raw Payload' : 'View Raw Payload JSON'}
             </button>
@@ -405,8 +405,8 @@ export const ToolResultCard: Component<{ toolCallId?: string | null; content?: s
     <div
       class={`my-1.5 rounded-xl border overflow-hidden shadow-sm transition-all text-xs w-full max-w-full min-w-0 ${
         info().isError
-          ? 'border-rose-500/30 bg-rose-950/20'
-          : 'border-emerald-500/20 bg-emerald-950/20'
+          ? 'border-gi-status-danger/30 bg-gi-status-danger/10'
+          : 'border-gi-status-success/20 bg-gi-status-success/10'
       }`}
     >
       {/* Header bar */}
@@ -414,20 +414,20 @@ export const ToolResultCard: Component<{ toolCallId?: string | null; content?: s
         onClick={() => setIsCardCollapsed(!isCardCollapsed())}
         class={`flex items-center justify-between px-3 py-2 cursor-pointer transition-colors border-b select-none ${
           info().isError
-            ? 'bg-rose-900/30 hover:bg-rose-900/40 border-rose-500/20'
-            : 'bg-emerald-900/30 hover:bg-emerald-900/40 border-emerald-500/20'
+            ? 'bg-gi-status-danger/15 hover:bg-gi-status-danger/25 border-gi-status-danger/20'
+            : 'bg-gi-status-success/15 hover:bg-gi-status-success/25 border-gi-status-success/20'
         }`}
       >
         <div class="flex items-center gap-2 min-w-0">
           <Show
             when={!info().isError}
-            fallback={<AlertCircle class="w-3.5 h-3.5 text-rose-400 shrink-0" />}
+            fallback={<AlertCircle class="w-3.5 h-3.5 text-gi-status-danger shrink-0" />}
           >
-            <Check class="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <Check class="w-3.5 h-3.5 text-gi-status-success shrink-0" />
           </Show>
           <span
             class={`font-medium truncate ${
-              info().isError ? 'text-rose-200' : 'text-emerald-200'
+              info().isError ? 'text-gi-status-danger' : 'text-gi-status-success'
             }`}
           >
             {info().summary}

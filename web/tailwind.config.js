@@ -1,3 +1,12 @@
+const withOpacity = (variableName) => {
+  return ({ opacityValue }) => {
+    if (opacityValue !== undefined) {
+      return `color-mix(in srgb, var(${variableName}) calc(${opacityValue} * 100%), transparent)`;
+    }
+    return `var(${variableName})`;
+  };
+};
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -8,49 +17,54 @@ export default {
     extend: {
       colors: {
         gi: {
-          canvas: '#0F1218',
+          canvas: withOpacity('--gi-bg-canvas'),
           surface: {
-            DEFAULT: '#181D26',
-            elevated: '#222936',
+            DEFAULT: withOpacity('--gi-bg-surface'),
+            elevated: withOpacity('--gi-bg-surface-elevated'),
           },
           border: {
-            subtle: '#333C4D',
-            gold: '#9E8046',
+            subtle: withOpacity('--gi-border-subtle'),
+            gold: withOpacity('--gi-border-gold'),
           },
           text: {
-            primary: '#EDEAE1',
-            secondary: '#9FA7B8',
-            muted: '#636D80',
+            primary: withOpacity('--gi-text-primary'),
+            secondary: withOpacity('--gi-text-secondary'),
+            muted: withOpacity('--gi-text-muted'),
           },
           accent: {
-            DEFAULT: '#4FC3F7',
-            hover: '#7CD4FD',
-            active: '#2BA6DE',
+            DEFAULT: withOpacity('--gi-accent'),
+            hover: withOpacity('--gi-accent-hover'),
+            active: withOpacity('--gi-accent-active'),
             subtle: 'rgba(79, 195, 247, 0.12)',
             border: 'rgba(79, 195, 247, 0.3)',
           },
           primary: {
-            DEFAULT: '#E5B85C',
-            hover: '#F3CE7A',
-            active: '#C79A3E',
-            foreground: '#111318',
+            DEFAULT: withOpacity('--gi-primary'),
+            hover: withOpacity('--gi-primary-hover'),
+            active: withOpacity('--gi-primary-active'),
+            foreground: withOpacity('--gi-primary-foreground'),
           },
           status: {
-            success: '#45B876',
-            warning: '#E09F3E',
-            danger: '#E05345',
-            info: '#3E99E0',
+            success: withOpacity('--gi-status-success'),
+            warning: withOpacity('--gi-status-warning'),
+            danger: withOpacity('--gi-status-danger'),
+            info: withOpacity('--gi-status-info'),
           },
         },
         theme: {
-          bg:      "var(--bg)",
-          surface: "var(--surface)",
-          card:    "var(--card)",
-          border:  "var(--border)",
-          text:    "var(--text)",
-          cyan:    "var(--cyan)",
-          magenta: "var(--magenta)",
-          rose:    "var(--rose)",
+          bg:      withOpacity('--bg'),
+          surface: withOpacity('--surface'),
+          card:    withOpacity('--card'),
+          border:  withOpacity('--border'),
+          text:    withOpacity('--text'),
+          muted:   withOpacity('--muted'),
+          cyan:    withOpacity('--cyan'),
+          magenta: withOpacity('--violet'),
+          rose:    withOpacity('--rose'),
+          gold:    withOpacity('--gold'),
+          crimson: withOpacity('--crimson'),
+          violet:  withOpacity('--violet'),
+          lilac:   withOpacity('--lilac'),
         },
       },
       fontFamily: {

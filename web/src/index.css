@@ -32,6 +32,24 @@
   --gi-status-danger: #e05345;
   --gi-status-info: #3e99e0;
 
+  /* Accent (Tech Cyan) */
+  --gi-accent: #4fc3f7;
+  --gi-accent-hover: #7cd4fd;
+  --gi-accent-active: #2ba6de;
+
+  /* RGB Channels for Alpha & Glow calculations */
+  --gi-primary-rgb: 229, 184, 92;
+  --gi-primary-hover-rgb: 243, 206, 122;
+  --gi-status-success-rgb: 69, 184, 118;
+  --gi-status-warning-rgb: 224, 159, 62;
+  --gi-status-danger-rgb: 224, 83, 69;
+  --gi-status-info-rgb: 62, 153, 224;
+  --gi-accent-rgb: 79, 195, 247;
+  --gi-bg-canvas-rgb: 15, 18, 24;
+  --gi-bg-surface-rgb: 24, 29, 38;
+  --gi-bg-surface-elevated-rgb: 34, 41, 54;
+  --gi-border-subtle-rgb: 51, 60, 77;
+
   /* Global Theme Aliases */
   --bg:      var(--gi-bg-canvas);
   --surface: var(--gi-bg-surface);
@@ -92,13 +110,13 @@
   border-color: var(--cyan);
 }
 .anime-shadow-green {
-  box-shadow: 0 0 14px rgba(229, 184, 92, 0.45);
+  box-shadow: 0 0 14px rgba(var(--gi-status-success-rgb), 0.45);
 }
 .anime-shadow-red {
-  box-shadow: 0 0 14px rgba(224, 83, 69, 0.5);
+  box-shadow: 0 0 14px rgba(var(--gi-status-danger-rgb), 0.5);
 }
 .anime-shadow-gold {
-  box-shadow: 0 0 14px rgba(229, 184, 92, 0.5);
+  box-shadow: 0 0 14px rgba(var(--gi-primary-rgb), 0.5);
 }
 
 

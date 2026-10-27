@@ -318,7 +318,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
   return (
     <Show when={props.isOpen}>
       <div 
-        class="fixed inset-0 z-50 pointer-events-auto bg-[#0f1218] overflow-hidden flex flex-col select-none animate-in fade-in zoom-in-95 duration-200"
+        class="fixed inset-0 z-50 pointer-events-auto bg-gi-canvas overflow-hidden flex flex-col select-none animate-in fade-in zoom-in-95 duration-200"
         style={{
           height: viewportHeight(),
           "max-height": viewportHeight(),
@@ -445,9 +445,9 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
 
         {/* Bottom Input Area - Precision Engineered Modern Capsule */}
         <footer 
-          class="p-2.5 bg-[#181d26] border-t border-theme-border/60 shrink-0 flex items-end w-full pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+          class="p-2.5 bg-gi-surface border-t border-theme-border/60 shrink-0 flex items-end w-full pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
         >
-          <div class="relative w-full max-w-full bg-[#222936] border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-1 focus-within:ring-gi-primary/30 rounded-2xl transition-all shadow-sm flex flex-col justify-between overflow-hidden">
+          <div class="relative w-full max-w-full bg-gi-surface-elevated border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-1 focus-within:ring-gi-primary/30 rounded-2xl transition-all shadow-sm flex flex-col justify-between overflow-hidden">
             <textarea
               ref={inputRef}
               value={props.inputText}

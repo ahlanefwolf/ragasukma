@@ -42,7 +42,7 @@ export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props
         <button
           type="button"
           onClick={props.onStartAr}
-          class="p-2 text-[#E5B85C] hover:text-[#F3CE7A] active:scale-75 transition-all drop-shadow-[0_0_14px_rgba(229,184,92,0.85)] cursor-pointer"
+          class="p-2 text-gi-primary hover:text-gi-primary-hover active:scale-75 transition-all drop-shadow-[0_0_14px_rgba(var(--gi-primary-rgb),0.85)] cursor-pointer"
           title="Start AR Mode"
           aria-label="Start AR Mode"
         >
@@ -55,7 +55,7 @@ export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props
         <button
           type="button"
           onClick={props.onCycleQuality}
-          class="p-2 text-2xs font-mono font-bold tracking-wider text-white/80 hover:text-[#F3CE7A] active:scale-75 transition-all drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] cursor-pointer"
+          class="p-2 text-2xs font-mono font-bold tracking-wider text-white/80 hover:text-gi-primary-hover active:scale-75 transition-all drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] cursor-pointer"
           title={`Render Quality: ${formatQualityLabel(props.quality)} (Tap to switch)`}
           aria-label={`Render Quality: ${formatQualityLabel(props.quality)}`}
         >
@@ -68,7 +68,7 @@ export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props
         <button
           type="button"
           onClick={props.onCycleFps}
-          class="p-2 text-2xs font-mono font-bold tracking-wider text-white/80 hover:text-[#F3CE7A] active:scale-75 transition-all drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] cursor-pointer"
+          class="p-2 text-2xs font-mono font-bold tracking-wider text-white/80 hover:text-gi-primary-hover active:scale-75 transition-all drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] cursor-pointer"
           title={`FPS Limit: ${formatFpsLabel(props.fpsLimit)} (Tap to switch)`}
           aria-label={`FPS Limit: ${formatFpsLabel(props.fpsLimit)}`}
         >

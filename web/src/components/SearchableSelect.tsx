@@ -104,25 +104,25 @@ export const SearchableSelect: Component<SearchableSelectProps> = (props) => {
         <div
           class={
             props.dropdownClass ||
-            'absolute left-0 mt-1.5 w-full min-w-[240px] max-w-[420px] bg-[#12161f] border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden flex flex-col max-h-72 animate-in fade-in zoom-in-95 duration-100'
+            'absolute left-0 mt-1.5 w-full min-w-[240px] max-w-[420px] bg-theme-surface border border-theme-border rounded-lg shadow-2xl z-50 overflow-hidden flex flex-col max-h-72 animate-in fade-in zoom-in-95 duration-100'
           }
         >
           {/* Search Box */}
-          <div class="p-2 border-b border-white/10 flex items-center gap-2 bg-black/20 shrink-0">
-            <Search size={13} class="text-white/70 shrink-0 ml-1" />
+          <div class="p-2 border-b border-theme-border flex items-center gap-2 bg-black/20 shrink-0">
+            <Search size={13} class="text-theme-muted shrink-0 ml-1" />
             <input
               ref={searchInputRef}
               type="text"
               value={search()}
               onInput={(e) => setSearch(e.currentTarget.value)}
               placeholder={props.searchPlaceholder || 'Search models / options...'}
-              class="w-full bg-transparent text-xs text-white placeholder-white/40 focus:outline-none font-mono py-1"
+              class="w-full bg-transparent text-xs text-theme-text placeholder-theme-muted/50 focus:outline-none font-mono py-1"
             />
             <Show when={search()}>
               <button
                 type="button"
                 onClick={() => setSearch('')}
-                class="text-xs text-white/70 hover:text-white px-1 font-mono"
+                class="text-xs text-theme-muted hover:text-theme-text px-1 font-mono"
               >
                 ×
               </button>
@@ -134,7 +134,7 @@ export const SearchableSelect: Component<SearchableSelectProps> = (props) => {
             <For
               each={filteredOptions()}
               fallback={
-                <div class="px-3 py-4 text-center text-xs text-white/70 font-mono">
+                <div class="px-3 py-4 text-center text-xs text-theme-muted font-mono">
                   No matching options found
                 </div>
               }
@@ -147,25 +147,25 @@ export const SearchableSelect: Component<SearchableSelectProps> = (props) => {
                     onClick={() => handleSelect(opt.value)}
                     class={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded text-left text-xs font-mono transition-colors ${
                       isSelected()
-                        ? 'bg-indigo-600 text-white font-medium shadow-sm'
-                        : 'text-white/80 hover:bg-white/10 hover:text-white'
+                        ? 'bg-gi-primary text-gi-primary-foreground font-semibold shadow-sm'
+                        : 'text-theme-text/80 hover:bg-theme-card hover:text-theme-text'
                     }`}
                   >
                     <div class="truncate flex-1">
                       <div class="truncate flex items-center gap-1.5">
                         <span class="truncate">{opt.label}</span>
                         <Show when={opt.badge}>
-                          <span class="text-2xs px-1.5 py-0.2 rounded bg-white/10 text-white/60 font-sans">
+                          <span class="text-2xs px-1.5 py-0.2 rounded bg-theme-card text-theme-muted font-sans border border-theme-border/50">
                             {opt.badge}
                           </span>
                         </Show>
                       </div>
                       <Show when={opt.sublabel}>
-                        <div class="text-2xs text-white/70 truncate">{opt.sublabel}</div>
+                        <div class="text-2xs text-theme-muted truncate">{opt.sublabel}</div>
                       </Show>
                     </div>
                     <Show when={isSelected()}>
-                      <Check size={13} class="shrink-0 text-white" />
+                      <Check size={13} class="shrink-0 text-gi-primary-foreground" />
                     </Show>
                   </button>
                 );

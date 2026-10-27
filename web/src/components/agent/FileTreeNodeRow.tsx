@@ -100,7 +100,7 @@ export const FileTreeNodeRow: Component<{
             />
             <Folder
               class={`w-3.5 h-3.5 ${
-                props.isExpanded(props.node.path) ? 'text-amber-400' : 'text-amber-400/80'
+                props.isExpanded(props.node.path) ? 'text-gi-status-warning' : 'text-gi-status-warning/80'
               } shrink-0`}
             />
             <span class="truncate font-semibold text-xs">{props.node.name}</span>
@@ -114,7 +114,7 @@ export const FileTreeNodeRow: Component<{
                 e.stopPropagation();
                 props.onTagFolder(props.node.path);
               }}
-              class="p-1 text-theme-text/70 hover:text-amber-400 hover:bg-amber-400/10 rounded transition-colors"
+              class="p-1 text-theme-text/70 hover:text-gi-status-warning hover:bg-gi-status-warning/10 rounded transition-colors"
               title="Mention folder in chat prompt"
             >
               <AtSign class="w-3 h-3" />

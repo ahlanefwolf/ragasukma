@@ -60,28 +60,29 @@ export const getStatusBadge = (state: AvatarState) => {
         icon: Volume2,
         label: 'Speaking',
         color: 'bg-gi-status-danger/20 text-gi-status-danger border-gi-status-danger/30',
-        glow: 'drop-shadow-[0_0_20px_rgba(224,83,69,0.45)]',
+        glow: 'drop-shadow-[0_0_20px_rgba(var(--gi-status-danger-rgb),0.45)]',
       };
     case 'listening':
       return {
         icon: Mic,
         label: 'Listening',
         color: 'bg-gi-status-info/20 text-gi-status-info border-gi-status-info/30',
-        glow: 'drop-shadow-[0_0_20px_rgba(62,153,224,0.45)]',
+        glow: 'drop-shadow-[0_0_20px_rgba(var(--gi-status-info-rgb),0.45)]',
       };
     case 'thinking':
       return {
         icon: Brain,
         label: 'Thinking',
         color: 'bg-gi-status-warning/20 text-gi-status-warning border-gi-status-warning/30',
-        glow: 'drop-shadow-[0_0_20px_rgba(224,159,62,0.45)]',
+        glow: 'drop-shadow-[0_0_20px_rgba(var(--gi-status-warning-rgb),0.45)]',
       };
+    case 'idle':
     default:
       return {
         icon: Sparkles,
         label: 'Standby',
         color: 'bg-gi-primary/20 text-gi-primary border-gi-primary/30',
-        glow: 'drop-shadow-[0_0_12px_rgba(229,184,92,0.35)]',
+        glow: 'drop-shadow-[0_0_12px_rgba(var(--gi-primary-rgb),0.35)]',
       };
   }
 };

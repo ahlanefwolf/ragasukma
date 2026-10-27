@@ -12,19 +12,28 @@ import {
   onPlayStateChange,
 } from '../playerStore';
 
+const getThemeVar = (name: string, fallback: string): string => {
+  if (typeof window === 'undefined') return fallback;
+  const val = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return val || fallback;
+};
+
 const GI_THEME = {
-  canvas: '#0F1218',
-  surface: '#181D26',
-  surfaceElevated: '#222936',
-  borderSubtle: '#333C4D',
-  borderGold: '#9E8046',
-  textPrimary: '#EDEAE1',
-  textSecondary: '#9FA7B8',
-  textMuted: '#5F6675',
-  primary: '#E5B85C',
-  primaryHover: '#F3CE7A',
-  danger: '#E05345',
-} as const;
+  get canvas() { return getThemeVar('--gi-bg-canvas', '#0F1218'); },
+  get surface() { return getThemeVar('--gi-bg-surface', '#181D26'); },
+  get surfaceElevated() { return getThemeVar('--gi-bg-surface-elevated', '#222936'); },
+  get borderSubtle() { return getThemeVar('--gi-border-subtle', '#333C4D'); },
+  get borderGold() { return getThemeVar('--gi-border-gold', '#9E8046'); },
+  get textPrimary() { return getThemeVar('--gi-text-primary', '#EDEAE1'); },
+  get textSecondary() { return getThemeVar('--gi-text-secondary', '#9FA7B8'); },
+  get textMuted() { return getThemeVar('--gi-text-muted', '#5F6675'); },
+  get primary() { return getThemeVar('--gi-primary', '#E5B85C'); },
+  get primaryHover() { return getThemeVar('--gi-primary-hover', '#F3CE7A'); },
+  get danger() { return getThemeVar('--gi-status-danger', '#E05345'); },
+  get primaryRgb() { return getThemeVar('--gi-primary-rgb', '229, 184, 92'); },
+  get dangerRgb() { return getThemeVar('--gi-status-danger-rgb', '224, 83, 69'); },
+  get canvasRgb() { return getThemeVar('--gi-bg-canvas-rgb', '15, 18, 24'); },
+};
 
 class PipManager {
   private canvas: HTMLCanvasElement | null = null;
@@ -219,8 +228,8 @@ class PipManager {
       ctx.restore();
     } else {
       const orb = ctx.createRadialGradient(90, h / 2, 10, 90, h / 2, 160);
-      orb.addColorStop(0, 'rgba(229, 184, 92, 0.25)');
-      orb.addColorStop(1, 'rgba(15, 18, 24, 0)');
+      orb.addColorStop(0, `rgba(${GI_THEME.primaryRgb}, 0.25)`);
+      orb.addColorStop(1, `rgba(${GI_THEME.canvasRgb}, 0)`);
       ctx.fillStyle = orb;
       ctx.fillRect(0, 0, w, h);
     }
@@ -239,7 +248,7 @@ class PipManager {
 
     // Drop shadow behind cover
     ctx.save();
-    ctx.shadowColor = 'rgba(15, 18, 24, 0.4)';
+    ctx.shadowColor = `rgba(${GI_THEME.canvasRgb}, 0.4)`;
     ctx.shadowBlur = 12;
     ctx.shadowOffsetX = 2;
     ctx.shadowOffsetY = 4;
@@ -299,7 +308,7 @@ class PipManager {
       const eqH = 26;
       const eqX = coverX + coverSize - eqW - 6;
       const eqY = coverY + coverSize - eqH - 6;
-      ctx.fillStyle = 'rgba(15, 18, 24, 0.88)';
+      ctx.fillStyle = `rgba(${GI_THEME.canvasRgb}, 0.88)`;
       ctx.fillRect(eqX, eqY, eqW, eqH);
       ctx.strokeStyle = GI_THEME.borderGold;
       ctx.lineWidth = 1;
@@ -341,7 +350,7 @@ class PipManager {
     const badgeW = badgePaddingX + dotSize + dotGap + Math.ceil(textMetrics.width) + badgePaddingX;
 
     // Badge Card Background & Clean Border
-    ctx.fillStyle = isPlaying ? 'rgba(229, 184, 92, 0.18)' : 'rgba(224, 83, 69, 0.18)';
+    ctx.fillStyle = isPlaying ? `rgba(${GI_THEME.primaryRgb}, 0.18)` : `rgba(${GI_THEME.dangerRgb}, 0.18)`;
     ctx.fillRect(contentX, badgeY, badgeW, badgeH);
     ctx.strokeStyle = isPlaying ? GI_THEME.primary : GI_THEME.danger;
     ctx.lineWidth = 1;

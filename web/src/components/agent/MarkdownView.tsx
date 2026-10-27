@@ -60,11 +60,11 @@ customRenderer.code = function ({ text, lang }: Tokens.Code) {
   const highlighted = highlightMarkdownCode(text, cleanLang);
 
   return `
-    <div class="code-block-wrapper my-2.5 rounded-xl bg-[#0d1117] border border-white/10 overflow-hidden shadow-lg font-mono max-w-full min-w-0">
-      <div class="flex items-center justify-between px-3 py-1.5 bg-white/[0.04] border-b border-white/10 text-2xs">
+    <div class="code-block-wrapper my-2.5 rounded-xl bg-theme-bg border border-theme-border overflow-hidden shadow-lg font-mono max-w-full min-w-0">
+      <div class="flex items-center justify-between px-3 py-1.5 bg-theme-card/40 border-b border-theme-border text-2xs">
         <div class="flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-indigo-500/80"></span>
-          <span class="text-indigo-300 font-semibold uppercase tracking-wider">${cleanLang}</span>
+          <span class="w-2 h-2 rounded-full bg-gi-primary/80"></span>
+          <span class="text-gi-primary font-semibold uppercase tracking-wider">${cleanLang}</span>
         </div>
         <button
           type="button"

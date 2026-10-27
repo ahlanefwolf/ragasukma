@@ -112,7 +112,7 @@ export const McpSubTab: Component<{
                       <span class={`text-2xs px-2 py-0.5 rounded uppercase font-semibold border flex items-center gap-1 ${
                         isStdio()
                           ? 'bg-theme-cyan/15 text-theme-cyan border-theme-cyan/30'
-                          : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                          : 'bg-gi-status-info/15 text-gi-status-info border-gi-status-info/30'
                       }`}>
                         <Show when={isStdio()} fallback={<Globe class="w-2.5 h-2.5" />}>
                           <Terminal class="w-2.5 h-2.5" />
@@ -126,7 +126,7 @@ export const McpSubTab: Component<{
                           title="Copy Server Config as JSON"
                         >
                           <Show when={copiedServerId() === server.id} fallback={<Copy class="w-3.5 h-3.5" />}>
-                            <Check class="w-3.5 h-3.5 text-emerald-400" />
+                            <Check class="w-3.5 h-3.5 text-gi-status-success" />
                           </Show>
                         </button>
                         <button
@@ -165,7 +165,7 @@ export const McpSubTab: Component<{
                 {/* Footer with Prompt Injection Status & Copy JSON */}
                 <div class="pt-2 border-t border-theme-border/60 flex items-center justify-between gap-2">
                   <div class="flex items-center gap-1.5 text-2xs text-theme-cyan/90 font-medium truncate">
-                    <CheckCircle2 class="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <CheckCircle2 class="w-3.5 h-3.5 text-gi-status-success shrink-0" />
                     <span class="truncate">Active & Injected to Prompt</span>
                   </div>
 
@@ -175,7 +175,7 @@ export const McpSubTab: Component<{
                     title="Copy raw JSON configuration to clipboard"
                   >
                     <Show when={copiedServerId() === server.id} fallback={<Copy class="w-3 h-3 text-theme-text/60" />}>
-                      <Check class="w-3 h-3 text-emerald-400" />
+                      <Check class="w-3 h-3 text-gi-status-success" />
                     </Show>
                     <span>{copiedServerId() === server.id ? 'Copied' : 'Copy JSON'}</span>
                   </button>
