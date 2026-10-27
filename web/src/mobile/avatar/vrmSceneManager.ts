@@ -81,6 +81,7 @@ export class VrmSceneManager {
     this.camera = new THREE.PerspectiveCamera(26, width / height, 0.1, 100.0);
     this.camera.position.copy(DEFAULT_CAM_POS);
     this.camera.lookAt(DEFAULT_TARGET);
+    this.scene.add(this.camera);
 
     this.renderer = new THREE.WebGLRenderer({
       alpha: true,
@@ -139,13 +140,10 @@ export class VrmSceneManager {
     };
 
     // Standard MToon Directional Key Light:
-    // Placed in scene to illuminate avatar from front-top with Math.PI intensity (unit irradiance).
-    // Zero ambient light ensures authentic MToon cel-shading and texture saturation.
+    // Attached directly to camera (Headlamp setup) so cel-shading and rim lighting
+    // dynamically follow camera rotation (matching desktop WGPU shader.wgsl).
     this.mainLight = new THREE.DirectionalLight(0xffffff, Math.PI);
-    this.mainLight.position.set(0.35, 2.0, 1.5);
-    this.mainLight.target.position.set(0, 0, 0);
-    this.scene.add(this.mainLight);
-    this.scene.add(this.mainLight.target);
+    this.attachLightToCamera();
 
     this.lastFrameTime = performance.now();
 
@@ -450,10 +448,20 @@ export class VrmSceneManager {
     this.arManager.stopArSession(this.renderer);
   }
 
+  private attachLightToCamera(): void {
+    if (!this.camera || !this.mainLight) return;
+    this.camera.add(this.mainLight);
+    this.camera.add(this.mainLight.target);
+    this.mainLight.position.set(0.35, 1.0, 0.5);
+    this.mainLight.target.position.set(0, 0, -1.0);
+  }
+
   public lockAvatarInRealWorld(): boolean {
     if (!this.camera || !this.renderer) return false;
     const locked = this.arManager.lockAvatar(this.vrmAnchor, this.camera, this.renderer);
-    if (locked && this.mainLight) {
+    if (locked && this.mainLight && this.scene) {
+      this.scene.add(this.mainLight);
+      this.scene.add(this.mainLight.target);
       this.mainLight.position.set(
         this.vrmAnchor.position.x + 0.35,
         this.vrmAnchor.position.y + 2.0,
@@ -493,10 +501,7 @@ export class VrmSceneManager {
     this.vrmAnchor.position.set(0, 0, 0);
     this.vrmAnchor.rotation.set(0, 0, 0);
     this.vrmAnchor.visible = true;
-    if (this.mainLight) {
-      this.mainLight.position.set(0.35, 2.0, 1.5);
-      this.mainLight.target.position.set(0, 0, 0);
-    }
+    this.attachLightToCamera();
     this.resetCameraView();
     this.lastFrameTime = performance.now();
   }
@@ -537,6 +542,16 @@ export class VrmSceneManager {
     if (this.controls) {
       this.controls.dispose();
       this.controls = null;
+    }
+    if (this.mainLight) {
+      if (this.mainLight.parent) {
+        this.mainLight.parent.remove(this.mainLight);
+      }
+      if (this.mainLight.target.parent) {
+        this.mainLight.target.parent.remove(this.mainLight.target);
+      }
+      this.mainLight.dispose();
+      this.mainLight = null;
     }
     if (this.currentVrm) {
       try {

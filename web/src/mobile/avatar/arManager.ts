@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export interface ArState {
+interface ArState {
   isSupported: boolean;
   isActive: boolean;
   hasFoundSurface: boolean;
