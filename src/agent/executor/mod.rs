@@ -34,7 +34,10 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
     for folder in &allowed_folders {
         let _ = crate::agent::tools::ensure_git_and_gitignore(std::path::Path::new(folder));
     }
-    let prompt_skills = repository::get_project_skills(&project.id).await.unwrap_or_default();
+    let prompt_skills = crate::agent::skills::scan_project_skills(project.root_path.as_deref(), &allowed_folders);
+    let active_mcp_servers = repository::get_project_active_mcp_servers(&project.id).await.unwrap_or_default();
+    let mcp_tools = crate::agent::mcp::resolve_active_mcp_tools(&active_mcp_servers).await;
+    let dynamic_tools_schema = crate::agent::tools::get_dynamic_agent_tools_schema(&mcp_tools);
 
     // 2. Mark session as running
     let _ = repository::update_session_status(session_id, "running").await;
@@ -55,6 +58,8 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
         &project,
         &allowed_folders,
         &prompt_skills,
+        &active_mcp_servers,
+        &mcp_tools,
         session_id,
         &goal_id,
     ).await?;
@@ -113,6 +118,7 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
             is_codex,
             session.temperature,
             v1_messages,
+            dynamic_tools_schema.clone(),
             state.force_final_text_only,
             state.iteration,
         ).await {
@@ -200,6 +206,7 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                     session_id,
                     &project.id,
                     &allowed_folders,
+                    &mcp_tools,
                     &tool_calls,
                     &mut state,
                     &mut db_messages,

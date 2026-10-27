@@ -1,120 +1,95 @@
 import { Component, Show, JSX } from 'solid-js';
-import { Lock, Unlock, X } from 'lucide-solid';
-import { FpsLimit, RenderQuality } from '../types';
+import { Target, Move, X } from 'lucide-solid';
 
-interface AvatarArControlsProps {
+export interface AvatarArControlsProps {
   isAvatarLocked: boolean;
   hasFoundSurface: boolean;
-  quality: RenderQuality;
-  fpsLimit: FpsLimit;
   onLockAvatar: () => void;
   onUnlockAvatar: () => void;
   onExitAr: () => void;
-  onCycleQuality: () => void;
-  onCycleFps: () => void;
   bottomSlot?: JSX.Element;
 }
 
 export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
-  const qualityLabel = () => {
-    switch (props.quality) {
-      case 'sd':
-        return 'SD';
-      case 'ultra':
-        return '4K';
-      case 'hd':
-      default:
-        return 'HD';
-    }
-  };
-
-  const qualityColor = () => {
-    switch (props.quality) {
-      case 'sd':
-        return 'text-gi-status-warning hover:opacity-85';
-      case 'ultra':
-        return 'text-gi-primary hover:text-gi-primary-hover';
-      case 'hd':
-      default:
-        return 'text-gi-status-info hover:opacity-85';
-    }
-  };
-
   return (
-    <div class="absolute inset-0 pointer-events-none z-40 p-4 flex flex-col justify-between">
-      {/* Floating Action Icons: Exit, Lock, Quality & FPS in top-right corner */}
-      <div class="absolute top-4 right-4 flex flex-col items-center gap-2 pointer-events-auto select-none">
-        {/* Exit Button (X) */}
+    <div class="absolute inset-0 pointer-events-none z-40 p-4 pb-6 flex flex-col justify-between select-none">
+      {/* 1. Top Bar: Minimal Floating Status Dot on Left & Glassmorphic Exit Button on Right */}
+      <div class="w-full flex items-center justify-between pointer-events-none pt-safe">
+        {/* Minimal Floating Status Indicator (Pulsing Gold = Searching surface, Emerald = Anchored) */}
+        <div class="flex items-center gap-2 px-2.5 py-1 rounded-full bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/40 shadow-sm pointer-events-none">
+          <Show
+            when={props.isAvatarLocked}
+            fallback={
+              <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-gi-primary animate-ping" />
+                <span class="text-2xs font-mono text-gi-text-secondary">
+                  {props.hasFoundSurface ? 'Surface Found' : 'Scan Surface...'}
+                </span>
+              </div>
+            }
+          >
+            <div class="flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-gi-status-success shadow-[0_0_8px_rgba(69,184,118,0.9)]" />
+              <span class="text-2xs font-mono text-gi-text-secondary">Anchored</span>
+            </div>
+          </Show>
+        </div>
+
+        {/* Clean Circular Glass Exit Button */}
         <button
           type="button"
           onClick={props.onExitAr}
-          class="p-2 text-white/85 hover:text-white active:scale-80 transition-all drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer"
-          aria-label="Exit AR"
+          class="pointer-events-auto w-10 h-10 rounded-full bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/50 text-gi-text-primary hover:text-gi-primary active:scale-90 transition-all flex items-center justify-center shadow-md cursor-pointer"
+          aria-label="Exit AR Mode"
+          title="Exit AR Mode"
         >
-          <X size={26} class="stroke-[2.2]" />
+          <X size={20} class="stroke-[2.2]" />
         </button>
+      </div>
 
-        {/* Lock / Unlock button below exit */}
+      {/* 2. Middle Spacer */}
+      <div class="flex-1 pointer-events-none" />
+
+      {/* 3. Bottom Controls: Placement / Reposition Action + Interaction Dock */}
+      <div class="w-full flex flex-col items-center gap-4 pointer-events-none pb-safe">
+        {/* Floating Action Button: Anchor or Reposition */}
         <Show
           when={props.isAvatarLocked}
           fallback={
             <button
               type="button"
-              disabled={!props.hasFoundSurface}
               onClick={props.onLockAvatar}
-              class={`p-2 transition-all duration-200 active:scale-80 drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer ${
+              disabled={!props.hasFoundSurface}
+              class={`pointer-events-auto w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                 props.hasFoundSurface
-                  ? 'text-gi-primary hover:text-gi-primary-hover scale-105'
-                  : 'text-white/25 cursor-not-allowed'
+                  ? 'bg-gi-primary text-gi-primary-foreground shadow-[0_0_24px_rgba(229,184,92,0.65)] active:scale-90 animate-pulse'
+                  : 'bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/50 text-gi-text-muted/40 cursor-not-allowed opacity-40'
               }`}
-              aria-label="Lock Avatar"
+              aria-label="Anchor Avatar"
+              title={props.hasFoundSurface ? 'Anchor Avatar to Surface' : 'Scanning surface...'}
             >
-              <Lock size={24} class="stroke-[2.2]" />
+              <Target size={28} class="stroke-[2.4]" />
             </button>
           }
         >
           <button
             type="button"
             onClick={props.onUnlockAvatar}
-            class="p-2 text-gi-status-warning hover:opacity-85 active:scale-80 transition-all drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer"
-            aria-label="Unlock Avatar"
+            class="pointer-events-auto w-12 h-12 rounded-full bg-gi-canvas/70 backdrop-blur-md border border-gi-border-gold/60 text-gi-primary hover:text-gi-primary-hover active:scale-90 transition-all flex items-center justify-center shadow-lg cursor-pointer"
+            aria-label="Reposition Avatar"
+            title="Reposition Avatar"
           >
-            <Unlock size={24} class="stroke-[2.2]" />
+            <Move size={22} class="stroke-[2.2]" />
           </button>
         </Show>
 
-        {/* AR Quality Switcher */}
-        <button
-          type="button"
-          onClick={props.onCycleQuality}
-          class={`p-2 font-mono text-xs font-bold tracking-wider active:scale-85 transition-transform drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer ${qualityColor()}`}
-          title={`AR Render Quality: ${qualityLabel()}`}
-        >
-          <span>{qualityLabel()}</span>
-        </button>
-
-        {/* AR FPS Switcher */}
-        <button
-          type="button"
-          onClick={props.onCycleFps}
-          class={`p-2 font-mono text-xs font-bold tracking-wider active:scale-85 transition-transform drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] cursor-pointer ${
-            props.fpsLimit === 30 ? 'text-gi-status-success hover:opacity-85' : props.fpsLimit === 60 ? 'text-gi-primary hover:text-gi-primary-hover' : 'text-gi-status-info hover:opacity-85'
-          }`}
-          title={`AR FPS Limit: ${props.fpsLimit === 0 ? 'Max' : `${props.fpsLimit} FPS`}`}
-        >
-          <span>{props.fpsLimit === 0 ? 'MAX' : `${props.fpsLimit}F`}</span>
-        </button>
+        {/* Bottom Interaction Slot (Mic & Chat Dock) */}
+        <Show when={props.bottomSlot}>
+          <div class="w-full pointer-events-auto">
+            {props.bottomSlot}
+          </div>
+        </Show>
       </div>
-
-      {/* Top spacer */}
-      <div class="flex-1 pointer-events-none" />
-
-      {/* Bottom Slot: Mic & Chat Dock in AR mode */}
-      <Show when={props.bottomSlot}>
-        <div class="w-full pointer-events-auto pb-4">
-          {props.bottomSlot}
-        </div>
-      </Show>
     </div>
   );
 };

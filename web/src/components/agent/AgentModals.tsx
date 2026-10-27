@@ -182,261 +182,269 @@ export const CreateProjectModal: Component<{
   );
 };
 
-export const CreateSkillModal: Component<{
-  isOpen: boolean;
-  isEditing?: boolean;
-  onClose: () => void;
-  skillMarkdown: string;
-  setSkillMarkdown: (v: string) => void;
-  parseSkillMarkdown: (raw: string) => {
+interface McpTemplate {
+  label: string;
+  desc: string;
+  json: {
     name: string;
-    description: string;
-    tags: string[];
-    systemPrompt: string;
-    slug: string;
+    transport?: 'stdio' | 'sse' | 'http';
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+    url?: string;
   };
-  onCreateSkill: () => void;
-}> = (props) => {
-  return (
-    <Show when={props.isOpen}>
-      <div class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-theme-card border border-theme-border rounded-xl max-w-lg w-full p-5 space-y-4 shadow-2xl">
-          <div class="flex items-center justify-between border-b border-theme-border pb-3">
-            <h3 class="text-sm font-semibold text-theme-text flex items-center gap-2">
-              <Sparkles class="w-4 h-4 text-theme-cyan" />
-              <span>{props.isEditing ? 'Edit Prompt Skill' : 'Create New Prompt Skill'}</span>
-            </h3>
-            <button
-              onClick={props.onClose}
-              class="text-theme-text/70 hover:text-theme-text"
-            >
-              <X class="w-4 h-4" />
-            </button>
-          </div>
+}
 
-          <div class="space-y-3 text-xs">
-            <div class="flex items-center justify-between">
-              <label class="block text-theme-text/70 font-medium">Skill Prompt Configuration</label>
-              <span class="text-2xs text-theme-text/70">Markdown + YAML Frontmatter</span>
-            </div>
-
-            <div>
-              <textarea
-                rows={12}
-                placeholder={`---
-name: Skill Name
-description: Brief skill role description
-tags: web, coding
----
-
-Full prompt instructions for the AI model...`}
-                value={props.skillMarkdown}
-                onInput={(e) => props.setSkillMarkdown(e.currentTarget.value)}
-                class="w-full px-3 py-2.5 bg-theme-bg border border-theme-border rounded-lg text-theme-text font-mono text-xs leading-relaxed focus:outline-none focus:border-theme-cyan custom-scrollbar"
-              />
-            </div>
-
-            {/* Live Preview of parsed metadata */}
-            <div class="p-2.5 rounded-lg bg-theme-bg/60 border border-theme-border/60 space-y-1 text-xs">
-              <div class="flex items-center gap-2">
-                <span class="text-theme-text/70">Name:</span>
-                <span class="text-theme-cyan font-semibold">{props.parseSkillMarkdown(props.skillMarkdown).name || '-'}</span>
-                <span class="text-theme-border">•</span>
-                <span class="text-theme-text/70">Slug:</span>
-                <span class="text-theme-text/60 font-mono">{props.parseSkillMarkdown(props.skillMarkdown).slug || '-'}</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="text-theme-text/70">Description:</span>
-                <span class="text-theme-text/70 truncate">{props.parseSkillMarkdown(props.skillMarkdown).description || '(No description)'}</span>
-              </div>
-              <Show when={props.parseSkillMarkdown(props.skillMarkdown).tags.length > 0}>
-                <div class="flex items-center gap-1.5 pt-0.5">
-                  <span class="text-theme-text/70">Tags:</span>
-                  <div class="flex flex-wrap gap-1">
-                    <For each={props.parseSkillMarkdown(props.skillMarkdown).tags}>
-                      {(t) => (
-                        <span class="px-1.5 py-0.2 rounded bg-theme-cyan/15 text-theme-cyan text-2xs border border-theme-cyan/30">
-                          {t}
-                        </span>
-                      )}
-                    </For>
-                  </div>
-                </div>
-              </Show>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-end gap-2 border-t border-theme-border pt-3">
-            <button
-              onClick={props.onClose}
-              class="px-3.5 py-1.5 text-xs text-theme-text/60 hover:text-theme-text rounded-lg"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={props.onCreateSkill}
-              disabled={!props.skillMarkdown.trim()}
-              class="px-4 py-1.5 text-xs bg-theme-cyan hover:bg-theme-cyan/90 disabled:opacity-50 text-theme-card font-bold rounded-lg shadow-sm transition-colors"
-            >
-              {props.isEditing ? 'Save Changes' : 'Create Skill'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Show>
-  );
-};
+const MCP_TEMPLATES: McpTemplate[] = [
+  {
+    label: 'SQLite',
+    desc: 'Query & inspect local SQLite databases via npx',
+    json: {
+      name: 'SQLite Explorer',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-sqlite', '--db-path', './test.db'],
+    },
+  },
+  {
+    label: 'Filesystem',
+    desc: 'Read, write & search project directories',
+    json: {
+      name: 'Local Filesystem',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', './'],
+    },
+  },
+  {
+    label: 'GitHub',
+    desc: 'Inspect PRs, issues, commits & repos via npx',
+    json: {
+      name: 'GitHub Tools',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-github'],
+      env: {
+        GITHUB_PERSONAL_ACCESS_TOKEN: 'ghp_your_token_here',
+      },
+    },
+  },
+  {
+    label: 'Postgres',
+    desc: 'Connect & query PostgreSQL databases',
+    json: {
+      name: 'PostgreSQL DB',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-postgres', 'postgresql://user:pass@localhost:5432/mydb'],
+    },
+  },
+  {
+    label: 'Memory',
+    desc: 'Knowledge graph & persistent context memory',
+    json: {
+      name: 'Memory Graph',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-memory'],
+    },
+  },
+  {
+    label: 'Brave Search',
+    desc: 'Live web & news search via Brave API',
+    json: {
+      name: 'Brave Search',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-brave-search'],
+      env: {
+        BRAVE_API_KEY: 'BSA_your_brave_api_key',
+      },
+    },
+  },
+  {
+    label: 'Git (uvx)',
+    desc: 'Git repository operations via Python uvx',
+    json: {
+      name: 'Git CLI (uvx)',
+      command: 'uvx',
+      args: ['mcp-server-git', '--repository', '.'],
+    },
+  },
+  {
+    label: 'SSE / HTTP',
+    desc: 'Connect to remote or local HTTP/SSE MCP server',
+    json: {
+      name: 'Remote MCP',
+      transport: 'sse',
+      url: 'http://127.0.0.1:8000/sse',
+    },
+  },
+];
 
 export const McpServerModal: Component<{
   isOpen: boolean;
   isEditing?: boolean;
+  initialMode?: 'form' | 'json';
   onClose: () => void;
   onSave: (server: SaveMcpServerPayload) => Promise<boolean>;
-  onTest: (server: SaveMcpServerPayload) => Promise<{ ok: boolean; tools_count?: number; error?: string }>;
+  onTest?: (server: SaveMcpServerPayload) => Promise<{ ok: boolean; tools_count?: number; error?: string }>;
   initialData?: McpServerConfig | null;
 }> = (props) => {
   const [name, setName] = createSignal('');
-  const [transport, setTransport] = createSignal<'stdio' | 'sse' | 'http'>('stdio');
-  const [command, setCommand] = createSignal('');
-  const [argsText, setArgsText] = createSignal('');
-  const [envText, setEnvText] = createSignal('');
-  const [url, setUrl] = createSignal('');
-  const [isTesting, setIsTesting] = createSignal(false);
+  const [jsonText, setJsonText] = createSignal('');
+  const [jsonError, setJsonError] = createSignal<string | null>(null);
+  const [detectedMultiServers, setDetectedMultiServers] = createSignal<Array<{ name: string; [key: string]: any }>>([]);
+  const [importingAll, setImportingAll] = createSignal(false);
   const [isSaving, setIsSaving] = createSignal(false);
-  const [testResult, setTestResult] = createSignal<{ success: boolean; message: string } | null>(null);
+
+  const parseAndValidateJson = (text: string) => {
+    setJsonText(text);
+    if (!text.trim()) {
+      setJsonError(null);
+      setDetectedMultiServers([]);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(text);
+      setJsonError(null);
+
+      // Support Claude Desktop format: { "mcpServers": { ... } }
+      if (parsed && typeof parsed === 'object' && parsed.mcpServers && typeof parsed.mcpServers === 'object') {
+        const entries = Object.entries(parsed.mcpServers);
+        if (entries.length > 0) {
+          const servers = entries.map(([sName, sData]: [string, any]) => ({
+            name: sName,
+            ...(typeof sData === 'object' && sData !== null ? sData : {}),
+          }));
+          setDetectedMultiServers(servers);
+          if (!name()) setName(servers[0].name);
+          return;
+        }
+      }
+
+      // Support top-level map of servers: { "sqlite": { ... }, "github": { ... } }
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        !parsed.command &&
+        !parsed.url &&
+        !parsed.args &&
+        !parsed.transport &&
+        !parsed.name
+      ) {
+        const entries = Object.entries(parsed);
+        const isServerMap = entries.length > 0 && entries.every(([, v]) => typeof v === 'object' && v !== null && ((v as any).command || (v as any).url || (v as any).args));
+        if (isServerMap) {
+          const servers = entries.map(([sName, sData]: [string, any]) => ({
+            name: sName,
+            ...(typeof sData === 'object' && sData !== null ? sData : {}),
+          }));
+          setDetectedMultiServers(servers);
+          if (!name()) setName(servers[0].name);
+          return;
+        }
+      }
+
+      // Single server
+      setDetectedMultiServers([]);
+      if (parsed.name && typeof parsed.name === 'string' && !name()) {
+        setName(parsed.name);
+      }
+    } catch (err: any) {
+      setJsonError(err?.message || 'Invalid JSON syntax');
+    }
+  };
+
+  const handleFormatJson = () => {
+    try {
+      const parsed = JSON.parse(jsonText());
+      setJsonText(JSON.stringify(parsed, null, 2));
+      setJsonError(null);
+    } catch (e: any) {
+      setJsonError(e?.message || 'Invalid JSON syntax');
+    }
+  };
+
+  const handleApplyTemplate = (tmpl: McpTemplate) => {
+    setName(tmpl.json.name);
+    const jsonStr = JSON.stringify(tmpl.json, null, 2);
+    parseAndValidateJson(jsonStr);
+  };
 
   // Sync state whenever modal opens or initialData changes
   createEffect(() => {
     if (props.isOpen) {
-      setTestResult(null);
-      setIsTesting(false);
       setIsSaving(false);
+      setImportingAll(false);
+      setDetectedMultiServers([]);
+      setJsonError(null);
+
       if (props.initialData) {
         setName(props.initialData.name || '');
-        setTransport(props.initialData.transport || 'stdio');
-        setCommand(props.initialData.command || '');
-        setUrl(props.initialData.url || '');
 
-        // Parse args
+        const cfg: any = {
+          name: props.initialData.name,
+          transport: props.initialData.transport || 'stdio',
+        };
+        if (props.initialData.url) cfg.url = props.initialData.url;
+        if (props.initialData.command) cfg.command = props.initialData.command;
         try {
           const parsedArgs = JSON.parse(props.initialData.args || '[]');
-          if (Array.isArray(parsedArgs)) {
-            setArgsText(parsedArgs.join('\n'));
-          } else {
-            setArgsText(props.initialData.args || '');
+          if (Array.isArray(parsedArgs) && parsedArgs.length > 0) {
+            cfg.args = parsedArgs;
           }
-        } catch {
-          setArgsText(props.initialData.args || '');
-        }
+        } catch {}
 
-        // Parse env
         try {
           const parsedEnv = JSON.parse(props.initialData.env || '{}');
-          if (typeof parsedEnv === 'object' && parsedEnv !== null) {
-            const lines = Object.entries(parsedEnv).map(([k, v]) => `${k}=${v}`);
-            setEnvText(lines.join('\n'));
-          } else {
-            setEnvText(props.initialData.env || '');
+          if (typeof parsedEnv === 'object' && parsedEnv !== null && Object.keys(parsedEnv).length > 0) {
+            for (const [k, v] of Object.entries(parsedEnv)) {
+              if (cfg[k] === undefined) {
+                cfg[k] = v;
+              }
+            }
           }
-        } catch {
-          setEnvText(props.initialData.env || '');
-        }
+        } catch {}
+
+        setJsonText(JSON.stringify(cfg, null, 2));
       } else {
-        setName('');
-        setTransport('stdio');
-        setCommand('');
-        setArgsText('');
-        setEnvText('');
-        setUrl('');
+        const defaultTmpl = MCP_TEMPLATES[0];
+        setName(defaultTmpl.json.name);
+        setJsonText(JSON.stringify(defaultTmpl.json, null, 2));
       }
     }
   });
 
-  const parseArgs = (): string[] => {
-    const raw = argsText().trim();
-    if (!raw) return [];
-    return raw
-      .split('\n')
-      .map((s: string) => s.trim())
-      .filter(Boolean);
-  };
-
-  const parseEnv = (): Record<string, string> => {
-    const raw = envText().trim();
-    if (!raw) return {};
-    const result: Record<string, string> = {};
-    const lines = raw.split('\n');
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-      const idx = trimmed.indexOf('=');
-      if (idx > 0) {
-        const k = trimmed.slice(0, idx).trim();
-        const v = trimmed.slice(idx + 1).trim();
-        result[k] = v;
-      }
+  const handleSave = async () => {
+    const raw = jsonText().trim();
+    if (!raw) {
+      setJsonError('JSON configuration cannot be empty');
+      return;
     }
-    return result;
-  };
 
-  const buildPayload = (): SaveMcpServerPayload => {
-    return {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e: any) {
+      setJsonError(`Invalid JSON syntax: ${e?.message}`);
+      return;
+    }
+
+    let finalName = name().trim();
+    if (!finalName && parsed.name) {
+      finalName = String(parsed.name).trim();
+      setName(finalName);
+    }
+
+    if (!finalName) {
+      setJsonError('Please provide a Server / Tool Name');
+      return;
+    }
+
+    const payload: SaveMcpServerPayload = {
       id: props.initialData?.id || 'mcp_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6),
-      name: name().trim(),
-      transport: transport(),
-      command: transport() === 'stdio' ? command().trim() : undefined,
-      args: transport() === 'stdio' ? parseArgs() : undefined,
-      env: parseEnv(),
-      url: transport() !== 'stdio' ? url().trim() : undefined,
+      name: finalName,
+      raw_json: parsed,
       is_enabled: true,
     };
-  };
-
-  const handleTestConnection = async () => {
-    if (!name().trim()) {
-      setTestResult({ success: false, message: 'Please enter a server name first' });
-      return;
-    }
-    if (transport() === 'stdio' && !command().trim()) {
-      setTestResult({ success: false, message: 'Command is required for stdio transport' });
-      return;
-    }
-    if (transport() !== 'stdio' && !url().trim()) {
-      setTestResult({ success: false, message: 'URL is required for SSE/HTTP transport' });
-      return;
-    }
-
-    setIsTesting(true);
-    setTestResult(null);
-    try {
-      const payload = buildPayload();
-      const res = await props.onTest(payload);
-      if (res.ok) {
-        setTestResult({
-          success: true,
-          message: `Connected successfully! Discovered ${res.tools_count ?? 0} tools.`,
-        });
-      } else {
-        setTestResult({
-          success: false,
-          message: res.error || 'Connection failed',
-        });
-      }
-    } catch (e: any) {
-      setTestResult({ success: false, message: e?.message || 'Test failed' });
-    } finally {
-      setIsTesting(false);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!name().trim()) return;
-    if (transport() === 'stdio' && !command().trim()) return;
-    if (transport() !== 'stdio' && !url().trim()) return;
 
     setIsSaving(true);
     try {
-      const payload = buildPayload();
       const ok = await props.onSave(payload);
       if (ok) {
         props.onClose();
@@ -446,154 +454,179 @@ export const McpServerModal: Component<{
     }
   };
 
+  const handleImportAll = async () => {
+    const servers = detectedMultiServers();
+    if (servers.length === 0) return;
+    setImportingAll(true);
+    try {
+      let saved = 0;
+      for (const s of servers) {
+        const payload: SaveMcpServerPayload = {
+          id: 'mcp_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6),
+          name: s.name || 'MCP Server',
+          raw_json: s,
+          is_enabled: true,
+        };
+        const ok = await props.onSave(payload);
+        if (ok) saved++;
+      }
+      if (saved > 0) {
+        props.onClose();
+      }
+    } finally {
+      setImportingAll(false);
+    }
+  };
+
   return (
     <Show when={props.isOpen}>
       <div class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-theme-card border border-theme-border rounded-xl max-w-lg w-full p-5 space-y-4 shadow-2xl">
+        <div class="bg-theme-card border border-theme-border rounded-xl max-w-2xl w-full p-5 space-y-4 shadow-2xl">
           <div class="flex items-center justify-between border-b border-theme-border pb-3">
-            <h3 class="text-sm font-semibold text-theme-text flex items-center gap-2">
+            <div class="flex items-center gap-2">
               <Server class="w-4 h-4 text-theme-cyan" />
-              <span>{props.isEditing ? 'Edit MCP Server' : 'Add New MCP Server'}</span>
-            </h3>
+              <h3 class="text-sm font-semibold text-theme-text">
+                {props.isEditing ? 'Edit MCP Server' : 'Add MCP Server'}
+              </h3>
+            </div>
+
             <button
               onClick={props.onClose}
-              class="text-theme-text/70 hover:text-theme-text"
+              class="text-theme-text/70 hover:text-theme-text p-1 rounded-lg hover:bg-theme-bg transition-colors"
             >
               <X class="w-4 h-4" />
             </button>
           </div>
 
-          <div class="space-y-3 text-xs max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar">
-            {/* Server Name */}
+          <div class="space-y-3.5 text-xs">
+            {/* Server Name Input */}
             <div>
-              <label class="block text-theme-text/70 mb-1 font-medium">Server Name *</label>
+              <label class="block text-theme-text/80 mb-1 font-medium">Server / Tool Name *</label>
               <input
                 type="text"
-                placeholder="e.g. SQLite Explorer, GitHub Tools, Filesystem"
+                placeholder="e.g. SQLite Explorer, GitHub Tools, Remote Weather SSE"
                 value={name()}
-                onInput={(e) => setName(e.currentTarget.value)}
-                class="w-full px-3 py-2 bg-theme-bg border border-theme-border rounded-lg text-theme-text focus:outline-none focus:border-theme-cyan"
+                onInput={(e) => {
+                  setName(e.currentTarget.value);
+                  setJsonError(null);
+                }}
+                class="w-full px-3 py-2 bg-theme-bg border border-theme-border rounded-lg text-theme-text text-xs focus:outline-none focus:border-theme-cyan"
               />
             </div>
 
-            {/* Transport Selector */}
-            <div>
-              <label class="block text-theme-text/70 mb-1 font-medium">Transport Type</label>
-              <div class="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTransport('stdio')}
-                  class={`flex-1 py-1.5 px-3 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
-                    transport() === 'stdio'
-                      ? 'bg-theme-cyan/20 border-theme-cyan text-theme-cyan font-bold shadow-sm'
-                      : 'bg-theme-bg border-theme-border text-theme-text/70 hover:text-theme-text'
-                  }`}
-                >
-                  <Terminal class="w-3.5 h-3.5" />
-                  stdio (Process)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTransport('sse')}
-                  class={`flex-1 py-1.5 px-3 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
-                    transport() === 'sse'
-                      ? 'bg-theme-cyan/20 border-theme-cyan text-theme-cyan font-bold shadow-sm'
-                      : 'bg-theme-bg border-theme-border text-theme-text/70 hover:text-theme-text'
-                  }`}
-                >
-                  <Globe class="w-3.5 h-3.5" />
-                  SSE / HTTP
-                </button>
-              </div>
-            </div>
-
-            {/* stdio fields */}
-            <Show when={transport() === 'stdio'}>
-              <div>
-                <label class="block text-theme-text/70 mb-1 font-medium">Executable Command *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. npx, uvx, docker, or /usr/local/bin/mcp-server"
-                  value={command()}
-                  onInput={(e) => setCommand(e.currentTarget.value)}
-                  class="w-full px-3 py-2 bg-theme-bg border border-theme-border rounded-lg text-theme-text font-mono focus:outline-none focus:border-theme-cyan"
-                />
-              </div>
-
-              <div>
-                <div class="flex items-center justify-between mb-1">
-                  <label class="block text-theme-text/70 font-medium">Arguments (one per line)</label>
-                  <span class="text-2xs text-theme-text/50">Optional</span>
+            {/* Presets and formatting toolbar */}
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="text-2xs text-theme-text/50 font-medium">Presets:</span>
+                  <For each={MCP_TEMPLATES}>
+                    {(tmpl) => (
+                      <button
+                        type="button"
+                        onClick={() => handleApplyTemplate(tmpl)}
+                        class="px-2 py-0.5 text-2xs bg-theme-bg hover:bg-theme-cyan/15 hover:text-theme-cyan hover:border-theme-cyan/40 border border-theme-border text-theme-text/80 rounded-md transition-colors"
+                        title={tmpl.desc}
+                      >
+                        {tmpl.label}
+                      </button>
+                    )}
+                  </For>
                 </div>
+
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleFormatJson}
+                    class="px-2 py-0.5 text-2xs bg-theme-bg hover:bg-theme-card border border-theme-border hover:border-theme-cyan/50 text-theme-text/80 rounded-md transition-colors flex items-center gap-1"
+                    title="Prettify and format JSON"
+                  >
+                    Format JSON
+                  </button>
+                  <Show
+                    when={!jsonError() && jsonText().trim()}
+                    fallback={
+                      <Show when={jsonError()}>
+                        <span class="text-2xs text-rose-400 font-mono">Invalid JSON</span>
+                      </Show>
+                    }
+                  >
+                    <span class="text-2xs text-emerald-400 font-medium flex items-center gap-1">
+                      <Check class="w-3 h-3" /> Valid JSON
+                    </span>
+                  </Show>
+                </div>
+              </div>
+
+              {/* JSON Textarea */}
+              <div class="relative">
                 <textarea
-                  rows={3}
-                  placeholder={`-y\n@modelcontextprotocol/server-sqlite\n--db-path\n/path/to/db.sqlite`}
-                  value={argsText()}
-                  onInput={(e) => setArgsText(e.currentTarget.value)}
-                  class="w-full px-3 py-2 bg-theme-bg border border-theme-border rounded-lg text-theme-text font-mono text-xs focus:outline-none focus:border-theme-cyan custom-scrollbar"
+                  rows={13}
+                  value={jsonText()}
+                  onInput={(e) => parseAndValidateJson(e.currentTarget.value)}
+                  placeholder={`// Paste single server config, e.g.:\n{\n  "name": "SQLite Explorer",\n  "command": "npx",\n  "args": ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./test.db"]\n}\n\n// Or paste Claude Desktop "mcpServers" config directly!`}
+                  class={`w-full p-3 font-mono text-xs bg-theme-bg border rounded-lg text-theme-text focus:outline-none custom-scrollbar leading-relaxed ${
+                    jsonError() ? 'border-rose-500/60 focus:border-rose-400' : 'border-theme-border focus:border-theme-cyan'
+                  }`}
                 />
               </div>
-            </Show>
 
-            {/* sse/http fields */}
-            <Show when={transport() !== 'stdio'}>
-              <div>
-                <label class="block text-theme-text/70 mb-1 font-medium">Server Endpoint URL *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. http://127.0.0.1:8000/sse"
-                  value={url()}
-                  onInput={(e) => setUrl(e.currentTarget.value)}
-                  class="w-full px-3 py-2 bg-theme-bg border border-theme-border rounded-lg text-theme-text font-mono focus:outline-none focus:border-theme-cyan"
-                />
-              </div>
-            </Show>
+              {/* Detected multiple servers banner */}
+              <Show when={detectedMultiServers().length > 1}>
+                <div class="p-2.5 bg-theme-cyan/10 border border-theme-cyan/30 rounded-lg flex items-center justify-between gap-2 flex-wrap">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-2xs text-theme-cyan font-semibold">
+                      Detected {detectedMultiServers().length} servers in config:
+                    </span>
+                    <For each={detectedMultiServers()}>
+                      {(s) => (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setName(s.name);
+                            setJsonText(JSON.stringify(s, null, 2));
+                          }}
+                          class={`px-2 py-0.5 text-2xs rounded border transition-colors ${
+                            name() === s.name
+                              ? 'bg-theme-cyan text-theme-card font-bold border-theme-cyan'
+                              : 'bg-theme-bg border-theme-border text-theme-text/80 hover:border-theme-cyan/50'
+                          }`}
+                        >
+                          {s.name}
+                        </button>
+                      )}
+                    </For>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleImportAll}
+                    disabled={importingAll()}
+                    class="px-2.5 py-1 text-2xs bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card font-bold rounded shadow-sm transition-colors flex items-center gap-1"
+                  >
+                    <Show when={importingAll()} fallback={<Plus class="w-3 h-3" />}>
+                      <Loader2 class="w-3 h-3 animate-spin" />
+                    </Show>
+                    <span>Import All ({detectedMultiServers().length}) Servers</span>
+                  </button>
+                </div>
+              </Show>
 
-            {/* Environment Variables */}
-            <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-theme-text/70 font-medium">Environment Variables (KEY=VALUE per line)</label>
-                <span class="text-2xs text-theme-text/50">Optional</span>
-              </div>
-              <textarea
-                rows={2}
-                placeholder={`API_KEY=your_token_here\nDEBUG=true`}
-                value={envText()}
-                onInput={(e) => setEnvText(e.currentTarget.value)}
-                class="w-full px-3 py-2 bg-theme-bg border border-theme-border rounded-lg text-theme-text font-mono text-xs focus:outline-none focus:border-theme-cyan custom-scrollbar"
-              />
+              {/* Error message */}
+              <Show when={jsonError()}>
+                <div class="text-2xs text-rose-400 font-mono bg-rose-500/10 p-2 rounded border border-rose-500/20 flex items-start gap-1.5">
+                  <AlertCircle class="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>{jsonError()}</span>
+                </div>
+              </Show>
             </div>
-
-            {/* Test Connection Result Display */}
-            <Show when={testResult()}>
-              <div class={`p-2.5 rounded-lg border flex items-start gap-2 ${
-                testResult()?.success
-                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
-                  : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
-              }`}>
-                <Show when={testResult()?.success} fallback={<AlertCircle class="w-4 h-4 shrink-0 mt-0.5" />}>
-                  <CheckCircle2 class="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
-                </Show>
-                <span class="text-xs break-all">{testResult()?.message}</span>
-              </div>
-            </Show>
           </div>
 
           {/* Modal Actions */}
-          <div class="flex items-center justify-between border-t border-theme-border pt-3">
-            <button
-              type="button"
-              onClick={handleTestConnection}
-              disabled={isTesting()}
-              class="px-3.5 py-1.5 text-xs bg-theme-bg hover:bg-theme-card border border-theme-border hover:border-theme-cyan/50 text-theme-text rounded-lg font-medium flex items-center gap-1.5 transition-colors"
-            >
-              <Show when={isTesting()} fallback={<Wrench class="w-3.5 h-3.5 text-theme-cyan" />}>
-                <Loader2 class="w-3.5 h-3.5 animate-spin text-theme-cyan" />
-              </Show>
-              <span>{isTesting() ? 'Testing...' : 'Test Connection'}</span>
-            </button>
+          <div class="flex items-center justify-between border-t border-theme-border pt-3 flex-wrap gap-2">
+            <span class="text-2xs text-theme-text/50 hidden sm:inline">
+              Raw JSON is injected into LLM prompt for autonomous execution via Python 3 / terminal.
+            </span>
 
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 ml-auto">
               <button
                 type="button"
                 onClick={props.onClose}
@@ -604,13 +637,13 @@ export const McpServerModal: Component<{
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={isSaving() || !name().trim() || (transport() === 'stdio' ? !command().trim() : !url().trim())}
+                disabled={isSaving() || !!jsonError() || !name().trim()}
                 class="px-4 py-1.5 text-xs bg-theme-cyan hover:bg-theme-cyan/90 disabled:opacity-50 text-theme-card font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
               >
                 <Show when={isSaving()}>
                   <Loader2 class="w-3.5 h-3.5 animate-spin" />
                 </Show>
-                <span>{props.isEditing ? 'Save Changes' : 'Add Server'}</span>
+                <span>{props.isEditing ? 'Save Changes' : 'Save MCP Server'}</span>
               </button>
             </div>
           </div>

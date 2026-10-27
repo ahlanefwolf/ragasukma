@@ -9,19 +9,22 @@ import {
   X, 
   ChevronDown, 
   ExternalLink, 
-  Loader2 
+  Loader2,
+  Server,
+  Zap
 } from 'lucide-solid';
-import { Project, PromptSkill, parseProjectFolders } from '../../services';
+import { Project, PromptSkill, McpServerConfig, parseProjectFolders } from '../../services';
 
 export const AgentWorkspaceHeader: Component<{
   currentProject: Project | null | undefined;
   showWorkspaceSettings: boolean;
   onToggleWorkspaceSettings: () => void;
   skills: PromptSkill[];
-  activeProjectSkillIds: string[];
-  savingProjectSkills: boolean;
-  onToggleProjectSkill: (skillId: string) => void;
-  onOpenSkillsTab: () => void;
+  mcpServers: McpServerConfig[];
+  activeProjectMcpServerIds: string[];
+  savingProjectMcpServers: boolean;
+  onToggleProjectMcpServer: (serverId: string) => void;
+  onOpenMcpTab: () => void;
   folderInput: string;
   setFolderInput: (val: string) => void;
   validatingFolder: boolean;
@@ -52,48 +55,45 @@ export const AgentWorkspaceHeader: Component<{
 
         {/* Quick Active Skills Pill Strip & Manage Button */}
         <div class="flex items-center gap-2 flex-wrap sm:justify-end">
-          {/* Active Skills Pills (Always accessible at a glance for the user) */}
+          {/* Auto-detected Skills Pills from .agents/ */}
           <div class="flex items-center gap-1.5 flex-wrap">
-            <For each={props.skills.filter(s => props.activeProjectSkillIds.includes(s.id))}>
+            <For each={props.skills}>
               {(skill) => (
                 <span
-                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30 shadow-xs transition-all hover:bg-theme-cyan/25"
-                  title={`${skill.name}: ${skill.description || 'Active prompt skill'}`}
+                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30 shadow-xs"
+                  title={`${skill.name}: ${skill.description || 'Auto-loaded skill from .skills/'}`}
                 >
-                  <Sparkles class="w-2.5 h-2.5 shrink-0 text-theme-cyan animate-pulse" />
+                  <Sparkles class="w-2.5 h-2.5 shrink-0 text-theme-cyan" />
                   <span class="truncate max-w-[120px]">{skill.name}</span>
+                  <span class="text-2xs opacity-70 font-mono">@{skill.slug || 'skill'}</span>
+                </span>
+              )}
+            </For>
+
+            {/* Active MCP Server Pills */}
+            <For each={props.mcpServers.filter(s => props.activeProjectMcpServerIds.includes(s.id))}>
+              {(server) => (
+                <span
+                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shadow-xs transition-all hover:bg-indigo-500/25"
+                  title={`Active MCP Server: ${server.name} (${server.transport})`}
+                >
+                  <Server class="w-2.5 h-2.5 shrink-0 text-indigo-400" />
+                  <span class="truncate max-w-[120px]">{server.name}</span>
                   <button
                     type="button"
-                    disabled={props.savingProjectSkills}
+                    disabled={props.savingProjectMcpServers}
                     onClick={(e) => {
                       e.stopPropagation();
-                      props.onToggleProjectSkill(skill.id);
+                      props.onToggleProjectMcpServer(server.id);
                     }}
                     class="hover:text-rose-400 p-0.5 rounded-full hover:bg-theme-bg/50 transition-colors"
-                    title="Disable this skill from workspace"
+                    title="Disable this MCP server from workspace"
                   >
                     <X class="w-2.5 h-2.5" />
                   </button>
                 </span>
               )}
             </For>
-
-            {/* Quick "+ Skill" pill button */}
-            <button
-              type="button"
-              onClick={props.onToggleWorkspaceSettings}
-              class={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${
-                props.activeProjectSkillIds.length === 0
-                  ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 shadow-xs'
-                  : 'bg-theme-bg/80 text-theme-text/70 border border-theme-border hover:border-theme-cyan/40 hover:text-theme-cyan'
-              }`}
-              title={props.activeProjectSkillIds.length === 0 ? 'No active skills. Click to add skills to this workspace.' : 'Manage prompt skills'}
-            >
-              <Sparkles class="w-2.5 h-2.5 shrink-0" />
-              <span>
-                {props.activeProjectSkillIds.length === 0 ? '+ Add AI Skill' : '+ Skill'}
-              </span>
-            </button>
           </div>
 
           <button
@@ -110,67 +110,122 @@ export const AgentWorkspaceHeader: Component<{
       {/* Expanded Quick Settings Panel */}
       <Show when={props.showWorkspaceSettings}>
         <div class="pt-3 border-t border-theme-border/60 space-y-4">
-          {/* Active Skills Selection */}
+          {/* Auto-detected Skills Section */}
           <div class="bg-theme-bg/40 border border-theme-border/70 rounded-xl p-3 space-y-2.5">
             <div class="flex items-center justify-between">
               <div>
                 <label class="text-xs text-theme-text font-semibold flex items-center gap-1.5">
                   <Sparkles class="w-3.5 h-3.5 text-theme-cyan" />
-                  Workspace Prompt Skills
+                  Auto-detected Agent Skills ({props.skills.length})
                 </label>
                 <p class="text-xs text-theme-text/50 mt-0.5">
-                  Select specialized skills used by the AI agent to complete tasks in this workspace.
+                  Skills are automatically loaded from <code class="text-theme-cyan">.skills/</code> or <code class="text-theme-cyan">.skill/</code> folder in your workspace.
+                </p>
+              </div>
+            </div>
+
+            {/* Read-only Auto-detected Skill Cards */}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              <For each={props.skills}>
+                {(skill) => (
+                  <div class="rounded-lg p-2.5 border bg-theme-cyan/10 border-theme-cyan/40 shadow-xs flex flex-col justify-between gap-2">
+                    <div class="space-y-1">
+                      <div class="flex items-center justify-between gap-1.5">
+                        <span class="text-xs font-semibold text-theme-text truncate flex items-center gap-1.5">
+                          <span class="w-2 h-2 rounded-full shrink-0 bg-theme-cyan shadow-xs shadow-theme-cyan/50" />
+                          {skill.name}
+                        </span>
+                        <span class="text-2xs px-1.5 py-0.5 rounded font-mono font-medium bg-theme-cyan/20 text-theme-cyan">
+                          Active
+                        </span>
+                      </div>
+                      <p class="text-xs text-theme-text/60 line-clamp-2 leading-tight">
+                        {skill.description || 'Specialized AI instructions loaded from workspace .skills directory.'}
+                      </p>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-1 border-t border-theme-border/40 text-2xs text-theme-text/70">
+                      <span class="font-mono truncate max-w-[140px] text-theme-cyan/80">
+                        @{skill.slug || 'skill'}
+                      </span>
+                      <span class="text-theme-text/50 text-2xs font-mono">
+                        auto-loaded
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+
+            <Show when={props.skills.length === 0}>
+              <div class="p-3 text-center rounded-lg border border-dashed border-theme-border bg-theme-bg/30">
+                <p class="text-xs text-theme-text/60">
+                  No custom skills detected yet. Create a <code class="text-theme-cyan font-mono">.skills/</code> folder in your workspace with markdown files (e.g. <code class="text-theme-cyan font-mono">.skills/reviewer.md</code>) to auto-inject specialized prompt skills.
+                </p>
+              </div>
+            </Show>
+          </div>
+
+          {/* Active MCP Servers Selection */}
+          <div class="bg-theme-bg/40 border border-theme-border/70 rounded-xl p-3 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="text-xs text-theme-text font-semibold flex items-center gap-1.5">
+                  <Server class="w-3.5 h-3.5 text-indigo-400" />
+                  Workspace MCP Servers & Tools
+                </label>
+                <p class="text-xs text-theme-text/50 mt-0.5">
+                  External Model Context Protocol tools available to the AI agent in this workspace (SQLite, GitHub, Web, Terminal, Filesystem).
                 </p>
               </div>
               <button
                 type="button"
-                onClick={props.onOpenSkillsTab}
+                onClick={props.onOpenMcpTab}
                 class="text-xs text-theme-cyan hover:underline shrink-0 font-medium"
               >
-                Open Skills Library &rarr;
+                Open MCP Registry &rarr;
               </button>
             </div>
 
-            {/* Interactive Layperson-Friendly Skill Cards */}
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              <For each={props.skills}>
-                {(skill) => {
-                  const isActive = () => props.activeProjectSkillIds.includes(skill.id);
+              <For each={props.mcpServers}>
+                {(server) => {
+                  const isActive = () => props.activeProjectMcpServerIds.includes(server.id);
                   return (
                     <div
-                      onClick={() => !props.savingProjectSkills && props.onToggleProjectSkill(skill.id)}
+                      onClick={() => !props.savingProjectMcpServers && props.onToggleProjectMcpServer(server.id)}
                       class={`cursor-pointer rounded-lg p-2.5 border transition-all text-left flex flex-col justify-between gap-2 select-none ${
                         isActive()
-                          ? 'bg-theme-cyan/10 border-theme-cyan/50 shadow-xs'
-                          : 'bg-theme-card/60 border-theme-border hover:border-theme-border-hover hover:bg-theme-card'
+                          ? 'bg-indigo-500/10 border-indigo-500/50 shadow-xs'
+                          : 'bg-theme-card/60 border-theme-border hover:border-theme-border-hover hover:bg-theme-card opacity-70'
                       }`}
                     >
                       <div class="space-y-1">
                         <div class="flex items-center justify-between gap-1.5">
                           <span class="text-xs font-semibold text-theme-text truncate flex items-center gap-1.5">
-                            <span class={`w-2 h-2 rounded-full shrink-0 ${isActive() ? 'bg-theme-cyan shadow-xs shadow-theme-cyan/50' : 'bg-theme-text/20'}`} />
-                            {skill.name}
+                            <span class={`w-2 h-2 rounded-full shrink-0 ${isActive() ? 'bg-indigo-400 shadow-xs shadow-indigo-400/50' : 'bg-theme-text/20'}`} />
+                            {server.name}
                           </span>
                           <span
                             class={`text-2xs px-1.5 py-0.5 rounded font-mono font-medium ${
                               isActive()
-                                ? 'bg-theme-cyan/20 text-theme-cyan'
+                                ? 'bg-indigo-500/20 text-indigo-300'
                                 : 'bg-theme-bg text-theme-text/70'
                             }`}
                           >
-                            {isActive() ? 'Active' : 'Inactive'}
+                            {isActive() ? 'Active' : 'Disabled'}
                           </span>
                         </div>
-                        <p class="text-xs text-theme-text/60 line-clamp-2 leading-tight">
-                          {skill.description || 'Specialized AI skill instructions to accelerate workflow and increase accuracy.'}
+                        <p class="text-xs text-theme-text/60 line-clamp-1 font-mono">
+                          {server.transport === 'sse' ? server.url : `${server.command || ''} ${server.args || ''}`}
                         </p>
                       </div>
 
                       <div class="flex items-center justify-between pt-1 border-t border-theme-border/40 text-2xs text-theme-text/70">
-                        <span class="font-mono truncate max-w-[140px]">
-                          {skill.slug ? `@${skill.slug}` : 'skill'}
+                        <span class="font-mono uppercase text-2xs px-1.5 py-0.2 bg-theme-bg rounded border border-theme-border">
+                          {server.transport}
                         </span>
-                        <span class="text-theme-cyan/70 font-medium">
+                        <span class="text-2xs text-theme-text/50">
                           {isActive() ? 'Click to disable' : 'Click to enable'}
                         </span>
                       </div>
@@ -180,16 +235,16 @@ export const AgentWorkspaceHeader: Component<{
               </For>
             </div>
 
-            <Show when={props.skills.length === 0}>
+            <Show when={props.mcpServers.length === 0}>
               <div class="p-3 text-center rounded-lg border border-dashed border-theme-border bg-theme-bg/30">
-                <p class="text-xs text-theme-text/60 mb-2">No prompt skills registered in library yet.</p>
+                <p class="text-xs text-theme-text/60 mb-2">No MCP servers registered in registry yet.</p>
                 <button
                   type="button"
-                  onClick={props.onOpenSkillsTab}
+                  onClick={props.onOpenMcpTab}
                   class="text-xs px-3 py-1 bg-theme-cyan text-theme-bg font-medium rounded-lg hover:bg-theme-cyan/90 transition-colors inline-flex items-center gap-1.5"
                 >
-                  <Sparkles class="w-3.5 h-3.5" />
-                  Add First Skill
+                  <Server class="w-3.5 h-3.5" />
+                  Add MCP Server
                 </button>
               </div>
             </Show>

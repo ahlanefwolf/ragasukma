@@ -8,7 +8,6 @@ use anyhow::{bail, Context, Result};
 use serde_json::json;
 use std::fs as std_fs;
 use std::path::Path;
-use std::sync::OnceLock;
 
 pub use dialogs::{open_path_in_file_manager, pick_folder_dialog};
 pub use editor::apply_resilient_edit;
@@ -44,178 +43,159 @@ pub fn is_read_only_tool(name: &str) -> bool {
     )
 }
 
-/// Returns tool definitions for OpenAI / Antigravity / Codex V1 tool calling (cached)
-pub fn get_agent_tools_schema() -> Vec<serde_json::Value> {
-    static CACHED_SCHEMA: OnceLock<Vec<serde_json::Value>> = OnceLock::new();
-    CACHED_SCHEMA
-        .get_or_init(|| {
-            vec![
-                json!({
-                    "type": "function",
-                    "function": {
-                        "name": "workspace_list_dir",
-                        "description": "List files and subdirectories in a directory with shallow depth (default depth 1). Shows child counts for subdirectories so you know what is inside without full recursion. Specify 'depth' (1-3) if needed.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "path": {
-                                    "type": "string",
-                                    "description": "Relative or absolute path to the directory within the workspace"
-                                },
-                                "depth": {
-                                    "type": "integer",
-                                    "description": "Directory traversal depth (1 to 3, default: 1 for shallow listing)"
-                                }
-                            },
-                            "required": ["path"]
-                        }
+/// Returns dynamic tool definitions combining built-in workspace tools with project MCP tools.
+/// Specialized tools (workspace inspection/editing and active MCP tools) are prioritized FIRST,
+/// while `workspace_run_command` (terminal fallback) is placed LAST.
+pub fn get_dynamic_agent_tools_schema(mcp_tools: &[crate::agent::mcp::ActiveMcpTool]) -> Vec<serde_json::Value> {
+    let mut schema = Vec::new();
+
+    // 1. Core workspace structural tools
+    schema.push(json!({
+        "type": "function",
+        "function": {
+            "name": "workspace_list_dir",
+            "description": "List files and subdirectories in a directory with shallow depth (default depth 1). Shows child counts for subdirectories so you know what is inside without full recursion. Specify 'depth' (1-3) if needed.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Relative or absolute path to the directory within the workspace"
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "Directory traversal depth (1 to 3, default: 1 for shallow listing)"
                     }
-                }),
-                json!({
-                    "type": "function",
-                    "function": {
-                        "name": "workspace_read_file",
-                        "description": "Read text content of a file in the workspace. For large files (>250 lines), automatically returns a structural outline with symbol names and line numbers to save tokens. Use `start_line` and `end_line` to read specific slices, or set `mode: \"full\"` to force reading the entire file.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "file_path": {
-                                    "type": "string",
-                                    "description": "Path to the file to read"
-                                },
-                                "start_line": {
-                                    "type": "integer",
-                                    "description": "Start line number (1-indexed, optional)"
-                                },
-                                "end_line": {
-                                    "type": "integer",
-                                    "description": "End line number (1-indexed, optional)"
-                                },
-                                "mode": {
-                                    "type": "string",
-                                    "enum": ["outline", "full"],
-                                    "description": "Reading mode: 'outline' returns a structural outline with line numbers; 'full' forces reading the full file even if large; default automatically returns outline for files >250 lines."
-                                }
-                            },
-                            "required": ["file_path"]
-                        }
+                },
+                "required": ["path"]
+            }
+        }
+    }));
+
+    schema.push(json!({
+        "type": "function",
+        "function": {
+            "name": "workspace_read_file",
+            "description": "Read text content of a file in the workspace. For large files (>250 lines), automatically returns a structural outline with symbol names and line numbers to save tokens. Use `start_line` and `end_line` to read specific slices, or set `mode: \"full\"` to force reading the entire file.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to read"
+                    },
+                    "start_line": {
+                        "type": "integer",
+                        "description": "Start line number (1-indexed, optional)"
+                    },
+                    "end_line": {
+                        "type": "integer",
+                        "description": "End line number (1-indexed, optional)"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["outline", "full"],
+                        "description": "Reading mode: 'outline' returns a structural outline with line numbers; 'full' forces reading the full file even if large; default automatically returns outline for files >250 lines."
                     }
-                }),
-                json!({
-                    "type": "function",
-                    "function": {
-                        "name": "workspace_write_file",
-                        "description": "Write or create a file in the workspace. TIP: Prefer this tool over workspace_edit_file for small files (< 100 lines) or major rewrites to ensure 100% accuracy and speed.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "file_path": {
-                                    "type": "string",
-                                    "description": "Target file path to write"
-                                },
-                                "content": {
-                                    "type": "string",
-                                    "description": "Full text content to write to the file"
-                                }
-                            },
-                            "required": ["file_path", "content"]
-                        }
+                },
+                "required": ["file_path"]
+            }
+        }
+    }));
+
+    schema.push(json!({
+        "type": "function",
+        "function": {
+            "name": "workspace_write_file",
+            "description": "Write or overwrite content of a file in the workspace. Automatically formats code based on file extension (Prettier for JS/TS/CSS/JSON, rustfmt for Rust, gofmt for Go, black for Python) and tracks modification metadata.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to write (relative to workspace or absolute)"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Complete file content to write"
                     }
-                }),
-                json!({
-                    "type": "function",
-                    "function": {
-                        "name": "workspace_rollback",
-                        "description": "Rollback modified files to their state prior to workspace_write_file or workspace_edit_file mutations. If 'file_path' is provided, rollbacks that specific file; otherwise rolls back all backed up files.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "file_path": {
-                                    "type": "string",
-                                    "description": "Optional relative or absolute file path to rollback"
-                                }
-                            }
-                        }
+                },
+                "required": ["file_path", "content"]
+            }
+        }
+    }));
+
+    schema.push(json!({
+        "type": "function",
+        "function": {
+            "name": "workspace_grep",
+            "description": "Fast regex and literal text search across files in the workspace (ignores node_modules, target, .git, etc.). Returns up to 50 results formatted with file paths and line numbers.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Regex pattern or search text"
+                    },
+                    "folder": {
+                        "type": "string",
+                        "description": "Subdirectory to search (optional, defaults to first root folder)"
                     }
-                }),
-                json!({
-                    "type": "function",
-                    "function": {
-                        "name": "workspace_edit_file",
-                        "description": "Replace a specific section or lines in an existing file. For small files (< 100 lines), prefer workspace_write_file directly. TIP: Keep 'old_text' short and unique (only 2-6 lines around the target change) so it matches instantly.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "file_path": {
-                                    "type": "string",
-                                    "description": "Path to the file to edit"
-                                },
-                                "old_text": {
-                                    "type": "string",
-                                    "description": "Exact text or lines to find and replace. Keep it minimal and concise (2 to 6 lines) for exact matching."
-                                },
-                                "new_text": {
-                                    "type": "string",
-                                    "description": "Replacement text"
-                                }
-                            },
-                            "required": ["file_path", "old_text", "new_text"]
-                        }
+                },
+                "required": ["query"]
+            }
+        }
+    }));
+
+    // 2. Active Dedicated MCP External Tools (Prioritized over manual shell commands)
+    for tool in mcp_tools {
+        let desc = format!(
+            "[Dedicated Tool from {}] {}",
+            tool.server_name,
+            tool.definition.description.as_deref().unwrap_or("Active MCP tool")
+        );
+        schema.push(json!({
+            "type": "function",
+            "function": {
+                "name": tool.namespaced_name,
+                "description": desc,
+                "parameters": tool.definition.input_schema
+            }
+        }));
+    }
+
+    // 3. Generic Shell Fallback (Always placed LAST to discourage manual shell scripts for tasks with dedicated tools)
+    schema.push(json!({
+        "type": "function",
+        "function": {
+            "name": "workspace_run_command",
+            "description": format!(
+                "Execute terminal command on host OS '{}' using {}. NOTE: Always prefer dedicated workspace_* and active mcp__* tools first. Only use this command for project-wide compilation/builds (e.g. 'cargo build', 'npm run build'), running test suites ('cargo test', 'npm test'), git commits, or tasks where no dedicated tool exists. Do NOT use this with 'curl' or custom scripts when dedicated fetch/inspect tools are available.",
+                std::env::consts::OS,
+                if cfg!(target_os = "windows") { "PowerShell" } else { "user login shell (bash/zsh)" }
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "Full shell command to execute. Supports chaining with '&&'."
+                    },
+                    "cwd": {
+                        "type": "string",
+                        "description": "Working directory relative to workspace or folder alias (defaults to primary root)"
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "description": "Optional maximum execution timeout in seconds (default: 120, max: 600)."
                     }
-                }),
-                json!({
-                    "type": "function",
-                    "function": {
-                        "name": "workspace_grep",
-                        "description": "Search for string or regex across workspace files.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "query": {
-                                    "type": "string",
-                                    "description": "Search query or regex string"
-                                },
-                                "path": {
-                                    "type": "string",
-                                    "description": "Subdirectory to search (optional, defaults to first root folder)"
-                                }
-                            },
-                            "required": ["query"]
-                        }
-                    }
-                }),
-                json!({
-                    "type": "function",
-                    "function": {
-                        "name": "workspace_run_command",
-                        "description": format!(
-                            "Execute a terminal/shell command on host OS '{}' using {}. Has full access to user development tools (npm, npx, pnpm, yarn, node, cargo, python, pip, git, etc.). Specify 'cwd' to run in a specific project folder or directory. Commands support full shell syntax and chaining.",
-                            std::env::consts::OS,
-                            if cfg!(target_os = "windows") { "PowerShell" } else { "user login shell (bash/zsh)" }
-                        ),
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "command": {
-                                    "type": "string",
-                                    "description": "Full shell command to execute. Supports chaining multiple commands with '&&' (e.g. 'git add -A && git commit -m \"...\" && git push' or 'npm run build && npm test'). Always chain related sequential commands into a single call rather than running them across multiple turns."
-                                },
-                                "cwd": {
-                                    "type": "string",
-                                    "description": "Working directory relative to workspace or folder alias (optional, defaults to primary workspace root)"
-                                },
-                                "timeout_seconds": {
-                                    "type": "integer",
-                                    "description": "Optional maximum execution timeout in seconds (default: 120, maximum: 600). Use higher values for large builds, long test suites, or heavy compilations."
-                                }
-                            },
-                            "required": ["command"]
-                        }
-                    }
-                }),
-            ]
-        })
-        .clone()
+                },
+                "required": ["command"]
+            }
+        }
+    }));
+
+    schema
 }
 
 /// Execute a tool call safely

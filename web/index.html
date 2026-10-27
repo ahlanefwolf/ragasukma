@@ -1,8 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background-color: #0b0d13; color-scheme: dark;">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <meta name="theme-color" content="#181d26" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Ragasukma - AI Companion & Dashboard</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     
@@ -13,28 +19,8 @@
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap"
       rel="stylesheet"
     />
-    <style>
-      /* 1. Define digits 0-9 with Plus Jakarta Sans for tabular alignment */
-      @font-face {
-        font-family: 'Playwrite NG Modern';
-        src: local('Plus Jakarta Sans SemiBold'), local('Plus Jakarta Sans'), local('PlusJakartaSans-SemiBold');
-        unicode-range: U+0030-0039; /* Khusus angka 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 */
-        font-weight: 100 900;
-        font-style: normal;
-        font-display: swap;
-      }
-      /* 2. Definisi huruf naskah Playwrite NG Modern (angka di-exclude) */
-      @font-face {
-        font-family: 'Playwrite NG Modern';
-        src: url('/PlaywriteNGModern-Regular.ttf') format('truetype');
-        unicode-range: U+0000-002F, U+003A-FFFF; /* All characters EXCEPT digits 0-9 */
-        font-weight: 100 900;
-        font-style: normal;
-        font-display: swap;
-      }
-    </style>
   </head>
-  <body class="bg-theme-bg text-theme-text font-sans antialiased selection:bg-[#E5B85C] selection:text-[#111318] min-h-screen">
+  <body style="background-color: #0b0d13;" class="bg-theme-bg text-theme-text font-sans antialiased selection:bg-[#E5B85C] selection:text-[#111318] min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/index.tsx"></script>
   </body>

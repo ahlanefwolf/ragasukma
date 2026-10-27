@@ -9,12 +9,15 @@ import {
   Bot, 
   User, 
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  X,
+  Mic,
+  MicOff
 } from 'lucide-solid';
 import { historyService, ChatTurnItem } from '../../services/historyService';
 import { MarkdownView } from '../../components/agent/MarkdownView';
 
-export interface IncomingChatEvent {
+interface IncomingChatEvent {
   id?: string;
   sender: 'assistant' | 'user';
   text: string;
@@ -34,6 +37,8 @@ export interface MobileChatModalProps {
   assistantStatus?: string;
   currentEmotion?: string;
   incomingMessage?: IncomingChatEvent | null;
+  isListening?: boolean;
+  onToggleMic?: () => void;
 }
 
 export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
@@ -47,6 +52,36 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
   const [isInitialLoading, setIsInitialLoading] = createSignal<boolean>(false);
   const [historyDates, setHistoryDates] = createSignal<string[]>([]);
   const [currentDateIndex, setCurrentDateIndex] = createSignal<number>(0);
+  const [viewportHeight, setViewportHeight] = createSignal<string>('100%');
+
+  const updateViewport = () => {
+    if (window.visualViewport) {
+      setViewportHeight(`${window.visualViewport.height}px`);
+    } else {
+      setViewportHeight(`${window.innerHeight}px`);
+    }
+  };
+
+  onMount(() => {
+    updateViewport();
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewport);
+      window.visualViewport.addEventListener('scroll', updateViewport);
+    } else {
+      window.addEventListener('resize', updateViewport);
+    }
+    document.addEventListener('fullscreenchange', updateViewport);
+
+    onCleanup(() => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewport);
+        window.visualViewport.removeEventListener('scroll', updateViewport);
+      } else {
+        window.removeEventListener('resize', updateViewport);
+      }
+      document.removeEventListener('fullscreenchange', updateViewport);
+    });
+  });
 
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
@@ -146,6 +181,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
       initHistory();
       setTimeout(() => {
         if (inputRef) inputRef.focus();
+        scrollToBottom();
       }, 250);
 
       // Helper to match user speaker aliases (You, user, callsign)
@@ -266,14 +302,31 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
     }
   };
 
+  const adjustInputHeight = (el?: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = 'auto';
+    const next = Math.min(Math.max(el.scrollHeight, 38), 128);
+    el.style.height = `${next}px`;
+  };
+
+  createEffect(() => {
+    if (!props.inputText && inputRef) {
+      inputRef.style.height = 'auto';
+    }
+  });
+
   return (
     <Show when={props.isOpen}>
       <div 
-        class="fixed inset-0 z-50 flex flex-col bg-theme-bg/95 backdrop-blur-md text-theme-text animate-in fade-in zoom-in-95 duration-200 select-none overflow-hidden"
-        style={{ "padding-top": "env(safe-area-inset-top, 0px)", "padding-bottom": "env(safe-area-inset-bottom, 0px)" }}
+        class="fixed inset-0 z-50 pointer-events-auto bg-[#0f1218] overflow-hidden flex flex-col select-none animate-in fade-in zoom-in-95 duration-200"
+        style={{
+          height: viewportHeight(),
+          "max-height": viewportHeight(),
+          "padding-top": "env(safe-area-inset-top, 0px)",
+        }}
       >
         {/* Top Header - WhatsApp Styled Bar adhering to App Theme */}
-        <header class="h-14 border-b border-theme-border bg-theme-surface/90 px-3 flex items-center justify-between shadow-sm shrink-0">
+        <header class="h-14 border-b border-theme-border bg-theme-surface px-3 flex items-center justify-between shadow-sm shrink-0">
           <div class="flex items-center gap-2.5 min-w-0">
             <button
               type="button"
@@ -284,16 +337,16 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
               <ArrowLeft size={20} />
             </button>
             <div class="relative shrink-0">
-              <div class="w-9 h-9 rounded-full bg-theme-cyan/20 border border-theme-cyan/50 flex items-center justify-center text-theme-cyan shadow-sm">
+              <div class="w-9 h-9 rounded-full bg-gi-primary/15 border border-gi-primary/40 flex items-center justify-center text-gi-primary shadow-sm">
                 <Bot size={18} />
               </div>
-              <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-theme-surface animate-pulse" />
+              <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-gi-status-success border-2 border-theme-surface animate-pulse" />
             </div>
             <div class="flex flex-col min-w-0">
               <span class="text-sm font-bold text-theme-text truncate leading-tight">
                 {props.assistantName || 'Assistant'}
               </span>
-              <span class="text-2xs text-theme-cyan font-mono truncate">
+              <span class="text-2xs text-gi-primary font-mono truncate">
                 {props.assistantStatus || 'online'}
               </span>
             </div>
@@ -303,7 +356,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
             <button
               type="button"
               onClick={() => initHistory()}
-              class="p-2 hover:text-theme-cyan transition-colors rounded-full"
+              class="p-2 hover:text-gi-primary-hover transition-colors rounded-full"
               title="Refresh History"
             >
               <RefreshCw size={16} class={isLoadingMore() ? 'animate-spin' : ''} />
@@ -311,27 +364,19 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
           </div>
         </header>
 
-        {/* Chat History Viewport (Reverse Scroll & WhatsApp Wallpaper Feel) */}
+        {/* Chat History Viewport */}
         <div 
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          class="flex-1 overflow-y-auto p-4 space-y-3.5 overscroll-contain bg-gradient-to-b from-theme-bg/50 via-theme-card/30 to-theme-bg/60"
+          class="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5 overscroll-contain bg-gradient-to-b from-theme-bg/50 via-theme-card/30 to-theme-bg/60"
         >
           {/* Lazy Loading Indicator at Top */}
           <Show when={isLoadingMore() || isInitialLoading()}>
             <div class="flex items-center justify-center py-2">
               <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-theme-surface border border-theme-border text-2xs text-theme-muted font-mono shadow-sm">
-                <Loader2 size={12} class="animate-spin text-theme-cyan" />
+                <Loader2 size={12} class="animate-spin text-gi-primary" />
                 <span>Loading messages...</span>
               </div>
-            </div>
-          </Show>
-
-          <Show when={!isLoadingMore() && !hasMore() && messages().length > 0}>
-            <div class="flex items-center justify-center py-2">
-              <span class="px-3 py-1 rounded-full bg-theme-surface/50 border border-theme-border/50 text-2xs text-theme-muted/70 font-mono">
-                Beginning of message history
-              </span>
             </div>
           </Show>
 
@@ -339,7 +384,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
           <Show when={!isInitialLoading() && messages().length === 0}>
             <div class="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
               <div class="w-14 h-14 rounded-full bg-theme-card border border-theme-border flex items-center justify-center text-theme-muted">
-                <Sparkles size={24} class="text-theme-cyan/80" />
+                <Sparkles size={24} class="text-gi-primary/80" />
               </div>
               <div class="space-y-1">
                 <p class="text-sm font-semibold text-theme-text">No conversation yet</p>
@@ -364,13 +409,13 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                   <div
                     class={`relative max-w-[82%] sm:max-w-[70%] px-3.5 py-2 text-xs shadow-md select-text ${
                       isUser
-                        ? 'bg-theme-cyan text-theme-bg font-medium rounded-2xl rounded-tr-xs'
+                        ? 'bg-gi-primary text-gi-primary-foreground font-medium rounded-2xl rounded-tr-xs'
                         : 'bg-theme-card border border-theme-border text-theme-text rounded-2xl rounded-tl-xs'
                     }`}
                   >
                     {/* Speaker Header on Group/Bot */}
                     <Show when={!isUser}>
-                      <span class="block text-2xs font-bold text-theme-cyan mb-0.5">
+                      <span class="block text-2xs font-bold text-gi-primary mb-0.5">
                         {speaker}
                       </span>
                     </Show>
@@ -384,11 +429,11 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
 
                     {/* Message Footer (Timestamp & WhatsApp Ticks) */}
                     <div class={`flex items-center justify-end gap-1 mt-1 text-2xs font-mono select-none ${
-                      isUser ? 'text-theme-bg/75' : 'text-theme-muted'
+                      isUser ? 'text-gi-primary-foreground/75' : 'text-theme-muted'
                     }`}>
                       <span>{turn.time}</span>
                       <Show when={isUser}>
-                        <CheckCheck size={13} class="text-theme-bg/90 inline-block" />
+                        <CheckCheck size={13} class="text-gi-primary-foreground/90 inline-block" />
                       </Show>
                     </div>
                   </div>
@@ -398,42 +443,88 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
           </For>
         </div>
 
-        {/* Bottom Input Area - WhatsApp Pill Styled with Send Button */}
-        <footer class="p-2.5 bg-theme-surface/95 border-t border-theme-border shrink-0 flex items-end gap-2">
-          <div class="flex-1 min-h-[42px] max-h-[120px] bg-theme-card border border-theme-border rounded-2xl px-3 py-2 flex items-center gap-2 focus-within:border-theme-cyan transition-colors shadow-inner">
+        {/* Bottom Input Area - Precision Engineered Modern Capsule */}
+        <footer 
+          class="p-2.5 bg-[#181d26] border-t border-theme-border/60 shrink-0 flex items-end w-full pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+        >
+          <div class="relative w-full max-w-full bg-[#222936] border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-1 focus-within:ring-gi-primary/30 rounded-2xl transition-all shadow-sm flex flex-col justify-between overflow-hidden">
             <textarea
               ref={inputRef}
               value={props.inputText}
-              onInput={(e) => props.onInputText(e.currentTarget.value)}
+              onFocus={() => {
+                setTimeout(scrollToBottom, 200);
+              }}
+              onInput={(e) => {
+                props.onInputText(e.currentTarget.value);
+                adjustInputHeight(e.currentTarget);
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
               rows={1}
               disabled={props.isSending}
-              class="w-full bg-transparent text-xs text-theme-text placeholder:text-theme-muted/60 resize-none outline-hidden focus:outline-none max-h-24 leading-relaxed"
+              class="w-full min-w-0 px-3.5 pt-2.5 pb-1 bg-transparent text-xs text-theme-text placeholder:text-theme-muted/50 resize-none outline-none leading-relaxed min-h-[36px] max-h-[120px] custom-scrollbar disabled:opacity-60 font-sans"
             />
-            <Show when={props.inputText.length > 0}>
-              <button
-                type="button"
-                onClick={() => props.onInputText('')}
-                class="p-1 text-theme-muted hover:text-theme-text active:scale-90 transition-transform"
-                title="Clear input"
-              >
-                <Trash2 size={14} />
-              </button>
-            </Show>
-          </div>
 
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={!props.inputText.trim() || props.isSending}
-            class="w-11 h-11 rounded-full bg-theme-cyan text-theme-bg flex items-center justify-center shrink-0 shadow-md active:scale-90 transition-all disabled:opacity-40 disabled:scale-100"
-            title="Send Message"
-          >
-            <Show when={props.isSending} fallback={<Send size={16} class="translate-x-0.5" />}>
-              <Loader2 size={16} class="animate-spin" />
-            </Show>
-          </button>
+            {/* Bottom Micro Action Bar */}
+            <div class="flex items-center justify-between px-3 pb-2 pt-0.5 select-none">
+              <div class="flex items-center gap-2 min-w-0">
+                <Show when={props.inputText.length > 0}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      props.onInputText('');
+                      if (inputRef) adjustInputHeight(inputRef);
+                    }}
+                    class="p-1 rounded-md text-theme-muted hover:text-theme-text active:scale-90 transition-transform cursor-pointer"
+                    title="Clear message"
+                  >
+                    <X size={13} />
+                  </button>
+                  <Show when={props.inputText.length > 80}>
+                    <span class="text-2xs font-mono text-theme-muted/60">
+                      {props.inputText.length} chars
+                    </span>
+                  </Show>
+                </Show>
+                <Show when={props.inputText.length === 0}>
+                  <span class="text-2xs font-mono text-theme-muted/40 hidden sm:inline">
+                    Shift+Enter for newline
+                  </span>
+                </Show>
+              </div>
+
+              <div class="flex items-center gap-1.5 shrink-0 ml-2">
+                <Show when={props.onToggleMic}>
+                  <button
+                    type="button"
+                    onClick={props.onToggleMic}
+                    class={`w-7 h-7 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-sm cursor-pointer ${
+                      props.isListening
+                        ? 'bg-gi-status-danger text-white animate-pulse shadow-gi-status-danger/30'
+                        : 'bg-theme-surface border border-theme-border text-theme-muted hover:text-gi-primary-hover hover:border-gi-primary/50'
+                    }`}
+                    title={props.isListening ? 'Stop Listening' : 'Voice Input (PTT)'}
+                  >
+                    <Show when={props.isListening} fallback={<Mic size={13} />}>
+                      <MicOff size={13} />
+                    </Show>
+                  </button>
+                </Show>
+
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={!props.inputText.trim() || props.isSending}
+                  class="w-7 h-7 rounded-full bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed active:scale-90 transition-all shadow-md shadow-gi-primary/25 cursor-pointer"
+                  title="Send Message"
+                >
+                  <Show when={props.isSending} fallback={<Send size={12} class="translate-x-px" />}>
+                    <Loader2 size={12} class="animate-spin" />
+                  </Show>
+                </button>
+              </div>
+            </div>
+          </div>
         </footer>
       </div>
     </Show>

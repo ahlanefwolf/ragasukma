@@ -1,12 +1,14 @@
 use anyhow::Result;
 
-use crate::agent::models::{Project, PromptSkill};
+use crate::agent::models::{McpServer, Project, PromptSkill};
 use crate::agent::repository;
 
 pub async fn build_system_prompt(
     project: &Project,
     allowed_folders: &[String],
     prompt_skills: &[PromptSkill],
+    active_mcp_servers: &[McpServer],
+    mcp_tools: &[crate::agent::mcp::ActiveMcpTool],
     session_id: &str,
     goal_id: &str,
 ) -> Result<String> {
@@ -34,16 +36,16 @@ pub async fn build_system_prompt(
          <environment>\n\
          OS: {} ({}) | Shell: {}\n\
          Default workspace verification: `{}`\n\
-         Tools available: `workspace_read_file`, `workspace_write_file`, `workspace_edit_file`, `workspace_grep`, `workspace_list_dir`, `workspace_run_command`.\n\
+         Tools available: `workspace_read_file`, `workspace_write_file`, `workspace_grep`, `workspace_list_dir`, `workspace_run_command`.\n\
          </environment>\n\n\
          <core-guidelines>\n\
          1. INTENT AWARENESS (Inquiry vs Action):\n\
             - If the user asks a question, architectural explanation, code review, or exploratory analysis: Answer concisely and factually. Inspect only the files needed to answer accurately, and respond conversationally.\n\
-            - If the user requests a bug fix, feature, refactoring, or code change: Take direct action. Locate the target files, inspect them, apply edits directly using `workspace_edit_file` or `workspace_write_file`, and verify your work.\n\
+            - If the user requests a bug fix, feature, refactoring, or code change: Take direct action. Locate the target files, inspect them, apply edits, and verify your work.\n\
          2. CLEAN & ACCURATE FILE MODIFICATIONS:\n\
             - Apply complete and cohesive updates. Avoid incomplete placeholders, fake mocks, or non-functional stubs.\n\
-            - Provide 3-5 lines of exact context in `old_text` when calling `workspace_edit_file` to ensure unique match.\n\
-            - If a file is small (under 300 lines) or needs structural overhaul, `workspace_write_file` is preferred for clean, one-shot updates.\n\
+            - For creating new files or full overwrites of small-to-medium files, use `workspace_write_file`.\n\
+            - For targeted or surgical modifications of existing files, execute an atomic Python 3 inline script via `workspace_run_command` (e.g. `python3 -c \"with open('path', 'r') as f: c = f.read(); assert old in c; c = c.replace(old, new, 1); with open('path', 'w') as f: f.write(c)\"`). Python handles multi-part replacements cleanly without JSON escaping bugs and validates matches with `assert`.\n\
          3. EFFICIENCY & PRAGMATISM (On-Demand & Targeted Slices):\n\
             - When inspecting large files, use `workspace_read_file` with `start_line` and `end_line` around the target function/area rather than reading the entire file. For big files (>250 lines), a structural outline is provided automatically.\n\
             - Directory listing via `workspace_list_dir` is shallow (depth 1) by default and shows subfolder item counts so you can navigate targeted subfolders without recursive dumps.\n\
@@ -94,6 +96,39 @@ pub async fn build_system_prompt(
         }
     }
 
+    system_prompt.push_str("\n### 🛠️ Tool Calling Hierarchy & Automation Directives:\n\
+    1. DEDICATED STRUCTURED TOOLS: Prefer dedicated `workspace_*` and active `mcp__*` tools when an explicit dedicated tool exists for the specific action.\n\
+    2. PYTHON 3 AUTONOMOUS AUTOMATION: Python 3 runtime is available on this system. For web searching, fetching web data, API requests, regex parsing, sqlite inspection, data transformations, or complex computations where no dedicated tool is registered, craft and execute self-contained Python 3 one-liners or scripts (e.g. `python3 -c \"...\"`) via `workspace_run_command` using standard libraries (`urllib.request`, `urllib.parse`, `json`, `re`, `sqlite3`, `math`, `sys`).\n\
+    3. WORKSPACE EXECUTION: Use `workspace_run_command` for Python automation scripts, project builds/compilation, tests, and version control.\n\n");
+
+    if !active_mcp_servers.is_empty() {
+        system_prompt.push_str("### ⚡ Active Project External MCP Servers & Services (Raw Configuration):\n\
+The following external MCP services / tools are configured for this workspace project. You can inspect their endpoints, commands, headers, and schemas below.\n\
+When you need to interact with these services, craft and run appropriate Python 3 scripts or terminal commands via `workspace_run_command`:\n\
+- **HTTP / SSE MCP Services**: Write concise Python 3 scripts (e.g. using `urllib.request`, `urllib.parse`, and `json`) to connect to the URL, send JSON-RPC 2.0 requests (e.g. method `tools/call`, `tools/list`), and parse the response.\n\
+- **CLI / Stdio MCP Tools**: Execute the command directly or wrap it with Python via subprocess.\n\n");
+
+        for (idx, server) in active_mcp_servers.iter().enumerate() {
+            let mut cfg_val = server.config_value();
+            if let Some(obj) = cfg_val.as_object_mut() {
+                if !obj.contains_key("name") {
+                    obj.insert("name".to_string(), serde_json::json!(server.name));
+                }
+            }
+            let pretty_json = serde_json::to_string_pretty(&cfg_val).unwrap_or_else(|_| server.config.clone());
+            system_prompt.push_str(&format!("#### {}. MCP Server: \"{}\" ({})\n```json\n{}\n```\n\n", idx + 1, server.name, server.transport(), pretty_json));
+        }
+    }
+
+    if !mcp_tools.is_empty() {
+        system_prompt.push_str("### ⚡ Pre-Resolved Tool Functions (Model Context Protocol):\n");
+        for tool in mcp_tools {
+            let desc = tool.definition.description.as_deref().unwrap_or("Active tool");
+            system_prompt.push_str(&format!("- `{}` (from {}): {}\n", tool.namespaced_name, tool.server_name, desc));
+        }
+        system_prompt.push('\n');
+    }
+
     // 1. Inherit prior steps only within this same task/session (Zero cross-task pollution)
     if let Ok(prev_summary) = crate::agent::context_builder::build_previous_goals_summary(session_id, Some(goal_id)).await {
         if !prev_summary.is_empty() {
@@ -124,7 +159,7 @@ pub async fn build_system_prompt(
 
     system_prompt.push_str("\n### ⚙️ Deterministic Execution Phases:\n");
     system_prompt.push_str("1. DISCOVERY: Locate and inspect necessary target files or context. For questions or analysis, formulate your answer directly.\n");
-    system_prompt.push_str("2. ACTION: If changes are requested, apply targeted modifications using `workspace_edit_file` or `workspace_write_file`.\n");
+    system_prompt.push_str("2. ACTION: If changes are requested, apply modifications using `workspace_write_file` (for full files) or Python 3 scripts via `workspace_run_command` (for surgical edits).\n");
     system_prompt.push_str(&format!(
         "3. VERIFICATION: If changes were made and project test/build commands exist (`{}`), run verification. Conclude with a clear, concise summary of the results.\n\n",
         verifier_hint

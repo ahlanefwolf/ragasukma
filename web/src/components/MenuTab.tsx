@@ -85,14 +85,12 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     releaseNotes: '',
     releaseUrl: '',
   });
-  const [bunInfo, setBunInfo] = createSignal<{ installed: boolean; version: string; path?: string; is_installing: boolean }>({
+  const [pythonInfo, setPythonInfo] = createSignal<{ installed: boolean; version: string; path?: string; is_installing: boolean }>({
     installed: false,
     version: '',
     is_installing: false,
   });
-  const [bunChecking, setBunChecking] = createSignal(false);
-  const [bunLatestVersion, setBunLatestVersion] = createSignal<string>('');
-  const [bunReleaseUrl, setBunReleaseUrl] = createSignal<string>('https://github.com/oven-sh/bun/releases');
+  const [pythonChecking, setPythonChecking] = createSignal(false);
   const [extensionModalOpen, setExtensionModalOpen] = createSignal(false);
   const [appsModalOpen, setAppsModalOpen] = createSignal(false);
 
@@ -134,8 +132,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       localAnalyser = analyser;
     });
 
-    // Check Bun status on mount
-    fetchBunStatus();
+    // Check Python status on mount
+    fetchPythonStatus();
 
     // 1. Global AI State Stream
     const unsubscribeState = api.subscribeState((payload) => {
@@ -280,69 +278,52 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     }
   };
 
-  const fetchBunStatus = async () => {
+  const fetchPythonStatus = async () => {
     try {
-      const info = await api.getBunInfo();
-      setBunInfo(info);
+      const info = await api.getPythonInfo();
+      setPythonInfo(info);
     } catch (e) {
-      console.warn('Failed to fetch Bun status:', e);
+      console.warn('Failed to fetch Python status:', e);
     }
   };
 
-  const handleCheckBunUpdate = async () => {
-    setBunChecking(true);
+  const handleCheckPythonStatus = async () => {
+    setPythonChecking(true);
     try {
-      // 1. Refresh local status
-      const info = await api.getBunInfo();
-      setBunInfo(info);
-
-      // 2. Fetch latest Bun release from GitHub
-      const res = await fetch('https://api.github.com/repos/oven-sh/bun/releases/latest');
-      if (res.ok) {
-        const data = await res.json();
-        const latest = data.tag_name || '';
-        setBunLatestVersion(latest);
-        if (data.html_url) setBunReleaseUrl(data.html_url);
-        
-        if (info.installed && info.version) {
-          const currentClean = info.version.replace(/^bun-v|^v/, '');
-          const latestClean = latest.replace(/^bun-v|^v/, '');
-          if (latestClean && currentClean && latestClean !== currentClean) {
-            props.showToast(`New Bun version available: ${latest}`);
-          } else {
-            props.showToast(`Bun is up to date (${info.version})`);
-          }
-        }
+      const info = await api.getPythonInfo();
+      setPythonInfo(info);
+      if (info.installed) {
+        props.showToast(`Python detected: ${info.version}`);
       } else {
-        props.showToast('Fetched Bun local status');
+        props.showToast('Python 3 not detected on this system');
       }
-    } catch (err: any) {
-      props.showToast('Could not fetch Bun releases from GitHub');
+    } catch {
+      props.showToast('Could not fetch Python status');
     } finally {
-      setBunChecking(false);
+      setPythonChecking(false);
     }
   };
 
-  const handleTriggerInstallBun = async () => {
+  const handleTriggerInstallPython = async () => {
     try {
-      props.showToast('Starting automated Bun installation...');
-      const res = await api.installBun();
-      setBunInfo(res);
+      props.showToast('Initiating Python 3 setup in background...');
+      const res = await api.installPython();
+      setPythonInfo(res);
       // Poll a few times
       let attempts = 0;
       const timer = setInterval(async () => {
         attempts++;
-        const updated = await api.getBunInfo();
-        setBunInfo(updated);
+        const updated = await api.getPythonInfo();
+        setPythonInfo(updated);
         if (updated.installed || attempts > 15) {
           clearInterval(timer);
           if (updated.installed) {
-            props.showToast(`Bun installed successfully: ${updated.version}`);
+            props.showToast(`Python 3 is ready: ${updated.version}`);
           }
         }
       }, 3000);
     } catch {
-      props.showToast('Failed to trigger Bun installation');
+      props.showToast('Failed to trigger Python setup');
     }
   };
 
@@ -454,63 +435,58 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
           </button>
         </div>
 
-        {/* Bun JavaScript Engine Runtime Status Bar */}
+        {/* Python 3 Runtime Status Bar */}
         <div class="mt-3 p-3 bg-theme-bg/80 border border-theme-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div class="flex items-center gap-2.5">
-            <span class="text-base">🥟</span>
+            <span class="text-base">🐍</span>
             <div>
               <div class="flex items-center gap-2 font-mono">
-                <span class="font-bold text-theme-text">Bun JavaScript Engine:</span>
-                {bunInfo().installed ? (
+                <span class="font-bold text-theme-text">Python 3 Runtime:</span>
+                {pythonInfo().installed ? (
                   <span class="text-theme-cyan font-semibold flex items-center gap-1.5">
                     <span class="inline-block w-2 h-2 rounded-full bg-theme-cyan animate-pulse"></span>
-                    Installed ({bunInfo().version})
+                    Detected ({pythonInfo().version})
                   </span>
-                ) : bunInfo().is_installing ? (
+                ) : pythonInfo().is_installing ? (
                   <span class="text-amber-400 font-semibold flex items-center gap-1.5">
                     <RefreshCw size={12} class="animate-spin" />
-                    Installing in background...
+                    Setting up in background...
                   </span>
                 ) : (
-                  <span class="text-theme-rose font-semibold">Not Installed</span>
+                  <span class="text-theme-rose font-semibold">Not Detected</span>
                 )}
               </div>
               <p class="text-[11px] text-theme-text/60 mt-0.5">
-                Ultra-fast JS runtime used for native extension scripts, automation tasks & microservices.
+                Standard scripting engine utilized by autonomous agents for web scraping, sqlite, and terminal automation tasks.
               </p>
             </div>
           </div>
 
           <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
-            {bunLatestVersion() && (
-              <span class="font-mono text-[11px] text-theme-text/70 hidden md:inline">
-                Latest: {bunLatestVersion()}
-              </span>
-            )}
-            {!bunInfo().installed && (
+            {!pythonInfo().installed && (
               <button
-                onClick={handleTriggerInstallBun}
-                disabled={bunInfo().is_installing}
+                onClick={handleTriggerInstallPython}
+                disabled={pythonInfo().is_installing}
                 class="px-2.5 py-1 text-xs font-semibold bg-theme-cyan/20 hover:bg-theme-cyan/30 text-theme-cyan border border-theme-cyan/40 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 <Download size={12} />
-                <span>{bunInfo().is_installing ? 'Installing...' : 'Install Bun'}</span>
+                <span>{pythonInfo().is_installing ? 'Setting up...' : 'Setup Python 3'}</span>
               </button>
             )}
             <button
-              onClick={handleCheckBunUpdate}
-              disabled={bunChecking()}
-              title="Check latest Bun release on GitHub"
+              onClick={handleCheckPythonStatus}
+              disabled={pythonChecking()}
+              title="Refresh Python 3 detection"
               class="px-2.5 py-1 text-xs font-semibold bg-theme-card hover:bg-theme-surface text-theme-text hover:text-theme-cyan border border-theme-border flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
-              <RefreshCw size={12} class={bunChecking() ? 'animate-spin text-theme-cyan' : ''} />
-              <span>{bunChecking() ? 'Checking...' : 'Check Update'}</span>
+              <RefreshCw size={12} class={pythonChecking() ? 'animate-spin text-theme-cyan' : ''} />
+              <span>{pythonChecking() ? 'Checking...' : 'Check Status'}</span>
             </button>
             <a
-              href={bunReleaseUrl()}
+              href="https://www.python.org"
               target="_blank"
               rel="noreferrer"
-              title="Open Bun Releases on GitHub"
+              title="Open Python.org"
               class="p-1 text-theme-text/60 hover:text-theme-cyan transition-colors"
             >
               <ExternalLink size={14} />

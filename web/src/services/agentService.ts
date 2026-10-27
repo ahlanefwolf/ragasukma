@@ -9,6 +9,7 @@ export interface PromptSkill {
   description: string;
   system_prompt: string;
   tags: string;
+  file_path?: string;
   is_active: number;
   created_at: number;
   updated_at: number;
@@ -22,6 +23,7 @@ export interface SaveMcpServerPayload {
   args?: string[];
   env?: Record<string, string>;
   url?: string;
+  raw_json?: any;
   is_enabled?: boolean;
 }
 
@@ -36,6 +38,7 @@ export interface McpServerConfig {
   is_enabled: number;
   created_at: number;
 }
+
 
 export interface Project {
   id: string;
@@ -445,7 +448,7 @@ export const agentService = {
     }
   },
 
-  // Prompt Skills
+  // Agent Skills (Auto-detected from project folders & global .agents)
   async getPromptSkills(): Promise<PromptSkill[]> {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/agent/skills`);
@@ -454,64 +457,6 @@ export const agentService = {
     } catch (e) {
       console.error('Failed to get prompt skills:', e);
       return [];
-    }
-  },
-
-  async createPromptSkill(payload: {
-    name: string;
-    slug: string;
-    description?: string;
-    system_prompt: string;
-    tags?: string[];
-  }): Promise<{ ok: boolean; skill?: PromptSkill; error?: string }> {
-    try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/agent/skills`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        return { ok: false, error: data?.error || 'Failed to create skill' };
-      }
-      return { ok: true, skill: data };
-    } catch (e: any) {
-      return { ok: false, error: e?.message || 'Network error' };
-    }
-  },
-
-  async updatePromptSkill(id: string, payload: {
-    name: string;
-    slug: string;
-    description?: string;
-    system_prompt: string;
-    tags?: string[];
-  }): Promise<{ ok: boolean; skill?: PromptSkill; error?: string }> {
-    try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/agent/skills/${id}/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        return { ok: false, error: data?.error || 'Failed to update skill' };
-      }
-      return { ok: true, skill: data };
-    } catch (e: any) {
-      return { ok: false, error: e?.message || 'Network error' };
-    }
-  },
-
-  async deletePromptSkill(id: string): Promise<boolean> {
-    try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/agent/skills/${id}/delete`, {
-        method: 'POST',
-      });
-      return res.ok;
-    } catch (e) {
-      console.error('Failed to delete prompt skill:', e);
-      return false;
     }
   },
 
@@ -526,16 +471,28 @@ export const agentService = {
     }
   },
 
-  async setProjectSkills(projectId: string, skillIds: string[]): Promise<boolean> {
+  async getProjectMcpServers(projectId: string): Promise<string[]> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/agent/projects/${projectId}/skills`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/projects/${projectId}/mcp`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data.server_ids) ? data.server_ids : [];
+    } catch (e) {
+      console.error('Failed to get project MCP servers:', e);
+      return [];
+    }
+  },
+
+  async setProjectMcpServers(projectId: string, serverIds: string[]): Promise<boolean> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/projects/${projectId}/mcp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skill_ids: skillIds }),
+        body: JSON.stringify({ server_ids: serverIds }),
       });
       return res.ok;
     } catch (e) {
-      console.error('Failed to set project skills:', e);
+      console.error('Failed to set project MCP servers:', e);
       return false;
     }
   },
@@ -600,6 +557,7 @@ export const agentService = {
       return { ok: false, error: e?.message || 'Test connection failed' };
     }
   },
+
 
   // Goals & Evidence
   async getProjectGoals(projectId: string): Promise<Goal[]> {

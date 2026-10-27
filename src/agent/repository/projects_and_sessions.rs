@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crate::agent::models::{McpServer, Project, PromptSkill, Session};
+use crate::agent::models::{McpServer, Project, Session};
 use super::{generate_id, now_secs};
 
 // ============================================================================
@@ -230,150 +230,13 @@ pub async fn delete_session(id: &str) -> Result<()> {
 }
 
 // ============================================================================
-// PROMPT SKILLS REPOSITORY
-// ============================================================================
-
-pub async fn list_prompt_skills() -> Result<Vec<PromptSkill>> {
-    let pool = crate::llm::usage::get_pool().await;
-    let skills = sqlx::query_as::<_, PromptSkill>(
-        "SELECT id, name, slug, description, system_prompt, tags, is_active, created_at, updated_at \
-         FROM prompt_skills ORDER BY name ASC",
-    )
-    .fetch_all(pool)
-    .await?;
-    Ok(skills)
-}
-
-pub async fn create_prompt_skill(
-    name: &str,
-    slug: &str,
-    description: &str,
-    system_prompt: &str,
-    tags_json: &str,
-) -> Result<PromptSkill> {
-    let pool = crate::llm::usage::get_pool().await;
-    let id = generate_id("pskill");
-    let now = now_secs();
-
-    sqlx::query(
-        "INSERT INTO prompt_skills (id, name, slug, description, system_prompt, tags, is_active, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8)",
-    )
-    .bind(&id)
-    .bind(name)
-    .bind(slug)
-    .bind(description)
-    .bind(system_prompt)
-    .bind(tags_json)
-    .bind(now)
-    .bind(now)
-    .execute(pool)
-    .await?;
-
-    Ok(PromptSkill {
-        id,
-        name: name.to_string(),
-        slug: slug.to_string(),
-        description: description.to_string(),
-        system_prompt: system_prompt.to_string(),
-        tags: tags_json.to_string(),
-        is_active: 1,
-        created_at: now,
-        updated_at: now,
-    })
-}
-
-pub async fn update_prompt_skill(
-    id: &str,
-    name: &str,
-    slug: &str,
-    description: &str,
-    system_prompt: &str,
-    tags_json: &str,
-) -> Result<PromptSkill> {
-    let pool = crate::llm::usage::get_pool().await;
-    let now = now_secs();
-
-    sqlx::query(
-        "UPDATE prompt_skills \
-         SET name = ?1, slug = ?2, description = ?3, system_prompt = ?4, tags = ?5, updated_at = ?6 \
-         WHERE id = ?7",
-    )
-    .bind(name)
-    .bind(slug)
-    .bind(description)
-    .bind(system_prompt)
-    .bind(tags_json)
-    .bind(now)
-    .bind(id)
-    .execute(pool)
-    .await?;
-
-    let row = sqlx::query_as::<_, PromptSkill>(
-        "SELECT id, name, slug, description, system_prompt, tags, is_active, created_at, updated_at \
-         FROM prompt_skills WHERE id = ?1",
-    )
-    .bind(id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(row)
-}
-
-pub async fn delete_prompt_skill(id: &str) -> Result<()> {
-    let pool = crate::llm::usage::get_pool().await;
-    sqlx::query("DELETE FROM prompt_skills WHERE id = ?1")
-        .bind(id)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
-pub async fn get_project_skills(project_id: &str) -> Result<Vec<PromptSkill>> {
-    let pool = crate::llm::usage::get_pool().await;
-    let skills = sqlx::query_as::<_, PromptSkill>(
-        "SELECT ps.id, ps.name, ps.slug, ps.description, ps.system_prompt, ps.tags, ps.is_active, ps.created_at, ps.updated_at \
-         FROM prompt_skills ps \
-         JOIN project_prompt_skills pps ON ps.id = pps.skill_id \
-         WHERE pps.project_id = ?1 AND pps.is_enabled = 1 AND ps.is_active = 1 \
-         ORDER BY pps.priority ASC, ps.name ASC",
-    )
-    .bind(project_id)
-    .fetch_all(pool)
-    .await?;
-    Ok(skills)
-}
-
-pub async fn set_project_skills(project_id: &str, skill_ids: &[String]) -> Result<()> {
-    let pool = crate::llm::usage::get_pool().await;
-    sqlx::query("DELETE FROM project_prompt_skills WHERE project_id = ?1")
-        .bind(project_id)
-        .execute(pool)
-        .await?;
-
-    for (priority, sid) in skill_ids.iter().enumerate() {
-        let _ = sqlx::query(
-            "INSERT INTO project_prompt_skills (project_id, skill_id, priority, is_enabled) \
-             VALUES (?1, ?2, ?3, 1)",
-        )
-        .bind(project_id)
-        .bind(sid)
-        .bind(priority as i64)
-        .execute(pool)
-        .await;
-    }
-
-    Ok(())
-}
-
-// ============================================================================
 // MCP SERVERS REPOSITORY
 // ============================================================================
 
 pub async fn list_mcp_servers() -> Result<Vec<McpServer>> {
     let pool = crate::llm::usage::get_pool().await;
     let servers = sqlx::query_as::<_, McpServer>(
-        "SELECT id, name, transport, command, args, env, url, is_enabled, created_at \
+        "SELECT id, name, config, is_enabled, created_at \
          FROM mcp_servers ORDER BY name ASC",
     )
     .fetch_all(pool)
@@ -381,15 +244,10 @@ pub async fn list_mcp_servers() -> Result<Vec<McpServer>> {
     Ok(servers)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub async fn create_or_update_mcp_server(
     id: &str,
     name: &str,
-    transport: &str,
-    command: Option<&str>,
-    args: &str,
-    env: &str,
-    url: Option<&str>,
+    config: &str,
     is_enabled: bool,
 ) -> Result<()> {
     let pool = crate::llm::usage::get_pool().await;
@@ -397,24 +255,16 @@ pub async fn create_or_update_mcp_server(
     let enabled_int = if is_enabled { 1 } else { 0 };
 
     sqlx::query(
-        "INSERT INTO mcp_servers (id, name, transport, command, args, env, url, is_enabled, created_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
+        "INSERT INTO mcp_servers (id, name, config, is_enabled, created_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5) \
          ON CONFLICT(id) DO UPDATE SET \
             name = excluded.name, \
-            transport = excluded.transport, \
-            command = excluded.command, \
-            args = excluded.args, \
-            env = excluded.env, \
-            url = excluded.url, \
+            config = excluded.config, \
             is_enabled = excluded.is_enabled",
     )
     .bind(id)
     .bind(name)
-    .bind(transport)
-    .bind(command)
-    .bind(args)
-    .bind(env)
-    .bind(url)
+    .bind(config)
     .bind(enabled_int)
     .bind(now)
     .execute(pool)
@@ -429,5 +279,79 @@ pub async fn delete_mcp_server(id: &str) -> Result<()> {
         .bind(id)
         .execute(pool)
         .await?;
+    Ok(())
+}
+
+/// Retrieve MCP servers that are active for a specific project.
+/// If no custom project-level configuration exists yet, defaults to all globally enabled MCP servers.
+pub async fn get_project_active_mcp_servers(project_id: &str) -> Result<Vec<McpServer>> {
+    let pool = crate::llm::usage::get_pool().await;
+
+    // Check if this project has any explicit rows configured in project_mcp_servers
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM project_mcp_servers WHERE project_id = ?1",
+    )
+    .bind(project_id)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+
+    if count == 0 {
+        // Default: Return all globally enabled MCP servers
+        let servers = sqlx::query_as::<_, McpServer>(
+            "SELECT id, name, config, is_enabled, created_at \
+             FROM mcp_servers WHERE is_enabled = 1 ORDER BY name ASC",
+        )
+        .fetch_all(pool)
+        .await?;
+        return Ok(servers);
+    }
+
+    // Explicit project selection: only where project_mcp_servers.is_enabled = 1 AND mcp_servers.is_enabled = 1
+    let servers = sqlx::query_as::<_, McpServer>(
+        "SELECT ms.id, ms.name, ms.config, ms.is_enabled, ms.created_at \
+         FROM mcp_servers ms \
+         JOIN project_mcp_servers pms ON ms.id = pms.server_id \
+         WHERE pms.project_id = ?1 AND pms.is_enabled = 1 AND ms.is_enabled = 1 \
+         ORDER BY ms.name ASC",
+    )
+    .bind(project_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(servers)
+}
+
+/// Retrieve the list of server IDs currently active for a project.
+/// If not customized yet, returns all globally enabled server IDs.
+pub async fn get_project_mcp_server_ids(project_id: &str) -> Result<Vec<String>> {
+    let active_servers = get_project_active_mcp_servers(project_id).await?;
+    Ok(active_servers.into_iter().map(|s| s.id).collect())
+}
+
+/// Update active MCP servers for a project.
+/// Explicitly marks each registered server as enabled (1) or disabled (0) for this project.
+pub async fn set_project_mcp_servers(project_id: &str, active_server_ids: &[String]) -> Result<()> {
+    let pool = crate::llm::usage::get_pool().await;
+    let all_servers = list_mcp_servers().await?;
+
+    sqlx::query("DELETE FROM project_mcp_servers WHERE project_id = ?1")
+        .bind(project_id)
+        .execute(pool)
+        .await?;
+
+    for s in all_servers {
+        let is_active = if active_server_ids.contains(&s.id) { 1 } else { 0 };
+        let _ = sqlx::query(
+            "INSERT INTO project_mcp_servers (project_id, server_id, is_enabled) \
+             VALUES (?1, ?2, ?3)",
+        )
+        .bind(project_id)
+        .bind(&s.id)
+        .bind(is_active)
+        .execute(pool)
+        .await;
+    }
+
     Ok(())
 }

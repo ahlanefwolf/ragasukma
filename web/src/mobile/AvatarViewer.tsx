@@ -189,25 +189,21 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       <div
         ref={arOverlayRef}
         class="absolute inset-0 pointer-events-none z-40"
-        style={{ display: isArActive() ? 'block' : 'none' }}
       >
         <Show when={isArActive()}>
           <AvatarArControls
             isAvatarLocked={isAvatarLocked()}
             hasFoundSurface={hasFoundSurface()}
-            quality={renderQuality()}
-            fpsLimit={fpsLimit()}
             onLockAvatar={handleLockAvatar}
             onUnlockAvatar={handleUnlockAvatar}
             onExitAr={handleExitAr}
-            onCycleQuality={handleCycleQuality}
-            onCycleFps={handleCycleFps}
             bottomSlot={props.arBottomSlot?.()}
           />
+          {props.arModalsSlot?.()}
         </Show>
       </div>
 
-      {/* Vertical Camera Control Toolbar (standard 3D mode only) */}
+      {/* Sleek Floating Controls (Fullscreen & AR mode) */}
       <Show when={avatarType() === 'vrm' && isVrmLoaded() && !isArActive()}>
         <AvatarCameraControls
           isFullscreen={isFullscreen()}
@@ -216,11 +212,11 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
           fpsLimit={fpsLimit()}
           onZoomIn={() => sceneManager.zoomIn()}
           onZoomOut={() => sceneManager.zoomOut()}
-          onToggleFullscreen={toggleFullscreen}
           onResetCamera={() => sceneManager.resetCameraView()}
-          onStartAr={handleStartAr}
           onCycleQuality={handleCycleQuality}
           onCycleFps={handleCycleFps}
+          onToggleFullscreen={toggleFullscreen}
+          onStartAr={handleStartAr}
         />
       </Show>
 
@@ -235,7 +231,6 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
         class="w-full h-full relative z-10 flex items-center justify-center touch-none"
         style={{
           display: avatarType() === 'vrm' && !vrmLoadError() ? 'flex' : 'none',
-          visibility: isArActive() ? 'hidden' : 'visible',
         }}
       />
 

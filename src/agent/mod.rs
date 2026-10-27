@@ -9,4 +9,5 @@ pub mod models;
 pub mod orchestrator;
 pub mod repository;
 pub mod provider;
+pub mod skills;
 pub mod tools;

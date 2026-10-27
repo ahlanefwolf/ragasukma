@@ -16,6 +16,7 @@ pub async fn execute_turn_tool_calls(
     session_id: &str,
     project_id: &str,
     allowed_folders: &[String],
+    mcp_tools: &[crate::agent::mcp::ActiveMcpTool],
     tool_calls: &[V1ToolCall],
     state: &mut TurnState,
     db_messages: &mut Vec<Message>,
@@ -121,6 +122,18 @@ pub async fn execute_turn_tool_calls(
             format!(
                 "Notice: You have already read this exact slice of `{path}` multiple times. Its content is available in your conversation history. Please proceed with modifying the file using `workspace_edit_file` or answering the user's question directly."
             )
+        } else if tc.function.name.starts_with("mcp__") {
+            // Dispatch to active MCP server
+            match crate::agent::mcp::call_active_mcp_tool(
+                mcp_tools,
+                &tc.function.name,
+                args_val.clone(),
+            )
+            .await
+            {
+                Ok(out) => out,
+                Err(e) => format!("MCP execution error: {}", e),
+            }
         } else {
             match execute_tool_call(
                 &tc.function.name,
@@ -282,10 +295,9 @@ pub async fn execute_turn_tool_calls(
                          {diag_bulletin}\n\n\
                          CRITICAL BATCH-ACTION REQUIRED:\n\
                          1. Read the target files listed above in full (or use the lines indicated).\n\
-                         2. Apply ALL fixes for each target file in ONE comprehensive `workspace_edit_file` or `workspace_write_file` call.\n\
-                         3. You may call `workspace_edit_file` multiple times in parallel for multiple files in this same turn.\n\
-                         4. DO NOT re-run compiler or verification commands until ALL broken target files have been edited!\n\
-                         5. Once all target files are updated, run `{cmd}` to verify."
+                         2. Apply ALL fixes for each target file using python3 scripts via `workspace_run_command` (or `workspace_write_file`).\n\
+                         3. DO NOT re-run compiler or verification commands until ALL broken target files have been edited!\n\
+                         4. Once all target files are updated, run `{cmd}` to verify."
                     ));
                 }
 
@@ -331,7 +343,7 @@ pub async fn execute_turn_tool_calls(
                         }
 
                         state.ephemeral_directive = Some(format!(
-                            "VERIFICATION FAILED: Verification command `{cmd}` reported errors.{diag_bulletin}\n\nACTION REQUIRED: Read the failing files, modify them using `workspace_edit_file`, and re-verify before concluding."
+                            "VERIFICATION FAILED: Verification command `{cmd}` reported errors.{diag_bulletin}\n\nACTION REQUIRED: Read the failing files, modify them using python3 via `workspace_run_command` or `workspace_write_file`, and re-verify before concluding."
                         ));
                     }
                 }
@@ -354,7 +366,7 @@ pub async fn execute_turn_tool_calls(
         // Check inspection streaks (advise model to apply changes or conclude)
         if state.global_inspection_streak >= 15 {
             state.ephemeral_directive = Some(format!(
-                "Suggestion: You have completed {} consecutive inspection steps without modifying code. If you have gathered sufficient context, proceed with applying edits via `workspace_edit_file` or respond directly with your findings.",
+                "Suggestion: You have completed {} consecutive inspection steps without modifying code. If you have gathered sufficient context, proceed with applying edits via python3 in `workspace_run_command` (or `workspace_write_file`) or respond directly with your findings.",
                 state.global_inspection_streak
             ));
         }

@@ -238,7 +238,7 @@ pub fn prepare_turn_messages(
                     diag_msg.push_str(&format!("   - {}\n", msg));
                 }
             }
-            diag_msg.push_str("\nINSTRUCTION: Formulate all line fixes for each target file and apply them in ONE `workspace_edit_file` or `workspace_write_file` call per file. Only re-run verification once all files are fixed.");
+            diag_msg.push_str("\nINSTRUCTION: Formulate all line fixes for each target file and apply them using python3 via `workspace_run_command` (or `workspace_write_file`). Only re-run verification once all files are fixed.");
 
             final_directive = Some(match final_directive {
                 Some(prev) => format!("{}\n\n{}", prev, diag_msg),

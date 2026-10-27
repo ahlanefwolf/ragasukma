@@ -4,7 +4,6 @@ use std::collections::HashSet;
 
 use crate::agent::events::broadcast_session_event;
 use crate::agent::models::AgentSessionEvent;
-use crate::agent::tools::get_agent_tools_schema;
 use crate::llm::providers::antigravity::AntigravityProvider;
 use crate::llm::providers::codex::CodexProvider;
 use crate::llm::v1_engine::{V1ChatRequest, V1Message, V1StreamEvent, V1ToolCall, V1ToolCallFunction};
@@ -17,16 +16,17 @@ pub struct ModelTurnResult {
     pub estimated_output_tokens: usize,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_model_stream(
     session_id: &str,
     model: &str,
     is_codex: bool,
     temperature: Option<f64>,
     messages: Vec<V1Message>,
+    tools_schema: Vec<serde_json::Value>,
     force_final_text_only: bool,
     iteration: usize,
 ) -> Result<ModelTurnResult> {
-    let tools_schema = get_agent_tools_schema();
     let (tools_payload, tool_choice_payload) = if force_final_text_only {
         (None, Some(json!("none")))
     } else {

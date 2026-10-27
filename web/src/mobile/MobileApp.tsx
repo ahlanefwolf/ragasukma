@@ -1,4 +1,5 @@
 import { Component, createSignal, onMount, onCleanup, createEffect, Show } from 'solid-js';
+import { Mic, MicOff, MessageSquare } from 'lucide-solid';
 import { api, LogEntry } from '../api';
 import { API_BASE } from '../services/base';
 import { getChromeSttCode } from '../services/configService';
@@ -1209,13 +1210,13 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
       return 'text-gi-status-danger font-semibold';
     }
     if (msg.includes('[User]')) {
-      return 'text-theme-cyan font-bold';
+      return 'text-[#E5B85C] font-bold';
     }
     if (msg.includes('[LLM]') || msg.includes('responding')) {
       return 'text-theme-rose font-medium';
     }
     if (msg.includes('[RESUMED]') || msg.includes('[Music Controller]')) {
-      return 'text-theme-cyan';
+      return 'text-[#E5B85C]';
     }
     return 'text-theme-text/80';
   };
@@ -1231,14 +1232,15 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         onUnlock={() => unlockAudioContext(false)}
       />
 
-      {/* 2. Floating Top Controls (Ultra Clean: Left Floating Status Pill & Right Settings Button) */}
-      {/* 1. Header Ringkas Mobile Modern (Status avatar, network ping & settings) */}
-      <MobileTopBar
-        visualState={visualState()}
-        onOpenSettings={() => setShowSettings(true)}
-        logsCount={logs().length}
-        pingMs={networkPing()}
-      />
+      {/* 2. Floating Top Controls (Ultra Clean: Left Floating Status Pill & Right Settings Button, hidden during WebXR AR) */}
+      <Show when={!isArActive()}>
+        <MobileTopBar
+          visualState={visualState()}
+          onOpenSettings={() => setShowSettings(true)}
+          logsCount={logs().length}
+          pingMs={networkPing()}
+        />
+      </Show>
 
       {/* Sheet Companion Settings */}
       <MobileSettingsSheet
@@ -1258,22 +1260,59 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
           state={visualState()}
           emotion={emotion()}
           isAudioStreaming={isHpAudioActive()}
-          onArStateChange={setIsArActive}
+          onArStateChange={(active) => {
+            setIsArActive(active);
+            if (active) {
+              setShowAgentModal(false);
+            }
+          }}
           arBottomSlot={() => (
-            <div class="w-full max-w-md mx-auto pointer-events-auto">
-              <MobileInteractionDock
+            <div class="flex items-center justify-center gap-5 pointer-events-auto select-none">
+              {/* Circular Glass Floating Chat Button in AR */}
+              <button
+                type="button"
+                onClick={() => setShowChatModal(true)}
+                class="w-12 h-12 rounded-full bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/50 text-gi-text-primary hover:text-gi-primary active:scale-90 transition-all flex items-center justify-center shadow-lg cursor-pointer"
+                title="Open Chat"
+                aria-label="Open Chat"
+              >
+                <MessageSquare size={20} class="stroke-[2.2]" />
+              </button>
+
+              {/* Circular Glass Voice Mic (PTT) in AR */}
+              <button
+                type="button"
+                onClick={toggleHpMic}
+                class={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg cursor-pointer ${
+                  isHpMicListening()
+                    ? 'bg-gi-status-danger text-white animate-pulse shadow-[0_0_20px_rgba(224,83,69,0.7)]'
+                    : 'bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/50 text-gi-primary hover:text-gi-primary-hover'
+                }`}
+                title={isHpMicListening() ? 'Mute Microphone' : 'Voice Input (PTT)'}
+                aria-label={isHpMicListening() ? 'Mute Microphone' : 'Voice Input (PTT)'}
+              >
+                <Show when={isHpMicListening()} fallback={<Mic size={22} class="stroke-[2.2]" />}>
+                  <MicOff size={22} class="stroke-[2.2]" />
+                </Show>
+              </button>
+            </div>
+          )}
+          arModalsSlot={() => (
+            <div class="pointer-events-auto">
+              <MobileChatModal
+                isOpen={showChatModal()}
+                onClose={() => setShowChatModal(false)}
+                assistantName={config().name || 'Assistant'}
+                callsign={config().callsign || 'User'}
+                isSending={isSending()}
                 inputText={inputText()}
                 onInputText={setInputText}
-                onSend={() => sendTextToHost()}
-                isSending={isSending()}
+                onSend={(text) => sendTextToHost(text)}
+                assistantStatus={visualState()}
+                currentEmotion={emotion()}
+                incomingMessage={incomingChatMessage()}
                 isListening={isHpMicListening()}
                 onToggleMic={toggleHpMic}
-                lastSentText={lastSentText()}
-                showInput={showTextInput()}
-                onToggleShowInput={() => setShowTextInput(!showTextInput())}
-                onOpenAgent={() => setShowAgentModal(true)}
-                isAgentRunning={isAgentRunning()}
-                onDismissLastSent={() => setLastSentText('')}
               />
             </div>
           )}
@@ -1320,20 +1359,13 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
           />
         </div>
 
-        {/* Floating Circular Interaction Dock (Circular Mic PTT Button & Message Input Toggle) */}
+        {/* Floating Circular Interaction Dock */}
         <MobileInteractionDock
-          inputText={inputText()}
-          onInputText={setInputText}
-          onSend={() => sendTextToHost()}
-          isSending={isSending()}
           isListening={isHpMicListening()}
           onToggleMic={toggleHpMic}
-          lastSentText={lastSentText()}
-          showInput={showTextInput()}
           onToggleShowInput={() => setShowChatModal(true)}
           onOpenAgent={() => setShowAgentModal(true)}
           isAgentRunning={isAgentRunning()}
-          onDismissLastSent={() => setLastSentText('')}
         />
       </div>
 
@@ -1344,20 +1376,24 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
         onAgentRunningChange={setIsAgentRunning}
       />
 
-      {/* WhatsApp Style Chat Modal with History Lazy Load */}
-      <MobileChatModal
-        isOpen={showChatModal()}
-        onClose={() => setShowChatModal(false)}
-        assistantName={config().name || 'Assistant'}
-        callsign={config().callsign || 'User'}
-        isSending={isSending()}
-        inputText={inputText()}
-        onInputText={setInputText}
-        onSend={(text) => sendTextToHost(text)}
-        assistantStatus={visualState()}
-        currentEmotion={emotion()}
-        incomingMessage={incomingChatMessage()}
-      />
+      {/* WhatsApp Style Chat Modal with History Lazy Load (Non-AR mode) */}
+      <Show when={!isArActive()}>
+        <MobileChatModal
+          isOpen={showChatModal()}
+          onClose={() => setShowChatModal(false)}
+          assistantName={config().name || 'Assistant'}
+          callsign={config().callsign || 'User'}
+          isSending={isSending()}
+          inputText={inputText()}
+          onInputText={setInputText}
+          onSend={(text) => sendTextToHost(text)}
+          assistantStatus={visualState()}
+          currentEmotion={emotion()}
+          incomingMessage={incomingChatMessage()}
+          isListening={isHpMicListening()}
+          onToggleMic={toggleHpMic}
+        />
+      </Show>
 
       {/* 5. Slide-Up Bottom Sheet Console Logs */}
       <MobileLogsDrawer

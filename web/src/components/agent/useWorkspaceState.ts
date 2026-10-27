@@ -10,23 +10,22 @@ import {
 import { showConfirm } from '../ConfirmModal';
 
 export function useWorkspaceState(showToast: (msg: string) => void) {
-  const [activeSubTab, setActiveSubTab] = createSignal<'projects' | 'skills' | 'mcp'>('projects');
+  const [activeSubTab, setActiveSubTab] = createSignal<'projects' | 'mcp'>('projects');
   const [loading, setLoading] = createSignal(false);
   const [projects, setProjects] = createSignal<Project[]>([]);
   const [skills, setSkills] = createSignal<PromptSkill[]>([]);
   const [mcpServers, setMcpServers] = createSignal<McpServerConfig[]>([]);
   const [selectedProjectId, setSelectedProjectId] = createSignal<string | null>(null);
 
-  // Active Project Skills
-  const [activeProjectSkillIds, setActiveProjectSkillIds] = createSignal<string[]>([]);
-  const [savingProjectSkills, setSavingProjectSkills] = createSignal(false);
+  // Active Project MCP Servers
+  const [activeProjectMcpServerIds, setActiveProjectMcpServerIds] = createSignal<string[]>([]);
+  const [savingProjectMcpServers, setSavingProjectMcpServers] = createSignal(false);
 
   // Modals
   const [showNewProjectModal, setShowNewProjectModal] = createSignal(false);
-  const [showNewSkillModal, setShowNewSkillModal] = createSignal(false);
-  const [editingSkillId, setEditingSkillId] = createSignal<string | null>(null);
   const [showMcpModal, setShowMcpModal] = createSignal(false);
   const [editingMcpServer, setEditingMcpServer] = createSignal<McpServerConfig | null>(null);
+  const [mcpModalInitialMode, setMcpModalInitialMode] = createSignal<'form' | 'json'>('json');
 
   // New Project Form
   const [projName, setProjName] = createSignal('');
@@ -38,53 +37,41 @@ export function useWorkspaceState(showToast: (msg: string) => void) {
   const [folderValidationMsg, setFolderValidationMsg] = createSignal<{ valid: boolean; text: string } | null>(null);
   const [browsingFolder, setBrowsingFolder] = createSignal(false);
 
-  // Prompt Skill Template & Form
-  const defaultSkillTemplate = `---
-name: Rust Architecture Expert
-description: Expert in idiomatic high-performance Rust systems design
-tags: rust, coding, backend
----
-
-You are a world-class Rust systems architect. 
-Write idiomatic code, prioritize zero-cost abstractions, and maintain uncompromising memory safety.`;
-
-  const [skillMarkdown, setSkillMarkdown] = createSignal(defaultSkillTemplate);
-
   const currentProject = createMemo(() => {
     return projects().find((p) => p.id === selectedProjectId()) || null;
   });
 
-  const loadProjectSkills = async (projectId: string) => {
+  const loadProjectMcpServers = async (projectId: string) => {
     try {
-      const active = await agentService.getProjectSkills(projectId);
-      setActiveProjectSkillIds(active.map((s) => s.id));
+      const activeIds = await agentService.getProjectMcpServers(projectId);
+      setActiveProjectMcpServerIds(activeIds);
     } catch (e) {
-      console.error('Failed to load project prompt skills:', e);
+      console.error('Failed to load project MCP servers:', e);
     }
   };
 
-  const handleToggleProjectSkill = async (skillId: string) => {
+  const handleToggleProjectMcpServer = async (serverId: string) => {
     const projId = selectedProjectId();
     if (!projId) return;
 
-    const current = activeProjectSkillIds();
-    const updated = current.includes(skillId)
-      ? current.filter((id) => id !== skillId)
-      : [...current, skillId];
+    const current = activeProjectMcpServerIds();
+    const updated = current.includes(serverId)
+      ? current.filter((id) => id !== serverId)
+      : [...current, serverId];
 
-    setActiveProjectSkillIds(updated);
-    setSavingProjectSkills(true);
+    setActiveProjectMcpServerIds(updated);
+    setSavingProjectMcpServers(true);
     try {
-      const ok = await agentService.setProjectSkills(projId, updated);
+      const ok = await agentService.setProjectMcpServers(projId, updated);
       if (ok) {
-        showToast('Project prompt skills updated');
+        showToast('Project MCP servers updated');
       } else {
-        showToast('Failed to update prompt skills');
+        showToast('Failed to update project MCP servers');
       }
     } catch (e: any) {
-      showToast(e.message || 'Failed to save skills');
+      showToast(e.message || 'Failed to save project MCP servers');
     } finally {
-      setSavingProjectSkills(false);
+      setSavingProjectMcpServers(false);
     }
   };
 
@@ -315,148 +302,6 @@ Write idiomatic code, prioritize zero-cost abstractions, and maintain uncompromi
     }
   };
 
-  const parseSkillMarkdown = (raw: string) => {
-    let name = '';
-    let description = '';
-    let tags: string[] = [];
-    let systemPrompt = '';
-
-    const trimmed = raw.trim();
-    if (trimmed.startsWith('---')) {
-      const parts = trimmed.split('---');
-      if (parts.length >= 3) {
-        const frontmatter = parts[1];
-        systemPrompt = parts.slice(2).join('---').trim();
-
-        for (const line of frontmatter.split('\n')) {
-          const l = line.trim();
-          if (l.toLowerCase().startsWith('name:')) {
-            name = l.substring(5).trim();
-          } else if (l.toLowerCase().startsWith('description:')) {
-            description = l.substring(12).trim();
-          } else if (l.toLowerCase().startsWith('tags:')) {
-            tags = l.substring(5).split(',').map((t) => t.trim()).filter(Boolean);
-          }
-        }
-      } else {
-        systemPrompt = trimmed;
-      }
-    } else {
-      systemPrompt = trimmed;
-    }
-
-    if (!name) {
-      const firstLine = systemPrompt.split('\n')[0] || 'Custom Skill';
-      name = firstLine.replace(/^#+\s*/, '').slice(0, 40).trim() || 'Custom Skill';
-    }
-
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'skill';
-    return { name, description, tags, systemPrompt, slug };
-  };
-
-  const skillToMarkdown = (skill: PromptSkill) => {
-    let tagsStr = '';
-    try {
-      const parsed = typeof skill.tags === 'string' ? JSON.parse(skill.tags) : skill.tags;
-      if (Array.isArray(parsed)) tagsStr = parsed.join(', ');
-    } catch {}
-
-    return `---
-name: ${skill.name}
-description: ${skill.description || ''}
-tags: ${tagsStr}
----
-
-${skill.system_prompt}
-`.trim();
-  };
-
-  const handleOpenNewSkill = () => {
-    setEditingSkillId(null);
-    setSkillMarkdown(defaultSkillTemplate);
-    setShowNewSkillModal(true);
-  };
-
-  const handleOpenEditSkill = (skill: PromptSkill) => {
-    setEditingSkillId(skill.id);
-    setSkillMarkdown(skillToMarkdown(skill));
-    setShowNewSkillModal(true);
-  };
-
-  const handleCreateSkill = async () => {
-    const raw = skillMarkdown().trim();
-    if (!raw) {
-      showToast('SKILL.md Markdown content cannot be empty!');
-      return;
-    }
-
-    const parsed = parseSkillMarkdown(raw);
-    if (!parsed.systemPrompt) {
-      showToast('System prompt instructions cannot be empty!');
-      return;
-    }
-
-    const editId = editingSkillId();
-    if (editId) {
-      const res = await agentService.updatePromptSkill(editId, {
-        name: parsed.name,
-        slug: parsed.slug,
-        description: parsed.description,
-        system_prompt: parsed.systemPrompt,
-        tags: parsed.tags,
-      });
-
-      if (res.ok && res.skill) {
-        showToast(`Prompt skill "${res.skill.name}" updated!`);
-        setShowNewSkillModal(false);
-        setEditingSkillId(null);
-        setSkillMarkdown(defaultSkillTemplate);
-        const sList = await agentService.getPromptSkills();
-        setSkills(sList);
-      } else {
-        showToast(res.error || 'Failed to update skill');
-      }
-    } else {
-      const res = await agentService.createPromptSkill({
-        name: parsed.name,
-        slug: parsed.slug,
-        description: parsed.description,
-        system_prompt: parsed.systemPrompt,
-        tags: parsed.tags,
-      });
-
-      if (res.ok && res.skill) {
-        showToast(`Prompt skill "${res.skill.name}" added!`);
-        setShowNewSkillModal(false);
-        setEditingSkillId(null);
-        setSkillMarkdown(defaultSkillTemplate);
-        const sList = await agentService.getPromptSkills();
-        setSkills(sList);
-      } else {
-        showToast(res.error || 'Failed to add skill');
-      }
-    }
-  };
-
-  const handleDeleteSkill = async (id: string, name: string) => {
-    const ok = await showConfirm({
-      title: 'Delete Rule',
-      message: `Delete rule "${name}"?`,
-      confirmText: 'Delete Rule',
-      cancelText: 'Cancel',
-      isDanger: true,
-    });
-    if (!ok) return;
-    const okDel = await agentService.deletePromptSkill(id);
-    if (okDel) {
-      showToast(`Prompt skill "${name}" deleted`);
-      const sList = await agentService.getPromptSkills();
-      setSkills(sList);
-    } else {
-      showToast('Failed to delete skill');
-    }
-  };
-
   return {
     activeSubTab,
     setActiveSubTab,
@@ -471,19 +316,13 @@ ${skill.system_prompt}
     selectedProjectId,
     setSelectedProjectId,
     currentProject,
-    activeProjectSkillIds,
-    setActiveProjectSkillIds,
-    savingProjectSkills,
-    loadProjectSkills,
-    handleToggleProjectSkill,
+    activeProjectMcpServerIds,
+    setActiveProjectMcpServerIds,
+    savingProjectMcpServers,
+    loadProjectMcpServers,
+    handleToggleProjectMcpServer,
     showNewProjectModal,
     setShowNewProjectModal,
-    showNewSkillModal,
-    setShowNewSkillModal,
-    editingSkillId,
-    setEditingSkillId,
-    handleOpenNewSkill,
-    handleOpenEditSkill,
     projName,
     setProjName,
     projDesc,
@@ -498,10 +337,6 @@ ${skill.system_prompt}
     folderValidationMsg,
     setFolderValidationMsg,
     browsingFolder,
-    skillMarkdown,
-    setSkillMarkdown,
-    defaultSkillTemplate,
-    parseSkillMarkdown,
     handleOpenFolderInFileManager,
     handleBrowseFolderForModal,
     handleBrowseFolderForActiveProject,
@@ -511,58 +346,69 @@ ${skill.system_prompt}
     handleRemoveFolderFromActiveProject,
     handleCreateProject,
     handleDeleteProject,
-    handleCreateSkill,
-    handleDeleteSkill,
     showMcpModal,
     setShowMcpModal,
     editingMcpServer,
     setEditingMcpServer,
-    handleOpenNewMcpServer: () => {
+    mcpModalInitialMode,
+    setMcpModalInitialMode,
+    handleOpenNewMcpServer: (mode: 'form' | 'json' = 'json') => {
       setEditingMcpServer(null);
+      setMcpModalInitialMode(mode);
       setShowMcpModal(true);
     },
-    handleOpenEditMcpServer: (server: McpServerConfig) => {
+    handleOpenEditMcpServer: (server: McpServerConfig, mode: 'form' | 'json' = 'json') => {
       setEditingMcpServer(server);
+      setMcpModalInitialMode(mode);
       setShowMcpModal(true);
     },
     handleSaveMcpServer: async (payload: SaveMcpServerPayload): Promise<boolean> => {
       try {
         const res = await agentService.saveMcpServer(payload);
         if (res.ok) {
-          showToast(editingMcpServer() ? 'MCP server updated' : 'MCP server added');
-          const list = await agentService.getMcpServers();
-          setMcpServers(list);
+          showToast(`MCP server "${payload.name}" saved!`);
           setShowMcpModal(false);
           setEditingMcpServer(null);
+          const mList = await agentService.getMcpServers();
+          setMcpServers(mList);
           return true;
+        } else {
+          showToast(res.error || 'Failed to save MCP server');
+          return false;
         }
-        showToast(res.error || 'Failed to save MCP server');
-        return false;
       } catch (e: any) {
-        showToast(e?.message || 'Error saving MCP server');
+        showToast(e.message || 'Failed to save MCP server');
         return false;
       }
     },
     handleDeleteMcpServer: async (id: string, name: string) => {
       const ok = await showConfirm({
         title: 'Delete MCP Server',
-        message: `Are you sure you want to delete server "${name}"? External tools provided by this server will no longer be available to the agent.`,
+        message: `Remove MCP server "${name}"? It will be unlinked from any workspace.`,
         confirmText: 'Delete Server',
         cancelText: 'Cancel',
         isDanger: true,
       });
       if (!ok) return;
       try {
-        const res = await agentService.deleteMcpServer(id);
-        if (res.ok) {
-          showToast(`Deleted server "${name}"`);
-          const list = await agentService.getMcpServers();
-          setMcpServers(list);
+        const okDel = await agentService.deleteMcpServer(id);
+        if (okDel) {
+          showToast(`MCP server "${name}" deleted`);
+          const mList = await agentService.getMcpServers();
+          setMcpServers(mList);
         } else {
-          showToast(res.error || 'Failed to delete MCP server');
+          showToast('Failed to delete MCP server');
         }
       } catch (e: any) {
-        showToast(e?.message || 'Failed to delete MCP server');
+        showToast(e.message || 'Failed to delete MCP server');
+      }
+    },
+    refreshMcpServers: async () => {
+      try {
+        const mList = await agentService.getMcpServers();
+        setMcpServers(mList);
+      } catch (e) {
+        console.error('Failed to refresh MCP servers:', e);
       }
     },
     handleTestMcpServer: async (serverOrPayload: SaveMcpServerPayload | McpServerConfig) => {

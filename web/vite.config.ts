@@ -15,6 +15,16 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
-    outDir: 'dist'
-  }
+    outDir: 'dist',
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'three-vrm': ['three', '@pixiv/three-vrm'],
+          'vendor-ui': ['solid-js', 'lucide-solid'],
+          'vendor-markdown': ['marked', 'prismjs', 'diff'],
+        },
+      },
+    },
+  },
 });

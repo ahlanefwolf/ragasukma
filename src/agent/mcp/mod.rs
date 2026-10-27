@@ -67,6 +67,20 @@ use tokio::process::Command;
 
 pub use types::*;
 
+/// Resolves executable command and arguments, resolving python runtime when applicable.
+fn resolve_executable(command_str: &str, args: &[String]) -> (String, Vec<String>, Option<std::path::PathBuf>) {
+    let lower = command_str.trim().to_lowercase();
+    let py_bin = crate::engine::python::find_python_bin();
+
+    if lower == "python" || lower == "python3" || lower == "py" {
+        if let Some(ref bin) = py_bin {
+            return (bin.to_string_lossy().to_string(), args.to_vec(), bin.parent().map(|p| p.to_path_buf()));
+        }
+    }
+
+    (command_str.to_string(), args.to_vec(), py_bin.and_then(|b| b.parent().map(|p| p.to_path_buf())))
+}
+
 /// Execute JSON-RPC 2.0 request over stdio transport
 async fn call_stdio_rpc(
     command_str: &str,
@@ -77,10 +91,25 @@ async fn call_stdio_rpc(
 ) -> Result<serde_json::Value, String> {
     let payload = serde_json::to_string(request_json).map_err(|e| e.to_string())?;
 
-    let mut cmd = Command::new(command_str);
-    cmd.args(args);
+    let (exec_cmd, exec_args, extra_path) = resolve_executable(command_str, args);
+
+    let mut cmd = Command::new(&exec_cmd);
+    cmd.args(&exec_args);
     for (k, v) in env {
         cmd.env(k, v);
+    }
+
+    // Ensure PATH includes the resolved binary directory so sub-processes can run tools
+    if let Some(bin_dir) = extra_path {
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        let bin_dir_str = bin_dir.to_string_lossy();
+        if !current_path.contains(&*bin_dir_str) {
+            #[cfg(target_os = "windows")]
+            let sep = ";";
+            #[cfg(not(target_os = "windows"))]
+            let sep = ":";
+            cmd.env("PATH", format!("{}{}{}", bin_dir_str, sep, current_path));
+        }
     }
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
@@ -134,7 +163,8 @@ async fn call_stdio_rpc(
     rpc_result
 }
 
-/// Execute JSON-RPC 2.0 request over HTTP/SSE endpoint
+/// Execute JSON-RPC 2.0 request over HTTP/SSE endpoint.
+/// Supports both Direct JSON-RPC HTTP and standard MCP SSE handshake.
 async fn call_http_rpc(
     url: &str,
     request_json: &serde_json::Value,
@@ -145,25 +175,63 @@ async fn call_http_rpc(
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
 
+    // 1. First attempt direct POST (standard for Bun-MCP & direct JSON-RPC 2.0)
     let resp = client
         .post(url)
         .header("Content-Type", "application/json")
         .header("Accept", "application/json, text/event-stream")
         .json(request_json)
         .send()
-        .await
-        .map_err(|e| format!("HTTP request failed to {}: {}", url, e))?;
+        .await;
 
-    if !resp.status().is_success() {
-        return Err(format!("MCP HTTP server responded with status: {}", resp.status()));
+    match resp {
+        Ok(r) if r.status().is_success() => {
+            let body: serde_json::Value = r
+                .json()
+                .await
+                .map_err(|e| format!("Failed to parse HTTP JSON response: {}", e))?;
+            Ok(body)
+        }
+        Ok(r) if r.status() == reqwest::StatusCode::METHOD_NOT_ALLOWED && url.ends_with("/sse") => {
+            // Server might require standard SSE handshake via GET first
+            if let Ok(mut sse_resp) = client.get(url).header("Accept", "text/event-stream").send().await {
+                if sse_resp.status().is_success() {
+                    while let Ok(Some(chunk)) = sse_resp.chunk().await {
+                        let text = String::from_utf8_lossy(&chunk);
+                        for line in text.lines() {
+                            if line.starts_with("data:") {
+                                let endpoint = line.trim_start_matches("data:").trim();
+                                let resolved_url = if endpoint.starts_with("http://") || endpoint.starts_with("https://") {
+                                    endpoint.to_string()
+                                } else {
+                                    let base = url.trim_end_matches("/sse");
+                                    let clean_path = if endpoint.starts_with('/') { endpoint.to_string() } else { format!("/{}", endpoint) };
+                                    format!("{}{}", base, clean_path)
+                                };
+
+                                let post_resp = client
+                                    .post(&resolved_url)
+                                    .header("Content-Type", "application/json")
+                                    .json(request_json)
+                                    .send()
+                                    .await
+                                    .map_err(|e| format!("POST to SSE endpoint failed: {}", e))?;
+
+                                let body: serde_json::Value = post_resp
+                                    .json()
+                                    .await
+                                    .map_err(|e| format!("Failed to parse SSE JSON response: {}", e))?;
+                                return Ok(body);
+                            }
+                        }
+                    }
+                }
+            }
+            Err(format!("MCP HTTP server responded with status: {}", r.status()))
+        }
+        Ok(r) => Err(format!("MCP HTTP server responded with status: {}", r.status())),
+        Err(e) => Err(format!("HTTP request failed to {}: {}", url, e)),
     }
-
-    let body: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse HTTP JSON response: {}", e))?;
-
-    Ok(body)
 }
 
 /// Generic MCP client instance that handles tool listing and execution
@@ -324,4 +392,107 @@ impl McpClient {
             }
         }
     }
+}
+
+impl From<&crate::agent::models::McpServer> for McpServerConfig {
+    fn from(s: &crate::agent::models::McpServer) -> Self {
+        let args: Vec<String> = serde_json::from_str(&s.args_json()).unwrap_or_default();
+        let env: HashMap<String, String> = serde_json::from_str(&s.env_json()).unwrap_or_default();
+        Self {
+            id: s.id.clone(),
+            name: s.name.clone(),
+            transport: s.transport(),
+            command: s.command(),
+            args,
+            env,
+            url: s.url(),
+            is_enabled: s.is_enabled == 1,
+        }
+    }
+}
+
+/// Represents an active MCP tool discovered from an active project MCP server
+#[derive(Debug, Clone)]
+pub struct ActiveMcpTool {
+    pub server_id: String,
+    pub server_name: String,
+    pub original_name: String,
+    pub namespaced_name: String,
+    pub definition: McpToolDefinition,
+    pub server_config: McpServerConfig,
+}
+
+/// Discovers tools from all active MCP servers for a project
+pub async fn resolve_active_mcp_tools(servers: &[crate::agent::models::McpServer]) -> Vec<ActiveMcpTool> {
+    let mut resolved = Vec::new();
+    for s in servers {
+        if s.is_enabled != 1 {
+            continue;
+        }
+        let config: McpServerConfig = s.into();
+        let client = McpClient::new(config.clone());
+        match client.list_tools().await {
+            Ok(tools) => {
+                for t in tools {
+                    let namespaced = format!("mcp__{}", t.name);
+                    resolved.push(ActiveMcpTool {
+                        server_id: config.id.clone(),
+                        server_name: config.name.clone(),
+                        original_name: t.name.clone(),
+                        namespaced_name: namespaced,
+                        definition: t,
+                        server_config: config.clone(),
+                    });
+                }
+            }
+            Err(e) => {
+                crate::term_err!("[MCP] Failed to list tools from '{}': {}", s.name, e);
+            }
+        }
+    }
+    resolved
+}
+
+/// Dispatches a tool call to the matching active MCP server
+pub async fn call_active_mcp_tool(
+    tools: &[ActiveMcpTool],
+    called_name: &str,
+    arguments: serde_json::Value,
+) -> Result<String, String> {
+    let matched = tools
+        .iter()
+        .find(|t| t.namespaced_name == called_name || t.original_name == called_name)
+        .ok_or_else(|| format!("MCP tool '{}' not found in active project tools", called_name))?;
+
+    let client = McpClient::new(matched.server_config.clone());
+    let res = client.call_tool(&matched.original_name, arguments).await?;
+
+    if res.is_error {
+        let err_texts: Vec<String> = res
+            .content
+            .iter()
+            .map(|c| {
+                if let Some(t) = c.get("text").and_then(|v| v.as_str()) {
+                    t.to_string()
+                } else {
+                    c.to_string()
+                }
+            })
+            .collect();
+        return Err(format!("MCP tool error: {}", err_texts.join("\n")));
+    }
+
+    let mut output = String::new();
+    for item in res.content {
+        if let Some(text) = item.get("text").and_then(|t| t.as_str()) {
+            output.push_str(text);
+        } else if let Some(s) = item.as_str() {
+            output.push_str(s);
+        } else {
+            output.push_str(&item.to_string());
+        }
+        output.push('\n');
+    }
+
+    Ok(output.trim().to_string())
 }

@@ -35,11 +35,10 @@ pub fn register_agent_routes(
         .route("/api/agent/sessions/from-chat", post(create_session_from_chat))
         // Messages
         .route("/api/agent/sessions/:id/messages", get(list_messages).post(create_message))
-        // Prompt Skills
-        .route("/api/agent/skills", get(list_skills).post(create_skill))
-        .route("/api/agent/skills/:id/update", post(update_skill))
-        .route("/api/agent/skills/:id/delete", post(delete_skill))
-        .route("/api/agent/projects/:id/skills", get(get_project_skills).post(set_project_skills))
+        // Agent Skills (Auto-detected from project .skills / .skill folders)
+        .route("/api/agent/skills", get(list_skills))
+        .route("/api/agent/projects/:id/skills", get(get_project_skills))
+        .route("/api/agent/projects/:id/mcp", get(get_project_mcp_servers_handler).post(set_project_mcp_servers_handler))
         // MCP Servers
         .route("/api/agent/mcp", get(list_mcp_servers).post(save_mcp_server))
         .route("/api/agent/mcp/:id/delete", post(delete_mcp_server))
@@ -783,93 +782,25 @@ async fn create_message(
 }
 
 // -----------------------------------------------------------------------------
-// Prompt Skills Endpoints
+// Agent Skills Endpoints (Filesystem Dynamic Scanner: .skills / .skill)
 // -----------------------------------------------------------------------------
 
-#[derive(Deserialize)]
-pub struct CreateSkillPayload {
-    pub name: String,
-    pub slug: String,
-    pub description: Option<String>,
-    pub system_prompt: String,
-    pub tags: Option<Vec<String>>,
-}
-
 async fn list_skills() -> impl IntoResponse {
-    match repository::list_prompt_skills().await {
-        Ok(list) => (StatusCode::OK, Json(json!(list))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": e.to_string()})),
-        ),
-    }
-}
-
-async fn create_skill(Json(payload): Json<CreateSkillPayload>) -> impl IntoResponse {
-    let desc = payload.description.unwrap_or_default();
-    let tags_json = serde_json::to_string(&payload.tags.unwrap_or_default()).unwrap_or_else(|_| "[]".to_string());
-
-    match repository::create_prompt_skill(
-        &payload.name,
-        &payload.slug,
-        &desc,
-        &payload.system_prompt,
-        &tags_json,
-    )
-    .await
-    {
-        Ok(s) => (StatusCode::CREATED, Json(json!(s))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": e.to_string()})),
-        ),
-    }
-}
-
-async fn update_skill(
-    Path(id): Path<String>,
-    Json(payload): Json<CreateSkillPayload>,
-) -> impl IntoResponse {
-    let desc = payload.description.unwrap_or_default();
-    let tags_json = serde_json::to_string(&payload.tags.unwrap_or_default())
-        .unwrap_or_else(|_| "[]".to_string());
-
-    match repository::update_prompt_skill(
-        &id,
-        &payload.name,
-        &payload.slug,
-        &desc,
-        &payload.system_prompt,
-        &tags_json,
-    )
-    .await
-    {
-        Ok(s) => (StatusCode::OK, Json(json!(s))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": e.to_string()})),
-        ),
-    }
-}
-
-async fn delete_skill(Path(id): Path<String>) -> impl IntoResponse {
-    match repository::delete_prompt_skill(&id).await {
-        Ok(_) => (StatusCode::OK, Json(json!({"status": "deleted"}))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": e.to_string()})),
-        ),
-    }
-}
-
-#[derive(Deserialize)]
-pub struct SetProjectSkillsPayload {
-    pub skill_ids: Vec<String>,
+    let list = crate::agent::skills::scan_project_skills(None, &[]);
+    (StatusCode::OK, Json(json!(list)))
 }
 
 async fn get_project_skills(Path(project_id): Path<String>) -> impl IntoResponse {
-    match repository::get_project_skills(&project_id).await {
-        Ok(list) => (StatusCode::OK, Json(json!(list))),
+    match repository::get_project(&project_id).await {
+        Ok(Some(proj)) => {
+            let folders = crate::agent::executor::parse_project_folders(proj.root_path.as_deref());
+            let list = crate::agent::skills::scan_project_skills(proj.root_path.as_deref(), &folders);
+            (StatusCode::OK, Json(json!(list)))
+        }
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "Project not found"})),
+        ),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"error": e.to_string()})),
@@ -877,11 +808,26 @@ async fn get_project_skills(Path(project_id): Path<String>) -> impl IntoResponse
     }
 }
 
-async fn set_project_skills(
+#[derive(Deserialize)]
+pub struct SetProjectMcpPayload {
+    pub server_ids: Vec<String>,
+}
+
+async fn get_project_mcp_servers_handler(Path(project_id): Path<String>) -> impl IntoResponse {
+    match repository::get_project_mcp_server_ids(&project_id).await {
+        Ok(ids) => (StatusCode::OK, Json(json!(ids))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        ),
+    }
+}
+
+async fn set_project_mcp_servers_handler(
     Path(project_id): Path<String>,
-    Json(payload): Json<SetProjectSkillsPayload>,
+    Json(payload): Json<SetProjectMcpPayload>,
 ) -> impl IntoResponse {
-    match repository::set_project_skills(&project_id, &payload.skill_ids).await {
+    match repository::set_project_mcp_servers(&project_id, &payload.server_ids).await {
         Ok(_) => (StatusCode::OK, Json(json!({"status": "ok"}))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -903,12 +849,32 @@ pub struct SaveMcpServerPayload {
     pub args: Option<Vec<String>>,
     pub env: Option<serde_json::Value>,
     pub url: Option<String>,
+    pub raw_json: Option<serde_json::Value>,
     pub is_enabled: Option<bool>,
 }
 
 async fn list_mcp_servers() -> impl IntoResponse {
     match repository::list_mcp_servers().await {
-        Ok(list) => (StatusCode::OK, Json(json!(list))),
+        Ok(list) => {
+            let dtos: Vec<serde_json::Value> = list
+                .into_iter()
+                .map(|s| {
+                    json!({
+                        "id": s.id,
+                        "name": s.name,
+                        "config": s.config,
+                        "transport": s.transport(),
+                        "command": s.command(),
+                        "args": s.args_json(),
+                        "env": s.env_json(),
+                        "url": s.url(),
+                        "is_enabled": s.is_enabled,
+                        "created_at": s.created_at,
+                    })
+                })
+                .collect();
+            (StatusCode::OK, Json(json!(dtos)))
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"error": e.to_string()})),
@@ -917,19 +883,41 @@ async fn list_mcp_servers() -> impl IntoResponse {
 }
 
 async fn save_mcp_server(Json(payload): Json<SaveMcpServerPayload>) -> impl IntoResponse {
-    let transport = payload.transport.unwrap_or_else(|| "stdio".to_string());
-    let args_str = serde_json::to_string(&payload.args.unwrap_or_default()).unwrap_or_else(|_| "[]".to_string());
-    let env_str = serde_json::to_string(&payload.env.unwrap_or_else(|| json!({}))).unwrap_or_else(|_| "{}".to_string());
+    let mut config_val = payload.raw_json.unwrap_or_else(|| json!({}));
+
+    // If config_val is empty or not an object, build it from the other fields if provided
+    if !config_val.is_object() || config_val.as_object().map(|o| o.is_empty()).unwrap_or(true) {
+        let mut obj = serde_json::Map::new();
+        obj.insert("name".to_string(), json!(payload.name));
+        if let Some(ref t) = payload.transport {
+            obj.insert("transport".to_string(), json!(t));
+        }
+        if let Some(ref c) = payload.command {
+            obj.insert("command".to_string(), json!(c));
+        }
+        if let Some(ref a) = payload.args {
+            obj.insert("args".to_string(), json!(a));
+        }
+        if let Some(ref e) = payload.env {
+            obj.insert("env".to_string(), e.clone());
+        }
+        if let Some(ref u) = payload.url {
+            obj.insert("url".to_string(), json!(u));
+        }
+        config_val = serde_json::Value::Object(obj);
+    } else if let Some(obj) = config_val.as_object_mut() {
+        if !obj.contains_key("name") {
+            obj.insert("name".to_string(), json!(payload.name));
+        }
+    }
+
+    let config_str = serde_json::to_string(&config_val).unwrap_or_else(|_| "{}".to_string());
     let is_enabled = payload.is_enabled.unwrap_or(true);
 
     match repository::create_or_update_mcp_server(
         &payload.id,
         &payload.name,
-        &transport,
-        payload.command.as_deref(),
-        &args_str,
-        &env_str,
-        payload.url.as_deref(),
+        &config_str,
         is_enabled,
     )
     .await
@@ -953,33 +941,54 @@ async fn delete_mcp_server(Path(id): Path<String>) -> impl IntoResponse {
 }
 
 async fn test_mcp_server_handler(Json(payload): Json<SaveMcpServerPayload>) -> impl IntoResponse {
-    let mut env_map = std::collections::HashMap::new();
-    if let Some(env_val) = payload.env {
-        if let Some(obj) = env_val.as_object() {
-            for (k, v) in obj {
-                if let Some(s) = v.as_str() {
-                    env_map.insert(k.clone(), s.to_string());
-                } else {
-                    env_map.insert(k.clone(), v.to_string());
-                }
-            }
+    let mut config_val = payload.raw_json.unwrap_or_else(|| json!({}));
+    if !config_val.is_object() || config_val.as_object().map(|o| o.is_empty()).unwrap_or(true) {
+        let mut obj = serde_json::Map::new();
+        obj.insert("name".to_string(), json!(payload.name));
+        if let Some(ref t) = payload.transport {
+            obj.insert("transport".to_string(), json!(t));
         }
+        if let Some(ref c) = payload.command {
+            obj.insert("command".to_string(), json!(c));
+        }
+        if let Some(ref a) = payload.args {
+            obj.insert("args".to_string(), json!(a));
+        }
+        if let Some(ref e) = payload.env {
+            obj.insert("env".to_string(), e.clone());
+        }
+        if let Some(ref u) = payload.url {
+            obj.insert("url".to_string(), json!(u));
+        }
+        config_val = serde_json::Value::Object(obj);
     }
-
-    let config = crate::agent::mcp::McpServerConfig {
-        id: payload.id,
-        name: payload.name,
-        transport: payload.transport.unwrap_or_else(|| "stdio".to_string()),
-        command: payload.command,
-        args: payload.args.unwrap_or_default(),
-        env: env_map,
-        url: payload.url,
-        is_enabled: payload.is_enabled.unwrap_or(true),
+    let config_str = serde_json::to_string(&config_val).unwrap_or_else(|_| "{}".to_string());
+    let server = crate::agent::models::McpServer {
+        id: payload.id.clone(),
+        name: payload.name.clone(),
+        config: config_str,
+        is_enabled: 1,
+        created_at: 0,
     };
-
+    let config: crate::agent::mcp::McpServerConfig = (&server).into();
     let client = crate::agent::mcp::McpClient::new(config);
-    let result = client.test_connection().await;
-    (StatusCode::OK, Json(json!(result)))
+    match client.list_tools().await {
+        Ok(tools) => (
+            StatusCode::OK,
+            Json(json!({
+                "ok": true,
+                "tools_count": tools.len(),
+                "tools": tools
+            })),
+        ),
+        Err(e) => (
+            StatusCode::OK,
+            Json(json!({
+                "ok": false,
+                "error": e
+            })),
+        ),
+    }
 }
 
 // -----------------------------------------------------------------------------

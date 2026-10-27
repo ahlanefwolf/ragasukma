@@ -1,30 +1,79 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptSkill {
     pub id: String,
     pub name: String,
     pub slug: String,
     pub description: String,
     pub system_prompt: String,
-    pub tags: String, // Stored as JSON string in SQLite
+    pub tags: String,
+    #[serde(default)]
+    pub file_path: Option<String>,
+    #[serde(default = "default_active")]
     pub is_active: i64,
+    #[serde(default)]
     pub created_at: i64,
+    #[serde(default)]
     pub updated_at: i64,
+}
+
+fn default_active() -> i64 {
+    1
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct McpServer {
     pub id: String,
     pub name: String,
-    pub transport: String,
-    pub command: Option<String>,
-    pub args: String, // Stored as JSON string
-    pub env: String,  // Stored as JSON string
-    pub url: Option<String>,
+    pub config: String, // Raw JSON configuration
     pub is_enabled: i64,
     pub created_at: i64,
+}
+
+impl McpServer {
+    pub fn config_value(&self) -> serde_json::Value {
+        serde_json::from_str(&self.config).unwrap_or_else(|_| serde_json::json!({}))
+    }
+
+    pub fn transport(&self) -> String {
+        let v = self.config_value();
+        v.get("transport")
+            .and_then(|t| t.as_str())
+            .unwrap_or_else(|| {
+                if v.get("url").is_some() {
+                    "sse"
+                } else {
+                    "stdio"
+                }
+            })
+            .to_string()
+    }
+
+    pub fn command(&self) -> Option<String> {
+        let v = self.config_value();
+        v.get("command").and_then(|c| c.as_str()).map(|s| s.to_string())
+    }
+
+    pub fn url(&self) -> Option<String> {
+        let v = self.config_value();
+        v.get("url").and_then(|u| u.as_str()).map(|s| s.to_string())
+    }
+
+    pub fn args_json(&self) -> String {
+        let v = self.config_value();
+        v.get("args")
+            .map(|a| serde_json::to_string(a).unwrap_or_else(|_| "[]".to_string()))
+            .unwrap_or_else(|| "[]".to_string())
+    }
+
+    pub fn env_json(&self) -> String {
+        let v = self.config_value();
+        v.get("env")
+            .map(|e| serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()))
+            .unwrap_or_else(|| "{}".to_string())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -36,14 +85,6 @@ pub struct Project {
     pub custom_instructions: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct ProjectPromptSkill {
-    pub project_id: String,
-    pub skill_id: String,
-    pub priority: i64,
-    pub is_enabled: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

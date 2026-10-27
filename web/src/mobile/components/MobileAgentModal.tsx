@@ -1,4 +1,4 @@
-import { Component, For, Show, createSignal, createEffect, onCleanup } from 'solid-js';
+import { Component, For, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { 
   Bot, 
   Send, 
@@ -21,7 +21,8 @@ import {
   Plus,
   Trash2,
   CheckCheck,
-  Sparkles
+  Sparkles,
+  X
 } from 'lucide-solid';
 import { agentService, AgentSession, AgentMessage, Project } from '../../services/agentService';
 import { MarkdownView } from '../../components/agent/MarkdownView';
@@ -139,16 +140,62 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
   const [streamingThought, setStreamingThought] = createSignal<string>('');
   const [promptText, setPromptText] = createSignal<string>('');
 
-  const [collapsedThoughts, setCollapsedThoughts] = createSignal<Set<string>>(new Set());
-  const [showScrollBottomBtn, setShowScrollBottomBtn] = createSignal<boolean>(false);
+  const [collapsedThoughts, setCollapsedThoughts] = createSignal<Set<string>>(new Set<string>());
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = createSignal(false);
   let isUserAtBottom = true;
+
+  const [viewportHeight, setViewportHeight] = createSignal<string>('100%');
+
+  const updateViewport = () => {
+    if (window.visualViewport) {
+      setViewportHeight(`${window.visualViewport.height}px`);
+    } else {
+      setViewportHeight(`${window.innerHeight}px`);
+    }
+  };
+
+  onMount(() => {
+    updateViewport();
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewport);
+      window.visualViewport.addEventListener('scroll', updateViewport);
+    } else {
+      window.addEventListener('resize', updateViewport);
+    }
+    document.addEventListener('fullscreenchange', updateViewport);
+
+    onCleanup(() => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewport);
+        window.visualViewport.removeEventListener('scroll', updateViewport);
+      } else {
+        window.removeEventListener('resize', updateViewport);
+      }
+      document.removeEventListener('fullscreenchange', updateViewport);
+    });
+  });
+
+  const adjustInputHeight = (el?: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = 'auto';
+    const next = Math.min(Math.max(el.scrollHeight, 38), 128);
+    el.style.height = `${next}px`;
+  };
+
+  createEffect(() => {
+    if (!promptText() && inputRef) {
+      inputRef.style.height = 'auto';
+    }
+  });
 
   // Toggle thought collapsing
   const toggleCollapseThought = (id: string) => {
-    const next = new Set(collapsedThoughts());
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setCollapsedThoughts(next);
+    setCollapsedThoughts((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   const currentSession = () => sessions().find((s) => s.id === selectedSessionId()) || null;
@@ -789,15 +836,19 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
   return (
     <Show when={props.isOpen}>
       <div 
-        class="fixed inset-0 z-50 flex flex-col bg-theme-bg/95 backdrop-blur-md text-theme-text animate-in fade-in zoom-in-95 duration-200 select-none overflow-hidden w-full max-w-full"
-        style={{ "padding-top": "env(safe-area-inset-top, 0px)", "padding-bottom": "env(safe-area-inset-bottom, 0px)" }}
+        class="fixed inset-0 z-50 pointer-events-auto bg-[#0f1218] overflow-hidden flex flex-col select-none animate-in fade-in zoom-in-95 duration-200"
+        style={{
+          height: viewportHeight(),
+          "max-height": viewportHeight(),
+          "padding-top": "env(safe-area-inset-top, 0px)",
+        }}
       >
         {/* ========================================================= */}
         {/* VIEW 1: TASK LIST VIEW (Master Screen)                   */}
         {/* ========================================================= */}
         <Show when={viewMode() === 'tasks'}>
           {/* Top Header */}
-          <header class="h-14 border-b border-theme-border bg-theme-surface/90 px-3 flex items-center justify-between shadow-sm shrink-0 w-full max-w-full overflow-hidden">
+          <header class="h-14 border-b border-theme-border bg-theme-surface px-3 flex items-center justify-between shadow-sm shrink-0 w-full max-w-full overflow-hidden">
             <div class="flex items-center gap-2.5 min-w-0">
               <button
                 type="button"
@@ -808,18 +859,18 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 <ArrowLeft size={20} />
               </button>
               <div class="relative shrink-0">
-                <div class="w-9 h-9 rounded-full bg-theme-cyan/20 border border-theme-cyan/50 flex items-center justify-center text-theme-cyan shadow-sm">
+                <div class="w-9 h-9 rounded-full bg-gi-primary/15 border border-gi-primary/40 flex items-center justify-center text-gi-primary shadow-sm">
                   <Bot size={18} />
                 </div>
                 <Show when={isAgentActive()}>
-                  <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-theme-surface animate-pulse" />
+                  <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-gi-status-success border-2 border-theme-surface animate-pulse" />
                 </Show>
               </div>
               <div class="flex flex-col min-w-0">
                 <span class="text-sm font-bold text-theme-text truncate leading-tight">
                   Agent Tasks
                 </span>
-                <span class="text-2xs text-theme-cyan font-mono truncate">
+                <span class="text-2xs text-gi-primary font-mono truncate">
                   {sessions().filter((s) => s.status === 'running' || s.status === 'waiting_tool').length > 0 
                     ? `${sessions().filter((s) => s.status === 'running' || s.status === 'waiting_tool').length} active running` 
                     : `${sessions().length} tasks available`}
@@ -833,7 +884,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 onClick={() => {
                   if (selectedProjectId()) loadSessions(selectedProjectId()!);
                 }}
-                class="p-2 text-theme-muted hover:text-theme-cyan transition-colors rounded-full"
+                class="p-2 text-theme-muted hover:text-gi-primary-hover transition-colors rounded-full"
                 title="Refresh Tasks"
               >
                 <RefreshCw size={16} class={isLoading() ? 'animate-spin' : ''} />
@@ -841,7 +892,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
               <button
                 type="button"
                 onClick={handleCreateNewSession}
-                class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-theme-cyan text-theme-bg font-semibold text-xs shadow-md active:scale-95 transition-all"
+                class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-semibold text-xs shadow-md active:scale-95 transition-all"
                 title="New Task"
               >
                 <Plus size={14} />
@@ -854,12 +905,12 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
           <Show when={projects().length > 0}>
             <div class="px-3.5 py-2 bg-theme-surface/60 border-b border-theme-border/60 flex items-center justify-between text-xs shrink-0 w-full max-w-full overflow-hidden">
               <div class="flex items-center gap-2 min-w-0 flex-1">
-                <FolderGit2 size={14} class="text-theme-cyan shrink-0" />
+                <FolderGit2 size={14} class="text-gi-primary shrink-0" />
                 <span class="text-2xs font-mono uppercase text-theme-muted tracking-wider shrink-0">Project</span>
                 <select
                   value={selectedProjectId() || ''}
                   onChange={(e) => setSelectedProjectId(e.currentTarget.value)}
-                  class="bg-theme-card border border-theme-border rounded-xl px-2.5 py-1 text-xs text-theme-text font-medium outline-none focus:border-theme-cyan max-w-[200px] truncate"
+                  class="bg-theme-card border border-theme-border rounded-xl px-2.5 py-1 text-xs text-theme-text font-medium outline-none focus:border-gi-primary max-w-[200px] truncate"
                 >
                   <For each={projects()}>
                     {(proj) => (
@@ -882,7 +933,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
             <Show when={sessions().length === 0}>
               <div class="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
                 <div class="w-14 h-14 rounded-full bg-theme-card border border-theme-border flex items-center justify-center text-theme-muted">
-                  <Sparkles size={24} class="text-theme-cyan/80" />
+                  <Sparkles size={24} class="text-gi-primary/80" />
                 </div>
                 <div class="space-y-1">
                   <p class="text-sm font-semibold text-theme-text">No tasks created yet</p>
@@ -893,7 +944,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 <button
                   type="button"
                   onClick={handleCreateNewSession}
-                  class="mt-2 flex items-center gap-2 px-4 py-2 rounded-xl bg-theme-cyan text-theme-bg font-semibold text-xs shadow-md active:scale-95 transition-all"
+                  class="mt-2 flex items-center gap-2 px-4 py-2 rounded-xl bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-semibold text-xs shadow-md active:scale-95 transition-all"
                 >
                   <Plus size={16} /> Create First Task
                 </button>
@@ -909,33 +960,33 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 return (
                   <div
                     onClick={() => handleSelectSession(sess)}
-                    class="group relative flex flex-col gap-2 p-3.5 rounded-2xl bg-theme-card border border-theme-border hover:border-theme-cyan/50 active:scale-[0.99] transition-all shadow-sm cursor-pointer select-none w-full max-w-full min-w-0 overflow-hidden"
+                    class="group relative flex flex-col gap-2 p-3.5 rounded-2xl bg-theme-card border border-theme-border hover:border-gi-primary/50 active:scale-[0.99] transition-all shadow-sm cursor-pointer select-none w-full max-w-full min-w-0 overflow-hidden"
                   >
                     <div class="flex items-start justify-between gap-2.5 w-full min-w-0">
                       <div class="flex items-center gap-2.5 min-w-0 flex-1">
                         {/* Status Icon Badge */}
                         <div class={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                           isRunning 
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-xs' 
+                            ? 'bg-gi-status-success/20 text-gi-status-success border border-gi-status-success/40 shadow-xs' 
                             : isWaiting
-                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                            ? 'bg-gi-status-warning/20 text-gi-status-warning border border-gi-status-warning/40'
                             : sess.status === 'completed'
-                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                            ? 'bg-gi-status-info/20 text-gi-status-info border border-gi-status-info/40'
                             : sess.status === 'failed'
-                            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                            ? 'bg-gi-status-danger/20 text-gi-status-danger border border-gi-status-danger/40'
                             : 'bg-theme-surface border border-theme-border text-theme-muted'
                         }`}>
                           <Show when={isRunning}>
-                            <Loader2 size={16} class="animate-spin text-emerald-400" />
+                            <Loader2 size={16} class="animate-spin text-gi-status-success" />
                           </Show>
                           <Show when={isWaiting}>
-                            <Wrench size={15} class="text-amber-400 animate-pulse" />
+                            <Wrench size={15} class="text-gi-status-warning animate-pulse" />
                           </Show>
                           <Show when={sess.status === 'completed'}>
-                            <CheckCircle2 size={16} class="text-blue-400" />
+                            <CheckCircle2 size={16} class="text-gi-status-info" />
                           </Show>
                           <Show when={sess.status === 'failed'}>
-                            <AlertCircle size={16} class="text-rose-400" />
+                            <AlertCircle size={16} class="text-gi-status-danger" />
                           </Show>
                           <Show when={!sess.status || sess.status === 'idle'}>
                             <Bot size={16} class="text-theme-muted" />
@@ -944,7 +995,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
 
                         {/* Task Title & Metadata */}
                         <div class="min-w-0 flex-1 overflow-hidden">
-                          <h4 class="text-xs font-semibold text-theme-text truncate group-hover:text-theme-cyan transition-colors leading-tight">
+                          <h4 class="text-xs font-semibold text-theme-text truncate group-hover:text-gi-primary transition-colors leading-tight">
                             {sess.title || 'Untitled Task'}
                           </h4>
                           <div class="flex items-center gap-1.5 text-2xs text-theme-muted font-mono mt-1">
@@ -961,14 +1012,14 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                       <div class="flex items-center gap-1.5 shrink-0 self-center">
                         <span class={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-mono font-medium ${getStatusBadgeClass(sess.status)}`}>
                           <Show when={isRunning}>
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+                            <span class="w-1.5 h-1.5 rounded-full bg-gi-status-success animate-ping inline-block" />
                           </Show>
                           <Show when={isWaiting}>
-                            <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block" />
+                            <span class="w-1.5 h-1.5 rounded-full bg-gi-status-warning animate-pulse inline-block" />
                           </Show>
                           <span>{formatStatusLabel(sess.status)}</span>
                         </span>
-                        <ChevronRight size={16} class="text-theme-muted group-hover:text-theme-cyan group-hover:translate-x-0.5 transition-all" />
+                        <ChevronRight size={16} class="text-theme-muted group-hover:text-gi-primary group-hover:translate-x-0.5 transition-all" />
                       </div>
                     </div>
                   </div>
@@ -983,7 +1034,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
         {/* ========================================================= */}
         <Show when={viewMode() === 'chat'}>
           {/* Top Header */}
-          <header class="h-14 border-b border-theme-border bg-theme-surface/90 px-3 flex items-center justify-between shadow-sm shrink-0 w-full max-w-full overflow-hidden">
+          <header class="h-14 border-b border-theme-border bg-theme-surface px-3 flex items-center justify-between shadow-sm shrink-0 w-full max-w-full overflow-hidden">
             <div class="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
               <button
                 type="button"
@@ -997,24 +1048,24 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 <ArrowLeft size={20} />
               </button>
               <div class="relative shrink-0">
-                <div class="w-9 h-9 rounded-full bg-theme-cyan/20 border border-theme-cyan/50 flex items-center justify-center text-theme-cyan shadow-sm">
+                <div class="w-9 h-9 rounded-full bg-gi-primary/15 border border-gi-primary/40 flex items-center justify-center text-gi-primary shadow-sm">
                   <Bot size={18} />
                 </div>
                 <Show when={isAgentActive()}>
-                  <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-theme-surface animate-pulse" />
+                  <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-gi-status-success border-2 border-theme-surface animate-pulse" />
                 </Show>
               </div>
               <div class="flex flex-col min-w-0 flex-1 overflow-hidden">
                 <span class="text-sm font-bold text-theme-text truncate leading-tight">
                   {currentSession()?.title || 'Agent Task'}
                 </span>
-                <span class="text-2xs text-theme-cyan font-mono truncate flex items-center gap-1.5">
+                <span class="text-2xs text-gi-primary font-mono truncate flex items-center gap-1.5">
                   <Show when={isExecuting() || currentSession()?.status === 'running'}>
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+                    <span class="w-1.5 h-1.5 rounded-full bg-gi-status-success animate-ping inline-block" />
                     <span>running</span>
                   </Show>
                   <Show when={!isExecuting() && currentSession()?.status === 'waiting_tool'}>
-                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block" />
+                    <span class="w-1.5 h-1.5 rounded-full bg-gi-status-warning animate-pulse inline-block" />
                     <span>waiting tool</span>
                   </Show>
                   <Show when={!isExecuting() && currentSession()?.status !== 'running' && currentSession()?.status !== 'waiting_tool'}>
@@ -1029,10 +1080,10 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 <button
                   type="button"
                   onClick={handleStopSession}
-                  class="p-2 rounded-full bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 active:scale-90 transition-transform shadow-xs"
+                  class="p-2 rounded-full bg-gi-status-danger/20 text-gi-status-danger hover:bg-gi-status-danger/30 active:scale-90 transition-transform shadow-xs"
                   title="Stop Execution"
                 >
-                  <Square size={16} class="fill-rose-400" />
+                  <Square size={16} class="fill-current" />
                 </button>
               </Show>
               <button
@@ -1040,261 +1091,309 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 onClick={() => {
                   if (selectedSessionId()) loadMessages(selectedSessionId()!);
                 }}
-                class="p-2 text-theme-muted hover:text-theme-cyan transition-colors rounded-full"
+                class="p-2 text-theme-muted hover:text-gi-primary-hover transition-colors rounded-full"
                 title="Refresh Messages"
               >
-                <RefreshCw size={16} class={isLoading() ? 'animate-spin text-theme-cyan' : ''} />
+                <RefreshCw size={16} class={isLoading() ? 'animate-spin text-gi-primary' : ''} />
               </button>
             </div>
           </header>
 
-          {/* Real-time Activity Banner */}
+          {/* Current Execution Step Subheader */}
           <Show when={currentStep()}>
-            <div class="flex items-center gap-2 px-3.5 py-1.5 bg-theme-cyan/10 border-b border-theme-cyan/30 text-xs text-theme-cyan shrink-0 animate-pulse font-mono w-full max-w-full overflow-hidden">
+            <div class="flex items-center gap-2 px-3.5 py-1.5 bg-gi-primary/10 border-b border-gi-primary/30 text-xs text-gi-primary shrink-0 animate-pulse font-mono w-full max-w-full overflow-hidden">
               <Loader2 size={13} class="animate-spin shrink-0" />
               <span class="truncate min-w-0">{currentStep()}</span>
             </div>
           </Show>
 
-          {/* Messages Viewport */}
-          <div class="relative flex-1 min-h-0 min-w-0 w-full max-w-full flex flex-col overflow-hidden">
-            <div
-              ref={scrollContainerRef}
-              onScroll={handleScroll}
-              class="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3.5 overscroll-contain bg-gradient-to-b from-theme-bg/50 via-theme-card/30 to-theme-bg/60 w-full max-w-full min-w-0"
-            >
-              {/* Lazy Loading Indicator at Top */}
-              <Show when={isLoadingMore() || isInitialLoading()}>
-                <div class="flex items-center justify-center py-2">
-                  <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-theme-surface border border-theme-border text-2xs text-theme-muted font-mono shadow-sm">
-                    <Loader2 size={12} class="animate-spin text-theme-cyan" />
-                    <span>Loading messages...</span>
+          {/* Chat Messages Viewport */}
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            class="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3.5 overscroll-contain bg-gradient-to-b from-theme-bg/50 via-theme-card/30 to-theme-bg/60 w-full max-w-full min-w-0"
+          >
+            {/* Lazy Loading Indicator at Top */}
+            <Show when={isLoadingMore() || isInitialLoading()}>
+              <div class="flex items-center justify-center py-2">
+                <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-theme-surface border border-theme-border text-2xs text-theme-muted font-mono shadow-sm">
+                  <Loader2 size={12} class="animate-spin text-gi-primary" />
+                  <span>Loading messages...</span>
+                </div>
+              </div>
+            </Show>
+
+            <Show when={!isLoadingMore() && !hasMore() && messages().length >= PAGE_SIZE}>
+              <div class="flex items-center justify-center py-2">
+                <span class="px-3 py-1 rounded-full bg-theme-surface/50 border border-theme-border/50 text-2xs text-theme-muted/70 font-mono">
+                  Beginning of task history
+                </span>
+              </div>
+            </Show>
+
+            {/* Empty State */}
+            <Show when={!isLoading() && messages().length === 0 && !streamingText() && !streamingThought()}>
+              <div class="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
+                <div class="w-14 h-14 rounded-full bg-theme-card border border-theme-border flex items-center justify-center text-theme-muted">
+                  <Sparkles size={24} class="text-gi-primary/80" />
+                </div>
+                <div class="space-y-1">
+                  <p class="text-sm font-semibold text-theme-text">No instructions yet</p>
+                  <p class="text-xs text-theme-muted max-w-xs">
+                    Send an instruction below to start autonomous coding with the agent.
+                  </p>
+                </div>
+              </div>
+            </Show>
+
+            {/* Message History */}
+            <For each={messages().filter((m) => m.role !== 'system' && m.role !== 'tool')}>
+              {(msg) => {
+                const isUser = msg.role === 'user';
+                const hasThought = Boolean(msg.thought);
+                const thoughtCollapsed = () => collapsedThoughts().has(msg.id);
+                const parsedTools = () => parseToolCalls(msg.tool_calls);
+
+                return (
+                  <div class={`flex w-full max-w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in duration-150 overflow-hidden`}>
+                    <div
+                      class={`relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2 text-xs shadow-md select-text overflow-hidden break-words ${
+                        isUser
+                          ? 'bg-gi-primary text-gi-primary-foreground font-medium rounded-2xl rounded-tr-xs'
+                          : 'bg-theme-card border border-theme-border text-theme-text rounded-2xl rounded-tl-xs'
+                      }`}
+                    >
+                      {/* Assistant Header */}
+                      <Show when={!isUser}>
+                        <div class="flex items-center justify-between gap-2 mb-1.5 min-w-0">
+                          <span class="text-2xs font-bold text-gi-primary flex items-center gap-1 shrink-0">
+                            <Bot size={12} /> Agent
+                          </span>
+                          <span class="text-2xs text-theme-muted font-mono shrink-0">
+                            {formatMessageTime(msg.created_at)}
+                          </span>
+                        </div>
+                      </Show>
+
+                      {/* Collapsible Reasoning Box */}
+                      <Show when={!isUser && hasThought}>
+                        <div class="mb-2 border border-gi-primary/25 rounded-xl overflow-hidden bg-theme-surface/70 max-w-full min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => toggleCollapseThought(msg.id)}
+                            class="w-full flex items-center justify-between px-2.5 py-1.5 bg-gi-primary/10 text-2xs text-gi-primary font-mono font-medium"
+                          >
+                            <span class="flex items-center gap-1">
+                              <Brain size={12} />
+                              Reasoning
+                            </span>
+                            {thoughtCollapsed() ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                          </button>
+                          <Show when={!thoughtCollapsed()}>
+                            <div class="p-2.5 text-2xs text-theme-muted font-mono whitespace-pre-wrap break-words max-h-48 overflow-y-auto overflow-x-hidden bg-theme-bg/40 max-w-full min-w-0">
+                              {msg.thought}
+                            </div>
+                          </Show>
+                        </div>
+                      </Show>
+
+                      {/* Tool Action Pills */}
+                      <Show when={!isUser && parsedTools().length > 0}>
+                        <div class="flex flex-col gap-1.5 mb-2 max-w-full min-w-0 overflow-hidden">
+                          <For each={parsedTools()}>
+                            {(tc) => {
+                              const info = formatToolCallSummary(tc);
+                              return (
+                                <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-theme-surface/90 border border-theme-border/70 text-2xs font-mono shadow-xs max-w-full min-w-0 overflow-hidden">
+                                  <Show when={info.iconType === 'terminal'}>
+                                    <Terminal size={12} class="text-gi-status-success shrink-0" />
+                                  </Show>
+                                  <Show when={info.iconType === 'file'}>
+                                    <FileCode size={12} class="text-gi-status-info shrink-0" />
+                                  </Show>
+                                  <Show when={info.iconType === 'folder'}>
+                                    <Folder size={12} class="text-gi-status-warning shrink-0" />
+                                  </Show>
+                                  <Show when={info.iconType === 'search'}>
+                                    <Search size={12} class="text-gi-primary shrink-0" />
+                                  </Show>
+                                  <Show when={info.iconType === 'tool'}>
+                                    <Wrench size={12} class="text-gi-primary shrink-0" />
+                                  </Show>
+                                  <span class="font-medium text-theme-text truncate flex-1 min-w-0">{info.title}</span>
+                                  <Show when={info.subtitle}>
+                                    <span class="text-2xs text-theme-muted shrink-0 max-w-[45%] truncate">{info.subtitle}</span>
+                                  </Show>
+                                </div>
+                              );
+                            }}
+                          </For>
+                        </div>
+                      </Show>
+
+                      {/* Content */}
+                      <Show when={msg.content && msg.content.trim()}>
+                        <div class="break-words leading-relaxed max-w-full min-w-0 overflow-hidden">
+                          <Show when={isUser} fallback={<MarkdownView content={msg.content || ''} />}>
+                            <div class="whitespace-pre-wrap break-words max-w-full min-w-0">{msg.content}</div>
+                          </Show>
+                        </div>
+                      </Show>
+
+                      {/* User Message Footer */}
+                      <Show when={isUser}>
+                        <div class="flex items-center justify-end gap-1 mt-1 text-2xs font-mono text-theme-bg/75 select-none">
+                          <span>{formatMessageTime(msg.created_at)}</span>
+                          <CheckCheck size={13} class="text-theme-bg/90 inline-block" />
+                        </div>
+                      </Show>
+                    </div>
+                  </div>
+                );
+              }}
+            </For>
+
+            {/* Streaming Thought Card */}
+            <Show when={streamingThought()}>
+              <div class="flex w-full max-w-full min-w-0 justify-start animate-in fade-in duration-150 overflow-hidden">
+                <div class="relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md bg-theme-card border border-gi-primary/40 text-theme-text rounded-2xl rounded-tl-xs overflow-hidden">
+                  <div class="flex items-center gap-1.5 text-gi-primary font-mono text-2xs mb-1 min-w-0">
+                    <Brain size={12} class="animate-pulse shrink-0" />
+                    <span class="truncate">Thinking in progress...</span>
+                  </div>
+                  <div class="text-2xs font-mono text-theme-muted whitespace-pre-wrap break-words max-h-36 overflow-y-auto overflow-x-hidden max-w-full min-w-0">
+                    {streamingThought()}
                   </div>
                 </div>
-              </Show>
+              </div>
+            </Show>
 
-              <Show when={!isLoadingMore() && !hasMore() && messages().length >= PAGE_SIZE}>
-                <div class="flex items-center justify-center py-2">
-                  <span class="px-3 py-1 rounded-full bg-theme-surface/50 border border-theme-border/50 text-2xs text-theme-muted/70 font-mono">
-                    Beginning of task history
+            {/* Streaming Text Card */}
+            <Show when={streamingText()}>
+              <div class="flex w-full max-w-full min-w-0 justify-start animate-in fade-in duration-150 overflow-hidden">
+                <div class="relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md bg-theme-card border border-theme-border text-theme-text rounded-2xl rounded-tl-xs overflow-hidden">
+                  <span class="text-2xs font-bold text-gi-primary mb-1 flex items-center gap-1">
+                    <Bot size={12} /> Agent
                   </span>
-                </div>
-              </Show>
-
-              {/* Empty State */}
-              <Show when={!isLoading() && messages().length === 0 && !streamingText() && !streamingThought()}>
-                <div class="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
-                  <div class="w-14 h-14 rounded-full bg-theme-card border border-theme-border flex items-center justify-center text-theme-muted">
-                    <Sparkles size={24} class="text-theme-cyan/80" />
-                  </div>
-                  <div class="space-y-1">
-                    <p class="text-sm font-semibold text-theme-text">No instructions yet</p>
-                    <p class="text-xs text-theme-muted max-w-xs">
-                      Send an instruction below to start autonomous coding with the agent.
-                    </p>
+                  <div class="whitespace-pre-wrap break-words leading-relaxed max-w-full min-w-0">
+                    {streamingText()}
+                    <span class="inline-block w-1.5 h-3.5 ml-0.5 bg-gi-primary animate-pulse align-middle" />
                   </div>
                 </div>
-              </Show>
-
-              {/* Message History */}
-              <For each={messages().filter((m) => m.role !== 'system' && m.role !== 'tool')}>
-                {(msg) => {
-                  const isUser = msg.role === 'user';
-                  const hasThought = Boolean(msg.thought);
-                  const thoughtCollapsed = () => collapsedThoughts().has(msg.id);
-                  const parsedTools = () => parseToolCalls(msg.tool_calls);
-
-                  return (
-                    <div class={`flex w-full max-w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in duration-150 overflow-hidden`}>
-                      <div
-                        class={`relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2 text-xs shadow-md select-text overflow-hidden break-words ${
-                          isUser
-                            ? 'bg-theme-cyan text-theme-bg font-medium rounded-2xl rounded-tr-xs'
-                            : 'bg-theme-card border border-theme-border text-theme-text rounded-2xl rounded-tl-xs'
-                        }`}
-                      >
-                        {/* Assistant Header */}
-                        <Show when={!isUser}>
-                          <div class="flex items-center justify-between gap-2 mb-1.5 min-w-0">
-                            <span class="text-2xs font-bold text-theme-cyan flex items-center gap-1 shrink-0">
-                              <Bot size={12} /> Agent
-                            </span>
-                            <span class="text-2xs text-theme-muted font-mono shrink-0">
-                              {formatMessageTime(msg.created_at)}
-                            </span>
-                          </div>
-                        </Show>
-
-                        {/* Collapsible Reasoning Box */}
-                        <Show when={!isUser && hasThought}>
-                          <div class="mb-2 border border-theme-cyan/25 rounded-xl overflow-hidden bg-theme-surface/70 max-w-full min-w-0">
-                            <button
-                              type="button"
-                              onClick={() => toggleCollapseThought(msg.id)}
-                              class="w-full flex items-center justify-between px-2.5 py-1.5 bg-theme-cyan/10 text-2xs text-theme-cyan font-mono font-medium"
-                            >
-                              <span class="flex items-center gap-1">
-                                <Brain size={12} />
-                                Reasoning
-                              </span>
-                              {thoughtCollapsed() ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-                            </button>
-                            <Show when={!thoughtCollapsed()}>
-                              <div class="p-2.5 text-2xs text-theme-muted font-mono whitespace-pre-wrap break-words max-h-48 overflow-y-auto overflow-x-hidden bg-theme-bg/40 max-w-full min-w-0">
-                                {msg.thought}
-                              </div>
-                            </Show>
-                          </div>
-                        </Show>
-
-                        {/* Tool Action Pills */}
-                        <Show when={!isUser && parsedTools().length > 0}>
-                          <div class="flex flex-col gap-1.5 mb-2 max-w-full min-w-0 overflow-hidden">
-                            <For each={parsedTools()}>
-                              {(tc) => {
-                                const info = formatToolCallSummary(tc);
-                                return (
-                                  <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-theme-surface/90 border border-theme-border/70 text-2xs font-mono shadow-xs max-w-full min-w-0 overflow-hidden">
-                                    <Show when={info.iconType === 'terminal'}>
-                                      <Terminal size={12} class="text-emerald-400 shrink-0" />
-                                    </Show>
-                                    <Show when={info.iconType === 'file'}>
-                                      <FileCode size={12} class="text-blue-400 shrink-0" />
-                                    </Show>
-                                    <Show when={info.iconType === 'folder'}>
-                                      <Folder size={12} class="text-amber-400 shrink-0" />
-                                    </Show>
-                                    <Show when={info.iconType === 'search'}>
-                                      <Search size={12} class="text-purple-400 shrink-0" />
-                                    </Show>
-                                    <Show when={info.iconType === 'tool'}>
-                                      <Wrench size={12} class="text-theme-cyan shrink-0" />
-                                    </Show>
-                                    <span class="font-medium text-theme-text truncate flex-1 min-w-0">{info.title}</span>
-                                    <Show when={info.subtitle}>
-                                      <span class="text-2xs text-theme-muted shrink-0 max-w-[45%] truncate">{info.subtitle}</span>
-                                    </Show>
-                                  </div>
-                                );
-                              }}
-                            </For>
-                          </div>
-                        </Show>
-
-                        {/* Content */}
-                        <Show when={msg.content && msg.content.trim()}>
-                          <div class="break-words leading-relaxed max-w-full min-w-0 overflow-hidden">
-                            <Show when={isUser} fallback={<MarkdownView content={msg.content || ''} />}>
-                              <div class="whitespace-pre-wrap break-words max-w-full min-w-0">{msg.content}</div>
-                            </Show>
-                          </div>
-                        </Show>
-
-                        {/* User Message Footer */}
-                        <Show when={isUser}>
-                          <div class="flex items-center justify-end gap-1 mt-1 text-2xs font-mono text-theme-bg/75 select-none">
-                            <span>{formatMessageTime(msg.created_at)}</span>
-                            <CheckCheck size={13} class="text-theme-bg/90 inline-block" />
-                          </div>
-                        </Show>
-                      </div>
-                    </div>
-                  );
-                }}
-              </For>
-
-              {/* Streaming Thought Card */}
-              <Show when={streamingThought()}>
-                <div class="flex w-full max-w-full min-w-0 justify-start animate-in fade-in duration-150 overflow-hidden">
-                  <div class="relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md bg-theme-card border border-theme-cyan/40 text-theme-text rounded-2xl rounded-tl-xs overflow-hidden">
-                    <div class="flex items-center gap-1.5 text-theme-cyan font-mono text-2xs mb-1 min-w-0">
-                      <Brain size={12} class="animate-pulse shrink-0" />
-                      <span class="truncate">Thinking in progress...</span>
-                    </div>
-                    <div class="text-2xs font-mono text-theme-muted whitespace-pre-wrap break-words max-h-36 overflow-y-auto overflow-x-hidden max-w-full min-w-0">
-                      {streamingThought()}
-                    </div>
-                  </div>
-                </div>
-              </Show>
-
-              {/* Streaming Text Card */}
-              <Show when={streamingText()}>
-                <div class="flex w-full max-w-full min-w-0 justify-start animate-in fade-in duration-150 overflow-hidden">
-                  <div class="relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md bg-theme-card border border-theme-border text-theme-text rounded-2xl rounded-tl-xs overflow-hidden">
-                    <span class="text-2xs font-bold text-theme-cyan mb-1 flex items-center gap-1">
-                      <Bot size={12} /> Agent
-                    </span>
-                    <div class="whitespace-pre-wrap break-words leading-relaxed max-w-full min-w-0">
-                      {streamingText()}
-                      <span class="inline-block w-1.5 h-3.5 ml-0.5 bg-theme-cyan animate-pulse align-middle" />
-                    </div>
-                  </div>
-                </div>
-              </Show>
-            </div>
+              </div>
+            </Show>
 
             {/* Scroll to Bottom Floating Button */}
-            <Show when={showScrollBottomBtn()}>
-              <button
-                type="button"
-                onClick={() => {
-                  isUserAtBottom = true;
-                  setShowScrollBottomBtn(false);
-                  scrollToBottom('smooth', true);
-                }}
-                class="absolute bottom-4 right-4 z-20 w-9 h-9 rounded-full bg-theme-surface/90 border border-theme-cyan/50 text-theme-cyan shadow-lg flex items-center justify-center backdrop-blur-sm active:scale-95 transition-all animate-bounce"
-                title="Scroll to bottom"
-              >
-                <ArrowDown size={15} />
-              </button>
-            </Show>
-          </div>
-
-          {/* Bottom Input Area */}
-          <footer class="p-2.5 bg-theme-surface/95 border-t border-theme-border shrink-0 flex items-end gap-2 w-full max-w-full overflow-hidden">
-            <div class="flex-1 min-w-0 min-h-[42px] max-h-[120px] bg-theme-card border border-theme-border rounded-2xl px-3 py-2 flex items-center gap-2 focus-within:border-theme-cyan transition-colors shadow-inner">
-              <textarea
-                ref={inputRef}
-                value={promptText()}
-                onInput={(e) => setPromptText(e.currentTarget.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendPrompt();
-                  }
-                }}
-                placeholder={isExecuting() ? 'Agent is working...' : 'Give instruction to agent...'}
-                rows={1}
-                disabled={isExecuting()}
-                class="w-full min-w-0 bg-transparent text-xs text-theme-text placeholder:text-theme-muted/60 resize-none outline-hidden focus:outline-none max-h-24 leading-relaxed"
-              />
-              <Show when={promptText().length > 0 && !isExecuting()}>
+              <Show when={showScrollBottomBtn()}>
                 <button
                   type="button"
-                  onClick={() => setPromptText('')}
-                  class="p-1 text-theme-muted hover:text-theme-text active:scale-90 transition-transform shrink-0"
-                  title="Clear input"
+                  onClick={() => {
+                    isUserAtBottom = true;
+                    setShowScrollBottomBtn(false);
+                    scrollToBottom('smooth', true);
+                  }}
+                  class="absolute bottom-4 right-4 z-20 w-9 h-9 rounded-full bg-theme-surface/90 border border-gi-primary/50 text-gi-primary shadow-lg flex items-center justify-center backdrop-blur-sm active:scale-95 transition-all animate-bounce"
+                  title="Scroll to bottom"
                 >
-                  <Trash2 size={14} />
+                  <ArrowDown size={15} />
                 </button>
               </Show>
             </div>
 
-            <button
-              type="button"
-              onClick={handleSendPrompt}
-              disabled={!promptText().trim() || isExecuting()}
-              class="w-11 h-11 rounded-full bg-theme-cyan text-theme-bg flex items-center justify-center shrink-0 shadow-md active:scale-90 transition-all disabled:opacity-40 disabled:scale-100"
-              title="Send to Agent"
+            {/* Bottom Input Area - Precision Engineered Modern Capsule */}
+            <footer 
+              class="p-2.5 bg-[#181d26] border-t border-theme-border/60 shrink-0 w-full max-w-full overflow-hidden pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
             >
-              <Show when={isExecuting()} fallback={<Send size={16} class="translate-x-0.5" />}>
-                <Loader2 size={16} class="animate-spin" />
-              </Show>
-            </button>
-          </footer>
-        </Show>
-      </div>
-    </Show>
-  );
-};
+              <div class="relative w-full max-w-full bg-[#222936] border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-1 focus-within:ring-gi-primary/30 rounded-2xl transition-all shadow-sm flex flex-col justify-between overflow-hidden">
+                <textarea
+                  ref={inputRef}
+                  value={promptText()}
+                  onFocus={() => {
+                    setTimeout(scrollToBottom, 200);
+                  }}
+                  onInput={(e) => {
+                    setPromptText(e.currentTarget.value);
+                    adjustInputHeight(e.currentTarget);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (!isExecuting()) {
+                        handleSendPrompt();
+                      }
+                    }
+                  }}
+                  placeholder={isExecuting() ? 'Agent is working on your task...' : 'Message autonomous agent...'}
+                  rows={1}
+                  disabled={isExecuting()}
+                  class="w-full min-w-0 px-3.5 pt-2.5 pb-1 bg-transparent text-xs text-theme-text placeholder:text-theme-muted/50 resize-none outline-none leading-relaxed min-h-[36px] max-h-[120px] custom-scrollbar disabled:opacity-60 font-sans"
+                />
+
+                {/* Bottom Micro Action Bar */}
+                <div class="flex items-center justify-between px-3 pb-2 pt-0.5 select-none">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <Show when={isExecuting()}>
+                      <span class="inline-flex items-center gap-1.5 text-2xs font-mono text-gi-primary bg-gi-primary/10 border border-gi-primary/20 px-2 py-0.5 rounded-full animate-pulse">
+                        <Loader2 size={10} class="animate-spin shrink-0" />
+                        <span class="truncate">Running...</span>
+                      </span>
+                    </Show>
+                    <Show when={!isExecuting() && promptText().length > 0}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPromptText('');
+                          if (inputRef) adjustInputHeight(inputRef);
+                        }}
+                        class="p-1 rounded-md text-theme-muted hover:text-theme-text active:scale-90 transition-transform cursor-pointer"
+                        title="Clear prompt"
+                      >
+                        <X size={13} />
+                      </button>
+                      <Show when={promptText().length > 80}>
+                        <span class="text-2xs font-mono text-theme-muted/60">
+                          {promptText().length} chars
+                        </span>
+                      </Show>
+                    </Show>
+                    <Show when={!isExecuting() && promptText().length === 0}>
+                      <span class="text-2xs font-mono text-theme-muted/40 hidden sm:inline">
+                        Shift+Enter for newline
+                      </span>
+                    </Show>
+                  </div>
+
+                  <div class="flex items-center gap-1.5 shrink-0 ml-2">
+                    <Show
+                      when={isExecuting()}
+                      fallback={
+                        <button
+                          type="button"
+                          onClick={handleSendPrompt}
+                          disabled={!promptText().trim()}
+                          class="w-7 h-7 rounded-full bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed active:scale-90 transition-all shadow-md shadow-gi-primary/25 cursor-pointer"
+                          title="Send Instruction"
+                        >
+                          <Send size={12} class="translate-x-px" />
+                        </button>
+                      }
+                    >
+                      <button
+                        type="button"
+                        onClick={handleStopSession}
+                        class="h-7 px-2.5 rounded-full bg-gi-status-danger/20 hover:bg-gi-status-danger/30 text-gi-status-danger border border-gi-status-danger/40 flex items-center gap-1.5 active:scale-90 transition-all shadow-sm text-2xs font-semibold cursor-pointer"
+                        title="Stop Agent Execution"
+                      >
+                        <Square size={10} class="fill-current" />
+                        <span>Stop</span>
+                      </button>
+                    </Show>
+                  </div>
+                </div>
+              </div>
+            </footer>
+          </Show>
+        </div>
+      </Show>
+    );
+  };

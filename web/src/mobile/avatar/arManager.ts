@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-interface ArState {
+export interface ArState {
   isSupported: boolean;
   isActive: boolean;
   hasFoundSurface: boolean;
@@ -14,18 +14,19 @@ export class WebXRArManager {
   private ringMaterial: THREE.MeshBasicMaterial;
   private dotMaterial: THREE.MeshBasicMaterial;
   private hitTestSource: any = null;
+  private hitTestSourceRequested = false;
   private isAvatarLocked = false;
   private hasFoundSurface = false;
   private isActive = false;
   private isStarting = false;
   private listeners: Set<ArStateListener> = new Set();
-  private hitTestThrottleCounter = 0;
   private onEndCallback: (() => void) | null = null;
   private sessionStartTime = 0;
 
-  // Smart tracking interpolation targets (prevents jitter & abrupt jumps)
+  // Tracking interpolation targets (prevents jitter & abrupt jumps)
   private targetPosition = new THREE.Vector3();
   private targetQuaternion = new THREE.Quaternion();
+  private targetScale = new THREE.Vector3();
   private hasFirstHit = false;
 
   constructor() {
@@ -69,48 +70,84 @@ export class WebXRArManager {
     }
   }
 
-  private createSmartReticle(): { group: THREE.Group; ringMat: THREE.MeshBasicMaterial; dotMat: THREE.MeshBasicMaterial } {
+  private createSmartReticle(): {
+    group: THREE.Group;
+    ringMat: THREE.MeshBasicMaterial;
+    dotMat: THREE.MeshBasicMaterial;
+  } {
     const group = new THREE.Group();
     group.visible = false;
 
-    // 1. Cincin Luar (Outer Ring - Wish Gold)
-    const ringGeo = new THREE.RingGeometry(0.12, 0.145, 48);
+    // 1. Outer Ring - Wish 5-Star Gold (0xe5b85c)
+    // Geometry: radius 0.11 to 0.155 (4.5 cm thick band, 31 cm total diameter)
+    const ringGeo = new THREE.RingGeometry(0.11, 0.155, 64);
+    ringGeo.rotateX(-Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xe5b85c,
-      opacity: 0.85,
+      opacity: 0.9,
       transparent: true,
       side: THREE.DoubleSide,
       depthTest: false,
+      depthWrite: false,
     });
     const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.renderOrder = 9999;
+    ringMesh.frustumCulled = false;
     group.add(ringMesh);
 
-    // 2. Inner ambient ring (Border Gold)
-    const innerRingGeo = new THREE.RingGeometry(0.045, 0.055, 32);
+    // 2. Inner ambient ring - Warm Deep Gold (0xc79a3e)
+    // Geometry: radius 0.05 to 0.065
+    const innerRingGeo = new THREE.RingGeometry(0.05, 0.065, 48);
+    innerRingGeo.rotateX(-Math.PI / 2);
     const innerRingMat = new THREE.MeshBasicMaterial({
-      color: 0x9e8046,
-      opacity: 0.45,
+      color: 0xc79a3e,
+      opacity: 0.65,
       transparent: true,
       side: THREE.DoubleSide,
       depthTest: false,
+      depthWrite: false,
     });
     const innerRingMesh = new THREE.Mesh(innerRingGeo, innerRingMat);
+    innerRingMesh.renderOrder = 9999;
+    innerRingMesh.frustumCulled = false;
     group.add(innerRingMesh);
 
-    // 3. Center focal dot (Light Gold)
-    const dotGeo = new THREE.CircleGeometry(0.018, 24);
+    // 3. Center focal dot - Pure Warm White (0xfff9e6)
+    const dotGeo = new THREE.CircleGeometry(0.022, 32);
+    dotGeo.rotateX(-Math.PI / 2);
     const dotMat = new THREE.MeshBasicMaterial({
-      color: 0xf3ce7a,
+      color: 0xfff9e6,
       opacity: 0.95,
       transparent: true,
       side: THREE.DoubleSide,
       depthTest: false,
+      depthWrite: false,
     });
     const dotMesh = new THREE.Mesh(dotGeo, dotMat);
+    dotMesh.renderOrder = 9999;
+    dotMesh.frustumCulled = false;
     group.add(dotMesh);
 
-    // Lock initial orientation flat on horizontal floor plane
-    group.quaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+    // 4. Four alignment crosshair ticks (Wish Gold)
+    const tickGeo = new THREE.PlaneGeometry(0.012, 0.04);
+    tickGeo.rotateX(-Math.PI / 2);
+    const tickMat = new THREE.MeshBasicMaterial({
+      color: 0xe5b85c,
+      opacity: 0.9,
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false,
+    });
+    for (let i = 0; i < 4; i++) {
+      const angle = (i * Math.PI) / 2;
+      const tick = new THREE.Mesh(tickGeo, tickMat);
+      tick.renderOrder = 9999;
+      tick.frustumCulled = false;
+      tick.position.set(Math.cos(angle) * 0.175, 0, Math.sin(angle) * 0.175);
+      tick.rotation.y = -angle;
+      group.add(tick);
+    }
 
     return { group, ringMat, dotMat };
   }
@@ -142,43 +179,58 @@ export class WebXRArManager {
       try {
         renderer.xr.setReferenceSpaceType('local-floor');
       } catch (_) {
-        try { renderer.xr.setReferenceSpaceType('local'); } catch (_) {}
+        try {
+          renderer.xr.setReferenceSpaceType('local');
+        } catch (_) {}
       }
 
-      const sessionInit: any = {
-        requiredFeatures: ['hit-test'],
-        optionalFeatures: ['local-floor', 'dom-overlay', 'light-estimation'],
-      };
-
-      if (domOverlayElement) {
-        sessionInit.domOverlay = { root: domOverlayElement };
+      let session: any;
+      try {
+        session = await xr.requestSession('immersive-ar', {
+          requiredFeatures: ['hit-test'],
+          optionalFeatures: ['local-floor', 'local', 'dom-overlay', 'light-estimation'],
+          ...(domOverlayElement ? { domOverlay: { root: domOverlayElement } } : {}),
+        });
+      } catch (err) {
+        console.warn('[WebXR AR] Request with required hit-test rejected, trying optional:', err);
+        session = await xr.requestSession('immersive-ar', {
+          optionalFeatures: ['hit-test', 'local-floor', 'local', 'dom-overlay', 'light-estimation'],
+          ...(domOverlayElement ? { domOverlay: { root: domOverlayElement } } : {}),
+        });
       }
 
-      const session = await xr.requestSession('immersive-ar', sessionInit);
       await renderer.xr.setSession(session);
 
       this.isActive = true;
       this.isAvatarLocked = false;
       this.hasFoundSurface = false;
       this.hitTestSource = null;
+      this.hitTestSourceRequested = false;
       this.hasFirstHit = false;
       this.reticle.visible = false;
       this.sessionStartTime = performance.now();
 
+      // Acquire viewer reference space and hit test source
       try {
         const viewerSpace = await session.requestReferenceSpace('viewer');
         if (this.isActive) {
           this.hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+          this.hitTestSourceRequested = true;
+          console.log('[WebXR AR] HitTestSource acquired successfully');
         }
       } catch (err) {
-        console.warn('AR hit-test init fallback:', err);
+        console.warn('[WebXR AR] Immediate hit-test source acquisition fallback:', err);
       }
 
       this.notify();
 
-      session.addEventListener('end', () => {
-        this.onSessionEnded(renderer);
-      }, { once: true });
+      session.addEventListener(
+        'end',
+        () => {
+          this.onSessionEnded(renderer);
+        },
+        { once: true }
+      );
 
       return session;
     } finally {
@@ -189,13 +241,36 @@ export class WebXRArManager {
   public update(frame: any, renderer: THREE.WebGLRenderer, camera: THREE.Camera): void {
     if (!this.isActive || this.isAvatarLocked) return;
 
+    const session: any = renderer.xr.getSession();
+    if (!session) return;
+
+    // 1. Request hit-test source lazily if initial async call was deferred
+    if (!this.hitTestSource && !this.hitTestSourceRequested) {
+      this.hitTestSourceRequested = true;
+      if (typeof session.requestHitTestSource === 'function') {
+        session
+          .requestReferenceSpace('viewer')
+          .then((viewerSpace: any) => {
+            session
+              .requestHitTestSource({ space: viewerSpace })
+              .then((source: any) => {
+                this.hitTestSource = source;
+                console.log('[WebXR AR] HitTestSource acquired in frame loop');
+              })
+              .catch((err: any) => {
+                console.warn('[WebXR AR] requestHitTestSource failed:', err);
+              });
+          })
+          .catch((err: any) => {
+            console.warn('[WebXR AR] requestReferenceSpace viewer failed:', err);
+          });
+      }
+    }
+
     let hitFound = false;
 
-    // AR Performance optimization: throttle Hit-Test SLAM scan every 2 frames to reduce mobile CPU load
-    this.hitTestThrottleCounter++;
-    const shouldRunHitTest = this.hitTestThrottleCounter % 2 === 0;
-
-    if (shouldRunHitTest && this.hitTestSource && frame) {
+    // 2. Query WebXR SLAM Hit-Test against real-world detected floor/table plane
+    if (this.hitTestSource && frame) {
       try {
         const hitTestResults = frame.getHitTestResults(this.hitTestSource);
         if (hitTestResults.length > 0) {
@@ -203,25 +278,9 @@ export class WebXRArManager {
           const referenceSpace = renderer.xr.getReferenceSpace();
           if (referenceSpace) {
             const pose = hit.getPose(referenceSpace);
-            if (pose) {
-              this.targetPosition.set(
-                pose.transform.position.x,
-                pose.transform.position.y,
-                pose.transform.position.z
-              );
-
-              // 1. SMART SURFACE-NORMAL:
-              // Align with detected real-world surface normal (floors/tables)
-              // Rotate -90 deg along X-axis so 2D planar ring lays flush on the surface
-              const hitQuat = new THREE.Quaternion(
-                pose.transform.orientation.x,
-                pose.transform.orientation.y,
-                pose.transform.orientation.z,
-                pose.transform.orientation.w
-              );
-              const alignPlane = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
-              this.targetQuaternion.copy(hitQuat).multiply(alignPlane);
-
+            if (pose && pose.transform) {
+              const m = new THREE.Matrix4().fromArray(pose.transform.matrix);
+              m.decompose(this.targetPosition, this.targetQuaternion, this.targetScale);
               hitFound = true;
             }
           }
@@ -229,39 +288,25 @@ export class WebXRArManager {
       } catch (_) {}
     }
 
-    // Smart Fallback if surface hit is temporarily undetected (dark/low-contrast floor)
-    if (!hitFound) {
-      const elapsed = performance.now() - this.sessionStartTime;
-      if (elapsed > 600) {
-        const forward = new THREE.Vector3(0, -0.4, -1.3).applyQuaternion(camera.quaternion);
-        this.targetPosition.copy(camera.position).add(forward);
-        this.targetQuaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
-        hitFound = true;
-      }
-    }
-
     if (hitFound) {
-      // 2. SMOOTH LERP INTERPOLATION (smooth gliding motion without rigid jumps)
+      // 3. Smooth interpolation towards physical surface hit
       if (!this.hasFirstHit) {
         this.reticle.position.copy(this.targetPosition);
         this.reticle.quaternion.copy(this.targetQuaternion);
         this.hasFirstHit = true;
       } else {
-        this.reticle.position.lerp(this.targetPosition, 0.28);
-        this.reticle.quaternion.slerp(this.targetQuaternion, 0.28);
+        this.reticle.position.lerp(this.targetPosition, 0.3);
+        this.reticle.quaternion.slerp(this.targetQuaternion, 0.3);
       }
 
-      // 3. NATURAL AR WORLD SCALE & PULSE RING ANIMATION:
-      // In physical AR world, the ring size remains constant (~25cm diameter on floor).
-      // Three.js perspective camera naturally scales it as the user moves closer or farther.
-      const pulse = 1.0 + Math.sin(performance.now() * 0.005) * 0.06;
+      // Natural subtle pulsing animation
+      const pulse = 1.0 + Math.sin(performance.now() * 0.005) * 0.05;
       this.reticle.scale.setScalar(pulse);
-
-      // Denyut halus opacity
-      this.ringMaterial.opacity = 0.75 + Math.sin(performance.now() * 0.006) * 0.15;
+      this.ringMaterial.opacity = 0.85 + Math.sin(performance.now() * 0.006) * 0.12;
 
       this.reticle.visible = true;
     } else {
+      // Hide reticle if no physical plane is currently detected
       this.reticle.visible = false;
     }
 
@@ -271,30 +316,46 @@ export class WebXRArManager {
     }
   }
 
-  public lockAvatar(vrmAnchor: THREE.Group, camera: THREE.Camera): boolean {
+  public lockAvatar(vrmAnchor: THREE.Group, camera: THREE.Camera, renderer?: THREE.WebGLRenderer): boolean {
     if (!this.isActive || !this.hasFoundSurface) return false;
 
+    // 1. Place avatar firmly at current reticle coordinates
     vrmAnchor.position.copy(this.reticle.position);
 
-    // Orient avatar directly towards the user in real-world space
+    // 2. Orient avatar directly facing the user in real-world space
     const camPos = new THREE.Vector3();
-    camera.getWorldPosition(camPos);
-    const lookTarget = new THREE.Vector3(camPos.x, this.reticle.position.y, camPos.z);
-    vrmAnchor.lookAt(lookTarget);
+    let hasCamPose = false;
+
+    if (renderer) {
+      const xrCam = (renderer.xr.getCamera() as any)?.cameras?.[0] || renderer.xr.getCamera();
+      if (xrCam) {
+        xrCam.getWorldPosition(camPos);
+        hasCamPose = camPos.lengthSq() > 0;
+      }
+    }
+
+    if (!hasCamPose) {
+      camera.getWorldPosition(camPos);
+    }
+
+    const dist = Math.hypot(camPos.x - this.reticle.position.x, camPos.z - this.reticle.position.z);
+    if (dist > 0.05) {
+      const lookTarget = new THREE.Vector3(camPos.x, this.reticle.position.y, camPos.z);
+      vrmAnchor.lookAt(lookTarget);
+    }
 
     vrmAnchor.visible = true;
     this.reticle.visible = false;
     this.isAvatarLocked = true;
 
-    // HIGH PERFORMANCE OPTIMIZATION:
-    // Turn off floor hit-test sensor once avatar is locked.
-    // Eliminates per-frame ARCore SLAM/Raycasting overhead to keep the device cool and responsive.
+    // Cancel active hit test sensor to eliminate SLAM compute overhead while anchored
     if (this.hitTestSource) {
       try {
         this.hitTestSource.cancel();
       } catch (_) {}
       this.hitTestSource = null;
     }
+    this.hitTestSourceRequested = false;
 
     this.notify();
     return true;
@@ -304,7 +365,9 @@ export class WebXRArManager {
     if (!this.isActive) return;
     this.isAvatarLocked = false;
     this.hasFirstHit = false;
-    this.reticle.visible = true;
+    this.hasFoundSurface = false;
+    this.reticle.visible = false;
+    vrmAnchor.visible = false;
 
     // Re-enable hit-test sensor when unlocked to discover new surface placement
     if (session && !this.hitTestSource) {
@@ -314,7 +377,7 @@ export class WebXRArManager {
           this.hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
         }
       } catch (err) {
-        console.warn('AR hit-test reactivation error:', err);
+        console.warn('[WebXR AR] Re-enable hit-test source error:', err);
       }
     }
 
@@ -346,6 +409,7 @@ export class WebXRArManager {
       } catch (_) {}
       this.hitTestSource = null;
     }
+    this.hitTestSourceRequested = false;
     this.reticle.visible = false;
 
     try {

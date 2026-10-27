@@ -1,15 +1,15 @@
 import { Component, Show } from 'solid-js';
-import { Send, Mic, MicOff, MessageSquare, X, Trash2, CheckCircle2, Bot } from 'lucide-solid';
+import { Mic, MicOff, MessageSquare, Bot } from 'lucide-solid';
 
 interface MobileInteractionDockProps {
-  inputText: string;
-  onInputText: (val: string) => void;
-  onSend: () => void;
-  isSending: boolean;
+  inputText?: string;
+  onInputText?: (val: string) => void;
+  onSend?: () => void;
+  isSending?: boolean;
   isListening: boolean;
   onToggleMic: () => void;
-  lastSentText: string;
-  showInput: boolean;
+  lastSentText?: string;
+  showInput?: boolean;
   onToggleShowInput: () => void;
   onDismissLastSent?: () => void;
   onOpenAgent?: () => void;
@@ -17,146 +17,58 @@ interface MobileInteractionDockProps {
 }
 
 export const MobileInteractionDock: Component<MobileInteractionDockProps> = (props) => {
-  let textareaRef: HTMLTextAreaElement | undefined;
-
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      props.onSend();
-    }
-  };
-
   return (
-    <div class="relative z-30 w-full flex flex-col items-center gap-2.5 px-4 pb-4 pointer-events-auto">
-      {/* 1. Status Aksi Terakhir (Clean Minimalist Pill) */}
-      <Show when={props.lastSentText}>
-        <div class="max-w-[92vw] px-3.5 py-1.5 bg-theme-surface border border-theme-border flex items-center gap-2 shadow-sm animate-in fade-in duration-200">
-          <CheckCircle2 size={13} class="text-theme-cyan shrink-0" />
-          <span class="text-xs font-mono text-theme-cyan font-bold truncate max-w-[260px]">
-            "{props.lastSentText}"
-          </span>
-          <Show when={props.onDismissLastSent}>
-            <button
-              type="button"
-              onClick={props.onDismissLastSent}
-              class="text-theme-muted hover:text-theme-text ml-1"
-              title="Dismiss status"
-            >
-              <X size={12} />
-            </button>
-          </Show>
-        </div>
-      </Show>
-
-      {/* 2. Floating Text Input Form (Appears neatly above buttons when message toggle is active) */}
-      <Show when={props.showInput}>
-        <div class="w-full max-w-sm bg-theme-surface border border-theme-border p-3 shadow-xl space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
-          <div class="relative flex items-center">
-            <textarea
-              ref={textareaRef}
-              value={props.inputText}
-              onInput={(e) => props.onInputText(e.currentTarget.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message or command for assistant..."
-              rows={2}
-              disabled={props.isSending}
-              class="w-full pl-3 pr-16 py-2 bg-theme-card border border-theme-border text-xs text-theme-text placeholder:text-theme-muted/60 focus:border-theme-cyan transition-colors resize-none leading-relaxed"
-            />
-            <div class="absolute right-2 top-2 flex items-center gap-1.5">
-              <Show when={props.inputText.length > 0}>
-                <button
-                  type="button"
-                  onClick={() => props.onInputText('')}
-                  class="p-1 text-theme-muted hover:text-theme-text transition-colors"
-                  title="Clear text"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </Show>
-              <button
-                type="button"
-                onClick={props.onToggleShowInput}
-                class="p-1 text-theme-muted hover:text-theme-text transition-colors"
-                title="Close input"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-2xs font-mono text-theme-muted">
-              Press Enter to send
-            </span>
-            <button
-              type="button"
-              onClick={props.onSend}
-              disabled={!props.inputText.trim() || props.isSending}
-              class="px-4 py-1.5 bg-theme-cyan text-theme-bg font-bold text-xs flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all shadow-sm"
-            >
-              <Send size={12} class={props.isSending ? 'animate-pulse' : ''} />
-              <span>{props.isSending ? 'Sending...' : 'Send'}</span>
-            </button>
-          </div>
-        </div>
-      </Show>
-
-      {/* 3. Primary Button Bar: Equal sizing, symmetrical, touch-friendly */}
-      <div class="flex items-center justify-center gap-4">
-        {/* Autonomous Agent Monitor Button (Adjacent to Message button) */}
+    <div class="relative z-30 w-full flex flex-col items-center gap-3 px-4 pb-4 pointer-events-auto select-none">
+      {/* Primary Floating Action Bar: Symmetrical, pure borderless floating dock */}
+      <div class="flex items-center justify-center gap-6">
+        {/* 1. Autonomous Agent Monitor Button */}
         <Show when={props.onOpenAgent}>
           <button
             type="button"
             onClick={props.onOpenAgent}
-            style={{ "border-radius": "9999px" }}
-            class={`relative w-14 h-14 border flex items-center justify-center transition-all shadow-md active:scale-90 select-none ${
+            class={`relative p-3 transition-all active:scale-75 cursor-pointer select-none ${
               props.isAgentRunning
-                ? 'bg-theme-cyan/20 border-theme-cyan text-theme-cyan shadow-[0_0_15px_rgba(6,182,212,0.35)] animate-pulse'
-                : 'bg-theme-surface/90 border-theme-border text-theme-muted hover:text-theme-cyan hover:border-theme-cyan'
+                ? 'text-gi-primary drop-shadow-[0_0_16px_rgba(229,184,92,0.85)] animate-pulse'
+                : 'text-gi-text-primary/80 hover:text-gi-primary-hover drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]'
             }`}
-            title="Monitor Autonomous Agent"
+            title="Agent Tasks"
+            aria-label="Agent Tasks"
           >
-            <Bot size={22} class={props.isAgentRunning ? 'animate-bounce' : ''} />
+            <Bot size={24} class={`stroke-[2.2] ${props.isAgentRunning ? 'animate-bounce' : ''}`} />
             <Show when={props.isAgentRunning}>
-              <span class="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-theme-cyan opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-theme-cyan"></span>
+              <span class="absolute top-1.5 right-1.5 flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-gi-primary opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-gi-primary"></span>
               </span>
             </Show>
           </button>
         </Show>
 
-        {/* Message / Keyboard Button (56x56 px, symmetric with Mic button) */}
+        {/* 2. Message / Chat Button */}
         <button
           type="button"
           onClick={props.onToggleShowInput}
-          style={{ "border-radius": "9999px" }}
-          class={`w-14 h-14 border flex items-center justify-center transition-all shadow-md active:scale-90 select-none ${
-            props.showInput
-              ? 'bg-theme-cyan text-theme-bg border-theme-cyan shadow-lg'
-              : 'bg-theme-surface/90 border-theme-border text-theme-cyan hover:border-theme-cyan'
-          }`}
-          title={props.showInput ? 'Close Text Input' : 'Type Message'}
+          class="p-3 text-gi-text-primary/80 hover:text-gi-primary-hover active:scale-75 transition-all drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] cursor-pointer select-none"
+          title="Open Chat"
+          aria-label="Open Chat"
         >
-          <Show when={props.showInput} fallback={<MessageSquare size={22} />}>
-            <X size={22} />
-          </Show>
+          <MessageSquare size={24} class="stroke-[2.2]" />
         </button>
 
-        {/* PTT Mic Button (56x56 px, symmetric with Message button) */}
+        {/* 3. Primary PTT Mic Button */}
         <button
           type="button"
           onClick={props.onToggleMic}
-          style={{ "border-radius": "9999px" }}
-          class={`w-14 h-14 border flex items-center justify-center transition-all shadow-md active:scale-90 select-none ${
+          class={`p-3 transition-all active:scale-75 cursor-pointer select-none ${
             props.isListening
-              ? 'bg-gi-status-danger text-white border-gi-status-danger animate-pulse shadow-lg scale-105'
-              : 'bg-gi-primary text-gi-primary-foreground border-gi-primary hover:bg-gi-primary-hover shadow-lg'
+              ? 'text-gi-status-danger animate-pulse drop-shadow-[0_0_24px_rgba(224,83,69,0.9)]'
+              : 'text-gi-primary hover:text-gi-primary-hover drop-shadow-[0_0_18px_rgba(229,184,92,0.8)]'
           }`}
           title={props.isListening ? 'Stop Listening' : 'Push to Talk (PTT)'}
+          aria-label={props.isListening ? 'Stop Listening' : 'Push to Talk (PTT)'}
         >
-          <Show when={props.isListening} fallback={<Mic size={24} />}>
-            <MicOff size={24} />
+          <Show when={props.isListening} fallback={<Mic size={28} class="stroke-[2.2]" />}>
+            <MicOff size={28} class="stroke-[2.2]" />
           </Show>
         </button>
       </div>

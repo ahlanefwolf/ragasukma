@@ -1,68 +1,36 @@
 -- 0004_agent_projects_and_mcp.sql
--- Agent Workspace: Projects, Prompt Skills, MCP Support, Goals, Evidence Cache, & Verification History
+-- Agent Workspace: Projects, MCP Support, Goals, Evidence Cache, & Verification History
+-- Note: Skills are dynamically scanned from `.skills/**/*.md` or `.skill/**/*.md` in workspace projects.
 
 PRAGMA foreign_keys = ON;
 
 -- ============================================================================
--- 1. PROMPT SKILLS (Reusable agent persona, prompt instructions, system rules)
--- ============================================================================
-CREATE TABLE IF NOT EXISTS prompt_skills (
-    id TEXT PRIMARY KEY NOT NULL,
-    name TEXT NOT NULL,
-    slug TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    description TEXT NOT NULL DEFAULT '',
-    system_prompt TEXT NOT NULL,
-    tags TEXT NOT NULL DEFAULT '[]',             -- JSON Array: ["coding", "rust", "review"]
-    is_active INTEGER NOT NULL DEFAULT 1,        -- 1 = active, 0 = disabled
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_prompt_skills_slug ON prompt_skills(slug);
-CREATE INDEX IF NOT EXISTS idx_prompt_skills_is_active ON prompt_skills(is_active);
-
--- ============================================================================
--- 2. MCP SERVERS (Registry MCP yang bisa dipanggil agent)
+-- 1. MCP SERVERS (Registry MCP Configuration - Raw JSON)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS mcp_servers (
     id TEXT PRIMARY KEY NOT NULL,
     name TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    transport TEXT NOT NULL DEFAULT 'stdio',     -- 'stdio', 'sse', 'http'
-    command TEXT,                                -- e.g. 'npx'
-    args TEXT NOT NULL DEFAULT '[]',             -- JSON Array: ["-y", "@modelcontextprotocol/server-filesystem"]
-    env TEXT NOT NULL DEFAULT '{}',              -- JSON Object: {"ROOT_DIR": "/path/to/project"}
-    url TEXT,                                    -- Endpoint jika transport 'sse'/'http'
+    config TEXT NOT NULL DEFAULT '{}',           -- Raw JSON configuration (stdio, sse, http, headers, env, args, etc.)
     is_enabled INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL
 );
 
 -- ============================================================================
--- 3. PROJECTS (Workspace level isolasi)
+-- 2. PROJECTS (Workspace-level isolation)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
-    root_path TEXT,                              -- Optional: path direktori lokal untuk MCP filesystem
-    custom_instructions TEXT,                    -- System prompt tambahan khusus project ini
+    root_path TEXT,                              -- Optional: local directory path for workspace filesystem & .skills scanning
+    custom_instructions TEXT,                    -- Additional system prompt instructions specific to this project
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_projects_created_at ON projects(created_at DESC);
 
--- Relasi Many-to-Many: Project <-> Prompt Skills
-CREATE TABLE IF NOT EXISTS project_prompt_skills (
-    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    skill_id TEXT NOT NULL REFERENCES prompt_skills(id) ON DELETE CASCADE,
-    priority INTEGER NOT NULL DEFAULT 0,
-    is_enabled INTEGER NOT NULL DEFAULT 1,
-    PRIMARY KEY (project_id, skill_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_proj_skills_proj ON project_prompt_skills(project_id);
-
--- Relasi Many-to-Many: Project <-> MCP Servers
+-- Many-to-Many Relationship: Project <-> MCP Servers
 CREATE TABLE IF NOT EXISTS project_mcp_servers (
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     server_id TEXT NOT NULL REFERENCES mcp_servers(id) ON DELETE CASCADE,
@@ -73,7 +41,7 @@ CREATE TABLE IF NOT EXISTS project_mcp_servers (
 CREATE INDEX IF NOT EXISTS idx_proj_mcp_proj ON project_mcp_servers(project_id);
 
 -- ============================================================================
--- 4. SESSIONS (Eksekusi Task / Thread spesifik)
+-- 3. SESSIONS (Task Execution / Thread-specific Context)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY NOT NULL,
@@ -82,8 +50,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     status TEXT NOT NULL DEFAULT 'idle',         -- 'idle', 'running', 'waiting_tool', 'completed', 'failed'
     model TEXT,
     temperature REAL DEFAULT 0.7,
-    source_chat_id TEXT,                         -- Optional: merujuk ke chat_history(id) on-demand
-    metadata TEXT NOT NULL DEFAULT '{}',         -- JSON flexible config
+    source_chat_id TEXT,                         -- Optional: reference to chat_history(id) on-demand
+    metadata TEXT NOT NULL DEFAULT '{}',         -- Flexible JSON configuration
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
@@ -93,7 +61,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at DESC);
 
 -- ============================================================================
--- 5. MESSAGES (Agent message logs, tool calls, tool responses & reasoning)
+-- 4. MESSAGES (Agent message logs, tool calls, tool responses & reasoning)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY NOT NULL,
@@ -103,7 +71,7 @@ CREATE TABLE IF NOT EXISTS messages (
     content TEXT,
     thought TEXT,                                -- Chain of thought / reasoning model
     tool_calls TEXT,                             -- JSON Array format MCP/OpenAI/Anthropic tool calls
-    tool_call_id TEXT,                           -- Referensi tool_calls saat role = 'tool'
+    tool_call_id TEXT,                           -- Reference to tool_calls when role = 'tool'
     status TEXT NOT NULL DEFAULT 'success',      -- 'streaming', 'success', 'error'
     token_usage_input INTEGER DEFAULT 0,
     token_usage_output INTEGER DEFAULT 0,
@@ -115,7 +83,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_session_created ON messages(session_id, 
 CREATE INDEX IF NOT EXISTS idx_messages_role ON messages(role);
 
 -- ============================================================================
--- 6. GOALS (Goal Store: Demand, Criteria, Status & Phase Transitions)
+-- 5. GOALS (Goal Store: Demand, Criteria, Status & Phase Transitions)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS goals (
     id TEXT PRIMARY KEY NOT NULL,                                     -- e.g. 'G1', 'G2', or UUID
@@ -143,19 +111,19 @@ CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
 CREATE INDEX IF NOT EXISTS idx_goals_created_at ON goals(created_at DESC);
 
 -- ============================================================================
--- 7. EVIDENCE CACHE (Hasil eksplorasi workspace/file lintas demand)
+-- 6. EVIDENCE CACHE (Workspace / file exploration cache across demands)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS evidence_cache (
     id TEXT PRIMARY KEY NOT NULL,                                     -- UUID
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    file_path TEXT NOT NULL,                                          -- Path file project e.g. 'src/auth/service.rs'
-    file_version TEXT NOT NULL,                                       -- Hash SHA256 atau file mtime saat dibaca
-    start_line INTEGER,                                               -- Rentang baris awal
-    end_line INTEGER,                                                 -- Rentang baris akhir
-    symbol_name TEXT,                                                 -- e.g. 'validate_token' / class / function
-    summary TEXT NOT NULL,                                            -- Ringkasan temuan file / fungsi
-    raw_snippet TEXT,                                                 -- Potongan kode relevan (opsional)
-    is_stale INTEGER NOT NULL DEFAULT 0,                              -- 1 jika file asli berubah (perlu validasi ulang)
+    file_path TEXT NOT NULL,                                          -- Project file path, e.g. 'src/auth/service.rs'
+    file_version TEXT NOT NULL,                                       -- SHA256 hash or file mtime when read
+    start_line INTEGER,                                               -- Start line range
+    end_line INTEGER,                                                 -- End line range
+    symbol_name TEXT,                                                 -- Symbol name, e.g. 'validate_token' / class / function
+    summary TEXT NOT NULL,                                            -- Summary of file / symbol findings
+    raw_snippet TEXT,                                                 -- Relevant code snippet (optional)
+    is_stale INTEGER NOT NULL DEFAULT 0,                              -- 1 if the underlying file has changed (requires re-validation)
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
@@ -164,29 +132,29 @@ CREATE INDEX IF NOT EXISTS idx_evidence_proj_file ON evidence_cache(project_id, 
 CREATE INDEX IF NOT EXISTS idx_evidence_is_stale ON evidence_cache(is_stale);
 
 -- ============================================================================
--- 8. GOAL EVIDENCE (Context Builder: Mapping & Filter Relevansi Evidence per Goal)
+-- 7. GOAL EVIDENCE (Context Builder: Mapping & relevance filtering per goal)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS goal_evidence (
     goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
     evidence_id TEXT NOT NULL REFERENCES evidence_cache(id) ON DELETE CASCADE,
-    relevance_score REAL DEFAULT 1.0,                                 -- Nilai relevansi terhadap goal ini
-    is_active INTEGER NOT NULL DEFAULT 1,                             -- 1 = disertakan ke prompt LLM, 0 = dikecualikan
+    relevance_score REAL DEFAULT 1.0,                                 -- Relevance score for this goal
+    is_active INTEGER NOT NULL DEFAULT 1,                             -- 1 = included in LLM prompt, 0 = excluded
     PRIMARY KEY (goal_id, evidence_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_goal_evidence_active ON goal_evidence(goal_id, is_active);
 
 -- ============================================================================
--- 9. GOAL VERIFICATIONS (Verification Loop History & Hasil Audit Test)
+-- 8. GOAL VERIFICATIONS (Verification loop history & test audit results)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS goal_verifications (
     id TEXT PRIMARY KEY NOT NULL,                                     -- UUID
     goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
-    iteration INTEGER NOT NULL DEFAULT 1,                             -- Iterasi loop ke-n
-    test_command TEXT NOT NULL,                                       -- Perintah e.g. 'cargo test test_login'
-    test_output TEXT NOT NULL,                                        -- Output hasil eksekusi
-    is_passed INTEGER NOT NULL,                                       -- 1 = lolos kriteria, 0 = gagal
-    feedback TEXT,                                                    -- Evaluasi kegagalan untuk discovery/action berikutnya
+    iteration INTEGER NOT NULL DEFAULT 1,                             -- Loop iteration counter (n-th)
+    test_command TEXT NOT NULL,                                       -- Command, e.g. 'cargo test test_login'
+    test_output TEXT NOT NULL,                                        -- Execution output
+    is_passed INTEGER NOT NULL,                                       -- 1 = passed criteria, 0 = failed
+    feedback TEXT,                                                    -- Failure evaluation / guidance for subsequent discovery or action phase
     created_at INTEGER NOT NULL
 );
 

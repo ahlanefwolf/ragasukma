@@ -87,7 +87,7 @@ export const MobileTopBar: Component<MobileTopBarProps> = (props) => {
           const ping = getPingBadge();
           return (
             <div
-              class={`flex items-center gap-1 px-1.5 py-0.5 rounded-full font-mono text-2xs font-bold drop-shadow-md border border-white/5 bg-black/20 backdrop-blur-xs ${ping.color}`}
+              class={`flex items-center gap-1 font-mono text-2xs font-semibold drop-shadow-sm opacity-80 ${ping.color}`}
               title={`Network Latency: ${ping.label}`}
             >
               <span class={`w-1.5 h-1.5 rounded-full ${ping.dotColor} ${props.pingMs !== null ? 'animate-pulse' : ''}`} />
@@ -97,15 +97,16 @@ export const MobileTopBar: Component<MobileTopBarProps> = (props) => {
         })()}
       </div>
 
-      {/* Right Side: Theme-colored Settings Icon Button (Without box frame) */}
+      {/* Right Side: Circular Glass Settings Icon Button */}
       <div class="pointer-events-auto">
         <button
           type="button"
           onClick={props.onOpenSettings}
-          class="p-2 text-gi-primary hover:text-gi-primary-hover active:scale-90 transition-transform drop-shadow-[0_0_8px_rgba(229,184,92,0.35)] flex items-center justify-center cursor-pointer"
+          class="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white/80 hover:text-white active:scale-90 transition-all flex items-center justify-center cursor-pointer shadow-[0_4px_16px_rgba(0,0,0,0.4)]"
           title="Settings"
+          aria-label="Settings"
         >
-          <Settings size={24} class="stroke-[2.2]" />
+          <Settings size={20} class="stroke-[2.2]" />
         </button>
       </div>
     </div>

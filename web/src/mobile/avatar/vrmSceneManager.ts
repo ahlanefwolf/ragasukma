@@ -25,12 +25,13 @@ export class VrmSceneManager {
   private currentVrm: VRM | null = null;
   private vrmAnchor = new THREE.Group();
   private contactShadow: THREE.Mesh | null = null;
-  private clock: THREE.Clock | null = null;
+  private lastFrameTime = 0;
   private resizeObserver: ResizeObserver | null = null;
 
   private poseAnimator = new VrmPoseAnimator();
   private expressionAnimator = new VrmExpressionAnimator();
   private arManager = new WebXRArManager();
+  private mainLight: THREE.DirectionalLight | null = null;
   private currentQuality: RenderQuality = 'hd';
   private currentFpsLimit: FpsLimit = 60; // Default 60 FPS (cool & stable for mobile battery)
   private lastRenderTimestamp = 0;
@@ -77,7 +78,7 @@ export class VrmSceneManager {
 
     this.scene = new THREE.Scene();
 
-    this.camera = new THREE.PerspectiveCamera(26, width / height, 0.1, 20.0);
+    this.camera = new THREE.PerspectiveCamera(26, width / height, 0.1, 100.0);
     this.camera.position.copy(DEFAULT_CAM_POS);
     this.camera.lookAt(DEFAULT_TARGET);
 
@@ -137,18 +138,16 @@ export class VrmSceneManager {
       TWO: THREE.TOUCH.DOLLY_PAN,
     };
 
-    // Standard MToon / VRM lighting setup (identical to shader.wgsl in native UI):
-    // Key light at [0.35, 0.45, 0.7] attached as camera child with Math.PI intensity
-    // so directDiffuse (irradiance * BRDF_Lambert / PI) equals 1.0 (unit intensity).
-    // No ambient light so anime cel-shading cleanly follows the model's shade_color, fully consistent with desktop UI.
-    const light = new THREE.DirectionalLight(0xffffff, Math.PI);
-    light.position.set(0.35, 0.45, 0.7);
-    light.target.position.set(0, 0, 0);
-    this.camera.add(light);
-    this.camera.add(light.target);
-    this.scene.add(this.camera);
+    // Standard MToon Directional Key Light:
+    // Placed in scene to illuminate avatar from front-top with Math.PI intensity (unit irradiance).
+    // Zero ambient light ensures authentic MToon cel-shading and texture saturation.
+    this.mainLight = new THREE.DirectionalLight(0xffffff, Math.PI);
+    this.mainLight.position.set(0.35, 2.0, 1.5);
+    this.mainLight.target.position.set(0, 0, 0);
+    this.scene.add(this.mainLight);
+    this.scene.add(this.mainLight.target);
 
-    this.clock = new THREE.Clock();
+    this.lastFrameTime = performance.now();
 
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
@@ -166,7 +165,7 @@ export class VrmSceneManager {
         }
         try {
           VRMUtils.removeUnnecessaryVertices(gltf.scene);
-          VRMUtils.removeUnnecessaryJoints(gltf.scene);
+          VRMUtils.combineSkeletons(gltf.scene);
         } catch (_) {}
 
         // VRM Spring Bone (dynamic physics for hair, skirt, and accessories)
@@ -289,8 +288,10 @@ export class VrmSceneManager {
 
       const isXr = this.renderer?.xr.isPresenting;
 
-      // Sample delta time BEFORE throttling so Three.js Clock internal accumulator stays accurate
-      const rawDelta = this.clock?.getDelta() || 0.016;
+      // Sample delta time BEFORE throttling using high-precision performance timer
+      const now = performance.now();
+      const rawDelta = this.lastFrameTime > 0 ? (now - this.lastFrameTime) / 1000 : 0.016;
+      this.lastFrameTime = now;
 
       // FPS Throttler:
       // Only throttle frames in standard 3D mode.
@@ -308,29 +309,30 @@ export class VrmSceneManager {
       const delta = Math.min(rawDelta, 0.1);
 
       if (isXr) {
-        if (this.renderer && this.camera) {
+        if (this.renderer && this.scene && this.camera) {
           this.arManager.update(frame, this.renderer, this.camera);
-        }
 
-        if (!this.arManager.isLocked() || !this.vrmAnchor.visible) {
-          if (this.renderer && this.scene && this.camera) {
+          if (!this.arManager.isLocked() || !this.vrmAnchor.visible) {
             this.renderer.render(this.scene, this.camera);
+            return;
           }
-          return;
-        }
 
-        if (this.currentVrm) {
-          const { state, emotion, poses } = getState();
-          this.poseAnimator.update(this.currentVrm, delta, state, poses);
-          this.expressionAnimator.update(
-            this.currentVrm,
-            delta,
-            state,
-            emotion,
-            this.poseAnimator.getElapsedTime()
-          );
-          this.currentVrm.update(delta);
+          if (this.currentVrm) {
+            const { state, emotion, poses } = getState();
+            this.poseAnimator.update(this.currentVrm, delta, state, poses);
+            this.expressionAnimator.update(
+              this.currentVrm,
+              delta,
+              state,
+              emotion,
+              this.poseAnimator.getElapsedTime()
+            );
+            this.currentVrm.update(delta);
+          }
+
+          this.renderer.render(this.scene, this.camera);
         }
+        return;
       } else {
         if (this.controls && this.controls.enabled) {
           this.controls.update();
@@ -438,15 +440,7 @@ export class VrmSceneManager {
     }
     this.renderer.setPixelRatio(1.0);
     this.vrmAnchor.visible = false;
-
-    // Hide normal non-AR DOM canvas container during AR session to avoid double rendering
-    if (this.container) {
-      this.container.style.visibility = 'hidden';
-    }
-
-    if (this.clock) {
-      this.clock.getDelta();
-    }
+    this.lastFrameTime = performance.now();
 
     await this.arManager.startArSession(this.renderer, domOverlayElement);
   }
@@ -457,8 +451,17 @@ export class VrmSceneManager {
   }
 
   public lockAvatarInRealWorld(): boolean {
-    if (!this.camera) return false;
-    return this.arManager.lockAvatar(this.vrmAnchor, this.camera);
+    if (!this.camera || !this.renderer) return false;
+    const locked = this.arManager.lockAvatar(this.vrmAnchor, this.camera, this.renderer);
+    if (locked && this.mainLight) {
+      this.mainLight.position.set(
+        this.vrmAnchor.position.x + 0.35,
+        this.vrmAnchor.position.y + 2.0,
+        this.vrmAnchor.position.z + 1.5
+      );
+      this.mainLight.target.position.copy(this.vrmAnchor.position);
+    }
+    return locked;
   }
 
   public unlockAvatarInRealWorld(): void {
@@ -476,9 +479,6 @@ export class VrmSceneManager {
     }
 
     if (this.renderer && this.container) {
-      // Restore normal non-AR DOM container visibility
-      this.container.style.visibility = 'visible';
-
       const w = this.container.clientWidth || 280;
       const h = this.container.clientHeight || 240;
       this.renderer.setPixelRatio(this.getPixelRatioForQuality(this.currentQuality));
@@ -493,11 +493,12 @@ export class VrmSceneManager {
     this.vrmAnchor.position.set(0, 0, 0);
     this.vrmAnchor.rotation.set(0, 0, 0);
     this.vrmAnchor.visible = true;
-    this.resetCameraView();
-
-    if (this.clock) {
-      this.clock.getDelta();
+    if (this.mainLight) {
+      this.mainLight.position.set(0.35, 2.0, 1.5);
+      this.mainLight.target.position.set(0, 0, 0);
     }
+    this.resetCameraView();
+    this.lastFrameTime = performance.now();
   }
 
   public resetCameraView(): void {

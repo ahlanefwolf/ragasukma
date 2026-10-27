@@ -11,8 +11,8 @@ import {
   parseProjectFolders 
 } from '../../services';
 
-import { SkillsSubTab, McpSubTab } from './SkillsAndMcpTabs';
-import { CreateProjectModal, CreateSkillModal, McpServerModal } from './AgentModals';
+import { McpSubTab } from './SkillsAndMcpTabs';
+import { CreateProjectModal, McpServerModal } from './AgentModals';
 import { AgentCodePanel } from './AgentCodePanel';
 import { AgentSidebar } from './AgentSidebar';
 import { AgentWorkspaceHeader } from './AgentWorkspaceHeader';
@@ -205,7 +205,8 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
         await Promise.all([
           chat.loadSessions(targetProj),
           files.loadProjectFiles(targetProj),
-          ws.loadProjectSkills(targetProj),
+          ws.loadProjectMcpServers(targetProj),
+          agentService.getProjectSkills(targetProj).then((s) => ws.setSkills(s)),
         ]);
       }
     } catch (e) {
@@ -231,7 +232,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
           </div>
           <div>
             <h2 class="text-base font-semibold text-white">Agent Workspace</h2>
-            <p class="text-xs text-white/50">Multi-folder Projects, Task Sessions, Prompt Skills & MCP</p>
+            <p class="text-xs text-white/50">Multi-folder Projects, Task Sessions & MCP</p>
           </div>
         </div>
 
@@ -247,17 +248,6 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
           >
             <FolderGit2 class="w-3.5 h-3.5" />
             Projects
-          </button>
-          <button
-            onClick={() => ws.setActiveSubTab('skills')}
-            class={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
-              ws.activeSubTab() === 'skills'
-                ? 'bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 font-semibold shadow-sm'
-                : 'text-theme-text/60 hover:text-theme-text hover:bg-theme-bg/60'
-            }`}
-          >
-            <Sparkles class="w-3.5 h-3.5" />
-            Prompt Skills ({ws.skills().length})
           </button>
           <button
             onClick={() => ws.setActiveSubTab('mcp')}
@@ -288,7 +278,8 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
                 localStorage.setItem('ragasukma_active_project_id', id);
                 chat.loadSessions(id);
                 files.loadProjectFiles(id);
-                ws.loadProjectSkills(id);
+                ws.loadProjectMcpServers(id);
+                agentService.getProjectSkills(id).then((s) => ws.setSkills(s));
               }}
               onNewProject={() => {
                 ws.setProjFolders([]);
@@ -362,10 +353,11 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
                 showWorkspaceSettings={showWorkspaceSettings()}
                 onToggleWorkspaceSettings={() => setShowWorkspaceSettings(!showWorkspaceSettings())}
                 skills={ws.skills()}
-                activeProjectSkillIds={ws.activeProjectSkillIds()}
-                savingProjectSkills={ws.savingProjectSkills()}
-                onToggleProjectSkill={ws.handleToggleProjectSkill}
-                onOpenSkillsTab={() => ws.setActiveSubTab('skills')}
+                mcpServers={ws.mcpServers()}
+                activeProjectMcpServerIds={ws.activeProjectMcpServerIds()}
+                savingProjectMcpServers={ws.savingProjectMcpServers()}
+                onToggleProjectMcpServer={ws.handleToggleProjectMcpServer}
+                onOpenMcpTab={() => ws.setActiveSubTab('mcp')}
                 folderInput={ws.folderInput()}
                 setFolderInput={ws.setFolderInput}
                 validatingFolder={ws.validatingFolder()}
@@ -469,16 +461,6 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
         </div>
       </Show>
 
-      {/* ── SUB-TAB: PROMPT SKILLS LIBRARY ─────────────────────────────── */}
-      <Show when={ws.activeSubTab() === 'skills'}>
-        <SkillsSubTab
-          skills={ws.skills()}
-          onNewSkill={ws.handleOpenNewSkill}
-          onEditSkill={ws.handleOpenEditSkill}
-          onDeleteSkill={ws.handleDeleteSkill}
-        />
-      </Show>
-
       {/* ── SUB-TAB: MCP SERVERS REGISTRY ──────────────────────────────── */}
       <Show when={ws.activeSubTab() === 'mcp'}>
         <McpSubTab
@@ -486,7 +468,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
           onNewServer={ws.handleOpenNewMcpServer}
           onEditServer={ws.handleOpenEditMcpServer}
           onDeleteServer={ws.handleDeleteMcpServer}
-          onTestServer={ws.handleTestMcpServer}
+          onRefreshServers={ws.refreshMcpServers}
         />
       </Show>
 
@@ -518,22 +500,10 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
         })}
       />
 
-      <CreateSkillModal
-        isOpen={ws.showNewSkillModal()}
-        isEditing={!!ws.editingSkillId()}
-        onClose={() => {
-          ws.setShowNewSkillModal(false);
-          ws.setEditingSkillId(null);
-        }}
-        skillMarkdown={ws.skillMarkdown()}
-        setSkillMarkdown={ws.setSkillMarkdown}
-        parseSkillMarkdown={ws.parseSkillMarkdown}
-        onCreateSkill={ws.handleCreateSkill}
-      />
-
       <McpServerModal
         isOpen={ws.showMcpModal()}
         isEditing={!!ws.editingMcpServer()}
+        initialMode={ws.mcpModalInitialMode()}
         onClose={() => {
           ws.setShowMcpModal(false);
           ws.setEditingMcpServer(null);

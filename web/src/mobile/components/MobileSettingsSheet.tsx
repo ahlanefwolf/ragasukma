@@ -28,7 +28,7 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
           {/* Header Without Kotak-kotak (Icon Direct Berwarna) */}
           <div class="flex items-center justify-between pb-3 border-b border-theme-border/60">
             <div class="flex items-center gap-2.5">
-              <Settings2 size={22} class="text-theme-cyan stroke-[2.2]" />
+              <Settings2 size={22} class="text-[#E5B85C] stroke-[2.2]" />
               <div>
                 <h3 class="text-theme-text font-heading leading-tight">
                   Companion Settings
@@ -60,19 +60,19 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
                 onClick={() => props.onSwitchMode('remote_desktop')}
                 class={`p-3 border text-left flex flex-col gap-1 transition-all active:scale-98 ${
                   props.audioMode === 'remote_desktop'
-                    ? 'bg-theme-cyan text-theme-bg border-theme-cyan font-semibold shadow-sm'
-                    : 'bg-theme-card border-theme-border text-theme-text hover:border-theme-cyan/60'
+                    ? 'bg-[#E5B85C] text-[#111318] border-[#E5B85C] font-semibold shadow-sm'
+                    : 'bg-theme-card border-theme-border text-theme-text hover:border-[#E5B85C]/60'
                 }`}
               >
                 <div class="flex items-center justify-between">
-                  <Mic size={17} class={props.audioMode === 'remote_desktop' ? 'text-theme-bg' : 'text-theme-cyan'} />
+                  <Mic size={17} class={props.audioMode === 'remote_desktop' ? 'text-[#111318]' : 'text-[#E5B85C]'} />
                   <Show when={props.audioMode === 'remote_desktop'}>
                     <span class="text-2xs font-mono font-bold uppercase tracking-wider">ACTIVE</span>
                   </Show>
                 </div>
                 <span class="text-xs font-bold mt-1">Remote PC</span>
                 <span class={`text-2xs leading-tight ${props.audioMode === 'remote_desktop' ? 'opacity-90' : 'text-theme-muted'}`}>
-                  Speaker PC, Mic HP
+                  PC Speaker, Phone Mic
                 </span>
               </button>
 
@@ -82,19 +82,19 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
                 onClick={() => props.onSwitchMode('full_mobile')}
                 class={`p-3 border text-left flex flex-col gap-1 transition-all active:scale-98 ${
                   props.audioMode === 'full_mobile'
-                    ? 'bg-theme-cyan text-theme-bg border-theme-cyan font-semibold shadow-sm'
-                    : 'bg-theme-card border-theme-border text-theme-text hover:border-theme-cyan/60'
+                    ? 'bg-[#E5B85C] text-[#111318] border-[#E5B85C] font-semibold shadow-sm'
+                    : 'bg-theme-card border-theme-border text-theme-text hover:border-[#E5B85C]/60'
                 }`}
               >
                 <div class="flex items-center justify-between">
-                  <Smartphone size={17} class={props.audioMode === 'full_mobile' ? 'text-theme-bg' : 'text-theme-cyan'} />
+                  <Smartphone size={17} class={props.audioMode === 'full_mobile' ? 'text-[#111318]' : 'text-[#E5B85C]'} />
                   <Show when={props.audioMode === 'full_mobile'}>
                     <span class="text-2xs font-mono font-bold uppercase tracking-wider">ACTIVE</span>
                   </Show>
                 </div>
                 <span class="text-xs font-bold mt-1">Phone Only</span>
                 <span class={`text-2xs leading-tight ${props.audioMode === 'full_mobile' ? 'opacity-90' : 'text-theme-muted'}`}>
-                  Speaker & Mic di HP
+                  Speaker & Mic on Phone
                 </span>
               </button>
             </div>
@@ -108,16 +108,16 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
                 props.onClose();
                 props.onOpenLogs();
               }}
-              class="w-full p-3 bg-theme-card hover:bg-theme-bg border border-theme-border hover:border-theme-cyan text-theme-text flex items-center justify-between transition-all active:scale-98"
+              class="w-full p-3 bg-theme-card hover:bg-theme-bg border border-theme-border hover:border-[#E5B85C] text-theme-text flex items-center justify-between transition-all active:scale-98"
             >
               <div class="flex items-center gap-2.5">
-                <Terminal size={17} class="text-theme-cyan" />
+                <Terminal size={17} class="text-[#E5B85C]" />
                 <div class="text-left">
                   <span class="text-xs font-bold block">Live System Logs</span>
                   <span class="text-2xs text-theme-muted">Monitor console & AI transcripts</span>
                 </div>
               </div>
-              <span class="px-2 py-0.5 text-2xs font-mono font-bold bg-theme-surface text-theme-cyan border border-theme-border">
+              <span class="px-2 py-0.5 text-2xs font-mono font-bold bg-theme-surface text-[#E5B85C] border border-theme-border">
                 {props.logsCount} lines
               </span>
             </button>
@@ -131,7 +131,7 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
                 props.onUnlockAudio?.();
                 props.onClose();
               }}
-              class="w-full py-1.5 text-center text-xs font-mono text-theme-muted hover:text-theme-cyan transition-colors"
+              class="w-full py-1.5 text-center text-xs font-mono text-theme-muted hover:text-[#F3CE7A] transition-colors"
             >
               Re-sync Phone Audio
             </button>
