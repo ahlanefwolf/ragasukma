@@ -69,7 +69,7 @@ export const McpSubTab: Component<{
 
   return (
     <div class="space-y-4">
-      <div class="bg-theme-card/60 border border-theme-border p-4 rounded-xl flex items-center justify-between shadow-sm flex-wrap gap-3">
+      <div class="bg-theme-card/60 border border-theme-border p-4 flex items-center justify-between shadow-sm flex-wrap gap-3">
         <div>
           <h3 class="text-sm font-semibold text-theme-text">Model Context Protocol (MCP) Servers</h3>
           <p class="text-xs text-theme-text/50 mt-0.5">
@@ -79,7 +79,7 @@ export const McpSubTab: Component<{
         <div class="flex items-center gap-2 shrink-0">
           <button
             onClick={() => props.onNewServer('json')}
-            class="px-3 py-1.5 text-xs bg-theme-bg hover:bg-theme-card border border-theme-border hover:border-theme-cyan/50 text-theme-text rounded-lg font-medium flex items-center gap-1.5 transition-colors shadow-sm"
+            class="px-3 py-1.5 text-xs bg-theme-bg hover:bg-theme-card border border-theme-border hover:border-theme-cyan/50 text-theme-text font-medium flex items-center gap-1.5 transition-colors shadow-sm"
             title="Paste standard MCP JSON or Claude Desktop configuration"
           >
             <FileCode class="w-3.5 h-3.5 text-theme-cyan" />
@@ -87,7 +87,7 @@ export const McpSubTab: Component<{
           </button>
           <button
             onClick={() => props.onNewServer('json')}
-            class="px-3.5 py-1.5 text-xs bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card rounded-lg font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+            class="px-3.5 py-1.5 text-xs bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card font-bold flex items-center gap-1.5 transition-colors shadow-sm"
           >
             <Plus class="w-3.5 h-3.5" />
             Add MCP Server
@@ -101,7 +101,7 @@ export const McpSubTab: Component<{
             const isStdio = () => server.transport === 'stdio';
 
             return (
-              <div class="bg-theme-card border border-theme-border rounded-xl p-4 flex flex-col justify-between space-y-3 group hover:border-theme-cyan/50 transition-colors shadow-sm">
+              <div class="bg-theme-card border border-theme-border p-4 flex flex-col justify-between space-y-3 group hover:border-theme-cyan/50 transition-colors shadow-sm">
                 <div>
                   <div class="flex items-center justify-between mb-2">
                     <span class="text-xs font-semibold text-theme-text flex items-center gap-1.5">
@@ -109,7 +109,7 @@ export const McpSubTab: Component<{
                       {server.name}
                     </span>
                     <div class="flex items-center gap-1">
-                      <span class={`text-2xs px-2 py-0.5 rounded uppercase font-semibold border flex items-center gap-1 ${
+                      <span class={`text-2xs px-2 py-0.5 uppercase font-semibold border flex items-center gap-1 ${
                         isStdio()
                           ? 'bg-theme-cyan/15 text-theme-cyan border-theme-cyan/30'
                           : 'bg-gi-status-info/15 text-gi-status-info border-gi-status-info/30'
@@ -122,7 +122,7 @@ export const McpSubTab: Component<{
                       <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1">
                         <button
                           onClick={() => handleCopyJson(server)}
-                          class="p-1 text-theme-text/70 hover:text-theme-cyan rounded transition-colors"
+                          class="p-1 text-theme-text/70 hover:text-theme-cyan transition-colors"
                           title="Copy Server Config as JSON"
                         >
                           <Show when={copiedServerId() === server.id} fallback={<Copy class="w-3.5 h-3.5" />}>
@@ -131,14 +131,14 @@ export const McpSubTab: Component<{
                         </button>
                         <button
                           onClick={() => props.onEditServer(server)}
-                          class="p-1 text-theme-text/70 hover:text-theme-cyan rounded transition-colors"
+                          class="p-1 text-theme-text/70 hover:text-theme-cyan transition-colors"
                           title="Edit MCP Server"
                         >
                           <Pencil class="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => props.onDeleteServer(server.id, server.name)}
-                          class="p-1 text-theme-text/70 hover:text-theme-rose rounded transition-colors"
+                          class="p-1 text-theme-text/70 hover:text-theme-rose transition-colors"
                           title="Delete MCP Server"
                         >
                           <Trash2 class="w-3.5 h-3.5" />
@@ -148,7 +148,7 @@ export const McpSubTab: Component<{
                   </div>
 
                   {/* Command or URL details */}
-                  <div class="text-xs font-mono text-theme-text/70 bg-theme-bg/60 p-2.5 rounded-lg border border-theme-border/60 break-all space-y-1">
+                  <div class="text-xs font-mono text-theme-text/70 bg-theme-bg/60 p-2.5 border border-theme-border/60 break-all space-y-1">
                     <Show when={isStdio()} fallback={
                       <div><span class="text-theme-cyan/80 font-semibold">URL:</span> {server.url || '-'}</div>
                     }>
@@ -171,7 +171,7 @@ export const McpSubTab: Component<{
 
                   <button
                     onClick={() => handleCopyJson(server)}
-                    class="px-2.5 py-1 text-2xs bg-theme-bg hover:bg-theme-card border border-theme-border hover:border-theme-cyan/50 text-theme-text/80 hover:text-theme-text rounded-md font-medium flex items-center gap-1.5 transition-colors shrink-0"
+                    class="px-2.5 py-1 text-2xs bg-theme-bg hover:bg-theme-card border border-theme-border hover:border-theme-cyan/50 text-theme-text/80 hover:text-theme-text font-medium flex items-center gap-1.5 transition-colors shrink-0"
                     title="Copy raw JSON configuration to clipboard"
                   >
                     <Show when={copiedServerId() === server.id} fallback={<Copy class="w-3 h-3 text-theme-text/60" />}>
@@ -185,7 +185,7 @@ export const McpSubTab: Component<{
           }}
         </For>
         <Show when={props.mcpServers.length === 0}>
-          <div class="col-span-full py-12 text-center text-theme-text/70 bg-theme-card/40 border border-theme-border rounded-xl">
+          <div class="col-span-full py-12 text-center text-theme-text/70 bg-theme-card/40 border border-theme-border">
             <Server class="w-10 h-10 mx-auto text-theme-text/20 mb-2" />
             <p class="text-xs font-semibold">No MCP servers registered yet.</p>
             <p class="text-xs text-theme-text/60 mt-1 max-w-sm mx-auto">
@@ -194,14 +194,14 @@ export const McpSubTab: Component<{
             <div class="mt-3 flex items-center justify-center gap-2">
               <button
                 onClick={() => props.onNewServer('json')}
-                class="px-3.5 py-1.5 text-xs bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card rounded-lg font-bold inline-flex items-center gap-1.5 transition-colors shadow-sm"
+                class="px-3.5 py-1.5 text-xs bg-theme-cyan hover:bg-theme-cyan/90 text-theme-card font-bold inline-flex items-center gap-1.5 transition-colors shadow-sm"
               >
                 <Plus class="w-3.5 h-3.5" />
                 Add First MCP Server
               </button>
               <button
                 onClick={() => props.onNewServer('json')}
-                class="px-3.5 py-1.5 text-xs bg-theme-bg hover:bg-theme-card border border-theme-border hover:border-theme-cyan/50 text-theme-text rounded-lg font-medium inline-flex items-center gap-1.5 transition-colors shadow-sm"
+                class="px-3.5 py-1.5 text-xs bg-theme-bg hover:bg-theme-card border border-theme-border hover:border-theme-cyan/50 text-theme-text font-medium inline-flex items-center gap-1.5 transition-colors shadow-sm"
               >
                 <FileCode class="w-3.5 h-3.5 text-theme-cyan" />
                 Paste JSON Config

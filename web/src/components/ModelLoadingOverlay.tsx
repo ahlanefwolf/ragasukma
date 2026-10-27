@@ -65,8 +65,8 @@ export const ModelLoadingOverlay: Component<ModelLoadingOverlayProps> = (props) 
     <div class="fixed inset-0 z-[99999] bg-theme-bg/85 backdrop-blur-md flex items-center justify-center p-4 select-none animate-fade-in">
       <div class="w-full max-w-md bg-theme-surface border border-theme-border shadow-2xl p-6 sm:p-8 flex flex-col items-center text-center relative overflow-hidden text-theme-text">
         {/* Glow palette accents */}
-        <div class="absolute -top-12 -left-12 w-32 h-32 bg-theme-cyan/15 blur-3xl rounded-full pointer-events-none" />
-        <div class="absolute -bottom-12 -right-12 w-32 h-32 bg-theme-rose/15 blur-3xl rounded-full pointer-events-none" />
+        <div class="absolute -top-12 -left-12 w-32 h-32 bg-theme-cyan/15 blur-3xl pointer-events-none" />
+        <div class="absolute -bottom-12 -right-12 w-32 h-32 bg-theme-rose/15 blur-3xl pointer-events-none" />
 
         {/* Icon Header */}
         <div class="relative mb-3">
@@ -92,7 +92,7 @@ export const ModelLoadingOverlay: Component<ModelLoadingOverlayProps> = (props) 
 
         {/* Dynamic Model Badge */}
         <Show when={!isError() && modelName()}>
-          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 mb-2.5 text-xs font-mono tracking-wider uppercase bg-theme-cyan/10 border border-theme-cyan/30 text-theme-cyan rounded-full">
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 mb-2.5 text-xs font-mono tracking-wider uppercase bg-theme-cyan/10 border border-theme-cyan/30 text-theme-cyan">
             <Layers class="w-3 h-3 animate-pulse" />
             <span>Target: {modelName()}</span>
           </div>

@@ -104,7 +104,7 @@ export const SearchableSelect: Component<SearchableSelectProps> = (props) => {
         <div
           class={
             props.dropdownClass ||
-            'absolute left-0 mt-1.5 w-full min-w-[240px] max-w-[420px] bg-theme-surface border border-theme-border rounded-lg shadow-2xl z-50 overflow-hidden flex flex-col max-h-72 animate-in fade-in zoom-in-95 duration-100'
+            'absolute left-0 mt-1.5 w-full min-w-[240px] max-w-[420px] bg-theme-surface border border-theme-border shadow-2xl z-50 overflow-hidden flex flex-col max-h-72 animate-in fade-in zoom-in-95 duration-100'
           }
         >
           {/* Search Box */}
@@ -145,7 +145,7 @@ export const SearchableSelect: Component<SearchableSelectProps> = (props) => {
                   <button
                     type="button"
                     onClick={() => handleSelect(opt.value)}
-                    class={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded text-left text-xs font-mono transition-colors ${
+                    class={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-left text-xs font-mono transition-colors ${
                       isSelected()
                         ? 'bg-gi-primary text-gi-primary-foreground font-semibold shadow-sm'
                         : 'text-theme-text/80 hover:bg-theme-card hover:text-theme-text'
@@ -155,7 +155,7 @@ export const SearchableSelect: Component<SearchableSelectProps> = (props) => {
                       <div class="truncate flex items-center gap-1.5">
                         <span class="truncate">{opt.label}</span>
                         <Show when={opt.badge}>
-                          <span class="text-2xs px-1.5 py-0.2 rounded bg-theme-card text-theme-muted font-sans border border-theme-border/50">
+                          <span class="text-2xs px-1.5 py-0.2 bg-theme-card text-theme-muted font-sans border border-theme-border/50">
                             {opt.badge}
                           </span>
                         </Show>

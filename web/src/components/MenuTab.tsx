@@ -444,7 +444,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
                 <span class="font-bold text-theme-text">Python 3 Runtime:</span>
                 {pythonInfo().installed ? (
                   <span class="text-theme-cyan font-semibold flex items-center gap-1.5">
-                    <span class="inline-block w-2 h-2 rounded-full bg-theme-cyan animate-pulse"></span>
+                    <span class="inline-block w-2 h-2 bg-theme-cyan animate-pulse"></span>
                     Detected ({pythonInfo().version})
                   </span>
                 ) : pythonInfo().is_installing ? (

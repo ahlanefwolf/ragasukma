@@ -60,15 +60,15 @@ customRenderer.code = function ({ text, lang }: Tokens.Code) {
   const highlighted = highlightMarkdownCode(text, cleanLang);
 
   return `
-    <div class="code-block-wrapper my-2.5 rounded-xl bg-theme-bg border border-theme-border overflow-hidden shadow-lg font-mono max-w-full min-w-0">
+    <div class="code-block-wrapper my-2.5 bg-theme-bg border border-theme-border overflow-hidden shadow-lg font-mono max-w-full min-w-0">
       <div class="flex items-center justify-between px-3 py-1.5 bg-theme-card/40 border-b border-theme-border text-2xs">
         <div class="flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-gi-primary/80"></span>
+          <span class="w-2 h-2 bg-gi-primary/80"></span>
           <span class="text-gi-primary font-semibold uppercase tracking-wider">${cleanLang}</span>
         </div>
         <button
           type="button"
-          class="copy-code-btn px-2 py-0.5 rounded bg-white/5 hover:bg-white/15 text-white/60 hover:text-white transition-all flex items-center gap-1 cursor-pointer font-sans text-2xs"
+          class="copy-code-btn px-2 py-0.5 bg-white/5 hover:bg-white/15 text-white/60 hover:text-white transition-all flex items-center gap-1 cursor-pointer font-sans text-2xs"
         >
           Copy Code
         </button>
@@ -80,7 +80,7 @@ customRenderer.code = function ({ text, lang }: Tokens.Code) {
 
 // Inline code (escape html to prevent rendering raw HTML tags like <textarea> or <script>)
 customRenderer.codespan = function ({ text }: Tokens.Codespan) {
-  return `<code class="px-1.5 py-0.5 mx-0.5 rounded bg-theme-cyan/10 text-theme-cyan font-mono text-xs border border-theme-cyan/20">${escapeHtml(text)}</code>`;
+  return `<code class="px-1.5 py-0.5 mx-0.5 bg-theme-cyan/10 text-theme-cyan font-mono text-xs border border-theme-cyan/20">${escapeHtml(text)}</code>`;
 };
 
 // Raw HTML blocks/tags inside markdown should be escaped to prevent UI breaking

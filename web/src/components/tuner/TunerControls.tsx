@@ -226,7 +226,7 @@ export const TunerControls: Component<TunerControlsProps> = (props) => {
                     : 'bg-theme-card text-theme-text/80 border-theme-border hover:border-theme-cyan/50 hover:text-theme-text'
                 }`}
               >
-                <span class={`w-4 h-4 rounded-full flex items-center justify-center text-2xs font-mono ${
+                <span class={`w-4 h-4 flex items-center justify-center text-2xs font-mono ${
                   isActive() ? 'bg-theme-card text-theme-cyan' : 'bg-theme-surface text-theme-text/70'
                 }`}>
                   {idx + 1}

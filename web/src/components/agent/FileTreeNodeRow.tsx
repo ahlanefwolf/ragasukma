@@ -38,7 +38,7 @@ export const FileTreeNodeRow: Component<{
           <div
             onClick={() => props.node.item && props.onSelectFile(props.node.item)}
             style={{ 'padding-left': `${props.depth * 14 + 6}px` }}
-            class="flex items-center justify-between p-1.5 rounded-lg hover:bg-theme-bg/60 cursor-pointer text-xs group transition-colors border border-transparent hover:border-theme-border"
+            class="flex items-center justify-between p-1.5 hover:bg-theme-bg/60 cursor-pointer text-xs group transition-colors border border-transparent hover:border-theme-border"
           >
             <div class="flex items-center gap-1.5 min-w-0 flex-1">
               <Show
@@ -65,7 +65,7 @@ export const FileTreeNodeRow: Component<{
                   e.stopPropagation();
                   if (props.node.item) props.onOpenRange(props.node.item);
                 }}
-                class="p-1 text-theme-text/70 hover:text-theme-cyan hover:bg-theme-cyan/10 rounded transition-colors"
+                class="p-1 text-theme-text/70 hover:text-theme-cyan hover:bg-theme-cyan/10 transition-colors"
                 title="Select line range (@file:lines) with visual code picker"
               >
                 <Hash class="w-3 h-3" />
@@ -77,7 +77,7 @@ export const FileTreeNodeRow: Component<{
                   e.stopPropagation();
                   props.onCopyTag(props.node.path);
                 }}
-                class="p-1 text-theme-text/70 hover:text-theme-text hover:bg-theme-bg rounded transition-colors"
+                class="p-1 text-theme-text/70 hover:text-theme-text hover:bg-theme-bg transition-colors"
                 title="Copy @file tag to clipboard"
               >
                 <Copy class="w-3 h-3" />
@@ -90,7 +90,7 @@ export const FileTreeNodeRow: Component<{
         <div
           onClick={() => props.onToggleDir(props.node.path)}
           style={{ 'padding-left': `${props.depth * 14 + 6}px` }}
-          class="flex items-center justify-between p-1.5 rounded-lg hover:bg-theme-bg/60 cursor-pointer text-xs group transition-colors select-none text-theme-text/70 hover:text-theme-text"
+          class="flex items-center justify-between p-1.5 hover:bg-theme-bg/60 cursor-pointer text-xs group transition-colors select-none text-theme-text/70 hover:text-theme-text"
         >
           <div class="flex items-center gap-1.5 min-w-0 flex-1">
             <ChevronRight
@@ -114,7 +114,7 @@ export const FileTreeNodeRow: Component<{
                 e.stopPropagation();
                 props.onTagFolder(props.node.path);
               }}
-              class="p-1 text-theme-text/70 hover:text-gi-status-warning hover:bg-gi-status-warning/10 rounded transition-colors"
+              class="p-1 text-theme-text/70 hover:text-gi-status-warning hover:bg-gi-status-warning/10 transition-colors"
               title="Mention folder in chat prompt"
             >
               <AtSign class="w-3 h-3" />

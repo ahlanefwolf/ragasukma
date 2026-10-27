@@ -129,21 +129,21 @@ export const BrowserExtensionModal: Component<BrowserExtensionModalProps> = (pro
 
                 <div class="space-y-2.5 text-theme-text/85 leading-relaxed text-xs sm:text-sm">
                   <div class="flex items-start gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-2xs flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
+                    <span class="w-5 h-5 bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-2xs flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
                       1
                     </span>
                     <span>Extract <code class="px-1.5 py-0.5 bg-theme-card border border-theme-border font-mono text-xs font-bold text-theme-cyan">ragasukma-companion.zip</code> to a folder of your choice (e.g. the <code>extension</code> folder).</span>
                   </div>
 
                   <div class="flex items-start gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-2xs flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
+                    <span class="w-5 h-5 bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-2xs flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
                       2
                     </span>
                     <span>Open a new tab and navigate to <code class="px-1.5 py-0.5 bg-theme-card border border-theme-border font-mono text-xs font-bold text-theme-cyan">chrome://extensions</code> in Chromium, then toggle on <strong>Developer mode</strong> in the top-right corner.</span>
                   </div>
 
                   <div class="flex items-start gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-2xs flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
+                    <span class="w-5 h-5 bg-theme-cyan/20 text-theme-cyan font-mono font-bold text-2xs flex items-center justify-center shrink-0 mt-0.5 border border-theme-cyan/30">
                       3
                     </span>
                     <div>

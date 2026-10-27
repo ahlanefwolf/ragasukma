@@ -338,7 +338,7 @@ const App: Component = () => {
               /* Tab Deactivated / Shutdown Modal */
               <div class="fixed inset-0 z-[200] bg-theme-bg/95 backdrop-blur-md flex items-center justify-center p-4 select-none">
                 <div class="max-w-md w-full p-8 bg-theme-surface border border-theme-rose/50 shadow-2xl text-center space-y-5 animate-in fade-in duration-200">
-                  <div class="w-14 h-14 mx-auto rounded-full bg-theme-rose/10 border border-theme-rose/30 flex items-center justify-center text-theme-rose">
+                  <div class="w-14 h-14 mx-auto bg-theme-rose/10 border border-theme-rose/30 flex items-center justify-center text-theme-rose">
                     <X class="w-7 h-7 stroke-[2.5]" />
                   </div>
                   <div class="space-y-2">

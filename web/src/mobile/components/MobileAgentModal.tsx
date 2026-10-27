@@ -853,17 +853,17 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
               <button
                 type="button"
                 onClick={props.onClose}
-                class="p-2 -ml-1 text-theme-muted hover:text-theme-text active:scale-90 transition-transform rounded-full"
+                class="p-2 -ml-1 text-theme-muted hover:text-theme-text active:scale-90 transition-transform"
                 title="Close"
               >
                 <ArrowLeft size={20} />
               </button>
               <div class="relative shrink-0">
-                <div class="w-9 h-9 rounded-full bg-gi-primary/15 border border-gi-primary/40 flex items-center justify-center text-gi-primary shadow-sm">
+                <div class="w-9 h-9 bg-gi-primary/15 border border-gi-primary/40 flex items-center justify-center text-gi-primary shadow-sm">
                   <Bot size={18} />
                 </div>
                 <Show when={isAgentActive()}>
-                  <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-gi-status-success border-2 border-theme-surface animate-pulse" />
+                  <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-gi-status-success border-2 border-theme-surface animate-pulse" />
                 </Show>
               </div>
               <div class="flex flex-col min-w-0">
@@ -884,7 +884,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 onClick={() => {
                   if (selectedProjectId()) loadSessions(selectedProjectId()!);
                 }}
-                class="p-2 text-theme-muted hover:text-gi-primary-hover transition-colors rounded-full"
+                class="p-2 text-theme-muted hover:text-gi-primary-hover transition-colors"
                 title="Refresh Tasks"
               >
                 <RefreshCw size={16} class={isLoading() ? 'animate-spin' : ''} />
@@ -892,7 +892,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
               <button
                 type="button"
                 onClick={handleCreateNewSession}
-                class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-semibold text-xs shadow-md active:scale-95 transition-all"
+                class="flex items-center gap-1 px-3 py-1.5 bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-semibold text-xs shadow-md active:scale-95 transition-all"
                 title="New Task"
               >
                 <Plus size={14} />
@@ -910,7 +910,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 <select
                   value={selectedProjectId() || ''}
                   onChange={(e) => setSelectedProjectId(e.currentTarget.value)}
-                  class="bg-theme-card border border-theme-border rounded-xl px-2.5 py-1 text-xs text-theme-text font-medium outline-none focus:border-gi-primary max-w-[200px] truncate"
+                  class="bg-theme-card border border-theme-border px-2.5 py-1 text-xs text-theme-text font-medium outline-none focus:border-gi-primary max-w-[200px] truncate"
                 >
                   <For each={projects()}>
                     {(proj) => (
@@ -932,7 +932,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
             {/* Empty State */}
             <Show when={sessions().length === 0}>
               <div class="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
-                <div class="w-14 h-14 rounded-full bg-theme-card border border-theme-border flex items-center justify-center text-theme-muted">
+                <div class="w-14 h-14 bg-theme-card border border-theme-border flex items-center justify-center text-theme-muted">
                   <Sparkles size={24} class="text-gi-primary/80" />
                 </div>
                 <div class="space-y-1">
@@ -944,7 +944,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 <button
                   type="button"
                   onClick={handleCreateNewSession}
-                  class="mt-2 flex items-center gap-2 px-4 py-2 rounded-xl bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-semibold text-xs shadow-md active:scale-95 transition-all"
+                  class="mt-2 flex items-center gap-2 px-4 py-2 bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-semibold text-xs shadow-md active:scale-95 transition-all"
                 >
                   <Plus size={16} /> Create First Task
                 </button>
@@ -960,12 +960,12 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 return (
                   <div
                     onClick={() => handleSelectSession(sess)}
-                    class="group relative flex flex-col gap-2 p-3.5 rounded-2xl bg-theme-card border border-theme-border hover:border-gi-primary/50 active:scale-[0.99] transition-all shadow-sm cursor-pointer select-none w-full max-w-full min-w-0 overflow-hidden"
+                    class="group relative flex flex-col gap-2 p-3.5 bg-theme-card border border-theme-border hover:border-gi-primary/50 active:scale-[0.99] transition-all shadow-sm cursor-pointer select-none w-full max-w-full min-w-0 overflow-hidden"
                   >
                     <div class="flex items-start justify-between gap-2.5 w-full min-w-0">
                       <div class="flex items-center gap-2.5 min-w-0 flex-1">
                         {/* Status Icon Badge */}
-                        <div class={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                        <div class={`w-9 h-9 flex items-center justify-center shrink-0 ${
                           isRunning 
                             ? 'bg-gi-status-success/20 text-gi-status-success border border-gi-status-success/40 shadow-xs' 
                             : isWaiting
@@ -1010,12 +1010,12 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
 
                       {/* Right Status Pill & Arrow */}
                       <div class="flex items-center gap-1.5 shrink-0 self-center">
-                        <span class={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-mono font-medium ${getStatusBadgeClass(sess.status)}`}>
+                        <span class={`inline-flex items-center gap-1 px-2.5 py-0.5 text-2xs font-mono font-medium ${getStatusBadgeClass(sess.status)}`}>
                           <Show when={isRunning}>
-                            <span class="w-1.5 h-1.5 rounded-full bg-gi-status-success animate-ping inline-block" />
+                            <span class="w-1.5 h-1.5 bg-gi-status-success animate-ping inline-block" />
                           </Show>
                           <Show when={isWaiting}>
-                            <span class="w-1.5 h-1.5 rounded-full bg-gi-status-warning animate-pulse inline-block" />
+                            <span class="w-1.5 h-1.5 bg-gi-status-warning animate-pulse inline-block" />
                           </Show>
                           <span>{formatStatusLabel(sess.status)}</span>
                         </span>
@@ -1042,17 +1042,17 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                   setViewMode('tasks');
                   if (selectedProjectId()) loadSessions(selectedProjectId()!);
                 }}
-                class="p-2 -ml-1 text-theme-muted hover:text-theme-text active:scale-90 transition-transform rounded-full shrink-0"
+                class="p-2 -ml-1 text-theme-muted hover:text-theme-text active:scale-90 transition-transform shrink-0"
                 title="Back to Tasks"
               >
                 <ArrowLeft size={20} />
               </button>
               <div class="relative shrink-0">
-                <div class="w-9 h-9 rounded-full bg-gi-primary/15 border border-gi-primary/40 flex items-center justify-center text-gi-primary shadow-sm">
+                <div class="w-9 h-9 bg-gi-primary/15 border border-gi-primary/40 flex items-center justify-center text-gi-primary shadow-sm">
                   <Bot size={18} />
                 </div>
                 <Show when={isAgentActive()}>
-                  <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-gi-status-success border-2 border-theme-surface animate-pulse" />
+                  <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-gi-status-success border-2 border-theme-surface animate-pulse" />
                 </Show>
               </div>
               <div class="flex flex-col min-w-0 flex-1 overflow-hidden">
@@ -1061,11 +1061,11 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 </span>
                 <span class="text-2xs text-gi-primary font-mono truncate flex items-center gap-1.5">
                   <Show when={isExecuting() || currentSession()?.status === 'running'}>
-                    <span class="w-1.5 h-1.5 rounded-full bg-gi-status-success animate-ping inline-block" />
+                    <span class="w-1.5 h-1.5 bg-gi-status-success animate-ping inline-block" />
                     <span>running</span>
                   </Show>
                   <Show when={!isExecuting() && currentSession()?.status === 'waiting_tool'}>
-                    <span class="w-1.5 h-1.5 rounded-full bg-gi-status-warning animate-pulse inline-block" />
+                    <span class="w-1.5 h-1.5 bg-gi-status-warning animate-pulse inline-block" />
                     <span>waiting tool</span>
                   </Show>
                   <Show when={!isExecuting() && currentSession()?.status !== 'running' && currentSession()?.status !== 'waiting_tool'}>
@@ -1080,7 +1080,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 <button
                   type="button"
                   onClick={handleStopSession}
-                  class="p-2 rounded-full bg-gi-status-danger/20 text-gi-status-danger hover:bg-gi-status-danger/30 active:scale-90 transition-transform shadow-xs"
+                  class="p-2 bg-gi-status-danger/20 text-gi-status-danger hover:bg-gi-status-danger/30 active:scale-90 transition-transform shadow-xs"
                   title="Stop Execution"
                 >
                   <Square size={16} class="fill-current" />
@@ -1091,7 +1091,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 onClick={() => {
                   if (selectedSessionId()) loadMessages(selectedSessionId()!);
                 }}
-                class="p-2 text-theme-muted hover:text-gi-primary-hover transition-colors rounded-full"
+                class="p-2 text-theme-muted hover:text-gi-primary-hover transition-colors"
                 title="Refresh Messages"
               >
                 <RefreshCw size={16} class={isLoading() ? 'animate-spin text-gi-primary' : ''} />
@@ -1116,7 +1116,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
             {/* Lazy Loading Indicator at Top */}
             <Show when={isLoadingMore() || isInitialLoading()}>
               <div class="flex items-center justify-center py-2">
-                <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-theme-surface border border-theme-border text-2xs text-theme-muted font-mono shadow-sm">
+                <div class="flex items-center gap-2 px-3 py-1 bg-theme-surface border border-theme-border text-2xs text-theme-muted font-mono shadow-sm">
                   <Loader2 size={12} class="animate-spin text-gi-primary" />
                   <span>Loading messages...</span>
                 </div>
@@ -1125,7 +1125,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
 
             <Show when={!isLoadingMore() && !hasMore() && messages().length >= PAGE_SIZE}>
               <div class="flex items-center justify-center py-2">
-                <span class="px-3 py-1 rounded-full bg-theme-surface/50 border border-theme-border/50 text-2xs text-theme-muted/70 font-mono">
+                <span class="px-3 py-1 bg-theme-surface/50 border border-theme-border/50 text-2xs text-theme-muted/70 font-mono">
                   Beginning of task history
                 </span>
               </div>
@@ -1134,7 +1134,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
             {/* Empty State */}
             <Show when={!isLoading() && messages().length === 0 && !streamingText() && !streamingThought()}>
               <div class="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
-                <div class="w-14 h-14 rounded-full bg-theme-card border border-theme-border flex items-center justify-center text-theme-muted">
+                <div class="w-14 h-14 bg-theme-card border border-theme-border flex items-center justify-center text-theme-muted">
                   <Sparkles size={24} class="text-gi-primary/80" />
                 </div>
                 <div class="space-y-1">
@@ -1159,8 +1159,8 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                     <div
                       class={`relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2 text-xs shadow-md select-text overflow-hidden break-words ${
                         isUser
-                          ? 'bg-gi-primary text-gi-primary-foreground font-medium rounded-2xl rounded-tr-xs'
-                          : 'bg-theme-card border border-theme-border text-theme-text rounded-2xl rounded-tl-xs'
+                          ? 'bg-gi-primary text-gi-primary-foreground font-medium rounded-tr-xs'
+                          : 'bg-theme-card border border-theme-border text-theme-text rounded-tl-xs'
                       }`}
                     >
                       {/* Assistant Header */}
@@ -1177,7 +1177,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
 
                       {/* Collapsible Reasoning Box */}
                       <Show when={!isUser && hasThought}>
-                        <div class="mb-2 border border-gi-primary/25 rounded-xl overflow-hidden bg-theme-surface/70 max-w-full min-w-0">
+                        <div class="mb-2 border border-gi-primary/25 overflow-hidden bg-theme-surface/70 max-w-full min-w-0">
                           <button
                             type="button"
                             onClick={() => toggleCollapseThought(msg.id)}
@@ -1204,7 +1204,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                             {(tc) => {
                               const info = formatToolCallSummary(tc);
                               return (
-                                <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-theme-surface/90 border border-theme-border/70 text-2xs font-mono shadow-xs max-w-full min-w-0 overflow-hidden">
+                                <div class="flex items-center gap-2 px-2.5 py-1.5 bg-theme-surface/90 border border-theme-border/70 text-2xs font-mono shadow-xs max-w-full min-w-0 overflow-hidden">
                                   <Show when={info.iconType === 'terminal'}>
                                     <Terminal size={12} class="text-gi-status-success shrink-0" />
                                   </Show>
@@ -1256,7 +1256,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
             {/* Streaming Thought Card */}
             <Show when={streamingThought()}>
               <div class="flex w-full max-w-full min-w-0 justify-start animate-in fade-in duration-150 overflow-hidden">
-                <div class="relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md bg-theme-card border border-gi-primary/40 text-theme-text rounded-2xl rounded-tl-xs overflow-hidden">
+                <div class="relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md bg-theme-card border border-gi-primary/40 text-theme-text rounded-tl-xs overflow-hidden">
                   <div class="flex items-center gap-1.5 text-gi-primary font-mono text-2xs mb-1 min-w-0">
                     <Brain size={12} class="animate-pulse shrink-0" />
                     <span class="truncate">Thinking in progress...</span>
@@ -1271,7 +1271,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
             {/* Streaming Text Card */}
             <Show when={streamingText()}>
               <div class="flex w-full max-w-full min-w-0 justify-start animate-in fade-in duration-150 overflow-hidden">
-                <div class="relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md bg-theme-card border border-theme-border text-theme-text rounded-2xl rounded-tl-xs overflow-hidden">
+                <div class="relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md bg-theme-card border border-theme-border text-theme-text rounded-tl-xs overflow-hidden">
                   <span class="text-2xs font-bold text-gi-primary mb-1 flex items-center gap-1">
                     <Bot size={12} /> Agent
                   </span>
@@ -1292,7 +1292,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                     setShowScrollBottomBtn(false);
                     scrollToBottom('smooth', true);
                   }}
-                  class="absolute bottom-4 right-4 z-20 w-9 h-9 rounded-full bg-theme-surface/90 border border-gi-primary/50 text-gi-primary shadow-lg flex items-center justify-center backdrop-blur-sm active:scale-95 transition-all animate-bounce"
+                  class="absolute bottom-4 right-4 z-20 w-9 h-9 bg-theme-surface/90 border border-gi-primary/50 text-gi-primary shadow-lg flex items-center justify-center backdrop-blur-sm active:scale-95 transition-all animate-bounce"
                   title="Scroll to bottom"
                 >
                   <ArrowDown size={15} />
@@ -1304,7 +1304,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
             <footer 
               class="p-2.5 bg-gi-surface border-t border-theme-border/60 shrink-0 w-full max-w-full overflow-hidden pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
             >
-              <div class="relative w-full max-w-full bg-gi-surface-elevated border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-1 focus-within:ring-gi-primary/30 rounded-2xl transition-all shadow-sm flex flex-col justify-between overflow-hidden">
+              <div class="relative w-full max-w-full bg-gi-surface-elevated border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-1 focus-within:ring-gi-primary/30 transition-all shadow-sm flex flex-col justify-between overflow-hidden">
                 <textarea
                   ref={inputRef}
                   value={promptText()}
@@ -1333,7 +1333,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 <div class="flex items-center justify-between px-3 pb-2 pt-0.5 select-none">
                   <div class="flex items-center gap-2 min-w-0">
                     <Show when={isExecuting()}>
-                      <span class="inline-flex items-center gap-1.5 text-2xs font-mono text-gi-primary bg-gi-primary/10 border border-gi-primary/20 px-2 py-0.5 rounded-full animate-pulse">
+                      <span class="inline-flex items-center gap-1.5 text-2xs font-mono text-gi-primary bg-gi-primary/10 border border-gi-primary/20 px-2 py-0.5 animate-pulse">
                         <Loader2 size={10} class="animate-spin shrink-0" />
                         <span class="truncate">Running...</span>
                       </span>
@@ -1345,7 +1345,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                           setPromptText('');
                           if (inputRef) adjustInputHeight(inputRef);
                         }}
-                        class="p-1 rounded-md text-theme-muted hover:text-theme-text active:scale-90 transition-transform cursor-pointer"
+                        class="p-1 text-theme-muted hover:text-theme-text active:scale-90 transition-transform cursor-pointer"
                         title="Clear prompt"
                       >
                         <X size={13} />
@@ -1371,7 +1371,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                           type="button"
                           onClick={handleSendPrompt}
                           disabled={!promptText().trim()}
-                          class="w-7 h-7 rounded-full bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed active:scale-90 transition-all shadow-md shadow-gi-primary/25 cursor-pointer"
+                          class="w-7 h-7 bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed active:scale-90 transition-all shadow-md shadow-gi-primary/25 cursor-pointer"
                           title="Send Instruction"
                         >
                           <Send size={12} class="translate-x-px" />
@@ -1381,7 +1381,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                       <button
                         type="button"
                         onClick={handleStopSession}
-                        class="h-7 px-2.5 rounded-full bg-gi-status-danger/20 hover:bg-gi-status-danger/30 text-gi-status-danger border border-gi-status-danger/40 flex items-center gap-1.5 active:scale-90 transition-all shadow-sm text-2xs font-semibold cursor-pointer"
+                        class="h-7 px-2.5 bg-gi-status-danger/20 hover:bg-gi-status-danger/30 text-gi-status-danger border border-gi-status-danger/40 flex items-center gap-1.5 active:scale-90 transition-all shadow-sm text-2xs font-semibold cursor-pointer"
                         title="Stop Agent Execution"
                       >
                         <Square size={10} class="fill-current" />

@@ -1272,7 +1272,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
               <button
                 type="button"
                 onClick={() => setShowChatModal(true)}
-                class="w-12 h-12 rounded-full bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/50 text-gi-text-primary hover:text-gi-primary active:scale-90 transition-all flex items-center justify-center shadow-lg cursor-pointer"
+                class="w-12 h-12 bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/50 text-gi-text-primary hover:text-gi-primary active:scale-90 transition-all flex items-center justify-center shadow-lg cursor-pointer"
                 title="Open Chat"
                 aria-label="Open Chat"
               >
@@ -1283,7 +1283,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
               <button
                 type="button"
                 onClick={toggleHpMic}
-                class={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg cursor-pointer ${
+                class={`w-12 h-12 flex items-center justify-center transition-all active:scale-90 shadow-lg cursor-pointer ${
                   isHpMicListening()
                     ? 'bg-gi-status-danger text-white animate-pulse shadow-[0_0_20px_rgba(var(--gi-status-danger-rgb),0.7)]'
                     : 'bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/50 text-gi-primary hover:text-gi-primary-hover'

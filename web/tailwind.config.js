@@ -84,6 +84,22 @@ export default {
         '3xl': ['2.25rem', { lineHeight: '2.6rem' }],
         '4xl': ['2.75rem', { lineHeight: '3rem' }],
       },
+      borderRadius: {
+        'gi-badge': '0.375rem', /* 6px - Metadata chips, tags */
+        'gi-btn':   '0.5rem',   /* 8px - Buttons, form controls */
+        'gi-icon':  '0.625rem', /* 10px - Icon containers */
+        'gi-card':  '0.75rem',  /* 12px - Cards & section panels */
+        'gi-modal': '1rem',     /* 16px - Dialogs & floating modals */
+        'gi-sheet': '1.5rem',   /* 24px - Mobile bottom sheets */
+        'gi-pill':  '9999px',   /* Circular status pills & FABs */
+      },
+      boxShadow: {
+        'gi-card':     '0 4px 20px -2px rgba(0, 0, 0, 0.25)',
+        'gi-elevated': '0 8px 30px -4px rgba(0, 0, 0, 0.35)',
+        'gi-modal':    '0 25px 50px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+        'gi-glow':     '0 0 16px rgba(var(--gi-primary-rgb), 0.35)',
+        'gi-glow-cyan': '0 0 16px rgba(var(--gi-accent-rgb), 0.35)',
+      },
     },
   },
   plugins: [],

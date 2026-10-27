@@ -23,7 +23,7 @@ export const Avatar2DFallback: Component<Avatar2DFallbackProps> = (props) => {
         <button
           type="button"
           onClick={props.onRetry}
-          class="mt-3 px-4 py-2 bg-gi-primary/20 border border-gi-primary/40 text-gi-primary hover:bg-gi-primary/30 text-xs font-mono rounded-xl flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+          class="mt-3 px-4 py-2 bg-gi-primary/20 border border-gi-primary/40 text-gi-primary hover:bg-gi-primary/30 text-xs font-mono flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
         >
           <RotateCcw size={12} />
           <span>Retry 3D Load</span>

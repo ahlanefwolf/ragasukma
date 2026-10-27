@@ -33,12 +33,12 @@ export interface AgentCodePanelProps {
 export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
   return (
     <Show when={props.file}>
-      <aside class="h-full flex flex-col bg-theme-surface border border-theme-border rounded-xl shadow-2xl overflow-hidden min-h-0 select-text">
+      <aside class="h-full flex flex-col bg-theme-surface border border-theme-border shadow-2xl overflow-hidden min-h-0 select-text">
         {/* Editor Tab Header */}
         <div class="px-3 py-2 bg-theme-card/50 border-b border-theme-border flex items-center justify-between gap-2 shrink-0 select-none">
           {/* File Tab Info */}
           <div class="flex items-center gap-2 min-w-0 flex-1">
-            <div class="p-1 rounded bg-gi-primary/10 text-gi-primary border border-gi-primary/20 shrink-0">
+            <div class="p-1 bg-gi-primary/10 text-gi-primary border border-gi-primary/20 shrink-0">
               <FileCode class="w-4 h-4" />
             </div>
             <div class="min-w-0 flex-1">
@@ -46,7 +46,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
                 <span class="text-xs font-semibold text-white truncate" title={props.file?.name}>
                   {props.file?.name}
                 </span>
-                <span class="text-2xs font-mono px-1.5 py-0.5 rounded bg-white/5 text-white/50 shrink-0">
+                <span class="text-2xs font-mono px-1.5 py-0.5 bg-white/5 text-white/50 shrink-0">
                   {props.highlightedCodeLines.length} lines
                 </span>
               </div>
@@ -63,7 +63,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
               <button
                 type="button"
                 onClick={props.onCopyTag}
-                class="px-2 py-1 text-xs font-mono bg-gi-primary/15 hover:bg-gi-primary/25 border border-gi-primary/30 text-gi-primary rounded transition-all flex items-center gap-1 active:scale-95"
+                class="px-2 py-1 text-xs font-mono bg-gi-primary/15 hover:bg-gi-primary/25 border border-gi-primary/30 text-gi-primary transition-all flex items-center gap-1 active:scale-95"
                 title="Copy tag reference to clipboard"
               >
                 <Copy class="w-3 h-3" />
@@ -77,7 +77,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
                     props.onInsertTag(props.file.relative_path, props.tagStartLine, props.tagEndLine);
                   }
                 }}
-                class="px-2.5 py-1 text-xs bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-semibold rounded transition-all flex items-center gap-1 shadow-sm active:scale-95"
+                class="px-2.5 py-1 text-xs bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-semibold transition-all flex items-center gap-1 shadow-sm active:scale-95"
                 title="Insert tag into chat input"
               >
                 <Plus class="w-3 h-3" />
@@ -87,7 +87,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
               <button
                 type="button"
                 onClick={props.onResetSelection}
-                class="p-1 text-white/70 hover:text-white/80 rounded hover:bg-white/5 transition-colors"
+                class="p-1 text-white/70 hover:text-white/80 hover:bg-white/5 transition-colors"
                 title="Reset selection (reference whole file)"
               >
                 <RotateCcw class="w-3.5 h-3.5" />
@@ -98,7 +98,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
             <button
               type="button"
               onClick={props.onClose}
-              class="p-1 text-white/70 hover:text-white rounded hover:bg-white/10 transition-colors ml-1"
+              class="p-1 text-white/70 hover:text-white hover:bg-white/10 transition-colors ml-1"
               title="Close code viewer panel"
               aria-label="Close Code Viewer"
             >
@@ -217,7 +217,7 @@ export const AgentCodePanel: Component<AgentCodePanelProps> = (props) => {
                 props.onInsertTag(props.file.relative_path, props.tagStartLine, props.tagEndLine);
               }
             }}
-            class="px-3 py-1 text-xs bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground rounded font-semibold flex items-center gap-1.5 transition-colors shadow-sm active:scale-95 ml-2 shrink-0"
+            class="px-3 py-1 text-xs bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-semibold flex items-center gap-1.5 transition-colors shadow-sm active:scale-95 ml-2 shrink-0"
           >
             <Sparkles class="w-3.5 h-3.5" />
             <span>Insert Tag</span>

@@ -396,7 +396,7 @@ export const HistoryTab: Component<HistoryTabProps> = (props) => {
                             <div class="mt-2.5 pt-2 border-t border-theme-border/30 flex justify-end">
                               <button
                                 onClick={() => handleSendToProject(turn.id!, turn.message)}
-                                class="text-xs font-mono text-theme-cyan/80 hover:text-theme-cyan hover:bg-theme-cyan/10 px-2 py-1 rounded transition-colors flex items-center gap-1.5"
+                                class="text-xs font-mono text-theme-cyan/80 hover:text-theme-cyan hover:bg-theme-cyan/10 px-2 py-1 transition-colors flex items-center gap-1.5"
                                 title="Send this conversation as a task session to Project Workspace"
                               >
                                 <FolderGit2 size={12} />

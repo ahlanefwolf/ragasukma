@@ -16,12 +16,12 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
       {/* 1. Top Bar: Minimal Floating Status Dot on Left & Glassmorphic Exit Button on Right */}
       <div class="w-full flex items-center justify-between pointer-events-none pt-safe">
         {/* Minimal Floating Status Indicator (Pulsing Gold = Searching surface, Emerald = Anchored) */}
-        <div class="flex items-center gap-2 px-2.5 py-1 rounded-full bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/40 shadow-sm pointer-events-none">
+        <div class="flex items-center gap-2 px-2.5 py-1 bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/40 shadow-sm pointer-events-none">
           <Show
             when={props.isAvatarLocked}
             fallback={
               <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-gi-primary animate-ping" />
+                <span class="w-2 h-2 bg-gi-primary animate-ping" />
                 <span class="text-2xs font-mono text-gi-text-secondary">
                   {props.hasFoundSurface ? 'Surface Found' : 'Scan Surface...'}
                 </span>
@@ -29,7 +29,7 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
             }
           >
             <div class="flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-gi-status-success shadow-[0_0_8px_rgba(var(--gi-status-success-rgb),0.9)]" />
+              <span class="w-2 h-2 bg-gi-status-success shadow-[0_0_8px_rgba(var(--gi-status-success-rgb),0.9)]" />
               <span class="text-2xs font-mono text-gi-text-secondary">Anchored</span>
             </div>
           </Show>
@@ -39,7 +39,7 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
         <button
           type="button"
           onClick={props.onExitAr}
-          class="pointer-events-auto w-10 h-10 rounded-full bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/50 text-gi-text-primary hover:text-gi-primary active:scale-90 transition-all flex items-center justify-center shadow-md cursor-pointer"
+          class="pointer-events-auto w-10 h-10 bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/50 text-gi-text-primary hover:text-gi-primary active:scale-90 transition-all flex items-center justify-center shadow-md cursor-pointer"
           aria-label="Exit AR Mode"
           title="Exit AR Mode"
         >
@@ -60,7 +60,7 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
               type="button"
               onClick={props.onLockAvatar}
               disabled={!props.hasFoundSurface}
-              class={`pointer-events-auto w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+              class={`pointer-events-auto w-14 h-14 flex items-center justify-center transition-all cursor-pointer ${
                 props.hasFoundSurface
                   ? 'bg-gi-primary text-gi-primary-foreground shadow-[0_0_24px_rgba(var(--gi-primary-rgb),0.65)] active:scale-90 animate-pulse'
                   : 'bg-gi-canvas/60 backdrop-blur-md border border-gi-border-subtle/50 text-gi-text-muted/40 cursor-not-allowed opacity-40'
@@ -75,7 +75,7 @@ export const AvatarArControls: Component<AvatarArControlsProps> = (props) => {
           <button
             type="button"
             onClick={props.onUnlockAvatar}
-            class="pointer-events-auto w-12 h-12 rounded-full bg-gi-canvas/70 backdrop-blur-md border border-gi-border-gold/60 text-gi-primary hover:text-gi-primary-hover active:scale-90 transition-all flex items-center justify-center shadow-lg cursor-pointer"
+            class="pointer-events-auto w-12 h-12 bg-gi-canvas/70 backdrop-blur-md border border-gi-border-gold/60 text-gi-primary hover:text-gi-primary-hover active:scale-90 transition-all flex items-center justify-center shadow-lg cursor-pointer"
             aria-label="Reposition Avatar"
             title="Reposition Avatar"
           >

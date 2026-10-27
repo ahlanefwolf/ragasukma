@@ -41,7 +41,7 @@ const ThoughtBubble: Component<{ thought: string }> = (props) => {
   const charCount = () => props.thought?.length ?? 0;
 
   return (
-    <div class="w-full max-w-full mb-2 rounded-lg bg-gi-status-warning/10 border border-gi-status-warning/20 text-xs text-theme-text/90 font-mono overflow-hidden transition-all">
+    <div class="w-full max-w-full mb-2 bg-gi-status-warning/10 border border-gi-status-warning/20 text-xs text-theme-text/90 font-mono overflow-hidden transition-all">
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded())}
@@ -111,7 +111,7 @@ const UserMessageBody: Component<{
             fallback={<span>{token.text}</span>}
           >
             <span
-              class={`inline-flex items-center gap-1 font-mono text-cyan-400 bg-cyan-500/15 border border-cyan-500/30 px-1.5 py-0.5 rounded text-[11px] font-medium align-baseline mx-0.5 select-none ${
+              class={`inline-flex items-center gap-1 font-mono text-cyan-400 bg-cyan-500/15 border border-cyan-500/30 px-1.5 py-0.5 text-[11px] font-medium align-baseline mx-0.5 select-none ${
                 props.onOpenFile ? 'hover:bg-cyan-500/25 hover:border-cyan-400/50 cursor-pointer transition-all' : ''
               }`}
               onClick={(e) => {
@@ -575,7 +575,7 @@ export const AgentChatPane: Component<{
   };
 
   return (
-    <div class="bg-white/[0.03] border border-white/10 rounded-xl flex-1 flex flex-col min-h-0 overflow-hidden shadow-lg relative">
+    <div class="bg-white/[0.03] border border-white/10 flex-1 flex flex-col min-h-0 overflow-hidden shadow-lg relative">
       {/* Session Header */}
       <div class="px-4 py-2.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-2 bg-white/[0.01]">
         <div class="flex items-center gap-2 min-w-0">
@@ -585,7 +585,7 @@ export const AgentChatPane: Component<{
               {props.currentSession?.title || 'Select or Create a Task Session'}
             </span>
             <Show when={props.currentSession}>
-              <span class="text-2xs uppercase px-1.5 py-0.5 rounded bg-gi-status-success/10 text-gi-status-success border border-gi-status-success/20 font-medium">
+              <span class="text-2xs uppercase px-1.5 py-0.5 bg-gi-status-success/10 text-gi-status-success border border-gi-status-success/20 font-medium">
                 {props.currentSession?.status}
               </span>
             </Show>
@@ -593,7 +593,7 @@ export const AgentChatPane: Component<{
               <button
                 type="button"
                 onClick={() => setShowChangesPanel(!showChangesPanel())}
-                class={`flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-mono font-medium transition-colors border ${
+                class={`flex items-center gap-1 px-2 py-0.5 text-2xs font-mono font-medium transition-colors border ${
                   showChangesPanel()
                     ? 'bg-gi-status-warning/20 text-gi-status-warning border-gi-status-warning/40 shadow-sm'
                     : 'bg-white/5 hover:bg-white/10 text-white/80 border-white/10'
@@ -609,7 +609,7 @@ export const AgentChatPane: Component<{
 
         {/* Model Switcher & Session Controls */}
         <Show when={props.currentSession}>
-          <div class="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs">
+          <div class="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2 py-1 text-xs">
             <Cpu class="w-3.5 h-3.5 text-gi-primary shrink-0" />
             <SearchableSelect
               value={props.activeSessionModel || props.currentSession?.model || props.defaultBrainModel}
@@ -643,7 +643,7 @@ export const AgentChatPane: Component<{
                   })),
               ]}
               buttonClass="flex items-center justify-between gap-1.5 text-white font-mono text-xs max-w-[210px] truncate hover:text-gi-primary-hover transition-colors"
-              dropdownClass="absolute right-0 mt-2 w-72 bg-theme-surface border border-theme-border rounded-lg shadow-2xl z-50 overflow-hidden flex flex-col max-h-80"
+              dropdownClass="absolute right-0 mt-2 w-72 bg-theme-surface border border-theme-border shadow-2xl z-50 overflow-hidden flex flex-col max-h-80"
               searchPlaceholder="Filter AI models..."
             />
             <button
@@ -665,7 +665,7 @@ export const AgentChatPane: Component<{
                 e.stopPropagation();
                 setExportMenuOpen(!exportMenuOpen());
               }}
-              class="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/80 hover:text-white transition-colors"
+              class="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 px-2 py-1 text-xs text-white/80 hover:text-white transition-colors"
               title="Export or copy session transcript"
             >
               <Download class="w-3.5 h-3.5 text-gi-primary" />
@@ -675,13 +675,13 @@ export const AgentChatPane: Component<{
 
             <Show when={exportMenuOpen()}>
               <div
-                class="absolute right-0 mt-2 w-52 bg-theme-surface border border-theme-border rounded-xl shadow-2xl z-50 p-1.5 space-y-1 text-xs"
+                class="absolute right-0 mt-2 w-52 bg-theme-surface border border-theme-border shadow-2xl z-50 p-1.5 space-y-1 text-xs"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button
                   type="button"
                   onClick={handleCopyTranscript}
-                  class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors text-left"
+                  class="w-full flex items-center gap-2 px-2.5 py-1.5 hover:bg-white/10 text-white/80 hover:text-white transition-colors text-left"
                 >
                   <Show when={copiedTranscript()} fallback={<Copy class="w-3.5 h-3.5 text-gi-primary shrink-0" />}>
                     <Check class="w-3.5 h-3.5 text-gi-status-success shrink-0" />
@@ -695,7 +695,7 @@ export const AgentChatPane: Component<{
                 <button
                   type="button"
                   onClick={handleExportMarkdown}
-                  class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors text-left"
+                  class="w-full flex items-center gap-2 px-2.5 py-1.5 hover:bg-white/10 text-white/80 hover:text-white transition-colors text-left"
                 >
                   <FileText class="w-3.5 h-3.5 text-gi-status-warning shrink-0" />
                   <div class="flex flex-col min-w-0">
@@ -707,7 +707,7 @@ export const AgentChatPane: Component<{
                 <button
                   type="button"
                   onClick={handleExportJson}
-                  class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors text-left"
+                  class="w-full flex items-center gap-2 px-2.5 py-1.5 hover:bg-white/10 text-white/80 hover:text-white transition-colors text-left"
                 >
                   <FileCode class="w-3.5 h-3.5 text-gi-status-info shrink-0" />
                   <div class="flex flex-col min-w-0">
@@ -747,17 +747,17 @@ export const AgentChatPane: Component<{
               {(file) => {
                 const isSelected = () => selectedDiffFile()?.filePath === file.filePath;
                 return (
-                  <div class="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-1 text-xs">
+                  <div class="flex items-center gap-1 bg-white/5 border border-white/10 p-1 text-xs">
                     <button
                       type="button"
                       onClick={() => setSelectedDiffFile(isSelected() ? null : file)}
-                      class={`px-2 py-0.5 rounded text-xs font-mono flex items-center gap-1.5 transition-colors ${
+                      class={`px-2 py-0.5 text-xs font-mono flex items-center gap-1.5 transition-colors ${
                         isSelected() ? 'bg-gi-primary text-gi-primary-foreground font-bold' : 'text-white/80 hover:text-white hover:bg-white/10'
                       }`}
                     >
                       <FileCode class="w-3.5 h-3.5 text-gi-primary" />
                       <span>{file.fileName}</span>
-                      <span class={`text-2xs px-1 rounded font-sans uppercase font-bold ${
+                      <span class={`text-2xs px-1 font-sans uppercase font-bold ${
                         file.status === 'created' ? 'bg-gi-status-success/20 text-gi-status-success' : 'bg-gi-status-warning/20 text-gi-status-warning'
                       }`}>
                         {file.status}
@@ -767,7 +767,7 @@ export const AgentChatPane: Component<{
                       <button
                         type="button"
                         onClick={() => props.onOpenFileInCodePanel?.(file.filePath)}
-                        class="p-1 text-white/50 hover:text-gi-primary-hover rounded"
+                        class="p-1 text-white/50 hover:text-gi-primary-hover"
                         title="Open in Right Docked Code Viewer"
                       >
                         <ExternalLink class="w-3 h-3" />
@@ -804,12 +804,12 @@ export const AgentChatPane: Component<{
       >
         {/* Upward Lazy Load Banner for Earlier Messages */}
         <Show when={props.currentSession && props.hasMoreMessages}>
-          <div class="flex items-center justify-center gap-2 py-2 mb-1 border-b border-white/[0.06] bg-white/[0.02] rounded-lg select-none">
+          <div class="flex items-center justify-center gap-2 py-2 mb-1 border-b border-white/[0.06] bg-white/[0.02] select-none">
             <button
               type="button"
               onClick={handleLoadEarlier}
               disabled={props.loadingEarlier}
-              class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 active:scale-95 text-white/80 hover:text-white text-xs flex items-center gap-1.5 border border-white/10 transition-colors shadow-sm font-sans disabled:opacity-50"
+              class="px-3 py-1.5 bg-white/5 hover:bg-white/10 active:scale-95 text-white/80 hover:text-white text-xs flex items-center gap-1.5 border border-white/10 transition-colors shadow-sm font-sans disabled:opacity-50"
             >
               <History class={`w-3.5 h-3.5 text-gi-primary ${props.loadingEarlier ? 'animate-spin' : ''}`} />
               <span>{props.loadingEarlier ? 'Loading earlier messages...' : 'Load 25 Earlier Messages'}</span>
@@ -819,7 +819,7 @@ export const AgentChatPane: Component<{
                 type="button"
                 onClick={handleLoadAll}
                 disabled={props.loadingEarlier}
-                class="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 active:scale-95 text-white/50 hover:text-white/80 text-xs transition-colors font-sans disabled:opacity-50"
+                class="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 active:scale-95 text-white/50 hover:text-white/80 text-xs transition-colors font-sans disabled:opacity-50"
                 title="Load all earlier messages in this session"
               >
                 Show All
@@ -834,7 +834,7 @@ export const AgentChatPane: Component<{
             <p class="text-xs">Select a task session on the left or create a new session to start the agent.</p>
             <button
               onClick={props.onQuickCreateSession}
-              class="mt-3 px-3.5 py-1.5 text-xs bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground rounded-lg font-semibold flex items-center gap-1.5 transition-colors"
+              class="mt-3 px-3.5 py-1.5 text-xs bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-semibold flex items-center gap-1.5 transition-colors"
             >
               <Plus class="w-3.5 h-3.5" />
               New Task
@@ -905,7 +905,7 @@ export const AgentChatPane: Component<{
                       <button
                         type="button"
                         onClick={() => props.toggleCollapseMessage(msg.id)}
-                        class="flex items-center gap-1 px-2 py-0.5 rounded bg-theme-bg/60 hover:bg-theme-card border border-theme-border/60 hover:text-theme-cyan transition-colors text-2xs"
+                        class="flex items-center gap-1 px-2 py-0.5 bg-theme-bg/60 hover:bg-theme-card border border-theme-border/60 hover:text-theme-cyan transition-colors text-2xs"
                         title={props.isMessageCollapsed(msg.id) ? "Show full message" : "Collapse generative output"}
                       >
                         <Show when={props.isMessageCollapsed(msg.id)} fallback={<><ChevronUp class="w-3 h-3" /> Collapse</>}>
@@ -918,7 +918,7 @@ export const AgentChatPane: Component<{
                   <Show when={props.isMessageCollapsed(msg.id)}>
                     <div
                       onClick={() => props.toggleCollapseMessage(msg.id)}
-                      class="cursor-pointer w-full rounded-xl p-2.5 bg-theme-cyan/10 border border-theme-cyan/20 text-xs text-theme-cyan/90 hover:bg-theme-cyan/15 transition-all flex items-center justify-between"
+                      class="cursor-pointer w-full p-2.5 bg-theme-cyan/10 border border-theme-cyan/20 text-xs text-theme-cyan/90 hover:bg-theme-cyan/15 transition-all flex items-center justify-between"
                     >
                       <span class="truncate italic text-xs">Generative output collapsed ({countMessageLines(msg.content)} {countMessageLines(msg.content) === 1 ? 'line' : 'lines'})</span>
                       <span class="text-2xs font-semibold text-theme-cyan underline ml-2 shrink-0">Expand</span>
@@ -927,7 +927,7 @@ export const AgentChatPane: Component<{
 
                   <Show when={!props.isMessageCollapsed(msg.id)}>
                     <div
-                      class={`w-fit max-w-full rounded-xl px-4 py-3 text-xs leading-relaxed ${
+                      class={`w-fit max-w-full px-4 py-3 text-xs leading-relaxed ${
                         msg.role === 'user'
                           ? 'bg-theme-card border border-theme-border text-theme-text rounded-br-none whitespace-pre-wrap shadow-sm'
                           : 'bg-theme-bg/80 border border-theme-border text-theme-text/90 rounded-bl-none shadow-sm'
@@ -991,9 +991,9 @@ export const AgentChatPane: Component<{
               <Brain class="w-3.5 h-3.5 text-gi-status-warning shrink-0 animate-pulse" />
               <span>Reasoning (Live...)</span>
             </div>
-            <div class="w-full max-w-full rounded-xl px-4 py-3 text-xs leading-relaxed bg-gi-status-warning/10 border border-gi-status-warning/25 text-theme-text/90 font-mono whitespace-pre-wrap max-h-56 overflow-y-auto custom-scrollbar shadow-sm">
+            <div class="w-full max-w-full px-4 py-3 text-xs leading-relaxed bg-gi-status-warning/10 border border-gi-status-warning/25 text-theme-text/90 font-mono whitespace-pre-wrap max-h-56 overflow-y-auto custom-scrollbar shadow-sm">
               {props.streamingThought}
-              <span class="inline-block w-1.5 h-3.5 bg-gi-status-warning animate-pulse ml-1 align-middle rounded-xs" />
+              <span class="inline-block w-1.5 h-3.5 bg-gi-status-warning animate-pulse ml-1 align-middle" />
             </div>
           </div>
         </Show>
@@ -1007,16 +1007,16 @@ export const AgentChatPane: Component<{
                 <span class="font-medium">Agent (Generating response...)</span>
               </div>
             </div>
-            <div class="w-fit max-w-full rounded-xl px-4 py-3 text-xs leading-relaxed bg-white/[0.04] border border-gi-primary/30 text-white/90 rounded-bl-none shadow-md">
+            <div class="w-fit max-w-full px-4 py-3 text-xs leading-relaxed bg-white/[0.04] border border-gi-primary/30 text-white/90 rounded-bl-none shadow-md">
               <MarkdownView content={props.streamingText || ''} />
-              <span class="inline-block w-1.5 h-3.5 bg-gi-primary animate-pulse ml-1 align-middle rounded-sm" />
+              <span class="inline-block w-1.5 h-3.5 bg-gi-primary animate-pulse ml-1 align-middle" />
             </div>
           </div>
         </Show>
 
         {/* Active Execution Spinner */}
         <Show when={props.isCurrentSessionBusy}>
-          <div class="flex items-center gap-2.5 p-3 bg-gi-primary/10 border border-gi-primary/20 rounded-xl text-xs text-gi-primary w-fit animate-pulse">
+          <div class="flex items-center gap-2.5 p-3 bg-gi-primary/10 border border-gi-primary/20 text-xs text-gi-primary w-fit animate-pulse">
             <Loader2 class="w-4 h-4 animate-spin text-gi-status-warning shrink-0" />
             <div>
               <div class="font-semibold text-white">
@@ -1035,7 +1035,7 @@ export const AgentChatPane: Component<{
         <button
           type="button"
           onClick={scrollToBottom}
-          class="absolute right-6 bottom-24 z-30 flex items-center gap-1.5 px-3 py-1.5 bg-gi-primary hover:bg-gi-primary-hover active:scale-95 text-gi-primary-foreground text-xs font-semibold rounded-full shadow-xl border border-gi-primary-hover/40 backdrop-blur-md transition-all hover:scale-105 select-none"
+          class="absolute right-6 bottom-24 z-30 flex items-center gap-1.5 px-3 py-1.5 bg-gi-primary hover:bg-gi-primary-hover active:scale-95 text-gi-primary-foreground text-xs font-semibold shadow-xl border border-gi-primary-hover/40 backdrop-blur-md transition-all hover:scale-105 select-none"
           title="Jump to latest message"
         >
           <ArrowDown class="w-3.5 h-3.5" />
@@ -1046,10 +1046,10 @@ export const AgentChatPane: Component<{
       {/* Chat Input Bar (Unified Modern Card) */}
       <Show when={props.currentSession}>
         <div class="p-3 border-t border-white/10 bg-white/[0.01]">
-          <div class="relative bg-white/[0.03] hover:bg-white/[0.04] focus-within:bg-white/[0.05] border border-white/10 focus-within:border-gi-primary/60 rounded-2xl p-2.5 transition-all shadow-sm">
+          <div class="relative bg-white/[0.03] hover:bg-white/[0.04] focus-within:bg-white/[0.05] border border-white/10 focus-within:border-gi-primary/60 p-2.5 transition-all shadow-sm">
             {/* Autocomplete Dropdown Popup */}
             <Show when={props.autocompleteOpen && props.autocompleteSuggestions.length > 0}>
-              <div class="absolute bottom-full mb-2 left-0 right-0 max-h-60 z-50 overflow-y-auto bg-theme-surface/95 border border-theme-border rounded-xl shadow-2xl backdrop-blur-md p-1.5 custom-scrollbar">
+              <div class="absolute bottom-full mb-2 left-0 right-0 max-h-60 z-50 overflow-y-auto bg-theme-surface/95 border border-theme-border shadow-2xl backdrop-blur-md p-1.5 custom-scrollbar">
                 <div class="px-2 py-1 text-2xs font-semibold text-gi-primary border-b border-theme-border flex items-center justify-between mb-1">
                   <span class="flex items-center gap-1"><AtSign class="w-3 h-3" /> Tag Workspace File</span>
                   <span class="text-white/70 font-normal">Use ↑ ↓ then Enter / Tab</span>
@@ -1057,7 +1057,7 @@ export const AgentChatPane: Component<{
                 <For each={props.autocompleteSuggestions}>
                   {(file, idx) => (
                     <div
-                      class={`px-2.5 py-1.5 rounded-lg text-xs font-mono flex items-center justify-between cursor-pointer transition-colors ${
+                      class={`px-2.5 py-1.5 text-xs font-mono flex items-center justify-between cursor-pointer transition-colors ${
                         idx() === props.autocompleteIndex
                           ? 'bg-gi-primary text-gi-primary-foreground font-semibold shadow-sm'
                           : 'hover:bg-white/10 text-white/80'
@@ -1105,7 +1105,7 @@ export const AgentChatPane: Component<{
                       when={token.isTag}
                       fallback={<span class="text-white">{token.text}</span>}
                     >
-                      <span class="text-gi-accent bg-gi-accent/20 rounded-[2px]">{token.text}</span>
+                      <span class="text-gi-accent bg-gi-accent/20 px-1 py-0.5">{token.text}</span>
                     </Show>
                   )}
                 </For>
@@ -1155,7 +1155,7 @@ export const AgentChatPane: Component<{
                 <button
                   type="button"
                   onClick={props.onOpenFilesTab}
-                  class="px-2 py-1 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-lg text-xs font-mono flex items-center gap-1 border border-white/5 transition-colors"
+                  class="px-2 py-1 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-xs font-mono flex items-center gap-1 border border-white/5 transition-colors"
                   title="Mention project file (@file:lines)"
                 >
                   <AtSign class="w-3 h-3 text-gi-primary" />
@@ -1170,7 +1170,7 @@ export const AgentChatPane: Component<{
                 <button
                   type="button"
                   onClick={props.onToggleSendShortcut}
-                  class="text-2xs text-white/40 hover:text-white/80 transition-colors font-mono px-2 py-0.5 rounded hover:bg-white/5 border border-transparent hover:border-white/10 hidden md:flex items-center gap-1 cursor-pointer select-none"
+                  class="text-2xs text-white/40 hover:text-white/80 transition-colors font-mono px-2 py-0.5 hover:bg-white/5 border border-transparent hover:border-white/10 hidden md:flex items-center gap-1 cursor-pointer select-none"
                   title="Click to toggle send shortcut (Enter vs Ctrl+Enter)"
                 >
                   <span class="text-white/70 font-semibold">{props.sendShortcut === 'ctrl_enter' ? 'Ctrl+↵' : '↵'} send</span>
@@ -1184,7 +1184,7 @@ export const AgentChatPane: Component<{
                       type="button"
                       onClick={props.onSendMessage}
                       disabled={!props.userInput.trim()}
-                      class="h-[30px] px-3.5 bg-gi-primary hover:bg-gi-primary-hover disabled:opacity-40 text-gi-primary-foreground rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shrink-0 shadow-sm"
+                      class="h-[30px] px-3.5 bg-gi-primary hover:bg-gi-primary-hover disabled:opacity-40 text-gi-primary-foreground text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shrink-0 shadow-sm"
                     >
                       <Send class="w-3 h-3" />
                       <span>Send</span>
@@ -1194,7 +1194,7 @@ export const AgentChatPane: Component<{
                   <button
                     type="button"
                     onClick={props.onStopSession}
-                    class="h-[30px] px-3.5 bg-gi-status-danger hover:bg-gi-status-danger/90 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors shrink-0 shadow-md animate-pulse"
+                    class="h-[30px] px-3.5 bg-gi-status-danger hover:bg-gi-status-danger/90 text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-colors shrink-0 shadow-md animate-pulse"
                     title="Stop active agent task"
                   >
                     <Square class="w-3 h-3 fill-current" />

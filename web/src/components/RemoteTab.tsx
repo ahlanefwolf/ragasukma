@@ -244,7 +244,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
         <div class="flex items-center justify-between border-b border-theme-border/60 pb-3">
           <div class="flex items-center gap-2.5">
             <span
-              class={`w-3 h-3 rounded-full ${
+              class={`w-3 h-3 ${
                 tunnelStatus() === 'running'
                   ? 'bg-theme-cyan shadow-[0_0_10px_var(--cyan)] animate-pulse'
                   : tunnelStatus() === 'starting'
@@ -273,7 +273,7 @@ export const RemoteTab: Component<RemoteTabProps> = (props) => {
             {/* QR Code Container */}
             <div class="flex flex-col sm:flex-row items-center gap-6 p-4 bg-theme-surface border border-theme-border">
               <Show when={qrDataUrl()}>
-                <div class="p-2.5 bg-white rounded-lg shadow-md border-2 border-theme-cyan shrink-0 flex flex-col items-center">
+                <div class="p-2.5 bg-white shadow-md border-2 border-theme-cyan shrink-0 flex flex-col items-center">
                   <img
                     src={qrDataUrl()}
                     alt="Scan QR Mobile Remote"

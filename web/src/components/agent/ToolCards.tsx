@@ -216,24 +216,24 @@ export const GitDiffViewer: Component<{
   });
 
   return (
-    <div class="rounded-xl border border-theme-border overflow-hidden bg-theme-bg font-mono text-xs my-1 shadow-md w-full max-w-full min-w-0">
+    <div class="border border-theme-border overflow-hidden bg-theme-bg font-mono text-xs my-1 shadow-md w-full max-w-full min-w-0">
       {/* Diff Header */}
       <div class="flex items-center justify-between px-3 py-1.5 bg-theme-card/40 border-b border-theme-border text-xs">
         <div class="flex items-center gap-2">
           <FileCode class="w-3.5 h-3.5 text-gi-primary shrink-0" />
           <span class="text-white/90 font-semibold">{props.filename || 'Diff Changes'}</span>
           <Show when={props.isNewFile}>
-            <span class="text-2xs px-2 py-0.5 rounded bg-gi-status-success/20 text-gi-status-success font-bold tracking-wide">
+            <span class="text-2xs px-2 py-0.5 bg-gi-status-success/20 text-gi-status-success font-bold tracking-wide">
               NEW FILE
             </span>
           </Show>
         </div>
         <div class="flex items-center gap-1.5 text-2xs">
-          <span class="text-gi-status-success font-bold bg-gi-status-success/10 px-1.5 py-0.5 rounded border border-gi-status-success/20 font-mono">
+          <span class="text-gi-status-success font-bold bg-gi-status-success/10 px-1.5 py-0.5 border border-gi-status-success/20 font-mono">
             +{stats().added}
           </span>
           <Show when={!props.isNewFile}>
-            <span class="text-gi-status-danger font-bold bg-gi-status-danger/10 px-1.5 py-0.5 rounded border border-gi-status-danger/20 font-mono">
+            <span class="text-gi-status-danger font-bold bg-gi-status-danger/10 px-1.5 py-0.5 border border-gi-status-danger/20 font-mono">
               -{stats().removed}
             </span>
           </Show>
@@ -304,7 +304,7 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
   });
 
   return (
-    <div class="my-1.5 rounded-xl border border-gi-primary/20 bg-theme-card overflow-hidden shadow-sm transition-all text-xs">
+    <div class="my-1.5 border border-gi-primary/20 bg-theme-card overflow-hidden shadow-sm transition-all text-xs">
       {/* Header bar: Click to collapse/expand */}
       <div
         onClick={() => setIsCardCollapsed(!isCardCollapsed())}
@@ -325,10 +325,10 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
         <div class="p-3 space-y-2.5">
           <For each={parsedCalls()}>
             {(tc) => (
-              <div class="bg-black/30 rounded-lg p-2.5 border border-white/5 space-y-1.5">
+              <div class="bg-black/30 p-2.5 border border-white/5 space-y-1.5">
                 <div class="flex items-center justify-between font-mono text-xs">
                   <span class="text-gi-primary font-semibold flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-gi-primary"></span>
+                    <span class="w-1.5 h-1.5 bg-gi-primary"></span>
                     {tc.name}
                   </span>
                   <span class="text-white/60 text-2xs">{cleanToolCallId(tc.id)}</span>
@@ -343,7 +343,7 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
                       const isArgExpanded = () => expandedArgs().has(`${tc.id}_${key}`);
 
                       return (
-                        <div class="bg-white/[0.02] p-1.5 rounded border border-white/5">
+                        <div class="bg-white/[0.02] p-1.5 border border-white/5">
                           <div class="flex items-center justify-between text-white/50 text-2xs mb-0.5">
                             <span class="text-gi-primary/80 font-bold">{key}:</span>
                             <Show when={isLong}>
@@ -386,7 +386,7 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
           </div>
 
           <Show when={showRaw()}>
-            <pre class="text-2xs font-mono text-white/60 bg-black/50 p-2.5 rounded overflow-x-auto max-h-40 custom-scrollbar select-all">
+            <pre class="text-2xs font-mono text-white/60 bg-black/50 p-2.5 overflow-x-auto max-h-40 custom-scrollbar select-all">
               {props.toolCalls}
             </pre>
           </Show>
@@ -403,7 +403,7 @@ export const ToolResultCard: Component<{ toolCallId?: string | null; content?: s
 
   return (
     <div
-      class={`my-1.5 rounded-xl border overflow-hidden shadow-sm transition-all text-xs w-full max-w-full min-w-0 ${
+      class={`my-1.5 border overflow-hidden shadow-sm transition-all text-xs w-full max-w-full min-w-0 ${
         info().isError
           ? 'border-gi-status-danger/30 bg-gi-status-danger/10'
           : 'border-gi-status-success/20 bg-gi-status-success/10'
@@ -455,7 +455,7 @@ export const ToolResultCard: Component<{ toolCallId?: string | null; content?: s
 
           {/* 2. Text/Code Preview Standar */}
           <Show when={info().codePreview && !info().diffData}>
-            <div class="rounded-lg bg-black/40 border border-white/5 overflow-hidden">
+            <div class="bg-black/40 border border-white/5 overflow-hidden">
               <div class="flex items-center justify-between px-2.5 py-1 bg-white/[0.02] border-b border-white/5 text-2xs text-white/70">
                 <span>{info().filename || 'Output Data'}</span>
               </div>

@@ -331,16 +331,16 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
             <button
               type="button"
               onClick={props.onClose}
-              class="p-2 -ml-1 text-theme-muted hover:text-theme-text active:scale-90 transition-transform rounded-full"
+              class="p-2 -ml-1 text-theme-muted hover:text-theme-text active:scale-90 transition-transform"
               title="Back"
             >
               <ArrowLeft size={20} />
             </button>
             <div class="relative shrink-0">
-              <div class="w-9 h-9 rounded-full bg-gi-primary/15 border border-gi-primary/40 flex items-center justify-center text-gi-primary shadow-sm">
+              <div class="w-9 h-9 bg-gi-primary/15 border border-gi-primary/40 flex items-center justify-center text-gi-primary shadow-sm">
                 <Bot size={18} />
               </div>
-              <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-gi-status-success border-2 border-theme-surface animate-pulse" />
+              <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-gi-status-success border-2 border-theme-surface animate-pulse" />
             </div>
             <div class="flex flex-col min-w-0">
               <span class="text-sm font-bold text-theme-text truncate leading-tight">
@@ -356,7 +356,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
             <button
               type="button"
               onClick={() => initHistory()}
-              class="p-2 hover:text-gi-primary-hover transition-colors rounded-full"
+              class="p-2 hover:text-gi-primary-hover transition-colors"
               title="Refresh History"
             >
               <RefreshCw size={16} class={isLoadingMore() ? 'animate-spin' : ''} />
@@ -373,7 +373,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
           {/* Lazy Loading Indicator at Top */}
           <Show when={isLoadingMore() || isInitialLoading()}>
             <div class="flex items-center justify-center py-2">
-              <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-theme-surface border border-theme-border text-2xs text-theme-muted font-mono shadow-sm">
+              <div class="flex items-center gap-2 px-3 py-1 bg-theme-surface border border-theme-border text-2xs text-theme-muted font-mono shadow-sm">
                 <Loader2 size={12} class="animate-spin text-gi-primary" />
                 <span>Loading messages...</span>
               </div>
@@ -383,7 +383,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
           {/* Empty State */}
           <Show when={!isInitialLoading() && messages().length === 0}>
             <div class="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
-              <div class="w-14 h-14 rounded-full bg-theme-card border border-theme-border flex items-center justify-center text-theme-muted">
+              <div class="w-14 h-14 bg-theme-card border border-theme-border flex items-center justify-center text-theme-muted">
                 <Sparkles size={24} class="text-gi-primary/80" />
               </div>
               <div class="space-y-1">
@@ -409,8 +409,8 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                   <div
                     class={`relative max-w-[82%] sm:max-w-[70%] px-3.5 py-2 text-xs shadow-md select-text ${
                       isUser
-                        ? 'bg-gi-primary text-gi-primary-foreground font-medium rounded-2xl rounded-tr-xs'
-                        : 'bg-theme-card border border-theme-border text-theme-text rounded-2xl rounded-tl-xs'
+                        ? 'bg-gi-primary text-gi-primary-foreground font-medium rounded-tr-xs'
+                        : 'bg-theme-card border border-theme-border text-theme-text rounded-tl-xs'
                     }`}
                   >
                     {/* Speaker Header on Group/Bot */}
@@ -447,7 +447,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
         <footer 
           class="p-2.5 bg-gi-surface border-t border-theme-border/60 shrink-0 flex items-end w-full pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
         >
-          <div class="relative w-full max-w-full bg-gi-surface-elevated border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-1 focus-within:ring-gi-primary/30 rounded-2xl transition-all shadow-sm flex flex-col justify-between overflow-hidden">
+          <div class="relative w-full max-w-full bg-gi-surface-elevated border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-1 focus-within:ring-gi-primary/30 transition-all shadow-sm flex flex-col justify-between overflow-hidden">
             <textarea
               ref={inputRef}
               value={props.inputText}
@@ -475,7 +475,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                       props.onInputText('');
                       if (inputRef) adjustInputHeight(inputRef);
                     }}
-                    class="p-1 rounded-md text-theme-muted hover:text-theme-text active:scale-90 transition-transform cursor-pointer"
+                    class="p-1 text-theme-muted hover:text-theme-text active:scale-90 transition-transform cursor-pointer"
                     title="Clear message"
                   >
                     <X size={13} />
@@ -498,7 +498,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                   <button
                     type="button"
                     onClick={props.onToggleMic}
-                    class={`w-7 h-7 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-sm cursor-pointer ${
+                    class={`w-7 h-7 flex items-center justify-center transition-all active:scale-90 shadow-sm cursor-pointer ${
                       props.isListening
                         ? 'bg-gi-status-danger text-white animate-pulse shadow-gi-status-danger/30'
                         : 'bg-theme-surface border border-theme-border text-theme-muted hover:text-gi-primary-hover hover:border-gi-primary/50'
@@ -515,7 +515,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                   type="button"
                   onClick={handleSend}
                   disabled={!props.inputText.trim() || props.isSending}
-                  class="w-7 h-7 rounded-full bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed active:scale-90 transition-all shadow-md shadow-gi-primary/25 cursor-pointer"
+                  class="w-7 h-7 bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed active:scale-90 transition-all shadow-md shadow-gi-primary/25 cursor-pointer"
                   title="Send Message"
                 >
                   <Show when={props.isSending} fallback={<Send size={12} class="translate-x-px" />}>

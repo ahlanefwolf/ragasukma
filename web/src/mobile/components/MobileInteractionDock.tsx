@@ -37,8 +37,8 @@ export const MobileInteractionDock: Component<MobileInteractionDockProps> = (pro
             <Bot size={24} class={`stroke-[2.2] ${props.isAgentRunning ? 'animate-bounce' : ''}`} />
             <Show when={props.isAgentRunning}>
               <span class="absolute top-1.5 right-1.5 flex h-2 w-2">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-gi-primary opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-gi-primary"></span>
+                <span class="animate-ping absolute inline-flex h-full w-full bg-gi-primary opacity-75"></span>
+                <span class="relative inline-flex h-2 w-2 bg-gi-primary"></span>
               </span>
             </Show>
           </button>

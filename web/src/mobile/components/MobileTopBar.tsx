@@ -90,7 +90,7 @@ export const MobileTopBar: Component<MobileTopBarProps> = (props) => {
               class={`flex items-center gap-1 font-mono text-2xs font-semibold drop-shadow-sm opacity-80 ${ping.color}`}
               title={`Network Latency: ${ping.label}`}
             >
-              <span class={`w-1.5 h-1.5 rounded-full ${ping.dotColor} ${props.pingMs !== null ? 'animate-pulse' : ''}`} />
+              <span class={`w-1.5 h-1.5 ${ping.dotColor} ${props.pingMs !== null ? 'animate-pulse' : ''}`} />
               <span>{ping.label}</span>
             </div>
           );
@@ -102,7 +102,7 @@ export const MobileTopBar: Component<MobileTopBarProps> = (props) => {
         <button
           type="button"
           onClick={props.onOpenSettings}
-          class="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white/80 hover:text-white active:scale-90 transition-all flex items-center justify-center cursor-pointer shadow-[0_4px_16px_rgba(0,0,0,0.4)]"
+          class="w-10 h-10 bg-black/40 backdrop-blur-xl border border-white/10 text-white/80 hover:text-white active:scale-90 transition-all flex items-center justify-center cursor-pointer shadow-[0_4px_16px_rgba(0,0,0,0.4)]"
           title="Settings"
           aria-label="Settings"
         >

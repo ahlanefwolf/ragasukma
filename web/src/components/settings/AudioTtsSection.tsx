@@ -558,7 +558,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
                 step="0.01"
                 value={props.vadThreshold || 0.15}
                 onInput={(e) => props.setVadThreshold(parseFloat(e.currentTarget.value))}
-                class="flex-1 accent-gi-primary cursor-pointer h-1.5 bg-theme-border rounded-none"
+                class="flex-1 accent-gi-primary cursor-pointer h-1.5 bg-theme-border"
               />
               <span class="text-xs font-mono text-theme-text/50">Strict (50%)</span>
             </div>
