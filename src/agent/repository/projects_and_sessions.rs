@@ -106,8 +106,14 @@ pub async fn delete_project(id: &str) -> Result<()> {
 pub async fn list_sessions(project_id: &str) -> Result<Vec<Session>> {
     let pool = crate::llm::usage::get_pool().await;
     let sessions = sqlx::query_as::<_, Session>(
-        "SELECT id, project_id, title, status, model, temperature, source_chat_id, metadata, created_at, updated_at \
-         FROM sessions WHERE project_id = ?1 ORDER BY created_at DESC",
+        "SELECT s.id, s.project_id, s.title, s.status, s.model, s.temperature, s.source_chat_id, s.metadata, s.created_at, s.updated_at, \
+         COALESCE(SUM(m.token_usage_input), 0) AS total_tokens_input, \
+         COALESCE(SUM(m.token_usage_output), 0) AS total_tokens_output \
+         FROM sessions s \
+         LEFT JOIN messages m ON m.session_id = s.id \
+         WHERE s.project_id = ?1 \
+         GROUP BY s.id \
+         ORDER BY s.created_at DESC",
     )
     .bind(project_id)
     .fetch_all(pool)
@@ -118,8 +124,13 @@ pub async fn list_sessions(project_id: &str) -> Result<Vec<Session>> {
 pub async fn get_session(id: &str) -> Result<Option<Session>> {
     let pool = crate::llm::usage::get_pool().await;
     let session = sqlx::query_as::<_, Session>(
-        "SELECT id, project_id, title, status, model, temperature, source_chat_id, metadata, created_at, updated_at \
-         FROM sessions WHERE id = ?1",
+        "SELECT s.id, s.project_id, s.title, s.status, s.model, s.temperature, s.source_chat_id, s.metadata, s.created_at, s.updated_at, \
+         COALESCE(SUM(m.token_usage_input), 0) AS total_tokens_input, \
+         COALESCE(SUM(m.token_usage_output), 0) AS total_tokens_output \
+         FROM sessions s \
+         LEFT JOIN messages m ON m.session_id = s.id \
+         WHERE s.id = ?1 \
+         GROUP BY s.id",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -165,6 +176,8 @@ pub async fn create_session(
         metadata: "{}".to_string(),
         created_at: now,
         updated_at: now,
+        total_tokens_input: Some(0),
+        total_tokens_output: Some(0),
     })
 }
 

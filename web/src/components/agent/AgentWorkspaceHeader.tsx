@@ -54,49 +54,8 @@ export const AgentWorkspaceHeader: Component<{
           </div>
         </div>
 
-        {/* Quick Active Skills Pill Strip & Manage Button */}
-        <div class="flex items-center gap-2 flex-wrap sm:justify-end">
-          {/* Auto-detected Skills Pills from .agents/ */}
-          <div class="flex items-center gap-1.5 flex-wrap">
-            <For each={props.skills}>
-              {(skill) => (
-                <span
-                  class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium bg-theme-cyan/15 text-theme-cyan border border-theme-cyan/30 shadow-xs"
-                  title={`${skill.name}: ${skill.description || 'Auto-loaded skill from .skills/'}`}
-                >
-                  <Sparkles class="w-2.5 h-2.5 shrink-0 text-theme-cyan" />
-                  <span class="truncate max-w-[120px]">{skill.name}</span>
-                  <span class="text-2xs opacity-70 font-mono">@{skill.slug || 'skill'}</span>
-                </span>
-              )}
-            </For>
-
-            {/* Active MCP Server Pills */}
-            <For each={props.mcpServers.filter(s => props.activeProjectMcpServerIds.includes(s.id))}>
-              {(server) => (
-                <span
-                  class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium bg-gi-status-info/15 text-gi-status-info border border-gi-status-info/30 shadow-xs transition-all hover:bg-gi-status-info/25"
-                  title={`Active MCP Server: ${server.name} (${server.transport})`}
-                >
-                  <Server class="w-2.5 h-2.5 shrink-0 text-gi-status-info" />
-                  <span class="truncate max-w-[120px]">{server.name}</span>
-                  <button
-                    type="button"
-                    disabled={props.savingProjectMcpServers}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      props.onToggleProjectMcpServer(server.id);
-                    }}
-                    class="hover:text-gi-status-danger p-0.5 hover:bg-theme-bg/50 transition-colors"
-                    title="Disable this MCP server from workspace"
-                  >
-                    <X class="w-2.5 h-2.5" />
-                  </button>
-                </span>
-              )}
-            </For>
-          </div>
-
+        {/* Workspace Settings Button */}
+        <div class="flex items-center sm:justify-end shrink-0">
           <button
             type="button"
             onClick={props.onToggleWorkspaceSettings}

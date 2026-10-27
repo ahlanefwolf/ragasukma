@@ -106,6 +106,12 @@ pub struct Session {
     pub metadata: String, // JSON
     pub created_at: i64,
     pub updated_at: i64,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub total_tokens_input: Option<i64>,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub total_tokens_output: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

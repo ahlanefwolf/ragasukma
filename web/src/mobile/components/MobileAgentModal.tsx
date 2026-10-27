@@ -22,11 +22,18 @@ import {
   Trash2,
   CheckCheck,
   Sparkles,
+  Zap,
   X
 } from 'lucide-solid';
 import { agentService, AgentSession, AgentMessage, Project } from '../../services/agentService';
 import { MarkdownView } from '../../components/agent/MarkdownView';
 import { API_BASE } from '../../services/base';
+
+function formatTokens(num: number): string {
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}k`;
+  return num.toLocaleString();
+}
 
 export interface MobileAgentModalProps {
   isOpen: boolean;
@@ -1003,6 +1010,16 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                             <Show when={sess.model}>
                               <span class="shrink-0">•</span>
                               <span class="truncate max-w-[110px]">{sess.model}</span>
+                            </Show>
+                            <Show when={((sess.total_tokens_input || 0) + (sess.total_tokens_output || 0)) > 0}>
+                              <span class="shrink-0">•</span>
+                              <span
+                                class="inline-flex items-center gap-0.5 text-gi-status-warning shrink-0"
+                                title={`Tokens: ${((sess.total_tokens_input || 0) + (sess.total_tokens_output || 0)).toLocaleString()} (In: ${(sess.total_tokens_input || 0).toLocaleString()} • Out: ${(sess.total_tokens_output || 0).toLocaleString()})`}
+                              >
+                                <Zap size={10} class="shrink-0" />
+                                <span>{formatTokens((sess.total_tokens_input || 0) + (sess.total_tokens_output || 0))}</span>
+                              </span>
                             </Show>
                           </div>
                         </div>

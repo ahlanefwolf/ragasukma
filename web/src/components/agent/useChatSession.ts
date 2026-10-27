@@ -158,6 +158,22 @@ export function useChatSession(
             });
             onMessageReceived?.();
 
+            // Real-time update session token usage in sidebar
+            if (newMsg.token_usage_input || newMsg.token_usage_output) {
+              setSessions((prev) =>
+                prev.map((s) => {
+                  if (s.id === sessionId) {
+                    return {
+                      ...s,
+                      total_tokens_input: (s.total_tokens_input || 0) + (newMsg.token_usage_input || 0),
+                      total_tokens_output: (s.total_tokens_output || 0) + (newMsg.token_usage_output || 0),
+                    };
+                  }
+                  return s;
+                })
+              );
+            }
+
             if (newMsg.role === 'tool' && newMsg.content) {
               const content = newMsg.content;
               const isMutation = content.includes('"bytes_written"') || 
@@ -180,7 +196,12 @@ export function useChatSession(
                 markSessionRunning(sessionId, false);
                 if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
                 const pId = selectedProjectId();
-                if (pId) loadProjectFiles(pId);
+                if (pId) {
+                  loadProjectFiles(pId);
+                  agentService.getSessions(pId).then((latest) => {
+                    if (latest && latest.length > 0) setSessions(latest);
+                  }).catch(() => {});
+                }
               } else if (st === 'running') {
                 markSessionRunning(sessionId, true);
               }
@@ -191,7 +212,12 @@ export function useChatSession(
             markSessionRunning(sessionId, false);
             if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
             const pId = selectedProjectId();
-            if (pId) loadProjectFiles(pId);
+            if (pId) {
+              loadProjectFiles(pId);
+              agentService.getSessions(pId).then((latest) => {
+                if (latest && latest.length > 0) setSessions(latest);
+              }).catch(() => {});
+            }
           } else if (payload.type === 'error') {
             setStreamingText('');
             setStreamingThought('');

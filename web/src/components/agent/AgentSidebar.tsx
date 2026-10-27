@@ -13,10 +13,21 @@ import {
   Loader2, 
   Bot,
   ChevronsDown,
-  ChevronsUp
+  ChevronsUp,
+  Zap
 } from 'lucide-solid';
 import { Project, AgentSession, WorkspaceFileItem, parseProjectFolders } from '../../services';
 import { FileTreeNode, FileTreeNodeRow } from './FileTreeNodeRow';
+
+function formatTokens(num: number): string {
+  if (num >= 1_000_000) {
+    return `${(num / 1_000_000).toFixed(1)}M`;
+  }
+  if (num >= 1_000) {
+    return `${(num / 1_000).toFixed(1)}k`;
+  }
+  return num.toLocaleString();
+}
 
 export const AgentSidebar: Component<{
   projects: Project[];
@@ -166,6 +177,9 @@ export const AgentSidebar: Component<{
                 {(sess) => {
                   const isSelected = () => sess.id === props.selectedSessionId;
                   const isRunning = () => props.isSessionRunning(sess.id);
+                  const totalIn = () => sess.total_tokens_input || 0;
+                  const totalOut = () => sess.total_tokens_output || 0;
+                  const totalTokens = () => totalIn() + totalOut();
 
                   return (
                     <div
@@ -183,14 +197,24 @@ export const AgentSidebar: Component<{
                         </div>
                         <div class="text-2xs text-theme-text/70 flex items-center gap-1.5 mt-0.5">
                           <Show when={isRunning()}>
-                            <span class="text-2xs uppercase px-1.5 py-0.2 bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium flex items-center gap-1 animate-pulse">
+                            <span class="text-2xs uppercase px-1.5 py-0.2 bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium flex items-center gap-1 animate-pulse shrink-0">
                               <span class="w-1.5 h-1.5 bg-amber-400 animate-ping"></span>
                               running
                             </span>
                           </Show>
-                          <span class="text-2xs text-theme-text/70 truncate">
+                          <span class="text-2xs text-theme-text/70 truncate max-w-[110px]" title={sess.model || 'default'}>
                             {sess.model || 'default'}
                           </span>
+                          <Show when={totalTokens() > 0}>
+                            <span class="text-theme-text/30 shrink-0">•</span>
+                            <span
+                              class="inline-flex items-center gap-0.5 text-2xs font-mono font-medium text-gi-status-warning/90 hover:text-gi-status-warning transition-colors shrink-0"
+                              title={`Task Tokens:\n• Total: ${totalTokens().toLocaleString()}\n• Prompt: ${totalIn().toLocaleString()} in\n• Output: ${totalOut().toLocaleString()} out`}
+                            >
+                              <Zap class="w-2.5 h-2.5 text-gi-status-warning shrink-0" />
+                              <span>{formatTokens(totalTokens())}</span>
+                            </span>
+                          </Show>
                         </div>
                       </div>
 

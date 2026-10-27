@@ -61,6 +61,8 @@ export interface AgentSession {
   metadata?: string;
   created_at: number;
   updated_at: number;
+  total_tokens_input?: number;
+  total_tokens_output?: number;
 }
 
 export interface WorkspaceFileItem {

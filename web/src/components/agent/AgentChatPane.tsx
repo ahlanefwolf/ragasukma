@@ -178,24 +178,24 @@ export const AgentChatPane: Component<{
   const [exportMenuOpen, setExportMenuOpen] = createSignal(false);
   const [copiedTranscript, setCopiedTranscript] = createSignal(false);
 
-  // Calculate cumulative token usage up to each message
-  const messageCumulativeTokens = createMemo(() => {
+  // Calculate total session token usage
+  const sessionTokenStats = createMemo(() => {
     const msgs = props.visibleMessages || [];
     let runningIn = 0;
     let runningOut = 0;
-    const map = new Map<string, { totalIn: number; totalOut: number; total: number }>();
     for (const m of msgs) {
-      if (m.token_usage_input || m.token_usage_output) {
-        runningIn += (m.token_usage_input || 0);
-        runningOut += (m.token_usage_output || 0);
-        map.set(m.id, {
-          totalIn: runningIn,
-          totalOut: runningOut,
-          total: runningIn + runningOut,
-        });
-      }
+      if (m.token_usage_input) runningIn += m.token_usage_input;
+      if (m.token_usage_output) runningOut += m.token_usage_output;
     }
-    return map;
+    const sessIn = props.currentSession?.total_tokens_input || 0;
+    const sessOut = props.currentSession?.total_tokens_output || 0;
+    const finalIn = Math.max(runningIn, sessIn);
+    const finalOut = Math.max(runningOut, sessOut);
+    return {
+      totalIn: finalIn,
+      totalOut: finalOut,
+      total: finalIn + finalOut,
+    };
   });
 
   createEffect(() => {
@@ -589,6 +589,25 @@ export const AgentChatPane: Component<{
                 {props.currentSession?.status}
               </span>
             </Show>
+            <Show when={sessionTokenStats().total > 0}>
+              <div
+                class="flex items-center gap-1.5 px-2 py-0.5 text-2xs font-mono font-medium bg-white/5 border border-white/10 text-theme-text/80 select-none shadow-sm"
+                title={`Task Token Telemetry:\n• Total: ${sessionTokenStats().total.toLocaleString()} tokens\n• Input: ${sessionTokenStats().totalIn.toLocaleString()}\n• Output: ${sessionTokenStats().totalOut.toLocaleString()}`}
+              >
+                <Zap class="w-3 h-3 text-gi-status-warning shrink-0" />
+                <span class="text-gi-status-warning font-semibold">{sessionTokenStats().total.toLocaleString()}</span>
+                <span class="text-theme-text/40">tokens</span>
+                <span class="text-theme-text/25">•</span>
+                <span class="text-gi-status-info/80 flex items-center gap-0.5">
+                  <ArrowDownToLine class="w-2.5 h-2.5 shrink-0" />
+                  <span>{sessionTokenStats().totalIn.toLocaleString()} in</span>
+                </span>
+                <span class="text-gi-status-success/80 flex items-center gap-0.5">
+                  <ArrowUpToLine class="w-2.5 h-2.5 shrink-0" />
+                  <span>{sessionTokenStats().totalOut.toLocaleString()} out</span>
+                </span>
+              </div>
+            </Show>
             <Show when={sessionModifiedFiles().length > 0}>
               <button
                 type="button"
@@ -945,38 +964,6 @@ export const AgentChatPane: Component<{
                         <MarkdownView content={msg.content || ''} />
                       </Show>
                     </div>
-                  </Show>
-
-                  {/* Telemetry Badge (Cumulative Token Usage) */}
-                  <Show when={msg.role === 'assistant' && (msg.token_usage_input || msg.token_usage_output)}>
-                    {(() => {
-                      const stats = () => messageCumulativeTokens().get(msg.id) || {
-                        totalIn: msg.token_usage_input || 0,
-                        totalOut: msg.token_usage_output || 0,
-                        total: (msg.token_usage_input || 0) + (msg.token_usage_output || 0),
-                      };
-                      return (
-                        <div
-                          class="flex items-center gap-2 text-2xs text-theme-text/60 font-mono px-1 select-none"
-                          title={`Cumulative: ${stats().total.toLocaleString()} tokens (Step: ${((msg.token_usage_input || 0) + (msg.token_usage_output || 0)).toLocaleString()})`}
-                        >
-                          <span class="flex items-center gap-1 text-gi-status-warning/90 font-medium">
-                            <Zap class="w-3 h-3 text-gi-status-warning shrink-0" />
-                            <span>{stats().total.toLocaleString()}</span>
-                            <span class="text-theme-text/40 font-normal">total</span>
-                          </span>
-                          <span class="text-theme-text/25">•</span>
-                          <span class="flex items-center gap-1 text-gi-status-info/80">
-                            <ArrowDownToLine class="w-3 h-3 shrink-0" />
-                            <span>{stats().totalIn.toLocaleString()} in</span>
-                          </span>
-                          <span class="flex items-center gap-1 text-gi-status-success/80">
-                            <ArrowUpToLine class="w-3 h-3 shrink-0" />
-                            <span>{stats().totalOut.toLocaleString()} out</span>
-                          </span>
-                        </div>
-                      );
-                    })()}
                   </Show>
                 </div>
               </Show>
