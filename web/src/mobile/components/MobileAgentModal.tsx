@@ -147,6 +147,48 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
   const [streamingThought, setStreamingThought] = createSignal<string>('');
   const [promptText, setPromptText] = createSignal<string>('');
 
+  // High-performance RAF micro-batching accumulators for mobile smoothness (prevents 60-100 updates/sec DOM churn)
+  let pendingTextBuffer = '';
+  let pendingThoughtBuffer = '';
+  let streamRafHandle: number | null = null;
+
+  const flushStreamingBuffers = () => {
+    let hasUpdated = false;
+    if (pendingTextBuffer) {
+      const chunk = pendingTextBuffer;
+      pendingTextBuffer = '';
+      setStreamingText((prev) => prev + chunk);
+      hasUpdated = true;
+    }
+    if (pendingThoughtBuffer) {
+      const chunk = pendingThoughtBuffer;
+      pendingThoughtBuffer = '';
+      setStreamingThought((prev) => prev + chunk);
+      hasUpdated = true;
+    }
+    streamRafHandle = null;
+    if (hasUpdated && isUserAtBottom && scrollContainerRef) {
+      scrollContainerRef.scrollTop = scrollContainerRef.scrollHeight;
+    }
+  };
+
+  const scheduleStreamUpdate = () => {
+    if (streamRafHandle === null) {
+      streamRafHandle = requestAnimationFrame(flushStreamingBuffers);
+    }
+  };
+
+  const clearStreamingState = () => {
+    if (streamRafHandle !== null) {
+      cancelAnimationFrame(streamRafHandle);
+      streamRafHandle = null;
+    }
+    pendingTextBuffer = '';
+    pendingThoughtBuffer = '';
+    setStreamingText('');
+    setStreamingThought('');
+  };
+
   const [collapsedThoughts, setCollapsedThoughts] = createSignal<Set<string>>(new Set<string>());
   const [showScrollBottomBtn, setShowScrollBottomBtn] = createSignal(false);
   let isUserAtBottom = true;
@@ -221,20 +263,14 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
     if (!scrollContainerRef) return;
     if (!force && !isUserAtBottom) return;
 
-    // Double requestAnimationFrame ensures layout reflow commits before assigning scrollTop
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!scrollContainerRef) return;
-        if (behavior === 'smooth') {
-          scrollContainerRef.scrollTo({
-            top: scrollContainerRef.scrollHeight,
-            behavior: 'smooth',
-          });
-        } else {
-          scrollContainerRef.scrollTop = scrollContainerRef.scrollHeight;
-        }
+    if (behavior === 'smooth') {
+      scrollContainerRef.scrollTo({
+        top: scrollContainerRef.scrollHeight,
+        behavior: 'smooth',
       });
-    });
+    } else {
+      scrollContainerRef.scrollTop = scrollContainerRef.scrollHeight;
+    }
   };
 
   const loadOlderMessages = async () => {
@@ -297,28 +333,18 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
     }
   };
 
-  // Reactive autoscroll on streaming text / thought
-  createEffect(() => {
-    const text = streamingText();
-    const thought = streamingThought();
-    if (text || thought) {
-      scrollToBottom('auto');
-    }
-  });
-
   // Reactive autoscroll on message list changes
   createEffect(() => {
     const msgs = messages();
     if (msgs.length > 0 && isUserAtBottom) {
-      scrollToBottom('smooth');
-      setTimeout(() => scrollToBottom('auto'), 120);
+      scrollToBottom('auto');
     }
   });
 
   // Reactive autoscroll on agent step progress
   createEffect(() => {
     if (currentStep() && isUserAtBottom) {
-      scrollToBottom('smooth');
+      scrollToBottom('auto');
     }
   });
 
@@ -373,6 +399,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
 
   const closeSSE = () => {
     lastSseEventTime = 0;
+    clearStreamingState();
     if (sseReconnectTimer) {
       clearTimeout(sseReconnectTimer);
       sseReconnectTimer = null;
@@ -483,22 +510,21 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
       case 'token_delta': {
         const delta = event.data?.delta ?? event.delta ?? event.content ?? '';
         if (delta) {
-          setStreamingText((prev) => prev + delta);
-          scrollToBottom();
+          pendingTextBuffer += delta;
+          scheduleStreamUpdate();
         }
         break;
       }
       case 'thought_delta': {
         const thought = event.data?.delta ?? event.delta ?? event.thought ?? '';
         if (thought) {
-          setStreamingThought((prev) => prev + thought);
-          scrollToBottom();
+          pendingThoughtBuffer += thought;
+          scheduleStreamUpdate();
         }
         break;
       }
       case 'stream_reset': {
-        setStreamingText('');
-        setStreamingThought('');
+        clearStreamingState();
         break;
       }
       case 'step':
@@ -515,7 +541,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
           'Agent processing...';
         setCurrentStep(stepDetail);
         setIsExecuting(true);
-        scrollToBottom();
+        if (isUserAtBottom) scrollToBottom('auto');
         break;
       }
       case 'tool_call_start':
@@ -524,23 +550,11 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
         break;
       case 'tool_call_end':
         setCurrentStep(null);
-        if (selectedSessionId()) {
-          agentService.getMessages(selectedSessionId()!, { limit: PAGE_SIZE }).then((latest) => {
-            if (latest.length > 0) {
-              setMessages((prev) => {
-                const map = new Map(prev.map(m => [m.id, m]));
-                for (const m of latest) map.set(m.id, m);
-                return Array.from(map.values()).sort((a, b) => a.sequence_num - b.sequence_num);
-              });
-            }
-          }).catch(() => {});
-        }
         break;
       case 'message':
       case 'message_complete':
       case 'message_created': {
-        setStreamingText('');
-        setStreamingThought('');
+        clearStreamingState();
         const msgData = event.data?.message || event.data || event.message;
         if (msgData && msgData.id) {
           const newMsg: AgentMessage = msgData;
@@ -553,7 +567,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
             }
             return [...prev, newMsg];
           });
-          scrollToBottom();
+          if (isUserAtBottom) scrollToBottom('auto');
         }
         break;
       }
@@ -596,8 +610,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
       case 'ping':
         break;
       case 'done': {
-        setStreamingText('');
-        setStreamingThought('');
+        clearStreamingState();
         setIsExecuting(false);
         setCurrentStep(null);
         const sid = selectedSessionId();
@@ -609,8 +622,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
         break;
       }
       case 'error': {
-        setStreamingText('');
-        setStreamingThought('');
+        clearStreamingState();
         setIsExecuting(false);
         setCurrentStep(null);
         break;
@@ -1333,8 +1345,8 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                     adjustInputHeight(e.currentTarget);
                   }}
                   onKeyDown={(e) => {
-                    // Send prompt on Ctrl+Enter or Cmd+Enter
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    // Send prompt on Enter (without Shift), Shift+Enter creates a newline
+                    if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
                       if (!isExecuting()) {
                         handleSendPrompt();
@@ -1342,7 +1354,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                       return;
                     }
 
-                    // Plain Enter: allow newline (pindah baris) and expand textarea smoothly
+                    // Shift+Enter: allow newline and expand textarea smoothly
                     if (e.key === 'Enter') {
                       requestAnimationFrame(() => {
                         if (inputRef) adjustInputHeight(inputRef);
@@ -1384,7 +1396,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                     </Show>
                     <Show when={!isExecuting() && promptText().length === 0}>
                       <span class="text-[11px] font-mono text-theme-muted/40 hidden sm:inline">
-                        Enter for newline • Ctrl+Enter to send
+                        ↵ send • shift+↵ line
                       </span>
                     </Show>
                   </div>

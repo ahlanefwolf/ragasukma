@@ -773,13 +773,20 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
     speechRec.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
       if (transcript && transcript.trim()) {
+        const spoken = transcript.trim();
         // Release STT mic immediately so Android exits Voice Telephony mode back to Media Hi-Fi
         try {
           speechRec.abort();
         } catch {}
         setIsHpMicListening(false);
-        setInputText(transcript.trim());
-        sendTextToHost(transcript.trim());
+        setInputText(spoken);
+        setIncomingChatMessage({
+          id: `user_mic_${Date.now()}`,
+          sender: 'user',
+          text: spoken,
+          emotion: 'neutral',
+        });
+        sendTextToHost(spoken);
       }
     };
 

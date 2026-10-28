@@ -568,9 +568,13 @@ export const AgentChatPane: Component<{
     }
   };
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (smooth = true) => {
     if (messagesContainerEl) {
-      messagesContainerEl.scrollTo({ top: messagesContainerEl.scrollHeight, behavior: 'smooth' });
+      if (smooth) {
+        messagesContainerEl.scrollTo({ top: messagesContainerEl.scrollHeight, behavior: 'smooth' });
+      } else {
+        messagesContainerEl.scrollTop = messagesContainerEl.scrollHeight;
+      }
     }
   };
 
@@ -1021,7 +1025,7 @@ export const AgentChatPane: Component<{
       <Show when={isScrolledUp()}>
         <button
           type="button"
-          onClick={scrollToBottom}
+          onClick={() => scrollToBottom(true)}
           class="absolute right-6 bottom-24 z-30 flex items-center gap-1.5 px-3 py-1.5 bg-gi-primary hover:bg-gi-primary-hover active:scale-95 text-gi-primary-foreground text-xs font-semibold shadow-xl border border-gi-primary-hover/40 backdrop-blur-md transition-all hover:scale-105 select-none"
           title="Jump to latest message"
         >

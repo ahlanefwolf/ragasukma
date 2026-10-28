@@ -320,6 +320,8 @@ pub(crate) struct HistoryViewQuery {
     pub(crate) page: Option<usize>,
     #[serde(default)]
     pub(crate) limit: Option<usize>,
+    #[serde(default)]
+    pub(crate) order: Option<String>,
 }
 
 pub(crate) async fn axum_get_history_view(Query(q): Query<HistoryViewQuery>) -> impl IntoResponse {
@@ -345,7 +347,7 @@ pub(crate) async fn axum_get_history_view(Query(q): Query<HistoryViewQuery>) -> 
 
     let page = q.page.unwrap_or(1);
     let limit = q.limit.unwrap_or(20);
-    let paginated = crate::llm::history::get_history_by_date_paginated(&target_date, page, limit).await;
+    let paginated = crate::llm::history::get_history_by_date_paginated(&target_date, page, limit, q.order.as_deref()).await;
     Json(paginated).into_response()
 }
 
@@ -389,6 +391,10 @@ pub(crate) async fn axum_chat_events_sse() -> impl IntoResponse {
         });
         yield Ok::<_, std::convert::Infallible>(format!("data: {}\n\n", init_json));
 
+        // Persistent keep-alive ping interval (prevents reallocating timer futures on every token)
+        let mut ping_interval = tokio::time::interval(std::time::Duration::from_secs(3));
+        ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
         loop {
             tokio::select! {
                 res = rx.recv() => {
@@ -411,7 +417,7 @@ pub(crate) async fn axum_chat_events_sse() -> impl IntoResponse {
                         }
                     }
                 }
-                _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
+                _ = ping_interval.tick() => {
                     // Send periodic keep-alive event every 3s to flush Cloudflare & proxy buffers
                     yield Ok("event: ping\ndata: {}\n\n".to_string());
                 }

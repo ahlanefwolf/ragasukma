@@ -66,13 +66,55 @@ export function useChatSession(
   const [filePreview, setFilePreview] = createSignal<string | null>(null);
   const [loadingFilePreview, setLoadingFilePreview] = createSignal(false);
 
-  // SSE Real-time Streaming State
+  // SSE Real-time Streaming State & Micro-batching Buffers
   let activeEventSource: EventSource | null = null;
   let sseReconnectTimer: any = null;
   let sseRetryCount = 0;
   const [currentStepInfo, setCurrentStepInfo] = createSignal<string | null>(null);
   const [streamingText, setStreamingText] = createSignal('');
   const [streamingThought, setStreamingThought] = createSignal('');
+
+  // High-performance RAF accumulators to batch high-frequency token events at ~60fps
+  let pendingTextBuffer = '';
+  let pendingThoughtBuffer = '';
+  let streamRafHandle: number | null = null;
+
+  const flushStreamingBuffers = (onMessageReceived?: () => void) => {
+    let hasUpdated = false;
+    if (pendingTextBuffer) {
+      const chunk = pendingTextBuffer;
+      pendingTextBuffer = '';
+      setStreamingText((prev) => prev + chunk);
+      hasUpdated = true;
+    }
+    if (pendingThoughtBuffer) {
+      const chunk = pendingThoughtBuffer;
+      pendingThoughtBuffer = '';
+      setStreamingThought((prev) => prev + chunk);
+      hasUpdated = true;
+    }
+    streamRafHandle = null;
+    if (hasUpdated && onMessageReceived) {
+      onMessageReceived();
+    }
+  };
+
+  const scheduleStreamUpdate = (onMessageReceived?: () => void) => {
+    if (streamRafHandle === null) {
+      streamRafHandle = requestAnimationFrame(() => flushStreamingBuffers(onMessageReceived));
+    }
+  };
+
+  const clearStreamingState = () => {
+    if (streamRafHandle !== null) {
+      cancelAnimationFrame(streamRafHandle);
+      streamRafHandle = null;
+    }
+    pendingTextBuffer = '';
+    pendingThoughtBuffer = '';
+    setStreamingText('');
+    setStreamingThought('');
+  };
 
   // Dynamic Models
   const [activeSessionModel, setActiveSessionModel] = createSignal('');
@@ -108,6 +150,7 @@ export function useChatSession(
   });
 
   const connectSessionSse = (sessionId: string, onMessageReceived?: () => void) => {
+    clearStreamingState();
     if (activeEventSource) {
       activeEventSource.close();
       activeEventSource = null;
@@ -134,18 +177,19 @@ export function useChatSession(
           if (payload.type === 'delta') {
             const delta = payload.data?.delta || '';
             if (delta) {
-              setStreamingText((prev) => prev + delta);
-              onMessageReceived?.();
+              pendingTextBuffer += delta;
+              scheduleStreamUpdate(onMessageReceived);
             }
           } else if (payload.type === 'thought_delta') {
             const delta = payload.data?.delta || '';
             if (delta) {
-              setStreamingThought((prev) => prev + delta);
-              onMessageReceived?.();
+              pendingThoughtBuffer += delta;
+              scheduleStreamUpdate(onMessageReceived);
             }
+          } else if (payload.type === 'stream_reset') {
+            clearStreamingState();
           } else if (payload.type === 'message') {
-            setStreamingText('');
-            setStreamingThought('');
+            clearStreamingState();
             const newMsg: AgentMessage = payload.data;
             setMessages((prev) => {
               const idx = prev.findIndex((m) => m.id === newMsg.id);
@@ -207,8 +251,7 @@ export function useChatSession(
               }
             }
           } else if (payload.type === 'done') {
-            setStreamingText('');
-            setStreamingThought('');
+            clearStreamingState();
             markSessionRunning(sessionId, false);
             if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
             const pId = selectedProjectId();
@@ -219,8 +262,7 @@ export function useChatSession(
               }).catch(() => {});
             }
           } else if (payload.type === 'error') {
-            setStreamingText('');
-            setStreamingThought('');
+            clearStreamingState();
             markSessionRunning(sessionId, false);
             if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
             showToast(payload.data?.message || 'An error occurred in the agent execution');
@@ -261,6 +303,7 @@ export function useChatSession(
   };
 
   onCleanup(() => {
+    clearStreamingState();
     if (activeEventSource) {
       activeEventSource.close();
       activeEventSource = null;
@@ -348,7 +391,7 @@ export function useChatSession(
   };
 
   const selectSession = async (sess: AgentSession) => {
-    setStreamingText('');
+    clearStreamingState();
     setSelectedSessionId(sess.id);
     localStorage.setItem('ragasukma_active_session_id', sess.id);
     if (sess.model) {

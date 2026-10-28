@@ -586,6 +586,10 @@ async fn session_events_sse(
         });
         yield Ok::<_, std::convert::Infallible>(format!("data: {}\n\n", init_json));
 
+        // Persistent keep-alive ping interval (prevents reallocating timer futures on every token)
+        let mut ping_interval = tokio::time::interval(std::time::Duration::from_secs(3));
+        ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
         loop {
             tokio::select! {
                 res = rx.recv() => {
@@ -604,7 +608,7 @@ async fn session_events_sse(
                         }
                     }
                 }
-                _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
+                _ = ping_interval.tick() => {
                     // Send periodic keep-alive event every 3s to flush Cloudflare & proxy buffers
                     yield Ok("event: ping\ndata: {}\n\n".to_string());
                 }

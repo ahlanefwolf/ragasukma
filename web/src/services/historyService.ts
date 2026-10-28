@@ -6,6 +6,7 @@ export interface ChatTurnItem {
   message: string;
   id?: string;
   timestamp?: number;
+  emotion?: string;
 }
 
 export interface ChatHistoryDay {
@@ -30,12 +31,13 @@ export const historyService = {
     }
   },
 
-  async getHistoryByDate(date?: string, page = 1, limit = 20): Promise<ChatHistoryDay> {
+  async getHistoryByDate(date?: string, page = 1, limit = 20, order?: 'asc' | 'desc'): Promise<ChatHistoryDay> {
     try {
       const params = new URLSearchParams();
       if (date) params.append('date', date);
       params.append('page', page.toString());
       params.append('limit', limit.toString());
+      if (order) params.append('order', order);
 
       const url = `${API_BASE}/api/history/view?${params.toString()}`;
       const res = await fetchWithTimeout(url);

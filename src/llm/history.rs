@@ -271,6 +271,7 @@ pub async fn get_history_by_date_paginated(
     target_date: &str,
     page: usize,
     limit: usize,
+    order: Option<&str>,
 ) -> ChatHistoryPaginatedResponse {
     let pool = crate::llm::usage::get_pool().await;
     let page = page.max(1);
@@ -296,15 +297,32 @@ pub async fn get_history_by_date_paginated(
         total_rows.div_ceil(limit)
     };
 
-    let rows = sqlx::query_as::<_, ChatHistoryRecord>(
-        "SELECT * FROM chat_history WHERE date_str = ? ORDER BY timestamp ASC, id ASC LIMIT ? OFFSET ?",
-    )
-    .bind(target_date)
-    .bind(limit as i64)
-    .bind(offset as i64)
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    let is_desc = order.map(|s| s.eq_ignore_ascii_case("desc")).unwrap_or(false);
+
+    let rows = if is_desc {
+        let mut r = sqlx::query_as::<_, ChatHistoryRecord>(
+            "SELECT * FROM chat_history WHERE date_str = ? ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?",
+        )
+        .bind(target_date)
+        .bind(limit as i64)
+        .bind(offset as i64)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+        // Reverse so that inside the returned slice, messages remain chronological (older to newer)
+        r.reverse();
+        r
+    } else {
+        sqlx::query_as::<_, ChatHistoryRecord>(
+            "SELECT * FROM chat_history WHERE date_str = ? ORDER BY timestamp ASC, id ASC LIMIT ? OFFSET ?",
+        )
+        .bind(target_date)
+        .bind(limit as i64)
+        .bind(offset as i64)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default()
+    };
 
     let mut turns = Vec::with_capacity(rows.len() * 2);
     for r in rows {

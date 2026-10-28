@@ -83,15 +83,16 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
     });
   });
 
-  const scrollToBottom = () => {
-    requestAnimationFrame(() => {
-      if (scrollContainerRef) {
-        scrollContainerRef.scrollTo({
-          top: scrollContainerRef.scrollHeight,
-          behavior: 'smooth',
-        });
-      }
-    });
+  const scrollToBottom = (smooth = false) => {
+    if (!scrollContainerRef) return;
+    if (smooth) {
+      scrollContainerRef.scrollTo({
+        top: scrollContainerRef.scrollHeight,
+        behavior: 'smooth',
+      });
+    } else {
+      scrollContainerRef.scrollTop = scrollContainerRef.scrollHeight;
+    }
   };
 
   const loadHistoryPage = async (page: number, dateStr?: string, preserveScroll = false) => {
@@ -102,12 +103,21 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
     const prevScrollTop = scrollContainerRef ? scrollContainerRef.scrollTop : 0;
 
     try {
-      const dayData = await historyService.getHistoryByDate(dateStr, page, 25);
+      const dayData = await historyService.getHistoryByDate(dateStr, page, 25, 'desc');
       const incomingTurns = dayData.turns || [];
 
       if (incomingTurns.length > 0) {
         if (page === 1 && !preserveScroll) {
-          setMessages(incomingTurns);
+          setMessages((prev) => {
+            if (prev.length === 0) return incomingTurns;
+            // Retain recent optimistic local messages (sent in last 60s) that have not yet been stored in DB
+            const incomingTextMap = new Set(incomingTurns.map((m) => m.message.trim()));
+            const pendingLocal = prev.filter((m) => {
+              const isRecent = m.timestamp && (Math.floor(Date.now() / 1000) - m.timestamp) < 60;
+              return isRecent && !incomingTextMap.has(m.message.trim());
+            });
+            return [...incomingTurns, ...pendingLocal];
+          });
         } else {
           // Prepend older history to the top without duplicates
           setMessages(prev => {
@@ -149,7 +159,10 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
       const dates = await historyService.getHistoryDates();
       setHistoryDates(dates);
       setCurrentDateIndex(0);
-      const targetDate = dates.length > 0 ? dates[0] : undefined;
+      // Use latest date from history, or default to today's local date (YYYY-MM-DD)
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const targetDate = dates.length > 0 ? dates[0] : todayStr;
       await loadHistoryPage(1, targetDate, false);
     } catch {
       setIsInitialLoading(false);
@@ -176,42 +189,50 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
     }
   };
 
+  // Helper to match user speaker aliases (You, user, me, callsign)
+  const isUserSpeaker = (speaker: string) => {
+    const s = (speaker || '').toLowerCase().trim();
+    const callsign = (props.callsign || '').toLowerCase().trim();
+    return s === 'you' || s === 'user' || s === 'me' || (callsign !== '' && s === callsign);
+  };
+
+  const isSameSpeaker = (s1: string, s2: string) => {
+    if (s1.toLowerCase().trim() === s2.toLowerCase().trim()) return true;
+    if (isUserSpeaker(s1) && isUserSpeaker(s2)) return true;
+    if (!isUserSpeaker(s1) && !isUserSpeaker(s2)) return true;
+    return false;
+  };
+
   createEffect(() => {
     if (props.isOpen) {
       initHistory();
       setTimeout(() => {
         if (inputRef) inputRef.focus();
-        scrollToBottom();
+        scrollToBottom(false);
       }, 250);
-
-      // Helper to match user speaker aliases (You, user, callsign)
-      const isUserSpeaker = (speaker: string) => {
-        const s = (speaker || '').toLowerCase();
-        const callsign = (props.callsign || '').toLowerCase();
-        return s === 'you' || s === 'user' || (callsign !== '' && s === callsign);
-      };
-
-      const isSameSpeaker = (s1: string, s2: string) => {
-        if (s1.toLowerCase() === s2.toLowerCase()) return true;
-        if (isUserSpeaker(s1) && isUserSpeaker(s2)) return true;
-        return false;
-      };
 
       // Connect to native Axum Tokio SSE stream for real-time chat turns
       const unsubscribeSSE = historyService.subscribeChatEvents((item) => {
         setMessages((prev) => {
-          // Find matching message by exact ID or by speaker + text + timestamp proximity
+          // Find matching message by exact ID or by speaker + text similarity / timestamp proximity
           const existingIndex = prev.findIndex((m) => {
             if (item.id && m.id && item.id === m.id) return true;
-            return (
-              isSameSpeaker(m.speaker, item.speaker) &&
-              m.message.trim() === item.message.trim() &&
-              Math.abs((m.timestamp || 0) - (item.timestamp || 0)) <= 10
-            );
+            if (isSameSpeaker(m.speaker, item.speaker)) {
+              if (m.message.trim() === item.message.trim()) return true;
+              // If local message was a TTS chunk or substring of the complete server turn
+              if (item.message.includes(m.message.trim()) && Math.abs((m.timestamp || 0) - (item.timestamp || 0)) <= 25) {
+                return true;
+              }
+              // Proximity match within 15 seconds
+              if (Math.abs((m.timestamp || 0) - (item.timestamp || 0)) <= 15) {
+                return true;
+              }
+            }
+            return false;
           });
 
           if (existingIndex !== -1) {
-            // Replace optimistic local message with verified server record
+            // Replace optimistic / partial message with verified server record
             const updated = [...prev];
             updated[existingIndex] = { ...updated[existingIndex], ...item };
             return updated;
@@ -221,9 +242,9 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
         });
 
         if (scrollContainerRef) {
-          const isNearBottom = scrollContainerRef.scrollHeight - scrollContainerRef.scrollTop - scrollContainerRef.clientHeight < 150;
+          const isNearBottom = scrollContainerRef.scrollHeight - scrollContainerRef.scrollTop - scrollContainerRef.clientHeight < 120;
           if (isNearBottom) {
-            scrollToBottom();
+            requestAnimationFrame(() => scrollToBottom(false));
           }
         }
       });
@@ -242,7 +263,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
     }
   });
 
-  // Listen to incoming real-time messages from SSE / action stream
+  // Listen to incoming real-time messages from action stream (e.g. WebSocket speech actions)
   createEffect(() => {
     const inc = props.incomingMessage;
     if (!inc || !inc.text) return;
@@ -250,16 +271,45 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
     const now = new Date();
     const timeStr = inc.time || `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const speakerName = inc.sender === 'user' ? (props.callsign || 'You') : (props.assistantName || 'Assistant');
+    const isAssistant = inc.sender === 'assistant';
 
     setMessages((prev) => {
-      // Check if this message was already appended
+      // 1. Check if exact ID was already appended
       if (inc.id && prev.some((m) => m.id === inc.id)) {
         return prev;
       }
+
+      // 2. If this is an assistant speech chunk from an ongoing speech stream, merge or append
+      if (isAssistant && prev.length > 0) {
+        const last = prev[prev.length - 1];
+        if (!isUserSpeaker(last.speaker) && Math.abs((last.timestamp || 0) - Math.floor(Date.now() / 1000)) <= 5) {
+          // If the last message already contains or equals this chunk, skip
+          if (last.message.includes(inc.text.trim())) {
+            return prev;
+          }
+          // Concatenate chunk to the ongoing assistant bubble
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            ...last,
+            message: `${last.message} ${inc.text.trim()}`.trim(),
+            emotion: inc.emotion || last.emotion,
+          };
+          return updated;
+        }
+      }
+
+      // 3. Duplicate check within 4s for same speaker and text
+      const isDupe = prev.some((m) => 
+        isSameSpeaker(m.speaker, speakerName) &&
+        m.message.trim() === inc.text.trim() &&
+        Math.abs((m.timestamp || 0) - Math.floor(Date.now() / 1000)) <= 4
+      );
+      if (isDupe) return prev;
+
       return [
         ...prev,
         {
-          id: inc.id,
+          id: inc.id || `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           time: timeStr,
           speaker: speakerName,
           message: inc.text,
@@ -269,17 +319,24 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
       ];
     });
 
-    scrollToBottom();
+    if (scrollContainerRef) {
+      const isNearBottom = scrollContainerRef.scrollHeight - scrollContainerRef.scrollTop - scrollContainerRef.clientHeight < 120;
+      if (isNearBottom) {
+        requestAnimationFrame(() => scrollToBottom(false));
+      }
+    }
   });
 
   const handleSend = () => {
     const text = props.inputText.trim();
     if (!text || props.isSending) return;
 
-    // Optimistically push the sent user message
+    // Optimistically push the sent user message with unique ID
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const localId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const userTurn: ChatTurnItem = {
+      id: localId,
       time: timeStr,
       speaker: props.callsign || 'You',
       message: text,
@@ -287,23 +344,30 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
     };
 
     setMessages(prev => [...prev, userTurn]);
+    
+    // Immediately clear input for snappy UI feedback
+    props.onInputText('');
+    if (inputRef) {
+      inputRef.style.height = 'auto';
+    }
+    
     props.onSend(text);
 
-    // Auto-scroll to bottom
+    // Smooth auto-scroll to bottom on user send
     requestAnimationFrame(() => {
-      scrollToBottom();
+      scrollToBottom(true);
     });
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    // Send message on Ctrl+Enter or Cmd+Enter
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    // Send message on Enter (without Shift), Shift+Enter creates a newline
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
       return;
     }
 
-    // Plain Enter: allow newline (pindah baris) and expand textarea smoothly
+    // Shift+Enter: allow newline (pindah baris) and expand textarea smoothly
     if (e.key === 'Enter') {
       requestAnimationFrame(() => {
         if (inputRef) adjustInputHeight(inputRef);
@@ -497,7 +561,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                 </Show>
                 <Show when={props.inputText.length === 0}>
                   <span class="text-[11px] font-mono text-theme-muted/40 hidden sm:inline">
-                    Enter for newline • Ctrl+Enter to send
+                    ↵ send • shift+↵ line
                   </span>
                 </Show>
               </div>
