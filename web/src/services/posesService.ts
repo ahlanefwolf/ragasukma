@@ -15,6 +15,9 @@ export type PosesConfig = Record<string, PoseKeyframes>;
 let liveTunerAbortController: AbortController | null = null;
 let tunerWs: WebSocket | null = null;
 let tunerWsConnecting = false;
+let lastLiveEmotion: string | undefined = undefined;
+let lastLiveState: string | undefined = undefined;
+let lastHttpFallbackTime = 0;
 
 function getTunerWs(): WebSocket | null {
   if (typeof window === 'undefined') return null;
@@ -100,18 +103,40 @@ export const posesService = {
     const ws = getTunerWs();
     if (ws && ws.readyState === WebSocket.OPEN) {
       try {
-        ws.send(JSON.stringify({
+        const payload: Record<string, any> = {
           type: 'tuner_live',
           active,
           bones,
-          emotion,
-          state,
-        }));
+        };
+
+        // Kirim emotion dan state hanya jika berubah agar payload 60 FPS tetap minimalis
+        if (active) {
+          if (emotion !== undefined && emotion !== lastLiveEmotion) {
+            payload.emotion = emotion;
+            lastLiveEmotion = emotion;
+          }
+          if (state !== undefined && state !== lastLiveState) {
+            payload.state = state;
+            lastLiveState = state;
+          }
+        } else {
+          // Reset cache saat live tuning dinonaktifkan
+          lastLiveEmotion = undefined;
+          lastLiveState = undefined;
+        }
+
+        ws.send(JSON.stringify(payload));
         return true;
       } catch {}
     }
 
-    // 2. HTTP Fallback
+    // 2. HTTP Fallback (Throttled minimal 80ms agar tidak membombardir server jika WS putus)
+    const now = Date.now();
+    if (now - lastHttpFallbackTime < 80) {
+      return true; // Skip dropped frame saat HTTP fallback
+    }
+    lastHttpFallbackTime = now;
+
     if (liveTunerAbortController) {
       liveTunerAbortController.abort();
     }

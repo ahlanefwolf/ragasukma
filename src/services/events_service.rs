@@ -77,8 +77,16 @@ async fn handle_ws_socket(socket: WebSocket, shared: Arc<Mutex<ServerSharedState
     let (push_tx, mut push_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
 
     let push_task = tokio::spawn(async move {
+        let mut tick_counter: u64 = 0;
+        let mut is_model_busy = false;
+
         loop {
-            crate::app_state::touch_remote_active();
+            tick_counter = tick_counter.wrapping_add(1);
+
+            // Throttle touch remote active ke ~1 detik sekali (bukan tiap 50ms)
+            if tick_counter.is_multiple_of(20) {
+                crate::app_state::touch_remote_active();
+            }
 
             // 1. AI Visual State
             if let Ok(lock) = shared_clone.lock() {
@@ -156,24 +164,31 @@ async fn handle_ws_socket(socket: WebSocket, shared: Arc<Mutex<ServerSharedState
                 }
             }
 
-            // 4. Model Status Broadcast
-            let current_model_status = crate::services::model_manager_service::get_model_status();
-            let status_sig = format!(
-                "{}:{}:{:.1}:{}:{:?}",
-                current_model_status.status,
-                current_model_status.downloaded_bytes,
-                current_model_status.percent,
-                current_model_status.message,
-                current_model_status.model_name
-            );
-            if status_sig != ws_last_model_status_msg {
-                ws_last_model_status_msg = status_sig;
-                let msg = serde_json::json!({
-                    "event": "model_status",
-                    "data": current_model_status
-                });
-                if push_tx.send(msg.to_string()).is_err() {
-                    break;
+            // 4. Model Status Broadcast (Cek setiap ~500ms atau jika proses download sedang aktif)
+            if is_model_busy || tick_counter.is_multiple_of(10) || !ws_initial_sent {
+                let current_model_status = crate::services::model_manager_service::get_model_status();
+                is_model_busy = matches!(
+                    current_model_status.status.as_str(),
+                    "downloading" | "extracting" | "checking"
+                );
+
+                let status_sig = format!(
+                    "{}:{}:{:.1}:{}:{:?}",
+                    current_model_status.status,
+                    current_model_status.downloaded_bytes,
+                    current_model_status.percent,
+                    current_model_status.message,
+                    current_model_status.model_name
+                );
+                if status_sig != ws_last_model_status_msg {
+                    ws_last_model_status_msg = status_sig;
+                    let msg = serde_json::json!({
+                        "event": "model_status",
+                        "data": current_model_status
+                    });
+                    if push_tx.send(msg.to_string()).is_err() {
+                        break;
+                    }
                 }
             }
 
