@@ -112,16 +112,47 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
         );
 
         // Stream from provider
-        let turn_res = match stream::execute_model_stream(
-            session_id,
-            &model,
-            is_codex,
-            session.temperature,
-            v1_messages,
-            dynamic_tools_schema.clone(),
-            state.force_final_text_only,
-            state.iteration,
-        ).await {
+        // 7. Stream LLM with automatic retry for transient endpoint glitches
+        let mut retry_count = 0;
+        let max_stream_retries = 2;
+        let turn_res = loop {
+            match stream::execute_model_stream(
+                session_id,
+                &model,
+                is_codex,
+                session.temperature,
+                v1_messages.clone(),
+                dynamic_tools_schema.clone(),
+                state.force_final_text_only,
+                state.iteration,
+            ).await {
+                Ok(res) => break Ok(res),
+                Err(e) => {
+                    let err_str = e.to_string();
+                    let is_transient_glitch = err_str.contains("stream endpoint")
+                        || err_str.contains("Failed to send request")
+                        || err_str.contains("timeout")
+                        || err_str.contains("connection reset")
+                        || err_str.contains("broken pipe")
+                        || err_str.contains("502")
+                        || err_str.contains("503")
+                        || err_str.contains("504");
+
+                    if is_transient_glitch && retry_count < max_stream_retries {
+                        retry_count += 1;
+                        eprintln!(
+                            "[Agent Stream Retry] Transient error on iteration {}: {}. Retrying attempt {}/{}...",
+                            state.iteration, err_str, retry_count, max_stream_retries
+                        );
+                        tokio::time::sleep(std::time::Duration::from_millis(1500 * retry_count as u64)).await;
+                        continue;
+                    }
+                    break Err(e);
+                }
+            }
+        };
+
+        let turn_res = match turn_res {
             Ok(res) => res,
             Err(e) => {
                 let err_str = e.to_string();

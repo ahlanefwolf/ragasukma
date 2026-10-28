@@ -76,6 +76,18 @@ pub async fn execute_turn_tool_calls(
             || tc.function.name == "workspace_write_file")
             && is_accessing_unmodified_target;
 
+        // Multi-component awareness: Check if accessing a file in a different subproject/folder
+        let is_accessing_different_component = target_arg_file.as_ref().map(|p| {
+            let clean = p.trim_start_matches("./");
+            let components: Vec<&str> = clean.split('/').collect();
+            if components.len() >= 2 {
+                let subdir = components[0];
+                !state.verified_subdirs.contains(subdir) && !state.verified_subdirs.is_empty()
+            } else {
+                false
+            }
+        }).unwrap_or(false);
+
         let is_post_verification_terminal_command = state.has_passed_verification
             && !state.last_command_had_error
             && state.pending_error_files.is_empty()
@@ -95,7 +107,7 @@ pub async fn execute_turn_tool_calls(
         let tool_output = if state.circuit_breaker_triggered || state.force_final_text_only {
             is_breaker_trip = true;
             "Tool execution rejected: Tool calling is closed for this turn. Conclude your turn immediately and provide your summary to the user now.".to_string()
-        } else if state.has_passed_verification && !state.last_command_had_error && state.pending_error_files.is_empty() && !is_work_on_new_target && (tc.function.name != "workspace_run_command" || is_post_verification_terminal_command) {
+        } else if state.has_passed_verification && !state.last_command_had_error && state.pending_error_files.is_empty() && !is_work_on_new_target && !is_accessing_different_component && (tc.function.name != "workspace_run_command" || is_post_verification_terminal_command) {
             is_breaker_trip = true;
             "Verification has already succeeded with 0 errors. All active errors resolved. Tool calling is now closed. Conclude your turn immediately and provide your summary to the user now.".to_string()
         } else if is_repeated_command {
@@ -104,7 +116,7 @@ pub async fn execute_turn_tool_calls(
             format!(
                 "Command repetition limit reached for `{cmd}`. This command was already executed without subsequent file modifications. Tool calling is now closed. Conclude your turn now and report the results directly to the user."
             )
-        } else if is_inspection && !is_target_in_error_list && state.global_inspection_streak >= 10 {
+        } else if is_inspection && !is_target_in_error_list && state.global_inspection_streak >= 20 {
             is_breaker_trip = true;
             format!(
                 "Inspection budget reached ({} consecutive reads without code modifications). Tool calling is closed to prevent unproductive wandering. Conclude your turn now and provide your findings, answers, or plan directly to the user.",
@@ -192,6 +204,13 @@ pub async fn execute_turn_tool_calls(
             } else {
                 if let Some(ref path) = target_arg_file {
                     state.on_successful_edit(path);
+                    let clean = path.trim_start_matches("./");
+                    if let Some(slash_idx) = clean.find('/') {
+                        let subdir = &clean[..slash_idx];
+                        state.verified_subdirs.remove(subdir);
+                    }
+                    state.force_final_text_only = false;
+                    state.circuit_breaker_triggered = false;
                     let _ = repository::mark_evidence_stale_by_file(project_id, path).await;
                 }
 
@@ -322,16 +341,38 @@ pub async fn execute_turn_tool_calls(
                     ).await;
 
                     if is_passed {
-                        state.has_passed_verification = true;
-                        state.last_command_had_error = false;
-                        state.pending_error_files.clear();
-                        state.current_phase = "concluded".to_string();
-                        state.force_final_text_only = true;
-                        let _ = repository::update_goal_phase(&state.goal_id, "concluded").await;
-                        let _ = repository::update_goal_status(&state.goal_id, "completed").await;
-                        state.ephemeral_directive = Some(
-                            "VERIFICATION PASSED: The build/test command succeeded with 0 errors! All active tasks and verifications are complete. Conclude your turn now with a clear summary for the user without calling any more tools.".to_string()
-                        );
+                        // Track which subdirectory was verified
+                        let cmd_lower = trimmed_cmd.to_lowercase();
+                        let all_detectable_verifiers = crate::agent::languages::detect_verifiers_for_modified_files(allowed_folders, &state.modified_files);
+                        let remaining_unverified: Vec<String> = all_detectable_verifiers
+                            .into_iter()
+                            .filter(|v| !cmd_lower.contains(&v.to_lowercase()) && !state.executed_commands.iter().any(|ec| ec.to_lowercase().contains(&v.to_lowercase())))
+                            .collect();
+
+                        if let Some(cwd) = args_val.get("cwd").and_then(|v| v.as_str()) {
+                            let clean_cwd = cwd.trim_start_matches("./");
+                            state.verified_subdirs.insert(clean_cwd.to_string());
+                        }
+
+                        if !remaining_unverified.is_empty() {
+                            state.has_passed_verification = false;
+                            state.last_command_had_error = false;
+                            state.ephemeral_directive = Some(format!(
+                                "Component check succeeded for `{cmd}`. Notice: Other modified project components still require verification (e.g. `{}`). Please proceed to verify the remaining components before concluding.",
+                                remaining_unverified.join(" && ")
+                            ));
+                        } else {
+                            state.has_passed_verification = true;
+                            state.last_command_had_error = false;
+                            state.pending_error_files.clear();
+                            state.current_phase = "concluded".to_string();
+                            state.force_final_text_only = true;
+                            let _ = repository::update_goal_phase(&state.goal_id, "concluded").await;
+                            let _ = repository::update_goal_status(&state.goal_id, "completed").await;
+                            state.ephemeral_directive = Some(
+                                "VERIFICATION PASSED: The build/test command succeeded with 0 errors! All active tasks and verifications are complete. Conclude your turn now with a clear summary for the user without calling any more tools.".to_string()
+                            );
+                        }
                     } else {
                         state.has_passed_verification = false;
                         state.current_phase = "action".to_string();
@@ -371,9 +412,9 @@ pub async fn execute_turn_tool_calls(
         }
 
         // Check inspection streaks (advise model to apply changes or conclude)
-        if state.global_inspection_streak >= 5 {
+        if state.global_inspection_streak >= 10 {
             state.ephemeral_directive = Some(format!(
-                "Notice: You have inspected {} files without modifying code. Discovery budget is almost exhausted. Cease exploratory reads, focus on the identified files, and apply modifications using `workspace_edit_file` (or `workspace_write_file`), or formulate your direct answer to the user.",
+                "Notice: You have inspected {} files without modifying code. Cease exploratory reads, focus on the identified files, and apply modifications using `workspace_edit_file` (or `workspace_write_file`), or formulate your direct answer to the user.",
                 state.global_inspection_streak
             ));
         }

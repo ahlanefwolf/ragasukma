@@ -98,15 +98,25 @@ pub fn prepare_turn_messages(
     }
 
     // Bidirectional Tool Call Validation & Mapping:
-    // 1. Collect all valid tool_call IDs and their associated function names emitted by assistant messages
+    // 1. Collect all valid tool_call IDs and their associated function names emitted by assistant messages,
+    // as well as files modified by subsequent edits for intermediate read compaction
     let mut known_tool_call_ids = HashSet::new();
     let mut tool_id_to_name: HashMap<String, String> = HashMap::new();
+    let mut files_modified_in_window: HashSet<String> = HashSet::new();
     for msg in &messages_to_send {
         if msg.role == "assistant" {
             if let Some(ref tc_raw) = msg.tool_calls {
                 if let Ok(calls) = serde_json::from_str::<Vec<V1ToolCall>>(tc_raw) {
                     for c in calls {
                         known_tool_call_ids.insert(c.id.clone());
+                        if c.function.name == "workspace_edit_file" || c.function.name == "workspace_write_file" {
+                            if let Ok(args_obj) = serde_json::from_str::<serde_json::Value>(&c.function.arguments) {
+                                if let Some(path) = args_obj.get("file_path").or_else(|| args_obj.get("path")).and_then(|p| p.as_str()) {
+                                    let clean = path.trim_start_matches("./").to_string();
+                                    files_modified_in_window.insert(clean);
+                                }
+                            }
+                        }
                         tool_id_to_name.insert(c.id, c.function.name);
                     }
                 }
@@ -188,11 +198,23 @@ pub fn prepare_turn_messages(
             })
         } else if msg.role == "tool" {
             tool_counter += 1;
-            let is_recent_tail = tool_counter > total_tool_msgs.saturating_sub(8);
+            let is_recent_tail = tool_counter > total_tool_msgs.saturating_sub(6);
             let tool_name = msg.tool_call_id.as_ref().and_then(|id| tool_id_to_name.get(id)).map(|s| s.as_str());
             msg.content.as_ref().map(|c| {
-                let compacted = compact_tool_output_smart(c, tool_name, is_recent_tail);
-                json!(compacted)
+                // If this is an older file read on a file that has subsequently been edited in this session,
+                // stub it out aggressively to save thousands of tokens
+                if tool_name == Some("workspace_read_file") && !is_recent_tail && c.len() > 600 {
+                    let first_line = c.lines().next().unwrap_or("").trim();
+                    let compacted = format!(
+                        "{}\n[... {} characters of prior file read omitted because this file was subsequently updated ...]",
+                        first_line,
+                        c.len()
+                    );
+                    json!(compacted)
+                } else {
+                    let compacted = compact_tool_output_smart(c, tool_name, is_recent_tail);
+                    json!(compacted)
+                }
             })
         } else if msg.role == "assistant" && tc_parsed.is_none() {
             // Ensure assistant message without tool_calls always has non-empty text content

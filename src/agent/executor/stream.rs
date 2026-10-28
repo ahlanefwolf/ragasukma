@@ -333,7 +333,47 @@ pub async fn execute_model_stream(
     })
     .await??;
 
-    let (final_content, final_thought, tool_calls_opt) = call_res;
+    let (mut final_content, mut final_thought, tool_calls_opt) = call_res;
+
+    // Universal Synthesized Thought Extraction:
+    // If the model produced thought within `<thought>...</thought>` tags in its text content,
+    // extract it into `final_thought` and keep clean narrative text in `final_content`.
+    if final_content.contains("<thought>") {
+        let mut clean_content = String::new();
+        let mut extracted_thoughts = Vec::new();
+        let mut remaining = final_content.as_str();
+
+        while let Some(open_idx) = remaining.find("<thought>") {
+            clean_content.push_str(&remaining[..open_idx]);
+            let after_open = &remaining[open_idx + "<thought>".len()..];
+            if let Some(close_idx) = after_open.find("</thought>") {
+                let inner_thought = after_open[..close_idx].trim();
+                if !inner_thought.is_empty() {
+                    extracted_thoughts.push(inner_thought.to_string());
+                }
+                remaining = &after_open[close_idx + "</thought>".len()..];
+            } else {
+                // Unclosed thought tag (stream cut off or model omitted close tag)
+                let inner_thought = after_open.trim();
+                if !inner_thought.is_empty() {
+                    extracted_thoughts.push(inner_thought.to_string());
+                }
+                remaining = "";
+                break;
+            }
+        }
+        clean_content.push_str(remaining);
+
+        if !extracted_thoughts.is_empty() {
+            let joined_extracted = extracted_thoughts.join("\n\n");
+            if final_thought.trim().is_empty() {
+                final_thought = joined_extracted;
+            } else {
+                final_thought = format!("{}\n\n{}", final_thought.trim(), joined_extracted);
+            }
+        }
+        final_content = clean_content.trim().to_string();
+    }
 
     let duration_ms = turn_start_time.elapsed().as_millis() as u64;
     let tool_chars: usize = tool_calls_opt.as_ref().map(|calls| {
@@ -366,4 +406,39 @@ pub async fn execute_model_stream(
         estimated_input_tokens,
         estimated_output_tokens,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_extract_synthesized_thought_tags() {
+        let input_content = "<thought>\nInspect file scenario/backend/src/main.rs due to Todo struct initializer error.\n</thought>\nI will inspect main.rs first.";
+        let mut clean_content = String::new();
+        let mut extracted_thoughts = Vec::new();
+        let mut remaining = input_content;
+
+        while let Some(open_idx) = remaining.find("<thought>") {
+            clean_content.push_str(&remaining[..open_idx]);
+            let after_open = &remaining[open_idx + "<thought>".len()..];
+            if let Some(close_idx) = after_open.find("</thought>") {
+                let inner = after_open[..close_idx].trim();
+                if !inner.is_empty() {
+                    extracted_thoughts.push(inner.to_string());
+                }
+                remaining = &after_open[close_idx + "</thought>".len()..];
+            } else {
+                let inner = after_open.trim();
+                if !inner.is_empty() {
+                    extracted_thoughts.push(inner.to_string());
+                }
+                remaining = "";
+                break;
+            }
+        }
+        clean_content.push_str(remaining);
+
+        assert_eq!(extracted_thoughts.len(), 1);
+        assert!(extracted_thoughts[0].contains("Inspect file scenario/backend/src/main.rs"));
+        assert_eq!(clean_content.trim(), "I will inspect main.rs first.");
+    }
 }

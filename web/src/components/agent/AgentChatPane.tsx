@@ -1096,7 +1096,7 @@ export const AgentChatPane: Component<{
                       when={token.isTag}
                       fallback={<span class="text-white">{token.text}</span>}
                     >
-                      <span class="text-gi-accent bg-gi-accent/20 px-1 py-0.5">{token.text}</span>
+                      <span class="text-gi-accent bg-gi-accent/20 rounded-xs">{token.text}</span>
                     </Show>
                   )}
                 </For>
@@ -1130,8 +1130,8 @@ export const AgentChatPane: Component<{
                   }
                 }}
                 onKeyDown={props.onChatKeyDown}
-                class={`relative z-10 w-full bg-transparent border-0 px-1 py-0.5 text-xs focus:outline-none focus:ring-0 resize-none min-h-[38px] max-h-52 custom-scrollbar leading-relaxed font-sans ${
-                  hasTags() ? 'text-transparent caret-gi-primary selection:bg-gi-primary/30 selection:text-white' : 'text-white placeholder-white/35'
+                class={`relative z-10 w-full bg-transparent border-0 px-1 py-0.5 text-xs focus:outline-none focus:ring-0 resize-none min-h-[38px] max-h-52 custom-scrollbar leading-relaxed font-sans caret-white ${
+                  hasTags() ? 'text-transparent selection:bg-gi-primary/30 selection:text-white' : 'text-white placeholder-white/35'
                 }`}
                 style={{
                   "word-break": "break-word",
