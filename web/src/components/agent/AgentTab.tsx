@@ -227,7 +227,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
       {/* ── Top Header Bar ─────────────────────────────────────────────── */}
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
         <div class="flex items-center gap-2.5">
-          <div class="p-2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg">
+          <div class="p-2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
             <Layers class="w-5 h-5" />
           </div>
           <div>
@@ -237,10 +237,10 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
         </div>
 
         {/* Sub-tabs Toggle */}
-        <div class="flex items-center gap-1 bg-white/5 p-1 rounded-lg border border-white/5 self-start sm:self-auto">
+        <div class="flex items-center gap-1 bg-white/5 p-1 border border-white/5 self-start sm:self-auto">
           <button
             onClick={() => ws.setActiveSubTab('projects')}
-            class={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+            class={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 ${
               ws.activeSubTab() === 'projects'
                 ? 'bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 font-semibold shadow-sm'
                 : 'text-theme-text/60 hover:text-theme-text hover:bg-theme-bg/60'
@@ -251,7 +251,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
           </button>
           <button
             onClick={() => ws.setActiveSubTab('mcp')}
-            class={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+            class={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 ${
               ws.activeSubTab() === 'mcp'
                 ? 'bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 font-semibold shadow-sm'
                 : 'text-theme-text/60 hover:text-theme-text hover:bg-theme-bg/60'

@@ -8,12 +8,6 @@ export interface AvatarViewerProps {
   state: AvatarState;
   emotion?: string;
   isAudioStreaming?: boolean;
-  // AR status callback to synchronize interaction dock in MobileApp
-  onArStateChange?: (isActive: boolean) => void;
-  // Custom slot to mount mic/chat dock inside WebXR DOM Overlay
-  arBottomSlot?: () => any;
-  // Custom slot to mount modals (ChatModal, etc.) inside WebXR DOM Overlay
-  arModalsSlot?: () => any;
 }
 
 interface PoseKeyframe {

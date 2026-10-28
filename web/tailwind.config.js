@@ -68,10 +68,46 @@ export default {
         },
       },
       fontFamily: {
-        sans:      ["Rajdhani", "-apple-system", "BlinkMacSystemFont", "system-ui", "sans-serif"],
-        display:   ["Cinzel", "-apple-system", "BlinkMacSystemFont", "system-ui", "sans-serif"],
-        script:    ['"Lora"', "serif"],
-        mono:      ["JetBrains Mono", "Menlo", "Monaco", "Consolas", "monospace"],
+        sans: [
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          'Helvetica',
+          'Arial',
+          'sans-serif',
+        ],
+        heading: [
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          'Helvetica',
+          'Arial',
+          'sans-serif',
+        ],
+        body: [
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          'Helvetica',
+          'Arial',
+          'sans-serif',
+        ],
+        mono: [
+          'ui-monospace',
+          'SFMono-Regular',
+          'Menlo',
+          'Monaco',
+          'Consolas',
+          '"Liberation Mono"',
+          '"Courier New"',
+          'monospace',
+        ],
       },
       fontSize: {
         '2xs': ['0.75rem', { lineHeight: '1.05rem' }],
@@ -83,15 +119,6 @@ export default {
         '2xl': ['1.85rem', { lineHeight: '2.25rem' }],
         '3xl': ['2.25rem', { lineHeight: '2.6rem' }],
         '4xl': ['2.75rem', { lineHeight: '3rem' }],
-      },
-      borderRadius: {
-        'gi-badge': '0.375rem', /* 6px - Metadata chips, tags */
-        'gi-btn':   '0.5rem',   /* 8px - Buttons, form controls */
-        'gi-icon':  '0.625rem', /* 10px - Icon containers */
-        'gi-card':  '0.75rem',  /* 12px - Cards & section panels */
-        'gi-modal': '1rem',     /* 16px - Dialogs & floating modals */
-        'gi-sheet': '1.5rem',   /* 24px - Mobile bottom sheets */
-        'gi-pill':  '9999px',   /* Circular status pills & FABs */
       },
       boxShadow: {
         'gi-card':     '0 4px 20px -2px rgba(0, 0, 0, 0.25)',

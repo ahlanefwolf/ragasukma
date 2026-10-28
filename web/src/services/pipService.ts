@@ -291,7 +291,7 @@ class PipManager {
       ctx.restore();
 
       ctx.fillStyle = GI_THEME.textPrimary;
-      ctx.font = '600 12px "Plus Jakarta Sans", sans-serif';
+      ctx.font = '600 12px system-ui, -apple-system, sans-serif';
       ctx.fillText('Ragasukma', coverX + coverSize / 2, coverY + coverSize / 2 + 24);
     }
 
@@ -342,7 +342,7 @@ class PipManager {
     const badgeY = 22;
     const statusText = isPlaying ? 'NOW PLAYING' : 'PAUSED';
 
-    ctx.font = '700 11px "Plus Jakarta Sans", sans-serif';
+    ctx.font = '700 11px system-ui, -apple-system, sans-serif';
     const textMetrics = ctx.measureText(statusText);
     const badgePaddingX = 12;
     const dotSize = 6;
@@ -371,7 +371,7 @@ class PipManager {
     // Brand Watermark on Top-Right
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    ctx.font = '600 11px "JetBrains Mono", monospace';
+    ctx.font = '600 11px ui-monospace, monospace';
     ctx.fillStyle = GI_THEME.textSecondary;
     ctx.fillText('RAGASUKMA • PIP', contentX + contentW, Math.round(badgeY + badgeH / 2));
     ctx.restore();
@@ -380,10 +380,10 @@ class PipManager {
     const title = track?.title || 'Ragasukma Music Player';
     const artist = track?.uploader || 'YouTube Desktop Audio Stream';
 
-    // Title (Lora style heading)
+    // Title
     ctx.save();
     ctx.fillStyle = GI_THEME.textPrimary;
-    ctx.font = '600 20px "Lora", "Plus Jakarta Sans", serif';
+    ctx.font = '600 20px system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
 
@@ -393,7 +393,7 @@ class PipManager {
 
     // Artist
     ctx.fillStyle = GI_THEME.textSecondary;
-    ctx.font = '600 13px "Plus Jakarta Sans", sans-serif';
+    ctx.font = '600 13px system-ui, -apple-system, sans-serif';
     const maxArtistLen = 44;
     const cleanArtist = artist.length > maxArtistLen ? artist.substring(0, maxArtistLen - 2) + '...' : artist;
     ctx.fillText(cleanArtist, contentX, 94);
@@ -437,7 +437,7 @@ class PipManager {
     // Time Indicators
     ctx.save();
     ctx.fillStyle = GI_THEME.textSecondary;
-    ctx.font = '600 12px "JetBrains Mono", monospace';
+    ctx.font = '600 12px ui-monospace, monospace';
     ctx.textBaseline = 'top';
 
     ctx.textAlign = 'left';
@@ -451,7 +451,7 @@ class PipManager {
     ctx.save();
     ctx.textAlign = 'left';
     ctx.textBaseline = 'bottom';
-    ctx.font = '500 11px "Plus Jakarta Sans", sans-serif';
+    ctx.font = '500 11px system-ui, -apple-system, sans-serif';
     ctx.fillStyle = GI_THEME.textMuted;
     ctx.fillText('Press Space / Use OS Media Controls to Play & Pause', contentX, h - 18);
     ctx.restore();

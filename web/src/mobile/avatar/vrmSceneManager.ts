@@ -6,7 +6,6 @@ import { DEFAULT_CAM_POS, DEFAULT_TARGET } from './constants';
 import { AvatarState, FpsLimit, PosesConfig, RenderQuality } from './types';
 import { VrmPoseAnimator } from './poseAnimator';
 import { VrmExpressionAnimator } from './expressionAnimator';
-import { WebXRArManager, ArStateListener } from './arManager';
 import { API_BASE } from '../../services/base';
 
 export interface VrmSceneCallbacks {
@@ -30,25 +29,14 @@ export class VrmSceneManager {
 
   private poseAnimator = new VrmPoseAnimator();
   private expressionAnimator = new VrmExpressionAnimator();
-  private arManager = new WebXRArManager();
   private mainLight: THREE.DirectionalLight | null = null;
   private currentQuality: RenderQuality = 'hd';
   private currentFpsLimit: FpsLimit = 60; // Default 60 FPS (cool & stable for mobile battery)
   private lastRenderTimestamp = 0;
+  private defaultCamPos = DEFAULT_CAM_POS.clone();
+  private defaultTarget = DEFAULT_TARGET.clone();
 
-  constructor() {
-    this.arManager.setOnEndCallback(() => {
-      this.resetToNonAr();
-    });
-  }
-
-  public getArManager(): WebXRArManager {
-    return this.arManager;
-  }
-
-  public subscribeAr(listener: ArStateListener): () => void {
-    return this.arManager.subscribe(listener);
-  }
+  constructor() {}
 
   private createRealShadowPlane(): THREE.Mesh {
     const geometry = new THREE.PlaneGeometry(3.0, 3.0);
@@ -75,12 +63,16 @@ export class VrmSceneManager {
 
     const width = container.clientWidth || 280;
     const height = container.clientHeight || 240;
+    const aspect = width / height;
 
     this.scene = new THREE.Scene();
 
-    this.camera = new THREE.PerspectiveCamera(26, width / height, 0.1, 100.0);
-    this.camera.position.copy(DEFAULT_CAM_POS);
-    this.camera.lookAt(DEFAULT_TARGET);
+    this.camera = new THREE.PerspectiveCamera(26, aspect, 0.1, 100.0);
+    const initialDistance = this.calculateDistanceForAspect(aspect, 1.5, 0.65);
+    this.defaultCamPos.set(0.0, 0.85, initialDistance);
+    this.defaultTarget.set(0.0, 0.85, 0.0);
+    this.camera.position.copy(this.defaultCamPos);
+    this.camera.lookAt(this.defaultTarget);
     this.scene.add(this.camera);
 
     this.renderer = new THREE.WebGLRenderer({
@@ -107,7 +99,6 @@ export class VrmSceneManager {
     this.vrmAnchor.visible = true;
 
     this.scene.add(this.vrmAnchor);
-    this.scene.add(this.arManager.getReticle());
 
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver((entries) => {
@@ -125,11 +116,11 @@ export class VrmSceneManager {
     }
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.copy(DEFAULT_TARGET);
+    this.controls.target.copy(this.defaultTarget);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
     this.controls.minDistance = 0.35;
-    this.controls.maxDistance = 6.5;
+    this.controls.maxDistance = 15.0;
     this.controls.enableRotate = true;
     this.controls.enableZoom = true;
     this.controls.enablePan = true;
@@ -264,6 +255,7 @@ export class VrmSceneManager {
 
         this.vrmAnchor.add(vrm.scene);
         this.currentVrm = vrm;
+        this.fitCameraToModel(vrm);
         callbacks.onLoaded?.();
       },
       (progress) => {
@@ -278,13 +270,11 @@ export class VrmSceneManager {
       }
     );
 
-    this.renderer.setAnimationLoop((timestamp, frame) => {
+    this.renderer.setAnimationLoop((timestamp) => {
       // Pause render loop if mobile browser tab is minimized or backgrounded
       if (typeof document !== 'undefined' && document.hidden) {
         return;
       }
-
-      const isXr = this.renderer?.xr.isPresenting;
 
       // Sample delta time BEFORE throttling using high-precision performance timer
       const now = performance.now();
@@ -292,10 +282,7 @@ export class VrmSceneManager {
       this.lastFrameTime = now;
 
       // FPS Throttler:
-      // Only throttle frames in standard 3D mode.
-      // In WebXR AR mode, the frame loop MUST follow native XR display refresh rate without dropped frames
-      // to prevent camera and avatar pose flickering.
-      if (!isXr && this.currentFpsLimit > 0) {
+      if (this.currentFpsLimit > 0) {
         const minFrameInterval = 1000 / this.currentFpsLimit;
         if (timestamp - this.lastRenderTimestamp < minFrameInterval - 1.5) {
           return;
@@ -306,48 +293,21 @@ export class VrmSceneManager {
       // Safety clamp against backgrounding lag spikes
       const delta = Math.min(rawDelta, 0.1);
 
-      if (isXr) {
-        if (this.renderer && this.scene && this.camera) {
-          this.arManager.update(frame, this.renderer, this.camera);
+      if (this.controls && this.controls.enabled) {
+        this.controls.update();
+      }
 
-          if (!this.arManager.isLocked() || !this.vrmAnchor.visible) {
-            this.renderer.render(this.scene, this.camera);
-            return;
-          }
-
-          if (this.currentVrm) {
-            const { state, emotion, poses } = getState();
-            this.poseAnimator.update(this.currentVrm, delta, state, poses);
-            this.expressionAnimator.update(
-              this.currentVrm,
-              delta,
-              state,
-              emotion,
-              this.poseAnimator.getElapsedTime()
-            );
-            this.currentVrm.update(delta);
-          }
-
-          this.renderer.render(this.scene, this.camera);
-        }
-        return;
-      } else {
-        if (this.controls && this.controls.enabled) {
-          this.controls.update();
-        }
-
-        if (this.currentVrm && this.vrmAnchor.visible) {
-          const { state, emotion, poses } = getState();
-          this.poseAnimator.update(this.currentVrm, delta, state, poses);
-          this.expressionAnimator.update(
-            this.currentVrm,
-            delta,
-            state,
-            emotion,
-            this.poseAnimator.getElapsedTime()
-          );
-          this.currentVrm.update(delta);
-        }
+      if (this.currentVrm && this.vrmAnchor.visible) {
+        const { state, emotion, poses } = getState();
+        this.poseAnimator.update(this.currentVrm, delta, state, poses);
+        this.expressionAnimator.update(
+          this.currentVrm,
+          delta,
+          state,
+          emotion,
+          this.poseAnimator.getElapsedTime()
+        );
+        this.currentVrm.update(delta);
       }
 
       if (this.renderer && this.scene && this.camera) {
@@ -364,14 +324,7 @@ export class VrmSceneManager {
     this.currentQuality = quality;
     if (!this.renderer) return;
 
-    if (this.renderer.xr.isPresenting) {
-      try {
-        const arScale = this.getArScaleFactorForQuality(quality);
-        this.renderer.xr.setFramebufferScaleFactor(arScale);
-      } catch (_) {}
-    } else {
-      this.renderer.setPixelRatio(this.getPixelRatioForQuality(quality));
-    }
+    this.renderer.setPixelRatio(this.getPixelRatioForQuality(quality));
 
     // Adjust shadow sharpness and texture filtering according to quality profile
     if (this.currentVrm) {
@@ -408,46 +361,6 @@ export class VrmSceneManager {
     }
   }
 
-  private getArScaleFactorForQuality(quality: RenderQuality): number {
-    switch (quality) {
-      case 'sd':
-        return 0.5;
-      case 'hd':
-        return 0.75;
-      case 'ultra':
-      default:
-        return 1.0;
-    }
-  }
-
-  public async startAr(domOverlayElement?: HTMLElement): Promise<void> {
-    if (!this.renderer) return;
-
-    if (this.controls) {
-      this.controls.enabled = false;
-    }
-
-    const arScaleFactor = this.getArScaleFactorForQuality(this.currentQuality);
-    try {
-      this.renderer.xr.setFramebufferScaleFactor(arScaleFactor);
-    } catch (_) {}
-
-    // Disable shadow maps during AR to maintain smooth 60 FPS without frame drops
-    if (this.renderer) {
-      this.renderer.shadowMap.enabled = false;
-    }
-    this.renderer.setPixelRatio(1.0);
-    this.vrmAnchor.visible = false;
-    this.lastFrameTime = performance.now();
-
-    await this.arManager.startArSession(this.renderer, domOverlayElement);
-  }
-
-  public stopAr(): void {
-    if (!this.renderer) return;
-    this.arManager.stopArSession(this.renderer);
-  }
-
   private attachLightToCamera(): void {
     if (!this.camera || !this.mainLight) return;
     this.camera.add(this.mainLight);
@@ -456,83 +369,89 @@ export class VrmSceneManager {
     this.mainLight.target.position.set(0, 0, -1.0);
   }
 
-  public lockAvatarInRealWorld(): boolean {
-    if (!this.camera || !this.renderer) return false;
-    const locked = this.arManager.lockAvatar(this.vrmAnchor, this.camera, this.renderer);
-    if (locked && this.mainLight && this.scene) {
-      this.scene.add(this.mainLight);
-      this.scene.add(this.mainLight.target);
-      this.mainLight.position.set(
-        this.vrmAnchor.position.x + 0.35,
-        this.vrmAnchor.position.y + 2.0,
-        this.vrmAnchor.position.z + 1.5
-      );
-      this.mainLight.target.position.copy(this.vrmAnchor.position);
-    }
-    return locked;
+  public calculateDistanceForAspect(_aspect: number, sizeY: number = 1.5, _sizeX: number = 0.65): number {
+    const fovYRad = THREE.MathUtils.degToRad(this.camera?.fov || 26);
+    const halfFovYTan = Math.tan(fovYRad / 2);
+
+    // Karakter berukuran tepat 3/4 (75%) dari tinggi canvas
+    const visibleHeight = sizeY / 0.75;
+    return visibleHeight / (2 * halfFovYTan);
   }
 
-  public unlockAvatarInRealWorld(): void {
-    const session = this.renderer?.xr.getSession();
-    this.arManager.unlockAvatar(this.vrmAnchor, session);
-  }
+  private fitCameraToModel(vrm: VRM): void {
+    if (!this.camera || !this.controls) return;
 
-  private resetToNonAr(): void {
-    if (this.controls) {
-      this.controls.enabled = true;
-    }
+    let sizeY = 1.5;
+    let sizeX = 0.65;
+    let centerY = 0.85;
 
-    if (this.renderer) {
-      this.renderer.shadowMap.enabled = true;
-    }
-
-    if (this.renderer && this.container) {
-      const w = this.container.clientWidth || 280;
-      const h = this.container.clientHeight || 240;
-      this.renderer.setPixelRatio(this.getPixelRatioForQuality(this.currentQuality));
-      this.renderer.setSize(w, h);
-
-      if (this.camera) {
-        this.camera.aspect = w / h;
-        this.camera.updateProjectionMatrix();
+    try {
+      const box = new THREE.Box3().setFromObject(vrm.scene);
+      if (!box.isEmpty() && Number.isFinite(box.min.y) && Number.isFinite(box.max.y)) {
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        if (size.y > 0.3 && size.y < 5.0) {
+          sizeY = size.y;
+          centerY = center.y;
+        }
+        if (size.x > 0.2 && size.x < 5.0) {
+          sizeX = size.x;
+        }
       }
-    }
 
-    this.vrmAnchor.position.set(0, 0, 0);
-    this.vrmAnchor.rotation.set(0, 0, 0);
-    this.vrmAnchor.visible = true;
-    this.attachLightToCamera();
-    this.resetCameraView();
-    this.lastFrameTime = performance.now();
+      const headBone = vrm.humanoid?.getNormalizedBoneNode('head') || vrm.humanoid?.getRawBoneNode('head');
+      if (headBone) {
+        const headPos = new THREE.Vector3();
+        headBone.getWorldPosition(headPos);
+        if (headPos.y > 0.5 && headPos.y < 3.0) {
+          const estimatedHeight = headPos.y + 0.15;
+          sizeY = Math.max(sizeY, estimatedHeight);
+          centerY = sizeY * 0.5;
+        }
+      }
+    } catch (_) {}
+
+    const aspect = this.camera.aspect || 0.5;
+    const distance = this.calculateDistanceForAspect(aspect, sizeY, sizeX);
+
+    this.defaultTarget.set(0.0, centerY, 0.0);
+    this.defaultCamPos.set(0.0, centerY, distance);
+
+    this.camera.position.copy(this.defaultCamPos);
+    this.controls.target.copy(this.defaultTarget);
+    this.controls.update();
   }
 
   public resetCameraView(): void {
     if (this.camera && this.controls) {
-      this.camera.position.copy(DEFAULT_CAM_POS);
-      this.controls.target.copy(DEFAULT_TARGET);
+      this.camera.position.copy(this.defaultCamPos);
+      this.controls.target.copy(this.defaultTarget);
       this.controls.update();
     }
   }
 
   public zoomIn(): void {
     if (this.camera && this.controls) {
+      const dist = this.camera.position.distanceTo(this.controls.target);
+      const step = Math.max(0.2, dist * 0.18);
       const dir = new THREE.Vector3().subVectors(this.controls.target, this.camera.position).normalize();
-      this.camera.position.addScaledVector(dir, 0.2);
+      this.camera.position.addScaledVector(dir, step);
       this.controls.update();
     }
   }
 
   public zoomOut(): void {
     if (this.camera && this.controls) {
+      const dist = this.camera.position.distanceTo(this.controls.target);
+      const step = Math.max(0.25, dist * 0.2);
       const dir = new THREE.Vector3().subVectors(this.camera.position, this.controls.target).normalize();
-      this.camera.position.addScaledVector(dir, 0.25);
+      this.camera.position.addScaledVector(dir, step);
       this.controls.update();
     }
   }
 
   public cleanup(): void {
     if (this.renderer) {
-      this.stopAr();
       this.renderer.setAnimationLoop(null);
     }
     if (this.resizeObserver) {

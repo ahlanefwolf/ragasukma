@@ -97,12 +97,12 @@ export const MobileTopBar: Component<MobileTopBarProps> = (props) => {
         })()}
       </div>
 
-      {/* Right Side: Circular Glass Settings Icon Button */}
+      {/* Right Side: Clean Icon Settings Button (No box/background) */}
       <div class="pointer-events-auto">
         <button
           type="button"
           onClick={props.onOpenSettings}
-          class="w-10 h-10 bg-black/40 backdrop-blur-xl border border-white/10 text-white/80 hover:text-white active:scale-90 transition-all flex items-center justify-center cursor-pointer shadow-[0_4px_16px_rgba(0,0,0,0.4)]"
+          class="p-2 text-white/80 hover:text-white active:scale-75 transition-all drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] cursor-pointer"
           title="Settings"
           aria-label="Settings"
         >

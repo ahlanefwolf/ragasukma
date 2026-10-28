@@ -6,11 +6,9 @@ import {
   PosesConfig,
   RenderQuality,
   VrmSceneManager,
-  WebXRArManager,
   AvatarCameraControls,
   AvatarLoadingOverlay,
   Avatar2DFallback,
-  AvatarArControls,
 } from './avatar';
 
 export type { AvatarViewerProps };
@@ -18,7 +16,6 @@ export type { AvatarViewerProps };
 export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
   let rootContainerRef: HTMLDivElement | undefined;
   let canvasContainerRef: HTMLDivElement | undefined;
-  let arOverlayRef: HTMLDivElement | undefined;
 
   const [avatarType, setAvatarType] = createSignal<'vrm' | '2d'>('vrm');
   const [isLoading, setIsLoading] = createSignal(true);
@@ -33,12 +30,6 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
   const [fpsLimit, setFpsLimit] = createSignal<FpsLimit>(
     (typeof localStorage !== 'undefined' && Number(localStorage.getItem('avatar_fps_limit')) as FpsLimit) || 60
   );
-
-  // WebXR AR states
-  const [isArSupported, setIsArSupported] = createSignal(false);
-  const [isArActive, setIsArActive] = createSignal(false);
-  const [isAvatarLocked, setIsAvatarLocked] = createSignal(false);
-  const [hasFoundSurface, setHasFoundSurface] = createSignal(false);
 
   const sceneManager = new VrmSceneManager();
 
@@ -82,27 +73,6 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
     );
   };
 
-  const handleStartAr = async () => {
-    try {
-      // Ensure domOverlay wraps arOverlayRef ONLY, NOT the 3D WebGL canvas rootContainerRef
-      await sceneManager.startAr(arOverlayRef);
-    } catch (err) {
-      console.warn('Failed to start WebXR AR session:', err);
-    }
-  };
-
-  const handleExitAr = () => {
-    sceneManager.stopAr();
-  };
-
-  const handleLockAvatar = () => {
-    sceneManager.lockAvatarInRealWorld();
-  };
-
-  const handleUnlockAvatar = () => {
-    sceneManager.unlockAvatarInRealWorld();
-  };
-
   const handleCycleQuality = () => {
     const order: RenderQuality[] = ['sd', 'hd', 'ultra'];
     const nextIdx = (order.indexOf(renderQuality()) + 1) % order.length;
@@ -133,20 +103,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       sceneManager.setFpsLimit(fpsLimit());
     }, 50);
 
-    // 2. Check browser WebXR AR capability
-    WebXRArManager.isSupported().then((supported) => {
-      setIsArSupported(supported);
-    });
-
-    // 3. Subscribe event AR state
-    const unsubscribeAr = sceneManager.subscribeAr((arState) => {
-      setIsArActive(arState.isActive);
-      setIsAvatarLocked(arState.isAvatarLocked);
-      setHasFoundSurface(arState.hasFoundSurface);
-      props.onArStateChange?.(arState.isActive);
-    });
-
-    // 4. Fetch poses.json in background
+    // 2. Fetch poses.json in background
     fetch(`${API_BASE}/api/poses`)
       .then((res) => (res.ok ? res.json() : null))
       .then((p) => {
@@ -154,7 +111,7 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       })
       .catch(() => {});
 
-    // 5. Check avatar type from config in parallel
+    // 3. Check avatar type from config in parallel
     fetch(`${API_BASE}/api/config`)
       .then((res) => (res.ok ? res.json() : null))
       .then((cfg) => {
@@ -171,7 +128,6 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
     onCleanup(() => {
-      unsubscribeAr();
       document.removeEventListener('fullscreenchange', onFullscreenChange);
     });
   });
@@ -185,29 +141,10 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       ref={rootContainerRef}
       class="relative w-full h-full flex items-center justify-center overflow-hidden select-none touch-none"
     >
-      {/* WebXR AR Overlay UI (DOM Overlay separated from WebGL Canvas to prevent compositor freeze) */}
-      <div
-        ref={arOverlayRef}
-        class="absolute inset-0 pointer-events-none z-40"
-      >
-        <Show when={isArActive()}>
-          <AvatarArControls
-            isAvatarLocked={isAvatarLocked()}
-            hasFoundSurface={hasFoundSurface()}
-            onLockAvatar={handleLockAvatar}
-            onUnlockAvatar={handleUnlockAvatar}
-            onExitAr={handleExitAr}
-            bottomSlot={props.arBottomSlot?.()}
-          />
-          {props.arModalsSlot?.()}
-        </Show>
-      </div>
-
-      {/* Sleek Floating Controls (Fullscreen & AR mode) */}
-      <Show when={avatarType() === 'vrm' && isVrmLoaded() && !isArActive()}>
+      {/* Sleek Floating Controls (Fullscreen) */}
+      <Show when={avatarType() === 'vrm' && isVrmLoaded()}>
         <AvatarCameraControls
           isFullscreen={isFullscreen()}
-          isArSupported={isArSupported()}
           quality={renderQuality()}
           fpsLimit={fpsLimit()}
           onZoomIn={() => sceneManager.zoomIn()}
@@ -216,7 +153,6 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
           onCycleQuality={handleCycleQuality}
           onCycleFps={handleCycleFps}
           onToggleFullscreen={toggleFullscreen}
-          onStartAr={handleStartAr}
         />
       </Show>
 
@@ -234,8 +170,8 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
         }}
       />
 
-      {/* Cinematic Portrait Depth Blur: active only in non-AR mode to prevent occluding AR camera feed */}
-      <Show when={avatarType() === 'vrm' && !vrmLoadError() && !isArActive()}>
+      {/* Cinematic Portrait Depth Blur */}
+      <Show when={avatarType() === 'vrm' && !vrmLoadError()}>
         <div
           class="absolute inset-0 z-15 pointer-events-none transition-opacity duration-500"
           style={{

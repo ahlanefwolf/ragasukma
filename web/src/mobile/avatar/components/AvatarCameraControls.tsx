@@ -1,17 +1,15 @@
 import { Component, Show } from 'solid-js';
-import { Maximize, Minimize, Glasses, ZoomIn, ZoomOut, RotateCcw } from 'lucide-solid';
+import { Maximize, Minimize, ZoomIn, ZoomOut, RotateCcw } from 'lucide-solid';
 import { FpsLimit, RenderQuality } from '../types';
 
 interface AvatarCameraControlsProps {
   isFullscreen: boolean;
-  isArSupported: boolean;
   quality?: RenderQuality;
   fpsLimit?: FpsLimit;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
   onToggleFullscreen: () => void;
   onResetCamera?: () => void;
-  onStartAr: () => void;
   onCycleQuality?: () => void;
   onCycleFps?: () => void;
 }
@@ -37,20 +35,7 @@ export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props
 
   return (
     <div class="absolute top-16 right-3.5 z-20 flex flex-col items-center gap-2 pointer-events-auto select-none">
-      {/* 1. AR Glasses Mode (Floating Wish Gold Glow) */}
-      <Show when={props.isArSupported}>
-        <button
-          type="button"
-          onClick={props.onStartAr}
-          class="p-2 text-gi-primary hover:text-gi-primary-hover active:scale-75 transition-all drop-shadow-[0_0_14px_rgba(var(--gi-primary-rgb),0.85)] cursor-pointer"
-          title="Start AR Mode"
-          aria-label="Start AR Mode"
-        >
-          <Glasses size={22} class="stroke-[2.2]" />
-        </button>
-      </Show>
-
-      {/* 2. Quality Toggle (SD / HD / 4K) */}
+      {/* 1. Quality Toggle (SD / HD / 4K) */}
       <Show when={props.onCycleQuality}>
         <button
           type="button"
@@ -63,7 +48,7 @@ export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props
         </button>
       </Show>
 
-      {/* 3. FPS Limit Toggle (30F / 60F / MAX) */}
+      {/* 2. FPS Limit Toggle (30F / 60F / MAX) */}
       <Show when={props.onCycleFps}>
         <button
           type="button"
@@ -76,7 +61,7 @@ export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props
         </button>
       </Show>
 
-      {/* 4. Zoom In */}
+      {/* 3. Zoom In */}
       <Show when={props.onZoomIn}>
         <button
           type="button"
@@ -89,7 +74,7 @@ export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props
         </button>
       </Show>
 
-      {/* 5. Zoom Out */}
+      {/* 4. Zoom Out */}
       <Show when={props.onZoomOut}>
         <button
           type="button"
@@ -102,7 +87,7 @@ export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props
         </button>
       </Show>
 
-      {/* 6. Reset Camera */}
+      {/* 5. Reset Camera */}
       <Show when={props.onResetCamera}>
         <button
           type="button"
@@ -115,7 +100,7 @@ export const AvatarCameraControls: Component<AvatarCameraControlsProps> = (props
         </button>
       </Show>
 
-      {/* 7. Fullscreen Toggle */}
+      {/* 6. Fullscreen Toggle */}
       <button
         type="button"
         onClick={props.onToggleFullscreen}

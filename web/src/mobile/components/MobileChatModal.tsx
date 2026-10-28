@@ -52,7 +52,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
   const [isInitialLoading, setIsInitialLoading] = createSignal<boolean>(false);
   const [historyDates, setHistoryDates] = createSignal<string[]>([]);
   const [currentDateIndex, setCurrentDateIndex] = createSignal<number>(0);
-  const [viewportHeight, setViewportHeight] = createSignal<string>('100%');
+  const [viewportHeight, setViewportHeight] = createSignal<string>('100dvh');
 
   const updateViewport = () => {
     if (window.visualViewport) {
@@ -327,11 +327,11 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
   return (
     <Show when={props.isOpen}>
       <div 
-        class="fixed inset-0 z-50 pointer-events-auto bg-gi-canvas overflow-hidden flex flex-col select-none animate-in fade-in zoom-in-95 duration-200"
+        class="mobile-modal-shell fixed inset-0 z-50 m-0 box-border w-screen h-[100dvh] max-w-[100vw] pointer-events-auto bg-gi-canvas overflow-hidden flex flex-col select-none animate-in fade-in duration-200"
         style={{
           height: viewportHeight(),
           "max-height": viewportHeight(),
-          "padding-top": "env(safe-area-inset-top, 0px)",
+          "box-sizing": "border-box",
         }}
       >
         {/* Top Header - WhatsApp Styled Bar adhering to App Theme */}
@@ -418,8 +418,8 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                   <div
                     class={`relative max-w-[85%] sm:max-w-[75%] px-3.5 py-2.5 text-xs shadow-md select-text ${
                       isUser
-                        ? 'bg-gi-primary text-gi-primary-foreground font-medium rounded-2xl rounded-tr-xs'
-                        : 'bg-theme-card border border-theme-border/80 text-theme-text rounded-2xl rounded-tl-xs'
+                        ? 'bg-gi-primary text-gi-primary-foreground font-medium'
+                        : 'bg-theme-card border border-theme-border/80 text-theme-text'
                     }`}
                   >
                     {/* Speaker Header on Group/Bot */}
@@ -454,9 +454,9 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
 
         {/* Bottom Input Area - Precision Engineered Modern Capsule */}
         <footer 
-          class="p-2.5 sm:p-3 bg-gi-surface/95 backdrop-blur-md border-t border-theme-border/60 shrink-0 flex items-end w-full pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+          class="p-2.5 sm:p-3 pb-2.5 sm:pb-3 bg-gi-surface/95 backdrop-blur-md border-t border-theme-border/60 shrink-0 flex items-end w-full"
         >
-          <div class="relative w-full max-w-full bg-gi-surface-elevated/90 border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-2 focus-within:ring-gi-primary/20 rounded-2xl shadow-sm transition-all flex flex-col justify-between overflow-hidden">
+          <div class="relative w-full max-w-full bg-gi-surface-elevated/90 border border-theme-border/80 focus-within:border-gi-primary focus-within:ring-2 focus-within:ring-gi-primary/20 shadow-sm transition-all flex flex-col justify-between overflow-hidden">
             <textarea
               ref={inputRef}
               value={props.inputText}
@@ -484,13 +484,13 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                       props.onInputText('');
                       if (inputRef) adjustInputHeight(inputRef);
                     }}
-                    class="w-5 h-5 rounded-full bg-theme-surface/80 border border-theme-border/60 text-theme-muted hover:text-theme-text flex items-center justify-center active:scale-90 transition-transform cursor-pointer"
+                    class="w-5 h-5 bg-theme-surface/80 border border-theme-border/60 text-theme-muted hover:text-theme-text flex items-center justify-center active:scale-90 transition-transform cursor-pointer"
                     title="Clear message"
                   >
                     <X size={11} />
                   </button>
                   <Show when={props.inputText.length > 50}>
-                    <span class="text-[11px] font-mono text-theme-muted/70 bg-theme-bg/40 px-1.5 py-0.5 rounded">
+                    <span class="text-[11px] font-mono text-theme-muted/70 bg-theme-bg/40 px-1.5 py-0.5">
                       {props.inputText.length} chars
                     </span>
                   </Show>
@@ -507,7 +507,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                   <button
                     type="button"
                     onClick={props.onToggleMic}
-                    class={`w-8 h-8 rounded-xl flex items-center justify-center transition-all active:scale-90 shadow-sm cursor-pointer ${
+                    class={`w-8 h-8 flex items-center justify-center transition-all active:scale-90 shadow-sm cursor-pointer ${
                       props.isListening
                         ? 'bg-gi-status-danger text-white animate-pulse shadow-md shadow-gi-status-danger/40 ring-2 ring-gi-status-danger/30'
                         : 'bg-theme-surface/80 border border-theme-border text-theme-muted hover:text-gi-primary-hover hover:border-gi-primary/50'
@@ -524,7 +524,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                   type="button"
                   onClick={handleSend}
                   disabled={!props.inputText.trim() || props.isSending}
-                  class="w-8 h-8 rounded-xl bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed active:scale-90 transition-all shadow-md shadow-gi-primary/25 cursor-pointer"
+                  class="w-8 h-8 bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed active:scale-90 transition-all shadow-md shadow-gi-primary/25 cursor-pointer"
                   title="Send Message"
                 >
                   <Show when={props.isSending} fallback={<Send size={14} class="translate-x-px" />}>

@@ -36,9 +36,9 @@ export const BONE_NAME_FALLBACKS: Record<string, string[]> = {
   rightLittle: ['rightLittleProximal'],
 };
 
-// Default camera position: Minimized / zoomed-out framing full-body character proportionally from head to toe
-export const DEFAULT_CAM_POS = new THREE.Vector3(0.0, 0.85, 3.4);
-export const DEFAULT_TARGET = new THREE.Vector3(0.0, 0.85, 0.0);
+// Default camera position: Karakter tepat 3/4 (75%) tinggi canvas
+export const DEFAULT_CAM_POS = new THREE.Vector3(0.0, 0.75, 4.33);
+export const DEFAULT_TARGET = new THREE.Vector3(0.0, 0.75, 0.0);
 
 export const AVATAR_IMAGES: Record<AvatarState, string> = {
   idle: '/api/assets/file/char-avatar-idle.png',

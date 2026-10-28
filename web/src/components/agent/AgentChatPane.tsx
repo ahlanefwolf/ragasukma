@@ -948,8 +948,8 @@ export const AgentChatPane: Component<{
                     <div
                       class={`w-fit max-w-full px-4 py-3 text-xs leading-relaxed ${
                         msg.role === 'user'
-                          ? 'bg-theme-card border border-theme-border text-theme-text rounded-br-none whitespace-pre-wrap shadow-sm'
-                          : 'bg-theme-bg/80 border border-theme-border text-theme-text/90 rounded-bl-none shadow-sm'
+                          ? 'bg-theme-card border border-theme-border text-theme-text whitespace-pre-wrap shadow-sm'
+                          : 'bg-theme-bg/80 border border-theme-border text-theme-text/90 shadow-sm'
                       }`}
                     >
                       <Show
@@ -994,7 +994,7 @@ export const AgentChatPane: Component<{
                 <span class="font-medium">Agent (Generating response...)</span>
               </div>
             </div>
-            <div class="w-fit max-w-full px-4 py-3 text-xs leading-relaxed bg-white/[0.04] border border-gi-primary/30 text-white/90 rounded-bl-none shadow-md">
+            <div class="w-fit max-w-full px-4 py-3 text-xs leading-relaxed bg-white/[0.04] border border-gi-primary/30 text-white/90 shadow-md">
               <MarkdownView content={props.streamingText || ''} />
               <span class="inline-block w-1.5 h-3.5 bg-gi-primary animate-pulse ml-1 align-middle" />
             </div>
