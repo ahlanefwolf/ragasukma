@@ -123,9 +123,6 @@ impl SpringBoneManager {
 
                 if let Some(joint_arr) = spring.get("joints").and_then(|v| v.as_array()) {
                     for i in 0..joint_arr.len().saturating_sub(1) {
-                        if joints.len() >= 1024 {
-                            break;
-                        }
                         let j_cur = &joint_arr[i];
                         let j_next = &joint_arr[i + 1];
 
@@ -228,7 +225,8 @@ impl SpringBoneManager {
                                     Vec3::new(
                                         o.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32,
                                         o.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32,
-                                        o.get("z").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32,
+                                        // In VRM 0.0 standard (@pixiv/three-vrm-springbone), Z offset is inverted
+                                        -o.get("z").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32,
                                     )
                                 })
                                 .unwrap_or(Vec3::ZERO);
@@ -300,20 +298,17 @@ impl SpringBoneManager {
 
                 if let Some(root_bones) = bg.get("bones").and_then(|v| v.as_array()) {
                     for root_bone in root_bones {
-                        if joints.len() >= 1024 {
-                            break;
-                        }
                         if let Some(root_node_idx) = root_bone.as_u64().map(|v| v as usize) {
                             // BFS queue ensures parent bones are always ordered before their children
                             let mut queue = VecDeque::new();
                             queue.push_back(root_node_idx);
 
                             while let Some(parent_idx) = queue.pop_front() {
-                                if parent_idx >= nodes.len() || joints.len() >= 1024 {
+                                if parent_idx >= nodes.len() {
                                     continue;
                                 }
                                 for &child_idx in &nodes[parent_idx].children {
-                                    if child_idx >= nodes.len() || joints.len() >= 1024 {
+                                    if child_idx >= nodes.len() {
                                         continue;
                                     }
                                     let child_node = &nodes[child_idx];
@@ -395,7 +390,13 @@ impl SpringBoneManager {
                 node.initial_translation,
             );
             let rest_world_mat = parent_mat * rest_local_mat;
-            let bone_world_pos = rest_world_mat.transform_point3(Vec3::ZERO);
+
+            // In @pixiv/three-vrm-springbone:
+            // bone_world_pos is bone.matrixWorld (which uses the current posed parent_mat + current joint local translation)
+            let bone_world_pos = globals[joint.node_idx].transform_point3(Vec3::ZERO);
+
+            // world_rest_dir is:
+            // _boneAxis.transformDirection(_initialLocalMatrix).transformDirection(_parentMatrixWorld)
             let world_rest_dir = rest_world_mat
                 .transform_vector3(joint.bone_axis)
                 .normalize_or_zero();
