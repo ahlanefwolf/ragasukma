@@ -1,6 +1,7 @@
 use super::cleaner::clean_ai_text;
 use super::prompt::{build_system_prompt, build_system_prompt_indexed};
 use super::providers::antigravity::AntigravityProvider;
+use super::providers::claude::ClaudeProvider;
 use super::providers::codex::CodexProvider;
 use super::types::{ChatMessage, ChatRequest, OllamaChatRequest, OllamaChatResponse};
 use anyhow::{bail, Context, Result};
@@ -14,6 +15,7 @@ pub struct LlmClient {
     pub history: Vec<ChatMessage>,
     pub antigravity: AntigravityProvider,
     pub codex: CodexProvider,
+    pub claude: ClaudeProvider,
 }
 
 impl LlmClient {
@@ -42,6 +44,7 @@ impl LlmClient {
 
         let antigravity = AntigravityProvider::new_with_client(client.clone());
         let codex = CodexProvider::new_with_client(client.clone());
+        let claude = ClaudeProvider::new_with_client(client.clone());
 
         Self {
             provider,
@@ -52,6 +55,7 @@ impl LlmClient {
             history,
             antigravity,
             codex,
+            claude,
         }
     }
 
@@ -110,8 +114,70 @@ impl LlmClient {
         // Always reload accounts from disk for real-time synchronization if an account was newly added / removed
         let _ = self.antigravity.load_accounts();
         let _ = self.codex.load_accounts();
+        let _ = self.claude.load_accounts();
 
-        // 1. Local Mode: Using internal Ragasukma engine (Antigravity pool or Codex pool)
+        // 1. Local Mode: Using internal Ragasukma engine (Claude pool, Codex pool, or Antigravity pool)
+        let is_claude_engine = self.provider.eq_ignore_ascii_case("claude")
+            || self.provider.eq_ignore_ascii_case("anthropic")
+            || self.model.starts_with("cc/")
+            || self.model.starts_with("claude/");
+
+        if is_claude_engine && !self.claude.accounts.is_empty() {
+            let start_time = std::time::Instant::now();
+            let in_tokens = self.history.iter().map(|m| m.content.len() / 4).sum::<usize>().max(1);
+            match self.claude.chat_stream(
+                &self.model,
+                &self.history,
+                0.7,
+                8192,
+                &mut on_sentence,
+            ) {
+                Ok(reply) => {
+                    let duration_ms = start_time.elapsed().as_millis() as u64;
+                    let clean = clean_ai_text(&reply);
+                    let out_tokens = (clean.len() / 4).max(1);
+                    crate::llm::usage::record_usage(
+                        "claude",
+                        &self.model,
+                        in_tokens,
+                        0,
+                        out_tokens,
+                        duration_ms,
+                        "success",
+                    );
+
+                    self.history.push(ChatMessage {
+                        role: "assistant".to_string(),
+                        content: clean.clone(),
+                    });
+                    self.prune_history();
+
+                    let u = crate::config::load_user_config();
+                    crate::llm::history::log_conversation_turn(
+                        &u.user_callsign,
+                        &u.assistant_name,
+                        &u.personality_role,
+                        input_text,
+                        &clean,
+                    );
+                    return Ok(reply);
+                }
+                Err(e) => {
+                    let duration_ms = start_time.elapsed().as_millis() as u64;
+                    crate::llm::usage::record_usage(
+                        "claude",
+                        &self.model,
+                        in_tokens,
+                        0,
+                        0,
+                        duration_ms,
+                        "error",
+                    );
+                    crate::term_err!("[Claude Engine Error]: {}. Falling back to default provider...", e);
+                }
+            }
+        }
+
         let is_codex_engine = self.provider.eq_ignore_ascii_case("codex")
             || self.provider.eq_ignore_ascii_case("openai-codex")
             || self.model.starts_with("cx/");
@@ -475,6 +541,25 @@ impl LlmClient {
     pub fn complete_messages_silent(&mut self, messages: &[ChatMessage]) -> Result<String> {
         let _ = self.antigravity.load_accounts();
         let _ = self.codex.load_accounts();
+        let _ = self.claude.load_accounts();
+
+        let is_claude_engine = self.provider.eq_ignore_ascii_case("claude")
+            || self.provider.eq_ignore_ascii_case("anthropic")
+            || self.model.starts_with("cc/")
+            || self.model.starts_with("claude/");
+
+        if is_claude_engine && !self.claude.accounts.is_empty() {
+            let mut dummy_cb = |_text: &str, _emo: &str| -> Result<()> { Ok(()) };
+            if let Ok(reply) = self.claude.chat_stream(
+                &self.model,
+                messages,
+                0.2,
+                4096,
+                &mut dummy_cb,
+            ) {
+                return Ok(reply);
+            }
+        }
 
         let is_codex_engine = self.provider.eq_ignore_ascii_case("codex")
             || self.provider.eq_ignore_ascii_case("openai-codex")

@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use crate::agent::events::broadcast_session_event;
 use crate::agent::models::AgentSessionEvent;
 use crate::llm::providers::antigravity::AntigravityProvider;
+use crate::llm::providers::claude::ClaudeProvider;
 use crate::llm::providers::codex::CodexProvider;
 use crate::llm::v1_engine::{V1ChatRequest, V1Message, V1StreamEvent, V1ToolCall, V1ToolCallFunction};
 
@@ -51,6 +52,7 @@ pub async fn execute_model_stream(
 
     let req_clone = chat_req.clone();
     let sess_id_clone = session_id.to_string();
+    let model_clone = model.to_string();
     let current_iteration = iteration;
     let cancellation_flag = crate::agent::events::get_session_cancellation_flag(session_id);
 
@@ -77,7 +79,82 @@ pub async fn execute_model_stream(
             let mut accumulated_thought = String::new();
             let mut collected_tool_calls: Vec<V1ToolCall> = Vec::new();
 
-            let attempt_result = if is_codex {
+            let family = crate::agent::executor::state::detect_provider_family(&model_clone);
+
+            let attempt_result = if family == crate::agent::executor::state::ModelProviderFamily::Claude {
+                let mut announced_tool_indices: HashSet<usize> = HashSet::new();
+                let mut provider = ClaudeProvider::new();
+                let res = provider.chat_stream_v1(&req_clone, |event| {
+                    if cancellation_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                        anyhow::bail!("Session cancelled by user");
+                    }
+                    match event {
+                        V1StreamEvent::ContentDelta(delta) => {
+                            accumulated_content.push_str(&delta);
+                            deltas_broadcasted = true;
+                            broadcast_session_event(
+                                &sess_id_clone,
+                                AgentSessionEvent::Delta { delta },
+                            );
+                        }
+                        V1StreamEvent::ThoughtDelta(thought) => {
+                            accumulated_thought.push_str(&thought);
+                            deltas_broadcasted = true;
+                            broadcast_session_event(
+                                &sess_id_clone,
+                                AgentSessionEvent::ThoughtDelta { delta: thought },
+                            );
+                        }
+                        V1StreamEvent::ToolCallDelta { index, id, name, arguments } => {
+                            if index >= collected_tool_calls.len() {
+                                collected_tool_calls.resize(
+                                    index + 1,
+                                    V1ToolCall {
+                                        id: id.clone().unwrap_or_else(|| format!("call_{}", index)),
+                                        call_type: "function".to_string(),
+                                        function: V1ToolCallFunction {
+                                            name: name.clone().unwrap_or_default(),
+                                            arguments: String::new(),
+                                        },
+                                        thought_signature: None,
+                                        extra_content: None,
+                                        provider_specific_fields: None,
+                                    },
+                                );
+                            }
+                            if let Some(tc_id) = id {
+                                collected_tool_calls[index].id = tc_id;
+                            }
+                            if let Some(tc_name) = name {
+                                if !tc_name.is_empty() && announced_tool_indices.insert(index) {
+                                    broadcast_session_event(
+                                        &sess_id_clone,
+                                        AgentSessionEvent::StepInfo {
+                                            iteration: current_iteration,
+                                            action: format!("tool:{}", tc_name),
+                                            details: Some(format!("Preparing `{}`...", tc_name)),
+                                        },
+                                    );
+                                }
+                                collected_tool_calls[index].function.name = tc_name;
+                            }
+                            collected_tool_calls[index].function.arguments.push_str(&arguments);
+                        }
+                        _ => {}
+                    }
+                    Ok(())
+                });
+                res.map(|v1_res| {
+                    let tc = if v1_res.tool_calls.is_some() {
+                        v1_res.tool_calls
+                    } else if !collected_tool_calls.is_empty() {
+                        Some(collected_tool_calls)
+                    } else {
+                        None
+                    };
+                    (accumulated_content, accumulated_thought, tc)
+                })
+            } else if is_codex {
                 let mut announced_tool_indices: HashSet<usize> = HashSet::new();
                 let mut provider = CodexProvider::new();
                 let res = provider.chat_stream_v1(&req_clone, |event| {
@@ -266,7 +343,11 @@ pub async fn execute_model_stream(
     let estimated_output_tokens = (output_chars / 4).max(1);
 
     // Record turn usage to llm_usage table
-    let provider_name = if is_codex { "codex" } else { "antigravity" };
+    let provider_name = match crate::agent::executor::state::detect_provider_family(model) {
+        crate::agent::executor::state::ModelProviderFamily::Claude => "claude",
+        crate::agent::executor::state::ModelProviderFamily::Codex => "codex",
+        crate::agent::executor::state::ModelProviderFamily::Antigravity => "antigravity",
+    };
     let _ = crate::llm::usage::record_usage_async(
         provider_name,
         model,

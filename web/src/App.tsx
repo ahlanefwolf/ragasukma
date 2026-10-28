@@ -12,6 +12,7 @@ import { LogsTab } from './components/LogsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { AntigravityTab } from './components/AntigravityTab';
 import { CodexTab } from './components/CodexTab';
+import { ClaudeTab } from './components/ClaudeTab';
 import { AgentTab } from './components/agent/AgentTab';
 import { RemoteTab } from './components/RemoteTab';
 import { MobileClientView } from './components/MobileClientView';
@@ -52,6 +53,8 @@ const TAB_HASH_ALIASES: Record<string, string> = {
   '#antigravity': 'provider-antigravity',
   '#provider-codex': 'provider-codex',
   '#codex': 'provider-codex',
+  '#provider-claude': 'provider-claude',
+  '#claude': 'provider-claude',
 };
 
 const getInitialTabFromHash = (): string => {
@@ -443,6 +446,9 @@ const App: Component = () => {
                 </Show>
                 <Show when={activeTab() === 'provider-codex'}>
                   <CodexTab showToast={showToast} />
+                </Show>
+                <Show when={activeTab() === 'provider-claude'}>
+                  <ClaudeTab showToast={showToast} />
                 </Show>
               </div>
 

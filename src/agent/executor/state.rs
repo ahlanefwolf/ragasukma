@@ -203,3 +203,21 @@ pub async fn resolve_model(session: &Session, model_override: Option<&str>) -> (
     let is_codex = model.starts_with("cx/") || model.to_lowercase().contains("codex");
     (model, is_codex)
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModelProviderFamily {
+    Antigravity,
+    Codex,
+    Claude,
+}
+
+pub fn detect_provider_family(model: &str) -> ModelProviderFamily {
+    let lower = model.to_lowercase();
+    if model.starts_with("cc/") || model.starts_with("claude/") || lower.contains("claude") {
+        ModelProviderFamily::Claude
+    } else if model.starts_with("cx/") || lower.contains("codex") {
+        ModelProviderFamily::Codex
+    } else {
+        ModelProviderFamily::Antigravity
+    }
+}

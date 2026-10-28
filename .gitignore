@@ -37,6 +37,7 @@ assets/recipes/
 # ==============================================================================
 *antigravity_accounts.json
 *codex_accounts.json
+*claude_accounts.json
 *active_window_app.json
 *active_tab_browser.json
 

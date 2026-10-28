@@ -1,4 +1,5 @@
 use crate::llm::providers::antigravity::AntigravityProvider;
+use crate::llm::providers::claude::ClaudeProvider;
 use crate::llm::providers::codex::CodexProvider;
 use crate::llm::v1_engine::{V1ChatRequest, V1StreamEvent, V1ToolCall};
 use serde::{Deserialize, Serialize};
@@ -110,6 +111,19 @@ pub fn get_v1_models() -> ModelListResponse {
                 object: "model".to_string(),
                 created: now,
                 owned_by: "codex".to_string(),
+            });
+        }
+    }
+
+    // Append Claude models (cc/ prefix) dynamically from active accounts
+    let mut cc_provider = ClaudeProvider::new();
+    if let Ok(cc_models) = cc_provider.get_dynamic_available_models() {
+        for m in cc_models {
+            data.push(ModelItem {
+                id: m.id,
+                object: "model".to_string(),
+                created: now,
+                owned_by: "claude".to_string(),
             });
         }
     }
@@ -228,6 +242,7 @@ pub async fn axum_v1_chat_completions_handler(
     let cmpl_id = format!("chatcmpl-{}", current_ts());
     let now = current_ts();
     let is_codex = model.starts_with("cx/") || model.to_lowercase().contains("codex");
+    let is_claude = model.starts_with("cc/") || model.starts_with("claude/") || model.to_lowercase().contains("claude");
     let req_start_time = std::time::Instant::now();
 
     if is_stream {
@@ -258,7 +273,56 @@ pub async fn axum_v1_chat_completions_handler(
             let mut final_finish_reason = "stop".to_string();
             let tx_clone = tx.clone();
 
-            let stream_result = if is_codex {
+            let stream_result = if is_claude {
+                let mut claude_provider = ClaudeProvider::new();
+                claude_provider.chat_stream_v1(&req, |event| {
+                    match event {
+                        V1StreamEvent::ContentDelta(delta_text) => {
+                            let chunk = StreamChunk {
+                                id: cmpl_id_clone.clone(),
+                                object: "chat.completion.chunk".to_string(),
+                                created: now,
+                                model: model_clone.clone(),
+                                choices: vec![StreamChoice {
+                                    index: 0,
+                                    delta: serde_json::json!({ "content": delta_text }),
+                                    finish_reason: None,
+                                }],
+                            };
+                            if let Ok(json) = serde_json::to_string(&chunk) {
+                                let msg = format!("data: {}\n\n", json);
+                                if tx_clone.blocking_send(axum::body::Bytes::from(msg)).is_err() {
+                                    return Err(anyhow::anyhow!("Client disconnected"));
+                                }
+                            }
+                        }
+                        V1StreamEvent::ThoughtDelta(thought_text) => {
+                            let chunk = StreamChunk {
+                                id: cmpl_id_clone.clone(),
+                                object: "chat.completion.chunk".to_string(),
+                                created: now,
+                                model: model_clone.clone(),
+                                choices: vec![StreamChoice {
+                                    index: 0,
+                                    delta: serde_json::json!({ "reasoning_content": thought_text }),
+                                    finish_reason: None,
+                                }],
+                            };
+                            if let Ok(json) = serde_json::to_string(&chunk) {
+                                let msg = format!("data: {}\n\n", json);
+                                if tx_clone.blocking_send(axum::body::Bytes::from(msg)).is_err() {
+                                    return Err(anyhow::anyhow!("Client disconnected"));
+                                }
+                            }
+                        }
+                        V1StreamEvent::Finish { finish_reason } => {
+                            final_finish_reason = finish_reason;
+                        }
+                        _ => {}
+                    }
+                    Ok(())
+                })
+            } else if is_codex {
                 let mut codex_provider = CodexProvider::new();
                 codex_provider.chat_stream_v1(&req, |event| {
                     match event {
@@ -417,7 +481,13 @@ pub async fn axum_v1_chat_completions_handler(
                         .sum::<usize>()
                         .max(1);
                     let approx_comp_tokens = (v1_resp.content.len() / 4).max(1);
-                    let provider = if is_codex { "codex" } else { "antigravity" };
+                    let provider = if is_claude {
+                        "claude"
+                    } else if is_codex {
+                        "codex"
+                    } else {
+                        "antigravity"
+                    };
                     crate::llm::usage::record_usage(
                         provider,
                         &model,
@@ -468,7 +538,10 @@ pub async fn axum_v1_chat_completions_handler(
 
         // Non-streaming response
         let non_stream_res = tokio::task::spawn_blocking(move || {
-            if is_codex {
+            if is_claude {
+                let mut claude_provider = ClaudeProvider::new();
+                claude_provider.chat_stream_v1(&req, |_| Ok(()))
+            } else if is_codex {
                 let mut codex_provider = CodexProvider::new();
                 codex_provider.chat_stream_v1(&req, |_| Ok(()))
             } else {
@@ -492,7 +565,13 @@ pub async fn axum_v1_chat_completions_handler(
             Ok(v1_resp) => {
                 let approx_comp_tokens = (v1_resp.content.len() / 4).max(1);
                 let duration_ms = req_start_time.elapsed().as_millis() as u64;
-                let provider = if is_codex { "codex" } else { "antigravity" };
+                let provider = if is_claude {
+                    "claude"
+                } else if is_codex {
+                    "codex"
+                } else {
+                    "antigravity"
+                };
                 crate::llm::usage::record_usage(
                     provider,
                     &model,

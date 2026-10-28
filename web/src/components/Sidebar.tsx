@@ -63,6 +63,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
   const providerSubItems = [
     { id: 'provider-antigravity', label: 'Antigravity Engine' },
     { id: 'provider-codex', label: 'Codex Provider' },
+    { id: 'provider-claude', label: 'Claude Provider' },
   ];
 
   const isProviderActive = () => props.activeTab.startsWith('provider-');

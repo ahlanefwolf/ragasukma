@@ -8,6 +8,7 @@ import {
   posesService,
   skillsService,
   antigravityService,
+  claudeService,
   codexService,
   remoteService,
   recipeService,
@@ -92,6 +93,16 @@ export const api = {
   getCodexAccountQuota: codexService.getAccountQuota,
   getCodexModels: codexService.getModels,
 
+  // LLM Providers - Claude (Anthropic)
+  getClaudeAccounts: claudeService.getAccounts,
+  getClaudeAuthUrl: claudeService.getAuthUrl,
+  addClaudeAccount: claudeService.addAccount,
+  deleteClaudeAccount: claudeService.deleteAccount,
+  refreshClaudeAccount: claudeService.refreshAccount,
+  toggleClaudeAccount: claudeService.toggleAccount,
+  getClaudeAccountQuota: claudeService.getAccountQuota,
+  getClaudeModels: claudeService.getModels,
+
   // Remote Tunnel & Text Injection Service
   getTunnelStatus: remoteService.getTunnelStatus,
   checkCloudflared: remoteService.checkCloudflared,
@@ -140,4 +151,5 @@ export const api = {
 
 export type { AntigravityAccount, AntigravityQuotaResponse } from './services/antigravityService';
 export type { CodexAccount, CodexQuotaResponse, CodexQuotaWindow } from './services/codexService';
+export type { ClaudeAccount, ClaudeQuotaResponse, ClaudeQuotaWindow } from './services/claudeService';
 export type { LlmUsageRecord, LlmUsageSummary } from './services/usageService';

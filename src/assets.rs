@@ -268,6 +268,7 @@ pub fn ensure_default_user_assets() {
     let config_initial_files: &[(&str, &str)] = &[
         ("antigravity_accounts.json", "[]\n"),
         ("codex_accounts.json", "[]\n"),
+        ("claude_accounts.json", "[]\n"),
     ];
 
     for (filename, default_content) in config_initial_files {

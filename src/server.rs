@@ -338,8 +338,9 @@ pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
 
             let cors = tower_http::cors::CorsLayer::permissive();
 
-            // Start background callback listener for OpenAI Codex OAuth (port 1455)
+            // Start background callback listeners for OAuth
             crate::services::llm_providers::codex_service::ensure_port_1455_listener();
+            crate::services::llm_providers::claude_service::ensure_port_54321_listener();
 
             use crate::services::openai_v1_service::{
                 axum_v1_chat_completions_handler, axum_v1_models_handler, axum_v1_options_handler,

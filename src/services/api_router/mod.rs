@@ -46,6 +46,12 @@ mod tests {
         let bytes_cx = to_bytes(res_cx.into_body(), 1024 * 1024).await.unwrap();
         let val_cx: serde_json::Value = serde_json::from_slice(&bytes_cx).unwrap();
         assert!(val_cx.is_array());
+
+        let res_cc = axum_cc_accounts().await.into_response();
+        assert_eq!(res_cc.status(), StatusCode::OK);
+        let bytes_cc = to_bytes(res_cc.into_body(), 1024 * 1024).await.unwrap();
+        let val_cc: serde_json::Value = serde_json::from_slice(&bytes_cc).unwrap();
+        assert!(val_cc.is_array());
     }
 
     #[tokio::test]
@@ -182,6 +188,12 @@ mod tests {
     #[tokio::test]
     async fn test_axum_cx_quota_get_missing_id() {
         let res = axum_cx_quota_get(Query(QuotaQuery { id: None })).await.into_response();
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_axum_cc_quota_get_missing_id() {
+        let res = axum_cc_quota_get(Query(QuotaQuery { id: None })).await.into_response();
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     }
 }

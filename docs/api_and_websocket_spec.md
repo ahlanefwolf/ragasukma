@@ -52,6 +52,7 @@ Semua pesan yang dikirim dari server berformat JSON dengan struktur umum:
      * `music:play` — Memutar trek lagu di frontend player.
      * `antigravity:oauth_success` — Notifikasi OAuth Google sukses diterima backend.
      * `codex:oauth_success` — Notifikasi OAuth OpenAI Codex sukses diterima backend.
+     * `claude:oauth_success` — Notifikasi OAuth Anthropic Claude sukses diterima backend.
    * **Payload (`ClientAction`):**
      ```json
      {
@@ -307,7 +308,22 @@ Backend menyediakan 3 endpoint SSE:
 | `POST`| `/api/llm/codex/oauth/exchange`| Menukar kode otorisasi menjadi token |
 | `GET` | `/auth/callback`, `/callback` | URL callback alias untuk kompatibilitas redirect OAuth |
 
-#### 3. LLM Token Usage Analytics
+#### 3. Claude (Anthropic Claude Provider)
+| Method | Endpoint | Deskripsi |
+|---|---|---|
+| `GET` | `/api/llm/claude/models` | List model Claude yang tersedia |
+| `GET` | `/api/llm/claude/accounts` | Mengambil daftar akun Claude di pool |
+| `POST` | `/api/llm/claude/accounts` | Menambahkan akun Claude baru |
+| `POST` | `/api/llm/claude/accounts/delete` | Menghapus akun dari pool |
+| `POST` | `/api/llm/claude/accounts/refresh` | Refresh token Claude |
+| `POST` | `/api/llm/claude/accounts/toggle` | Mengaktifkan/menonaktifkan akun di pool |
+| `GET / POST`| `/api/llm/claude/accounts/quota` | Cek sisa kuota akun Claude |
+| `GET` | `/api/llm/claude/oauth/url` | Mendapatkan URL login Claude OAuth |
+| `GET` | `/api/llm/claude/oauth/callback`| Callback penerima OAuth code Claude |
+| `POST`| `/api/llm/claude/oauth/exchange`| Menukar kode otorisasi menjadi token |
+| `GET` | `http://127.0.0.1:54321/callback` | Callback listener port 54321 untuk redirect Claude OAuth |
+
+#### 4. LLM Token Usage Analytics
 | Method | Endpoint | Deskripsi |
 |---|---|---|
 | `GET` | `/api/llm/usage/summary` | Ringkasan total prompt token, output token, dan perkiraan biaya |
