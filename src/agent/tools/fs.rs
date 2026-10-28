@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+#[cfg(not(target_os = "windows"))]
 use std::fs;
 use std::path::{Path, PathBuf};
 

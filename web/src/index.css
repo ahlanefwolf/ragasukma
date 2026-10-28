@@ -88,6 +88,13 @@
   h5 { font-size: 0.875rem; line-height: 1.45; font-weight: 600; }
   h6 { font-size: 0.75rem;  line-height: 1.5;  font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
 
+  /* Prevent excessive bolding when strong or b tags are nested in headings */
+  h1 strong, h2 strong, h3 strong, h4 strong, h5 strong, h6 strong,
+  h1 b, h2 b, h3 b, h4 b, h5 b, h6 b,
+  .font-heading strong, .font-heading b {
+    font-weight: inherit;
+  }
+
   /* Focus Highlight */
   button:focus-visible,
   input:focus-visible,

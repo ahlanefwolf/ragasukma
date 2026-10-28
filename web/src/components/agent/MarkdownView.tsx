@@ -93,6 +93,13 @@ customRenderer.link = function ({ href, text }: Tokens.Link) {
   return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-theme-cyan hover:opacity-80 underline underline-offset-2">${text}</a>`;
 };
 
+// Headings: Strip redundant <strong> and <b> tags so headers don't become excessively bold
+customRenderer.heading = function ({ tokens, depth }: Tokens.Heading) {
+  const content = this.parser.parseInline(tokens);
+  const unbolded = content.replace(/<\/?(strong|b)>/gi, '');
+  return `<h${depth}>${unbolded}</h${depth}>\n`;
+};
+
 export const MarkdownView: Component<MarkdownViewProps> = (props) => {
   const parsedHtml = createMemo(() => {
     const raw = props.content || '';
@@ -153,6 +160,43 @@ export const MarkdownView: Component<MarkdownViewProps> = (props) => {
           color: var(--cyan);
           margin-top: 0.65rem;
           margin-bottom: 0.25rem;
+        }
+        .markdown-view-wrapper .markdown-content h4 {
+          font-size: 0.775rem;
+          font-weight: 600;
+          color: var(--text);
+          margin-top: 0.55rem;
+          margin-bottom: 0.2rem;
+        }
+        .markdown-view-wrapper .markdown-content h5 {
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: var(--text);
+          margin-top: 0.45rem;
+          margin-bottom: 0.2rem;
+        }
+        .markdown-view-wrapper .markdown-content h6 {
+          font-size: 0.7rem;
+          font-weight: 600;
+          color: var(--muted);
+          margin-top: 0.4rem;
+          margin-bottom: 0.15rem;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        .markdown-view-wrapper .markdown-content h1 strong,
+        .markdown-view-wrapper .markdown-content h2 strong,
+        .markdown-view-wrapper .markdown-content h3 strong,
+        .markdown-view-wrapper .markdown-content h4 strong,
+        .markdown-view-wrapper .markdown-content h5 strong,
+        .markdown-view-wrapper .markdown-content h6 strong,
+        .markdown-view-wrapper .markdown-content h1 b,
+        .markdown-view-wrapper .markdown-content h2 b,
+        .markdown-view-wrapper .markdown-content h3 b,
+        .markdown-view-wrapper .markdown-content h4 b,
+        .markdown-view-wrapper .markdown-content h5 b,
+        .markdown-view-wrapper .markdown-content h6 b {
+          font-weight: inherit;
         }
         .markdown-view-wrapper .markdown-content ul {
           list-style-type: disc;

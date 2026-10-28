@@ -234,7 +234,7 @@ pub fn run_python_installer() -> Result<String, String> {
                 }
             }
         }
-        return Err("Please install Python 3 using 'winget install Python.Python.3.12' or from python.org".to_string());
+        Err("Please install Python 3 using 'winget install Python.Python.3.12' or from python.org".to_string())
     }
 
     #[cfg(target_os = "macos")]
