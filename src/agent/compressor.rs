@@ -232,11 +232,12 @@ pub fn compact_tool_output_smart(content: &str, tool_name: Option<&str>, is_rece
         }
         Some("workspace_read_file") => {
             if is_recent_tail {
-                // In active recent turns: keep up to 16,000 chars for live edits
-                truncate_smart(content, 6_000, 10_000)
+                // In active recent turns: keep up to 10,000 chars for live edits
+                truncate_smart(content, 4_000, 6_000)
             } else {
-                // In older historical turns: retain up to 4,000 chars so code context is never completely lost
-                truncate_smart(content, 1_500, 2_500)
+                // In older historical turns: retain concise evidence summary (up to 1,500 chars)
+                // The full content is safely persisted in DB evidence_cache, preventing massive prompt bloat
+                truncate_smart(content, 600, 900)
             }
         }
         Some("workspace_list_dir") => {

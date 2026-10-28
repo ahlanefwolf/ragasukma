@@ -104,10 +104,10 @@ pub async fn execute_turn_tool_calls(
             format!(
                 "Command repetition limit reached for `{cmd}`. This command was already executed without subsequent file modifications. Tool calling is now closed. Conclude your turn now and report the results directly to the user."
             )
-        } else if is_inspection && !is_target_in_error_list && state.global_inspection_streak >= 25 {
+        } else if is_inspection && !is_target_in_error_list && state.global_inspection_streak >= 10 {
             is_breaker_trip = true;
             format!(
-                "Inspection limit reached ({} consecutive reads without code modifications). The circuit breaker has closed tool calling. Conclude your turn now and provide your findings, answers, or plan directly to the user.",
+                "Inspection budget reached ({} consecutive reads without code modifications). Tool calling is closed to prevent unproductive wandering. Conclude your turn now and provide your findings, answers, or plan directly to the user.",
                 state.global_inspection_streak
             )
         } else if tc.function.name == "workspace_read_file" && {
@@ -295,10 +295,17 @@ pub async fn execute_turn_tool_calls(
                          {diag_bulletin}\n\n\
                          CRITICAL BATCH-ACTION REQUIRED:\n\
                          1. Read the target files listed above in full (or use the lines indicated).\n\
-                         2. Apply ALL fixes for each target file using python3 scripts via `workspace_run_command` (or `workspace_write_file`).\n\
+                         2. Apply ALL fixes for each target file using `workspace_edit_file` (or `workspace_write_file`).\n\
                          3. DO NOT re-run compiler or verification commands until ALL broken target files have been edited!\n\
                          4. Once all target files are updated, run `{cmd}` to verify."
                     ));
+                } else {
+                    // Check if command modified files (e.g. python script with open(..., 'w'), touch, etc.)
+                    let touched = extract_modified_paths_from_command(trimmed_cmd);
+                    for path in touched {
+                        state.on_successful_edit(&path);
+                        let _ = repository::mark_evidence_stale_by_file(project_id, &path).await;
+                    }
                 }
 
                 if crate::agent::languages::is_verification_command(cmd) {
@@ -343,7 +350,7 @@ pub async fn execute_turn_tool_calls(
                         }
 
                         state.ephemeral_directive = Some(format!(
-                            "VERIFICATION FAILED: Verification command `{cmd}` reported errors.{diag_bulletin}\n\nACTION REQUIRED: Read the failing files, modify them using python3 via `workspace_run_command` or `workspace_write_file`, and re-verify before concluding."
+                            "VERIFICATION FAILED: Verification command `{cmd}` reported errors.{diag_bulletin}\n\nACTION REQUIRED: Read the failing files, modify them using `workspace_edit_file` or `workspace_write_file`, and re-verify before concluding."
                         ));
                     }
                 }
@@ -364,9 +371,9 @@ pub async fn execute_turn_tool_calls(
         }
 
         // Check inspection streaks (advise model to apply changes or conclude)
-        if state.global_inspection_streak >= 15 {
+        if state.global_inspection_streak >= 5 {
             state.ephemeral_directive = Some(format!(
-                "Suggestion: You have completed {} consecutive inspection steps without modifying code. If you have gathered sufficient context, proceed with applying edits via python3 in `workspace_run_command` (or `workspace_write_file`) or respond directly with your findings.",
+                "Notice: You have inspected {} files without modifying code. Discovery budget is almost exhausted. Cease exploratory reads, focus on the identified files, and apply modifications using `workspace_edit_file` (or `workspace_write_file`), or formulate your direct answer to the user.",
                 state.global_inspection_streak
             ));
         }
@@ -472,4 +479,43 @@ pub async fn execute_turn_tool_calls(
     }
 
     Ok(())
+}
+
+fn extract_modified_paths_from_command(cmd: &str) -> Vec<String> {
+    let mut paths = Vec::new();
+
+    // 1. Python open('path', 'w'/'a') or open("path", "w"/"a")
+    if cmd.contains("open(") {
+        for part in cmd.split("open(") {
+            let trimmed = part.trim_start();
+            if trimmed.starts_with('\'') || trimmed.starts_with('"') {
+                if let Some(quote) = trimmed.chars().next() {
+                    let rest = &trimmed[1..];
+                    if let Some((p, post)) = rest.split_once(quote) {
+                        if post.contains("'w'") || post.contains("\"w\"")
+                            || post.contains("'a'") || post.contains("\"a\"")
+                            || post.contains("'wb'") || post.contains("\"wb\"")
+                        {
+                            let clean = p.trim_start_matches("./").trim();
+                            if !clean.is_empty() && !paths.contains(&clean.to_string()) {
+                                paths.push(clean.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. touch file.txt
+    if cmd.starts_with("touch ") {
+        for arg in cmd.strip_prefix("touch ").unwrap_or("").split_whitespace() {
+            let clean = arg.trim_start_matches("./").trim();
+            if !clean.starts_with('-') && !clean.is_empty() && !paths.contains(&clean.to_string()) {
+                paths.push(clean.to_string());
+            }
+        }
+    }
+
+    paths
 }

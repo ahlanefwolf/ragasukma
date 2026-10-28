@@ -44,7 +44,7 @@ pub fn evaluate_turn_gates(
 
     if must_apply_changes && state.modified_files.is_empty() && !has_substantive_response && state.iteration < state.max_safety_iterations - 2 {
         state.ephemeral_directive = Some(
-            "Unresolved code error: A command or tool reported errors and no files were modified. If a fix is needed, apply it using python3 via `workspace_run_command` or `workspace_write_file`. If explaining the issue, provide your complete analysis to the user.".to_string()
+            "Unresolved code error: A command or tool reported errors and no files were modified. If a fix is needed, apply it using `workspace_edit_file` or `workspace_write_file`. If explaining the issue, provide your complete analysis to the user.".to_string()
         );
         return GateResult::Continue;
     }
@@ -56,7 +56,7 @@ pub fn evaluate_turn_gates(
     );
     if has_failing_checks && !has_substantive_response && state.iteration < state.max_safety_iterations - 2 {
         state.ephemeral_directive = Some(
-            "Failing checks or unresolved errors remain. Inspect the error messages and fix the code using python3 via `workspace_run_command` or `workspace_write_file`, or explain the findings to the user.".to_string()
+            "Failing checks or unresolved errors remain. Inspect the error messages and fix the code using `workspace_edit_file` or `workspace_write_file`, or explain the findings to the user.".to_string()
         );
         return GateResult::Continue;
     }

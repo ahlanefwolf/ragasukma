@@ -128,6 +128,32 @@ pub fn get_dynamic_agent_tools_schema(mcp_tools: &[crate::agent::mcp::ActiveMcpT
     schema.push(json!({
         "type": "function",
         "function": {
+            "name": "workspace_edit_file",
+            "description": "Precisely replace specific lines or code blocks within an existing file. Provide exact 'old_text' to match and 'new_text' to replace it with. Uses resilient whitespace-tolerant matching with automatic rollback on error.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to edit (relative to workspace or absolute)"
+                    },
+                    "old_text": {
+                        "type": "string",
+                        "description": "Exact text or code snippet to be replaced (include 1-2 surrounding lines if needed for uniqueness)"
+                    },
+                    "new_text": {
+                        "type": "string",
+                        "description": "New replacement code snippet"
+                    }
+                },
+                "required": ["file_path", "old_text", "new_text"]
+            }
+        }
+    }));
+
+    schema.push(json!({
+        "type": "function",
+        "function": {
             "name": "workspace_grep",
             "description": "Fast regex and literal text search across files in the workspace (ignores node_modules, target, .git, etc.). Returns up to 50 results formatted with file paths and line numbers.",
             "parameters": {
@@ -296,6 +322,27 @@ pub fn validate_safe_command(command: &str) -> Result<()> {
             let token_trim = token.trim();
             if token_trim == *pat || token_trim.starts_with(&format!("{} ", pat)) {
                 bail!("Operation blocked: System power control command '{}' is not permitted.", pat);
+            }
+        }
+    }
+
+    // Block direct edits/tampering with node_modules or .git via shell commands
+    let node_modules_write_patterns = [
+        "node_modules/",
+        "node_modules ",
+        ".git/",
+    ];
+    let is_write_like = trimmed.contains("> ")
+        || trimmed.contains(">>")
+        || trimmed.contains("rm ")
+        || trimmed.contains("mv ")
+        || trimmed.contains("cp ")
+        || trimmed.contains("python3 -c")
+        || trimmed.contains("python -c");
+    if is_write_like {
+        for pat in &node_modules_write_patterns {
+            if trimmed.contains(pat) {
+                bail!("Operation blocked: Direct modification or tampering of internal '{}' via terminal commands is not permitted. Apply fixes directly to project application source code instead.", pat);
             }
         }
     }
@@ -503,6 +550,7 @@ pub async fn execute_tool_call(
         "workspace_edit_file" => {
             let file_path = args
                 .get("file_path")
+                .or_else(|| args.get("path"))
                 .and_then(|v| v.as_str())
                 .context("Parameter 'file_path' is required")?;
             let old_text = args
@@ -551,7 +599,8 @@ pub async fn execute_tool_call(
                 .context("Parameter 'query' is required")?
                 .to_string();
             let sub_path = args
-                .get("path")
+                .get("folder")
+                .or_else(|| args.get("path"))
                 .and_then(|v| v.as_str())
                 .unwrap_or(".");
             let resolved = resolve_allowed_path(sub_path, allowed_roots)?;
@@ -1034,6 +1083,55 @@ mod tests {
 
         assert!(grep_out.contains("Found 1 match(es) for query 'calculate_price'"));
         assert!(grep_out.contains("logic.rs:1: pub fn calculate_price() {"));
+
+        let _ = std_fs::remove_dir_all(&temp_dir);
+    }
+
+    #[tokio::test]
+    async fn test_workspace_grep_with_folder_arg_and_edit_file_schema() {
+        let temp_dir = std::env::temp_dir().join(format!("ragasukma_grep_folder_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let sub_folder = temp_dir.join("backend");
+        let _ = std_fs::create_dir_all(&sub_folder);
+
+        let test_file = sub_folder.join("server.rs");
+        let _ = std_fs::write(&test_file, "pub fn start_doku_payment() {}\n");
+
+        let roots = vec![temp_dir.to_string_lossy().to_string()];
+
+        // 1. Validate that schema exposes workspace_edit_file
+        let dynamic_schema = get_dynamic_agent_tools_schema(&[]);
+        let has_edit = dynamic_schema.iter().any(|s| {
+            s.pointer("/function/name").and_then(|n| n.as_str()) == Some("workspace_edit_file")
+        });
+        assert!(has_edit, "workspace_edit_file must be exposed in dynamic agent tools schema");
+
+        // 2. Validate workspace_grep with 'folder' parameter resolves subfolder cleanly
+        let grep_out = execute_tool_call(
+            "workspace_grep",
+            &serde_json::json!({
+                "folder": "backend",
+                "query": "start_doku_payment"
+            }),
+            &roots,
+        ).await.unwrap();
+
+        assert!(grep_out.contains("start_doku_payment"));
+        assert!(grep_out.contains("server.rs"));
+
+        // 3. Validate workspace_edit_file execution with fallback 'path' and 'file_path'
+        let edit_out = execute_tool_call(
+            "workspace_edit_file",
+            &serde_json::json!({
+                "path": "backend/server.rs",
+                "old_text": "start_doku_payment",
+                "new_text": "start_jokul_doku_payment"
+            }),
+            &roots,
+        ).await.unwrap();
+
+        assert!(edit_out.contains("\"status\":\"ok\""));
+        let updated_code = std_fs::read_to_string(&test_file).unwrap();
+        assert!(updated_code.contains("start_jokul_doku_payment"));
 
         let _ = std_fs::remove_dir_all(&temp_dir);
     }

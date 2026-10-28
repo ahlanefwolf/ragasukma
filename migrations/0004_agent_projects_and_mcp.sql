@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_session_seq ON messages(session_id, sequence_num);
 CREATE INDEX IF NOT EXISTS idx_messages_session_created ON messages(session_id, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_messages_role ON messages(role);
+CREATE INDEX IF NOT EXISTS idx_messages_tool_call_id ON messages(tool_call_id);
 
 -- ============================================================================
 -- 5. GOALS (Goal Store: Demand, Criteria, Status & Phase Transitions)
