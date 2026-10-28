@@ -243,16 +243,21 @@ impl LlmClient {
 
         if is_local_engine {
             if !self.antigravity.accounts.is_empty() {
-                let ag_model = if self.model.starts_with("cx/") {
-                    "gemini-2.5-flash"
-                } else {
-                    &self.model
-                };
+                let raw_model = self
+                    .model
+                    .strip_prefix("ag/")
+                    .or_else(|| self.model.strip_prefix("cx/"))
+                    .or_else(|| self.model.strip_prefix("cc/"))
+                    .or_else(|| self.model.strip_prefix("claude/"))
+                    .or_else(|| self.model.strip_prefix("codex/"))
+                    .unwrap_or(&self.model);
+
+                let ag_model = crate::llm::providers::antigravity::v1_adapter::resolve_model_alias(raw_model);
                 let start_time = std::time::Instant::now();
                 let in_tokens = self.history.iter().map(|m| m.content.len() / 4).sum::<usize>().max(1);
 
                 match self.antigravity.chat_stream(
-                    ag_model,
+                    &ag_model,
                     &self.history,
                     0.7,
                     8192,
@@ -264,7 +269,7 @@ impl LlmClient {
                         let out_tokens = (clean.len() / 4).max(1);
                         crate::llm::usage::record_usage(
                             "antigravity",
-                            ag_model,
+                            &ag_model,
                             in_tokens,
                             0,
                             out_tokens,
@@ -293,7 +298,7 @@ impl LlmClient {
                         let duration_ms = start_time.elapsed().as_millis() as u64;
                         crate::llm::usage::record_usage(
                             "antigravity",
-                            ag_model,
+                            &ag_model,
                             in_tokens,
                             0,
                             0,

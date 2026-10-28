@@ -195,9 +195,6 @@ pub fn build_codex_payload_from_v1(req: &V1ChatRequest) -> serde_json::Value {
         }
     }
 
-    if let Some(temp) = req.temperature {
-        payload["temperature"] = json!(temp);
-    }
     if let Some(max_tokens) = req.max_tokens {
         payload["max_output_tokens"] = json!(max_tokens);
     }

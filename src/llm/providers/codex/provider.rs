@@ -537,6 +537,14 @@ impl CodexProvider {
                             self.accounts[acc_idx].id,
                             model
                         );
+                    } else if err_str.contains("401") || err_str.contains("token_revoked") || err_str.contains("invalidated oauth token") {
+                        crate::term_err!(
+                            "[Codex] Account {} access token revoked or expired (401). Invalidating access token for refresh...",
+                            self.accounts[acc_idx].id
+                        );
+                        self.accounts[acc_idx].access_token = None;
+                        let _ = refresh_account_token(&self.client, &mut self.accounts[acc_idx]);
+                        self.accounts[acc_idx].consecutive_errors += 1;
                     } else {
                         self.accounts[acc_idx].consecutive_errors += 1;
                         crate::term_err!(
@@ -567,6 +575,7 @@ impl CodexProvider {
 
         let total_accounts = self.accounts.len();
         let mut attempts = 0;
+        let mut last_err = None;
 
         while attempts < total_accounts {
             let acc_idx = match self.select_available_account_index(Some(&req.model)) {
@@ -586,8 +595,14 @@ impl CodexProvider {
             };
 
             if need_token {
-                if let Err(_e) = refresh_account_token(&self.client, &mut self.accounts[acc_idx]) {
+                if let Err(e) = refresh_account_token(&self.client, &mut self.accounts[acc_idx]) {
+                    crate::term_err!(
+                        "[Codex] Failed to refresh token for account {}: {}",
+                        self.accounts[acc_idx].id,
+                        e
+                    );
                     self.accounts[acc_idx].consecutive_errors += 1;
+                    last_err = Some(format!("Account {} token refresh failed: {e}", self.accounts[acc_idx].id));
                     continue;
                 }
             }
@@ -618,14 +633,26 @@ impl CodexProvider {
                             60,
                             current_timestamp_secs(),
                         );
+                    } else if err_str.contains("401") || err_str.contains("token_revoked") || err_str.contains("invalidated oauth token") {
+                        crate::term_err!(
+                            "[Codex] Account {} token revoked/expired (401). Invalidating access token...",
+                            self.accounts[acc_idx].id
+                        );
+                        self.accounts[acc_idx].access_token = None;
+                        let _ = refresh_account_token(&self.client, &mut self.accounts[acc_idx]);
+                        self.accounts[acc_idx].consecutive_errors += 1;
                     } else {
                         self.accounts[acc_idx].consecutive_errors += 1;
                     }
+                    last_err = Some(err_str);
                     let _ = self.save_accounts();
                 }
             }
         }
 
+        if let Some(err) = last_err {
+            bail!("Failed to execute Codex stream request after trying available accounts: {err}");
+        }
         bail!("Failed to execute Codex stream request after trying all available accounts.");
     }
 

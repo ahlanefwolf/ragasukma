@@ -45,6 +45,46 @@ pub fn build_claude_payload_from_messages(
     })
 }
 
+/// Detect whether the requested Claude model supports and requests extended thinking.
+/// Matches version >= 3.7 (e.g. claude-3-7, claude-3.7, claude-4, claude-opus-4, etc.)
+/// or explicit thinking suffixes like (low), (medium), (high), -thinking, etc.
+pub fn is_claude_thinking_model(model: &str) -> bool {
+    let lower = model.to_lowercase();
+    let trimmed = lower.trim();
+
+    // Explicit thinking keyword or suffix tags
+    if trimmed.contains("thinking")
+        || trimmed.contains("-think")
+        || trimmed.ends_with("(low)")
+        || trimmed.ends_with("(medium)")
+        || trimmed.ends_with("(high)")
+    {
+        return true;
+    }
+
+    // Version-based check: 3.7+ or 4+ models support thinking
+    // Claude 3 (3.0), 3.5 (Sonnet/Haiku) do NOT support extended thinking.
+    trimmed.contains("claude-3-7")
+        || trimmed.contains("claude-3.7")
+        || trimmed.contains("claude-3-8")
+        || trimmed.contains("claude-3.8")
+        || trimmed.contains("claude-3-9")
+        || trimmed.contains("claude-3.9")
+        || (trimmed.contains("claude-") && !trimmed.contains("claude-3") && !trimmed.contains("claude-2") && !trimmed.contains("claude-1"))
+}
+
+/// Resolve thinking budget tokens based on model name tags or defaults
+pub fn resolve_claude_thinking_budget(model: &str) -> u32 {
+    let lower = model.to_lowercase();
+    if lower.contains("(low)") || lower.contains("-low") {
+        1024
+    } else if lower.contains("(high)") || lower.contains("-high") {
+        4096
+    } else {
+        2048 // Standard balanced budget
+    }
+}
+
 pub fn build_claude_payload_from_v1(req: &V1ChatRequest) -> serde_json::Value {
     let clean_model = req.model.trim().trim_start_matches("claude/").trim_start_matches("cc/");
     let mut claude_messages: Vec<serde_json::Value> = Vec::new();
@@ -195,7 +235,18 @@ pub fn build_claude_payload_from_v1(req: &V1ChatRequest) -> serde_json::Value {
         }
     }
 
-    if let Some(temp) = req.temperature {
+    let is_thinking_claude = is_claude_thinking_model(clean_model);
+    if is_thinking_claude {
+        let budget = resolve_claude_thinking_budget(clean_model);
+        let max_tok = req.max_tokens.unwrap_or(8192).max(budget + 2048);
+        payload["max_tokens"] = json!(max_tok);
+        payload["thinking"] = json!({
+            "type": "enabled",
+            "budget_tokens": budget
+        });
+        // Anthropic requires temperature to be omitted or strictly 1.0 when extended thinking is enabled
+        payload.as_object_mut().map(|obj| obj.remove("temperature"));
+    } else if let Some(temp) = req.temperature {
         payload["temperature"] = json!(temp);
     }
 

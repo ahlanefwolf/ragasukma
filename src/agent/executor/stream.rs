@@ -154,7 +154,7 @@ pub async fn execute_model_stream(
                     };
                     (accumulated_content, accumulated_thought, tc)
                 })
-            } else if is_codex {
+            } else if family == crate::agent::executor::state::ModelProviderFamily::Codex || is_codex {
                 let mut announced_tool_indices: HashSet<usize> = HashSet::new();
                 let mut provider = CodexProvider::new();
                 let res = provider.chat_stream_v1(&req_clone, |event| {
