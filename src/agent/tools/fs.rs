@@ -74,22 +74,47 @@ pub fn resolve_allowed_path(raw_path: &str, allowed_roots: &[String]) -> Result<
     }
 
     // 4. For new files or directories that do not exist yet (e.g. write_file)
-    for root in allowed_roots {
+    let candidate = if let Some(matched_alias_path) = allowed_roots.iter().find_map(|root| {
         let root_p = Path::new(root);
         if let Some(folder_name) = root_p.file_name().and_then(|n| n.to_str()) {
             if let Ok(rel) = input_path.strip_prefix(folder_name) {
-                return Ok(root_p.join(rel));
+                return Some(root_p.join(rel));
             }
         }
-    }
-
-    // 5. Default fallback to primary root folder
-    let target = Path::new(&allowed_roots[0]).join(input_path);
-    let target_canonical = if target.exists() {
-        target.canonicalize().unwrap_or(target)
+        None
+    }) {
+        matched_alias_path
     } else {
-        target
+        // 5. Default fallback to primary root folder
+        Path::new(&allowed_roots[0]).join(input_path)
     };
+
+    // Verify candidate path does not escape allowed workspace roots via ".." or symlinks
+    let target_canonical = if candidate.exists() {
+        candidate.canonicalize().unwrap_or(candidate)
+    } else if let Some(parent) = candidate.parent() {
+        if parent.exists() {
+            parent.canonicalize().unwrap_or_else(|_| parent.to_path_buf()).join(candidate.file_name().unwrap_or_default())
+        } else {
+            candidate
+        }
+    } else {
+        candidate
+    };
+
+    let is_inside = allowed_roots.iter().any(|r| {
+        let r_path = Path::new(r);
+        let r_canon = r_path.canonicalize().unwrap_or_else(|_| r_path.to_path_buf());
+        target_canonical.starts_with(&r_canon)
+    });
+
+    if !is_inside {
+        bail!(
+            "Access denied: path '{}' escapes allowed workspace roots ({:?})",
+            raw_path,
+            allowed_roots
+        );
+    }
 
     Ok(target_canonical)
 }

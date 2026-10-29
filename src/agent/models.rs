@@ -147,6 +147,37 @@ pub struct Goal {
     pub conclusion: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
+    #[sqlx(default)]
+    #[serde(default = "default_version")]
+    pub version: i64,
+    #[sqlx(default)]
+    #[serde(default = "default_context_status")]
+    pub context_status: String,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub context_error: Option<String>,
+}
+
+fn default_version() -> i64 {
+    1
+}
+
+fn default_context_status() -> String {
+    "healthy".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct AgentAuditLog {
+    pub id: String,
+    pub session_id: Option<String>,
+    pub goal_id: Option<String>,
+    pub tool_name: String,
+    pub target_path: Option<String>,
+    pub command: Option<String>,
+    pub status: String,
+    pub reason: Option<String>,
+    pub duration_ms: Option<i64>,
+    pub created_at: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

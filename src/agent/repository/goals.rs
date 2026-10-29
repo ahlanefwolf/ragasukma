@@ -20,23 +20,83 @@ pub async fn create_goal(
     let pool = crate::llm::usage::get_pool().await;
     let now = now_secs();
 
+    // Check if goal already exists. If it exists and is in_progress, prevent unintended state overwrite.
+    let existing = sqlx::query_as::<_, Goal>(
+        "SELECT id, project_id, session_id, parent_goal_id, title, demand, success_criteria, constraints, phase, status, target_files, discovery_count, conclusion, created_at, updated_at, version, context_status, context_error \
+         FROM goals WHERE id = ?1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some(mut existing_goal) = existing {
+        if existing_goal.status == "in_progress" {
+            // Already actively running; do not clobber running state, return existing
+            return Ok(existing_goal);
+        }
+
+        // If completed or failed, allow explicit restart with incremented version
+        let new_version = existing_goal.version + 1;
+        let res = sqlx::query(
+            "UPDATE goals SET \
+                project_id = ?1, \
+                session_id = ?2, \
+                parent_goal_id = ?3, \
+                title = ?4, \
+                demand = ?5, \
+                success_criteria = ?6, \
+                constraints = ?7, \
+                phase = 'discovery', \
+                status = 'in_progress', \
+                target_files = '[]', \
+                discovery_count = 0, \
+                conclusion = NULL, \
+                context_status = 'healthy', \
+                context_error = NULL, \
+                version = ?8, \
+                updated_at = ?9 \
+             WHERE id = ?10 AND version = ?11",
+        )
+        .bind(project_id)
+        .bind(session_id)
+        .bind(parent_goal_id)
+        .bind(title)
+        .bind(demand)
+        .bind(success_criteria_json)
+        .bind(constraints_json)
+        .bind(new_version)
+        .bind(now)
+        .bind(id)
+        .bind(existing_goal.version)
+        .execute(pool)
+        .await?;
+
+        if res.rows_affected() == 0 {
+            anyhow::bail!("Concurrent goal modification detected while updating goal '{}'", id);
+        }
+
+        existing_goal.project_id = project_id.to_string();
+        existing_goal.session_id = session_id.map(|s| s.to_string());
+        existing_goal.parent_goal_id = parent_goal_id.map(|s| s.to_string());
+        existing_goal.title = title.to_string();
+        existing_goal.demand = demand.to_string();
+        existing_goal.success_criteria = success_criteria_json.to_string();
+        existing_goal.constraints = constraints_json.to_string();
+        existing_goal.phase = "discovery".to_string();
+        existing_goal.status = "in_progress".to_string();
+        existing_goal.target_files = "[]".to_string();
+        existing_goal.discovery_count = 0;
+        existing_goal.conclusion = None;
+        existing_goal.version = new_version;
+        existing_goal.context_status = "healthy".to_string();
+        existing_goal.context_error = None;
+        existing_goal.updated_at = now;
+        return Ok(existing_goal);
+    }
+
     sqlx::query(
-        "INSERT INTO goals (id, project_id, session_id, parent_goal_id, title, demand, success_criteria, constraints, phase, status, target_files, discovery_count, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'discovery', 'in_progress', '[]', 0, ?9, ?10) \
-         ON CONFLICT(id) DO UPDATE SET \
-            project_id = excluded.project_id, \
-            session_id = excluded.session_id, \
-            parent_goal_id = excluded.parent_goal_id, \
-            title = excluded.title, \
-            demand = excluded.demand, \
-            success_criteria = excluded.success_criteria, \
-            constraints = excluded.constraints, \
-            phase = 'discovery', \
-            status = 'in_progress', \
-            target_files = '[]', \
-            discovery_count = 0, \
-            conclusion = NULL, \
-            updated_at = excluded.updated_at",
+        "INSERT INTO goals (id, project_id, session_id, parent_goal_id, title, demand, success_criteria, constraints, phase, status, target_files, discovery_count, created_at, updated_at, version, context_status, context_error) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'discovery', 'in_progress', '[]', 0, ?9, ?10, 1, 'healthy', NULL)",
     )
     .bind(id)
     .bind(project_id)
@@ -67,13 +127,16 @@ pub async fn create_goal(
         conclusion: None,
         created_at: now,
         updated_at: now,
+        version: 1,
+        context_status: "healthy".to_string(),
+        context_error: None,
     })
 }
 
 pub async fn get_goal(goal_id: &str) -> Result<Option<Goal>> {
     let pool = crate::llm::usage::get_pool().await;
     let goal = sqlx::query_as::<_, Goal>(
-        "SELECT id, project_id, session_id, parent_goal_id, title, demand, success_criteria, constraints, phase, status, target_files, discovery_count, conclusion, created_at, updated_at \
+        "SELECT id, project_id, session_id, parent_goal_id, title, demand, success_criteria, constraints, phase, status, target_files, discovery_count, conclusion, created_at, updated_at, version, context_status, context_error \
          FROM goals WHERE id = ?1",
     )
     .bind(goal_id)
@@ -85,7 +148,7 @@ pub async fn get_goal(goal_id: &str) -> Result<Option<Goal>> {
 pub async fn list_session_goals(session_id: &str) -> Result<Vec<Goal>> {
     let pool = crate::llm::usage::get_pool().await;
     let goals = sqlx::query_as::<_, Goal>(
-        "SELECT id, project_id, session_id, parent_goal_id, title, demand, success_criteria, constraints, phase, status, target_files, discovery_count, conclusion, created_at, updated_at \
+        "SELECT id, project_id, session_id, parent_goal_id, title, demand, success_criteria, constraints, phase, status, target_files, discovery_count, conclusion, created_at, updated_at, version, context_status, context_error \
          FROM goals WHERE session_id = ?1 ORDER BY created_at DESC",
     )
     .bind(session_id)
@@ -97,7 +160,7 @@ pub async fn list_session_goals(session_id: &str) -> Result<Vec<Goal>> {
 pub async fn list_project_goals(project_id: &str) -> Result<Vec<Goal>> {
     let pool = crate::llm::usage::get_pool().await;
     let goals = sqlx::query_as::<_, Goal>(
-        "SELECT id, project_id, session_id, parent_goal_id, title, demand, success_criteria, constraints, phase, status, target_files, discovery_count, conclusion, created_at, updated_at \
+        "SELECT id, project_id, session_id, parent_goal_id, title, demand, success_criteria, constraints, phase, status, target_files, discovery_count, conclusion, created_at, updated_at, version, context_status, context_error \
          FROM goals WHERE project_id = ?1 ORDER BY created_at DESC",
     )
     .bind(project_id)
@@ -109,23 +172,66 @@ pub async fn list_project_goals(project_id: &str) -> Result<Vec<Goal>> {
 pub async fn update_goal_phase(goal_id: &str, phase: &str) -> Result<()> {
     let pool = crate::llm::usage::get_pool().await;
     let now = now_secs();
-    sqlx::query("UPDATE goals SET phase = ?1, updated_at = ?2 WHERE id = ?3")
+    let res = sqlx::query("UPDATE goals SET phase = ?1, version = version + 1, updated_at = ?2 WHERE id = ?3")
         .bind(phase)
         .bind(now)
         .bind(goal_id)
         .execute(pool)
         .await?;
+
+    if res.rows_affected() == 0 {
+        anyhow::bail!("Goal '{}' not found for phase update", goal_id);
+    }
+    Ok(())
+}
+
+pub async fn transition_goal_phase(
+    goal_id: &str,
+    expected_phase: &str,
+    new_phase: &str,
+) -> Result<()> {
+    let pool = crate::llm::usage::get_pool().await;
+    let now = now_secs();
+    let res = sqlx::query(
+        "UPDATE goals SET phase = ?1, version = version + 1, updated_at = ?2 \
+         WHERE id = ?3 AND phase = ?4",
+    )
+    .bind(new_phase)
+    .bind(now)
+    .bind(goal_id)
+    .bind(expected_phase)
+    .execute(pool)
+    .await?;
+
+    if res.rows_affected() == 0 {
+        anyhow::bail!(
+            "Atomic transition rejected: Goal '{}' is not in expected phase '{}' or concurrent modification occurred",
+            goal_id,
+            expected_phase
+        );
+    }
     Ok(())
 }
 
 pub async fn increment_goal_discovery(goal_id: &str) -> Result<i64> {
     let pool = crate::llm::usage::get_pool().await;
     let now = now_secs();
-    sqlx::query("UPDATE goals SET discovery_count = discovery_count + 1, updated_at = ?1 WHERE id = ?2")
-        .bind(now)
-        .bind(goal_id)
-        .execute(pool)
-        .await?;
+    let res = sqlx::query(
+        "UPDATE goals SET discovery_count = discovery_count + 1, version = version + 1, updated_at = ?1 WHERE id = ?2 AND phase = 'discovery'",
+    )
+    .bind(now)
+    .bind(goal_id)
+    .execute(pool)
+    .await?;
+
+    if res.rows_affected() == 0 {
+        // Fallback for non-strict discovery phase or missing goal
+        let _ = sqlx::query("UPDATE goals SET discovery_count = discovery_count + 1, version = version + 1, updated_at = ?1 WHERE id = ?2")
+            .bind(now)
+            .bind(goal_id)
+            .execute(pool)
+            .await?;
+    }
 
     let count: i64 = sqlx::query_scalar("SELECT discovery_count FROM goals WHERE id = ?1")
         .bind(goal_id)
@@ -138,37 +244,93 @@ pub async fn increment_goal_discovery(goal_id: &str) -> Result<i64> {
 pub async fn lock_goal_targets(goal_id: &str, target_files_json: &str) -> Result<()> {
     let pool = crate::llm::usage::get_pool().await;
     let now = now_secs();
-    sqlx::query("UPDATE goals SET target_files = ?1, phase = 'action', updated_at = ?2 WHERE id = ?3")
+    let res = sqlx::query(
+        "UPDATE goals SET target_files = ?1, phase = 'action', version = version + 1, updated_at = ?2 \
+         WHERE id = ?3 AND phase = 'discovery'",
+    )
+    .bind(target_files_json)
+    .bind(now)
+    .bind(goal_id)
+    .execute(pool)
+    .await?;
+
+    if res.rows_affected() == 0 {
+        // If already in action or verification, ensure idempotent lock update without phase violation
+        let fallback = sqlx::query(
+            "UPDATE goals SET target_files = ?1, version = version + 1, updated_at = ?2 WHERE id = ?3",
+        )
         .bind(target_files_json)
         .bind(now)
         .bind(goal_id)
         .execute(pool)
         .await?;
+
+        if fallback.rows_affected() == 0 {
+            anyhow::bail!("Goal '{}' not found to lock targets", goal_id);
+        }
+    }
     Ok(())
 }
 
 pub async fn update_goal_status(goal_id: &str, status: &str) -> Result<()> {
     let pool = crate::llm::usage::get_pool().await;
     let now = now_secs();
-    sqlx::query("UPDATE goals SET status = ?1, updated_at = ?2 WHERE id = ?3")
+    let res = sqlx::query("UPDATE goals SET status = ?1, version = version + 1, updated_at = ?2 WHERE id = ?3")
         .bind(status)
         .bind(now)
         .bind(goal_id)
         .execute(pool)
         .await?;
+
+    if res.rows_affected() == 0 {
+        anyhow::bail!("Goal '{}' not found for status update", goal_id);
+    }
+    Ok(())
+}
+
+pub async fn update_goal_context_health(
+    goal_id: &str,
+    context_status: &str,
+    context_error: Option<&str>,
+) -> Result<()> {
+    let pool = crate::llm::usage::get_pool().await;
+    let now = now_secs();
+    sqlx::query(
+        "UPDATE goals SET context_status = ?1, context_error = ?2, version = version + 1, updated_at = ?3 WHERE id = ?4",
+    )
+    .bind(context_status)
+    .bind(context_error)
+    .bind(now)
+    .bind(goal_id)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
 pub async fn conclude_goal(goal_id: &str, status: &str, conclusion: &str) -> Result<()> {
     let pool = crate::llm::usage::get_pool().await;
     let now = now_secs();
-    sqlx::query("UPDATE goals SET status = ?1, phase = 'concluded', conclusion = ?2, updated_at = ?3 WHERE id = ?4")
-        .bind(status)
-        .bind(conclusion)
-        .bind(now)
-        .bind(goal_id)
-        .execute(pool)
-        .await?;
+    let res = sqlx::query(
+        "UPDATE goals SET status = ?1, phase = 'concluded', conclusion = ?2, version = version + 1, updated_at = ?3 \
+         WHERE id = ?4 AND status != 'concluded'",
+    )
+    .bind(status)
+    .bind(conclusion)
+    .bind(now)
+    .bind(goal_id)
+    .execute(pool)
+    .await?;
+
+    if res.rows_affected() == 0 {
+        // Check if goal was already concluded or missing
+        let exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM goals WHERE id = ?1")
+            .bind(goal_id)
+            .fetch_optional(pool)
+            .await?;
+        if exists.is_none() {
+            anyhow::bail!("Goal '{}' not found to conclude", goal_id);
+        }
+    }
     Ok(())
 }
 
@@ -344,4 +506,43 @@ pub async fn list_goal_verifications(goal_id: &str) -> Result<Vec<GoalVerificati
     .fetch_all(pool)
     .await?;
     Ok(rows)
+}
+
+// ============================================================================
+// AGENT AUDIT LOG REPOSITORY
+// ============================================================================
+
+#[allow(clippy::too_many_arguments)]
+pub async fn record_agent_audit(
+    session_id: Option<&str>,
+    goal_id: Option<&str>,
+    tool_name: &str,
+    target_path: Option<&str>,
+    command: Option<&str>,
+    status: &str,
+    reason: Option<&str>,
+    duration_ms: Option<i64>,
+) -> Result<()> {
+    let pool = crate::llm::usage::get_pool().await;
+    let now = now_secs();
+    let id = generate_id("audit");
+
+    sqlx::query(
+        "INSERT INTO agent_audit_logs (id, session_id, goal_id, tool_name, target_path, command, status, reason, duration_ms, created_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+    )
+    .bind(&id)
+    .bind(session_id)
+    .bind(goal_id)
+    .bind(tool_name)
+    .bind(target_path)
+    .bind(command)
+    .bind(status)
+    .bind(reason)
+    .bind(duration_ms)
+    .bind(now)
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }

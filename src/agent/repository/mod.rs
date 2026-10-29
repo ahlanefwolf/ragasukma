@@ -242,5 +242,58 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(fresh_ev.len(), 0);
+
+        // 4. Test Atomic Phase Transition & Versioning directly on the in-memory pool
+        let g1 = sqlx::query_as::<_, crate::agent::models::Goal>(
+            "SELECT id, project_id, session_id, parent_goal_id, title, demand, success_criteria, constraints, phase, status, target_files, discovery_count, conclusion, created_at, updated_at, version, context_status, context_error \
+             FROM goals WHERE id = 'G1'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(g1.version, 1);
+
+        // Transition with mismatched expected phase yields 0 rows affected
+        let res_invalid = sqlx::query(
+            "UPDATE goals SET phase = 'action', version = version + 1 WHERE id = 'G1' AND phase = 'discovery'",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        assert_eq!(res_invalid.rows_affected(), 0);
+
+        // Transition with matching expected phase increments version atomically
+        let res_valid = sqlx::query(
+            "UPDATE goals SET phase = 'action', version = version + 1 WHERE id = 'G1' AND phase = 'concluded'",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        assert_eq!(res_valid.rows_affected(), 1);
+
+        let g1_after = sqlx::query_as::<_, crate::agent::models::Goal>(
+            "SELECT id, project_id, session_id, parent_goal_id, title, demand, success_criteria, constraints, phase, status, target_files, discovery_count, conclusion, created_at, updated_at, version, context_status, context_error \
+             FROM goals WHERE id = 'G1'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(g1_after.version, 2);
+        assert_eq!(g1_after.phase, "action");
+
+        // 5. Test Audit Log insertion on test pool
+        sqlx::query(
+            "INSERT INTO agent_audit_logs (id, session_id, goal_id, tool_name, target_path, command, status, reason, duration_ms, created_at) \
+             VALUES ('audit_1', 'sess_test', 'G1', 'workspace_run_command', 'src/main.rs', 'cargo check', 'executed', NULL, 42, 1006)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let audit_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM agent_audit_logs WHERE goal_id = 'G1'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(audit_count.0, 1);
     }
 }

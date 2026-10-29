@@ -102,26 +102,73 @@ pub async fn execute_turn_tool_calls(
             !cmd.is_empty() && state.last_executed_command.as_deref() == Some(cmd) && state.consecutive_command_count >= 1
         };
 
+        let tool_start_instant = std::time::Instant::now();
+        let cmd_param = args_val.get("command").and_then(|c| c.as_str());
+
         // HARD GATES & CIRCUIT BREAKERS
         let mut is_breaker_trip = false;
         let tool_output = if state.circuit_breaker_triggered || state.force_final_text_only {
             is_breaker_trip = true;
-            "Tool execution rejected: Tool calling is closed for this turn. Conclude your turn immediately and provide your summary to the user now.".to_string()
+            let msg = "Tool execution rejected: Tool calling is closed for this turn. Conclude your turn immediately and provide your summary to the user now.".to_string();
+            let _ = repository::record_agent_audit(
+                Some(session_id),
+                Some(&state.goal_id),
+                &tc.function.name,
+                target_arg_file.as_deref(),
+                cmd_param,
+                "denied",
+                Some("circuit_breaker_triggered"),
+                Some(0),
+            ).await;
+            msg
         } else if state.has_passed_verification && !state.last_command_had_error && state.pending_error_files.is_empty() && !is_work_on_new_target && !is_accessing_different_component && (tc.function.name != "workspace_run_command" || is_post_verification_terminal_command) {
             is_breaker_trip = true;
-            "Verification has already succeeded with 0 errors. All active errors resolved. Tool calling is now closed. Conclude your turn immediately and provide your summary to the user now.".to_string()
+            let msg = "Verification has already succeeded with 0 errors. All active errors resolved. Tool calling is now closed. Conclude your turn immediately and provide your summary to the user now.".to_string();
+            let _ = repository::record_agent_audit(
+                Some(session_id),
+                Some(&state.goal_id),
+                &tc.function.name,
+                target_arg_file.as_deref(),
+                cmd_param,
+                "denied",
+                Some("verification_already_passed"),
+                Some(0),
+            ).await;
+            msg
         } else if is_repeated_command {
             is_breaker_trip = true;
             let cmd = args_val.get("command").and_then(|c| c.as_str()).unwrap_or("").trim();
-            format!(
+            let msg = format!(
                 "Command repetition limit reached for `{cmd}`. This command was already executed without subsequent file modifications. Tool calling is now closed. Conclude your turn now and report the results directly to the user."
-            )
+            );
+            let _ = repository::record_agent_audit(
+                Some(session_id),
+                Some(&state.goal_id),
+                &tc.function.name,
+                target_arg_file.as_deref(),
+                Some(cmd),
+                "denied",
+                Some("repeated_command_without_progress"),
+                Some(0),
+            ).await;
+            msg
         } else if is_inspection && !is_target_in_error_list && state.global_inspection_streak >= 20 {
             is_breaker_trip = true;
-            format!(
+            let msg = format!(
                 "Inspection budget reached ({} consecutive reads without code modifications). Tool calling is closed to prevent unproductive wandering. Conclude your turn now and provide your findings, answers, or plan directly to the user.",
                 state.global_inspection_streak
-            )
+            );
+            let _ = repository::record_agent_audit(
+                Some(session_id),
+                Some(&state.goal_id),
+                &tc.function.name,
+                target_arg_file.as_deref(),
+                cmd_param,
+                "denied",
+                Some("inspection_budget_exhausted"),
+                Some(0),
+            ).await;
+            msg
         } else if tc.function.name == "workspace_read_file" && {
             let start_line = args_val.get("start_line").and_then(|v| v.as_i64());
             let end_line = args_val.get("end_line").and_then(|v| v.as_i64());
@@ -143,8 +190,35 @@ pub async fn execute_turn_tool_calls(
             )
             .await
             {
-                Ok(out) => out,
-                Err(e) => format!("MCP execution error: {}", e),
+                Ok(out) => {
+                    let dur = tool_start_instant.elapsed().as_millis() as i64;
+                    let _ = repository::record_agent_audit(
+                        Some(session_id),
+                        Some(&state.goal_id),
+                        &tc.function.name,
+                        None,
+                        None,
+                        "executed",
+                        None,
+                        Some(dur),
+                    ).await;
+                    out
+                }
+                Err(e) => {
+                    let dur = tool_start_instant.elapsed().as_millis() as i64;
+                    let err_str = e.to_string();
+                    let _ = repository::record_agent_audit(
+                        Some(session_id),
+                        Some(&state.goal_id),
+                        &tc.function.name,
+                        None,
+                        None,
+                        "failed",
+                        Some(&err_str),
+                        Some(dur),
+                    ).await;
+                    format!("MCP execution error: {}", err_str)
+                }
             }
         } else {
             match execute_tool_call(
@@ -153,6 +227,18 @@ pub async fn execute_turn_tool_calls(
                 allowed_folders,
             ).await {
                 Ok(out) => {
+                    let dur = tool_start_instant.elapsed().as_millis() as i64;
+                    let _ = repository::record_agent_audit(
+                        Some(session_id),
+                        Some(&state.goal_id),
+                        &tc.function.name,
+                        target_arg_file.as_deref(),
+                        cmd_param,
+                        "executed",
+                        None,
+                        Some(dur),
+                    ).await;
+
                     if tc.function.name == "workspace_read_file" {
                         if let Some(ref p) = target_arg_file {
                             let clean = p.trim_start_matches("./").to_string();
@@ -167,7 +253,21 @@ pub async fn execute_turn_tool_calls(
                     }
                     out
                 }
-                Err(e) => format!("Tool execution error: {}", e),
+                Err(e) => {
+                    let dur = tool_start_instant.elapsed().as_millis() as i64;
+                    let err_str = e.to_string();
+                    let _ = repository::record_agent_audit(
+                        Some(session_id),
+                        Some(&state.goal_id),
+                        &tc.function.name,
+                        target_arg_file.as_deref(),
+                        cmd_param,
+                        "failed",
+                        Some(&err_str),
+                        Some(dur),
+                    ).await;
+                    format!("Tool execution error: {}", err_str)
+                }
             }
         };
 
