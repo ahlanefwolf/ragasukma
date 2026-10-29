@@ -75,13 +75,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
     isUserScrolledUp = false;
   });
 
-  // Scroll to bottom when sending message
-  createEffect(() => {
-    if (chat.sendingMessage()) {
-      isUserScrolledUp = false;
-      setTimeout(() => scrollToBottom(true, true), 30);
-    }
-  });
+  // Note: Auto-scroll on send is now handled via onMessageSent callback in handleSendMessage
 
   // Autocomplete @tagging in chat input
   const [autocompleteOpen, setAutocompleteOpen] = createSignal(false);
@@ -104,7 +98,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
     const cursorPos = autocompleteCursorPos();
     const textBefore = current.slice(0, cursorPos);
     const textAfter = current.slice(cursorPos);
-    const updatedBefore = textBefore.replace(/@([a-zA-Z0-9_\-\./\\]*)$/, `@${file.relative_path} `);
+    const updatedBefore = textBefore.replace(/@([^\n]*)$/, `@${file.relative_path} `);
     chat.setUserInput(updatedBefore + textAfter);
     setAutocompleteOpen(false);
 
@@ -125,7 +119,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
     const cursorPos = target.selectionStart || 0;
     setAutocompleteCursorPos(cursorPos);
     const textBefore = val.slice(0, cursorPos);
-    const match = textBefore.match(/@([a-zA-Z0-9_\-\./\\]*)$/);
+    const match = textBefore.match(/@([^\n]*)$/);
 
     if (match) {
       setAutocompleteQuery(match[1]);
@@ -179,9 +173,26 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
     if (isSendTrigger) {
       e.preventDefault();
       chat.handleSendMessage(() => {
-        scrollToBottom(true, true);
+        scrollToBottom(true);
         if (chatInputRef) chatInputRef.style.height = 'auto';
       });
+    }
+  };
+
+  let projectLoadToken = 0;
+  const loadProjectData = async (projectId: string) => {
+    const token = ++projectLoadToken;
+    const [sessionsResult, filesResult, mcpResult, skillsResult] = await Promise.allSettled([
+      chat.loadSessions(projectId),
+      files.loadProjectFiles(projectId),
+      ws.loadProjectMcpServers(projectId),
+      agentService.getProjectSkills(projectId),
+    ]);
+    if (token !== projectLoadToken || ws.selectedProjectId() !== projectId) return;
+    if (skillsResult.status === 'fulfilled') ws.setSkills(skillsResult.value);
+    else console.error('Failed to load project skills', skillsResult.reason);
+    for (const [name, result] of [['sessions', sessionsResult], ['files', filesResult], ['MCP servers', mcpResult]] as const) {
+      if (result.status === 'rejected') console.error(`Failed to load project ${name}`, result.reason);
     }
   };
 
@@ -189,6 +200,11 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
   const initData = async () => {
     ws.setLoading(true);
     try {
+      // Step 1: Load models first, before loading sessions
+      // This ensures models are available when selectSession/loadSessions runs
+      await chat.refreshDynamicModels();
+
+      // Step 2: Load projects, skills, and MCP servers
       const [p, s, m] = await Promise.all([
         agentService.getProjects(),
         agentService.getPromptSkills(),
@@ -202,12 +218,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
         const savedProj = localStorage.getItem('ragasukma_active_project_id');
         const targetProj = (savedProj && p.some((proj) => proj.id === savedProj)) ? savedProj : p[0].id;
         ws.setSelectedProjectId(targetProj);
-        await Promise.all([
-          chat.loadSessions(targetProj),
-          files.loadProjectFiles(targetProj),
-          ws.loadProjectMcpServers(targetProj),
-          agentService.getProjectSkills(targetProj).then((s) => ws.setSkills(s)),
-        ]);
+        await loadProjectData(targetProj);
       }
     } catch (e) {
       console.error(e);
@@ -219,7 +230,6 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
 
   onMount(() => {
     initData();
-    chat.refreshDynamicModels();
   });
 
   return (
@@ -227,12 +237,12 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
       {/* ── Top Header Bar ─────────────────────────────────────────────── */}
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
         <div class="flex items-center gap-2.5">
-          <div class="p-2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+          <div class="p-2 bg-theme-cyan/10 text-theme-cyan border border-theme-cyan/20">
             <Layers class="w-5 h-5" />
           </div>
           <div>
-            <h2 class="text-base font-semibold text-white">Agent Workspace</h2>
-            <p class="text-xs text-white/50">Multi-folder Projects, Task Sessions & MCP</p>
+            <h2 class="text-base font-semibold text-theme-text">Agent Workspace</h2>
+            <p class="text-xs text-theme-text/50">Multi-folder Projects, Task Sessions & MCP</p>
           </div>
         </div>
 
@@ -267,19 +277,14 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
       <Show when={ws.activeSubTab() === 'projects'}>
         <div class="flex-1 flex flex-row gap-2.5 min-h-0 overflow-hidden">
           {/* Left Column: Projects List & Sessions */}
-          <div class={`transition-all duration-200 flex flex-col min-h-0 h-full overflow-hidden ${
-            files.selectedFileForTag() ? 'w-64 xl:w-72 shrink-0' : 'w-72 xl:w-80 shrink-0'
-          }`}>
+          <div class="w-72 xl:w-80 shrink-0 flex flex-col min-h-0 h-full overflow-hidden">
             <AgentSidebar
               projects={ws.projects()}
               selectedProjectId={ws.selectedProjectId()}
               onSelectProject={(id) => {
                 ws.setSelectedProjectId(id);
                 localStorage.setItem('ragasukma_active_project_id', id);
-                chat.loadSessions(id);
-                files.loadProjectFiles(id);
-                ws.loadProjectMcpServers(id);
-                agentService.getProjectSkills(id).then((s) => ws.setSkills(s));
+                loadProjectData(id);
               }}
               onNewProject={() => {
                 ws.setProjFolders([]);
@@ -289,12 +294,18 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
               }}
               onDeleteProject={(id, name) => ws.handleDeleteProject(id, name, async (fallbackId) => {
                 if (fallbackId) {
-                  await chat.loadSessions(fallbackId);
-                  files.loadProjectFiles(fallbackId);
+                  ws.setSelectedProjectId(fallbackId);
+                  localStorage.setItem('ragasukma_active_project_id', fallbackId);
+                  await loadProjectData(fallbackId);
                 } else {
+                  projectLoadToken++;
+                  ws.setSelectedProjectId(null);
+                  localStorage.removeItem('ragasukma_active_project_id');
                   chat.setSessions([]);
                   chat.setSelectedSessionId(null);
                   chat.setMessages([]);
+                  files.setWorkspaceFiles([]);
+                  ws.setSkills([]);
                 }
               })}
               currentProject={ws.currentProject()}
@@ -407,7 +418,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
                 onChatInput={handleChatInput}
                 onChatKeyDown={handleChatKeyDown}
                 onSendMessage={() => chat.handleSendMessage(() => {
-                  scrollToBottom(true, true);
+                  scrollToBottom(true);
                   if (chatInputRef) chatInputRef.style.height = 'auto';
                 })}
                 onStopSession={chat.handleStopSession}

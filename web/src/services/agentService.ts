@@ -94,6 +94,7 @@ export interface AgentMessage {
   token_usage_input?: number;
   token_usage_output?: number;
   created_at: number;
+  hidden?: boolean; // Flag for internal/system messages that should not appear in chat UI
 }
 
 export interface Goal {

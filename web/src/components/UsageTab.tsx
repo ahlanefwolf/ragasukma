@@ -437,8 +437,9 @@ export const UsageTab: Component<UsageTabProps> = (props) => {
                             when={hasCache()}
                             fallback={<span class="text-theme-text/60">0</span>}
                           >
-                            <span class="text-gi-status-success font-bold bg-gi-status-success/10 px-1.5 py-0.5 border border-gi-status-success/30">
-                              ↻{formatNumber(rec.cached_tokens)}
+                            <span class="inline-flex items-center gap-1 text-gi-status-success font-bold bg-gi-status-success/10 px-1.5 py-0.5 border border-gi-status-success/30">
+                              <RotateCcw size={10} class="shrink-0" />
+                              {formatNumber(rec.cached_tokens)}
                             </span>
                           </Show>
                         </td>

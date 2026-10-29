@@ -17,7 +17,9 @@ import {
   Zap,
   ZapOff,
   Workflow,
-  MessageSquare
+  MessageSquare,
+  Terminal,
+  Circle
 } from 'lucide-solid';
 import { api } from '../api';
 import { AiCapabilitiesCard } from './AiCapabilitiesCard';
@@ -342,10 +344,11 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
               <span class="px-2.5 py-0.5 text-xs font-bold font-mono bg-theme-rose/20 text-theme-rose border border-theme-rose/30 uppercase tracking-wider">
                 {assistantName()}
               </span>
-              <span class={`px-2.5 py-0.5 text-xs font-bold font-mono uppercase border ${
+              <span class={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-bold font-mono uppercase border ${
                 isRunning() ? 'bg-theme-cyan/20 text-theme-cyan border-theme-cyan/40' : 'bg-theme-text/10 text-theme-text/60 border-theme-border'
               }`}>
-                ● {props.currentState}
+                <Circle size={8} class="shrink-0 fill-current" />
+                {props.currentState}
               </span>
             </div>
 
@@ -438,7 +441,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
         {/* Python 3 Runtime Status Bar */}
         <div class="mt-3 p-3 bg-theme-bg/80 border border-theme-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div class="flex items-center gap-2.5">
-            <span class="text-base">🐍</span>
+            <Terminal size={18} class="shrink-0 text-theme-cyan" />
             <div>
               <div class="flex items-center gap-2 font-mono">
                 <span class="font-bold text-theme-text">Python 3 Runtime:</span>

@@ -34,103 +34,8 @@ import { MarkdownView } from './MarkdownView';
 import { ToolCallCard, ToolResultCard, GitDiffViewer, parseToolCalls, formatToolOutput } from './ToolCards';
 import { countMessageLines } from './highlightUtils';
 import { SearchableSelect } from '../SearchableSelect';
-
-// Compact & Collapsible Reasoning / Chain of Thought Component
-const ThoughtBubble: Component<{ thought: string }> = (props) => {
-  const [isExpanded, setIsExpanded] = createSignal(false);
-  const charCount = () => props.thought?.length ?? 0;
-
-  return (
-    <div class="w-full max-w-full mb-2 bg-gi-status-warning/10 border border-gi-status-warning/20 text-xs text-theme-text/90 font-mono overflow-hidden transition-all">
-      <button
-        type="button"
-        onClick={() => setIsExpanded(!isExpanded())}
-        class="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-gi-status-warning/15 cursor-pointer text-left transition-colors select-none"
-      >
-        <div class="flex items-center gap-1.5 font-semibold text-2xs text-gi-status-warning uppercase tracking-wider">
-          <Brain class="w-3.5 h-3.5 text-gi-status-warning shrink-0" />
-          <span>Reasoning / Thought Process</span>
-          <span class="text-2xs lowercase font-normal opacity-70">({charCount()} chars)</span>
-        </div>
-        <div class="flex items-center gap-1 text-2xs text-gi-status-warning/80">
-          <span>{isExpanded() ? 'Hide' : 'Show'}</span>
-          <ChevronDown class={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded() ? 'rotate-180' : ''}`} />
-        </div>
-      </button>
-
-      <Show when={isExpanded()}>
-        <div class="p-2.5 pt-1.5 border-t border-gi-status-warning/15 whitespace-pre-wrap text-xs leading-relaxed opacity-90 max-h-80 overflow-y-auto custom-scrollbar">
-          {props.thought}
-        </div>
-      </Show>
-    </div>
-  );
-};
-
-// Render user message content with color highlighting for tagged @files
-const UserMessageBody: Component<{
-  content: string;
-  onOpenFile?: (path: string) => void;
-}> = (props) => {
-  const parsed = createMemo(() => {
-    const text = props.content || '';
-    if (!text) return [];
-    const regex = /(?:^|\s)(@[a-zA-Z0-9_\-\./\\]+(?::\d+(?:-\d+)?)?)/g;
-    const result: { text: string; isTag: boolean; filePath?: string }[] = [];
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = regex.exec(text)) !== null) {
-      const fullMatch = match[0];
-      const tag = match[1];
-      const tagIndex = match.index + fullMatch.indexOf(tag);
-
-      if (tagIndex > lastIndex) {
-        result.push({ text: text.substring(lastIndex, tagIndex), isTag: false });
-      }
-
-      const rawPath = tag.startsWith('@') ? tag.slice(1) : tag;
-      const filePath = rawPath.replace(/:\d+(?:-\d+)?$/, '');
-      result.push({ text: tag, isTag: true, filePath });
-      lastIndex = tagIndex + tag.length;
-    }
-
-    if (lastIndex < text.length) {
-      result.push({ text: text.substring(lastIndex), isTag: false });
-    }
-
-    return result;
-  });
-
-  return (
-    <div class="select-text whitespace-pre-wrap break-words">
-      <For each={parsed()}>
-        {(token) => (
-          <Show
-            when={token.isTag}
-            fallback={<span>{token.text}</span>}
-          >
-            <span
-              class={`inline-flex items-center gap-1 font-mono text-cyan-400 bg-cyan-500/15 border border-cyan-500/30 px-1.5 py-0.5 text-[11px] font-medium align-baseline mx-0.5 select-none ${
-                props.onOpenFile ? 'hover:bg-cyan-500/25 hover:border-cyan-400/50 cursor-pointer transition-all' : ''
-              }`}
-              onClick={(e) => {
-                if (props.onOpenFile && token.filePath) {
-                  e.stopPropagation();
-                  props.onOpenFile(token.filePath);
-                }
-              }}
-              title={props.onOpenFile ? `Open ${token.filePath}` : undefined}
-            >
-              <FileCode class="w-3 h-3 opacity-80 shrink-0" />
-              <span>{token.text}</span>
-            </span>
-          </Show>
-        )}
-      </For>
-    </div>
-  );
-};
+import { ThoughtBubble, UserMessageBody } from './MessageBubbles';
+import { MessageList, MessageListProps } from './MessageList';
 
 export const AgentChatPane: Component<{
   currentProject: Project | null | undefined;
@@ -172,8 +77,6 @@ export const AgentChatPane: Component<{
   showToast?: (message: string) => void;
   onOpenFileInCodePanel?: (filePath: string) => void;
 }> = (props) => {
-  let backdropRef: HTMLDivElement | undefined;
-
   // Session Export & Copying State
   const [exportMenuOpen, setExportMenuOpen] = createSignal(false);
   const [copiedTranscript, setCopiedTranscript] = createSignal(false);
@@ -209,82 +112,65 @@ export const AgentChatPane: Component<{
     const session = props.currentSession;
     const msgs = props.visibleMessages || [];
     const title = session?.title || 'Task Session';
-    const model = props.activeSessionModel || session?.model || 'default';
-    const dateStr = session?.created_at ? new Date(session.created_at).toLocaleString() : new Date().toLocaleString();
+    const model = session?.model || 'Unknown Model';
+    const dateStr = session?.created_at ? new Date(session.created_at).toLocaleString() : 'Unknown Date';
 
-    const lines: string[] = [
-      `# ${title}`,
-      `\n- **Project:** ${props.currentProject?.name || 'Workspace'}`,
-      `- **Date:** ${dateStr}`,
-      `- **Model:** \`${model}\``,
-      `- **Total Messages:** ${msgs.length}\n`,
-      `---\n`,
-    ];
+    const lines: string[] = [];
+    lines.push(`# ${title}`);
+    lines.push('');
+    lines.push(`**Model:** ${model}`);
+    lines.push(`**Created:** ${dateStr}`);
+    lines.push(`**Status:** ${session?.status || 'Unknown'}`);
+    lines.push('');
 
     for (const msg of msgs) {
-      if (msg.role === 'user') {
-        lines.push(`### 👤 User\n\n${msg.content || ''}\n`);
-      } else if (msg.role === 'assistant') {
-        lines.push(`### 🤖 Agent\n`);
-        if (msg.thought) {
-          lines.push(`> **Reasoning / Thought Process:**\n> ` + msg.thought.replace(/\n/g, '\n> ') + `\n`);
-        }
-        if (msg.content) {
-          lines.push(`${msg.content}\n`);
-        }
-        if (msg.tool_calls) {
-          const calls = parseToolCalls(msg.tool_calls);
-          if (calls.length > 0) {
-            lines.push(`**Tool Invocations:**\n`);
-            for (const call of calls) {
-              lines.push(`- **\`${call.name}\`**`);
-              if (Object.keys(call.argsObj).length > 0) {
-                lines.push(`\`\`\`json\n${JSON.stringify(call.argsObj, null, 2)}\n\`\`\``);
-              }
-            }
-            lines.push('');
-          }
-        }
-        if (msg.token_usage_input || msg.token_usage_output) {
-          const inTokens = msg.token_usage_input ?? 0;
-          const outTokens = msg.token_usage_output ?? 0;
-          lines.push(`*Telemetry: Total=${(inTokens + outTokens).toLocaleString()} tokens (in=${inTokens.toLocaleString()}, out=${outTokens.toLocaleString()})*\n`);
-        }
-      } else if (msg.role === 'tool') {
-        lines.push(`#### 🔧 Tool Output\n`);
-        const formatted = formatToolOutput(msg.content);
-        if (formatted.diffData) {
-          lines.push(`**File Diff: \`${formatted.diffData.filename}\`** (${formatted.diffData.isNewFile ? 'New File' : 'Updated'})\n`);
-        } else {
-          lines.push(`\`\`\`\n${formatted.summary || msg.content || ''}\n\`\`\`\n`);
-        }
+      const roleLabel = msg.role === 'user' ? '**User**' : msg.role === 'assistant' ? '**Agent**' : '**Tool**';
+      lines.push(`${roleLabel}:`);
+
+      if (msg.thought) {
+        lines.push('> **Thought Process:**');
+        lines.push(`> ${msg.thought.split('\n').join('\n> ')}`);
+        lines.push('');
       }
-      lines.push(`---\n`);
+
+      if (msg.tool_calls) {
+        lines.push('> **Tool Calls:**');
+        const calls = parseToolCalls(msg.tool_calls);
+        for (const call of calls) {
+          lines.push(`> - ${call.name}`);
+        }
+        lines.push('');
+      }
+
+      if (msg.content) {
+        lines.push(msg.content);
+      }
+
+      lines.push('');
     }
+
+    const calls = props.visibleMessages.filter((m) => m.tool_calls).length;
+    const inTokens = sessionTokenStats().totalIn;
+    const outTokens = sessionTokenStats().totalOut;
+
+    lines.push('---');
+    lines.push('');
+    lines.push(`**Summary:**`);
+    const formatted = `${(inTokens + outTokens).toLocaleString()} tokens (${inTokens.toLocaleString()} in, ${outTokens.toLocaleString()} out), ${calls} tool call(s)`;
+    lines.push(formatted);
 
     return lines.join('\n');
   };
 
-  const sanitizeFilename = (name: string) => {
-    return name.replace(/[^a-zA-Z0-9_\-]/g, '_').replace(/_+/g, '_').toLowerCase();
-  };
+  const sanitizeFilename = (name: string) => name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
 
-  const handleCopyTranscript = async () => {
+  const handleCopyTranscript = () => {
     const md = generateMarkdownTranscript();
-    try {
-      await navigator.clipboard.writeText(md);
+    navigator.clipboard.writeText(md).then(() => {
       setCopiedTranscript(true);
-      if (props.showToast) {
-        props.showToast('Transcript copied to clipboard!');
-      }
       setTimeout(() => setCopiedTranscript(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy transcript', err);
-      if (props.showToast) {
-        props.showToast('Failed to copy to clipboard');
-      }
-    }
-    setExportMenuOpen(false);
+      props.showToast?.('Transcript copied to clipboard');
+    });
   };
 
   const handleExportMarkdown = () => {
@@ -292,23 +178,24 @@ export const AgentChatPane: Component<{
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const baseName = sanitizeFilename(props.currentSession?.title || props.currentSession?.id || 'session');
+    const baseName = sanitizeFilename(props.currentSession?.title || 'task');
     a.href = url;
     a.download = `${baseName}_transcript.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    setExportMenuOpen(false);
-    if (props.showToast) {
-      props.showToast('Markdown transcript exported!');
-    }
+    props.showToast?.('Markdown file exported');
   };
 
   const handleExportJson = () => {
     const data = {
-      project: props.currentProject,
-      session: props.currentSession,
+      project: props.currentProject?.name,
+      session: {
+        title: props.currentSession?.title,
+        model: props.currentSession?.model,
+        status: props.currentSession?.status,
+      },
       messages: props.visibleMessages,
       exportedAt: new Date().toISOString(),
     };
@@ -316,17 +203,14 @@ export const AgentChatPane: Component<{
     const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const baseName = sanitizeFilename(props.currentSession?.title || props.currentSession?.id || 'session');
+    const baseName = sanitizeFilename(props.currentSession?.title || 'task');
     a.href = url;
-    a.download = `${baseName}_data.json`;
+    a.download = `${baseName}_session.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    setExportMenuOpen(false);
-    if (props.showToast) {
-      props.showToast('JSON session log exported!');
-    }
+    props.showToast?.('JSON file exported');
   };
 
   // Session Changes Review Panel State
@@ -334,58 +218,48 @@ export const AgentChatPane: Component<{
   const [selectedDiffFile, setSelectedDiffFile] = createSignal<{
     filePath: string;
     fileName: string;
-    status: 'modified' | 'created';
-    diffData?: {
-      oldContent: string;
-      newContent: string;
-      filename: string;
-      isNewFile: boolean;
-    };
+    status: 'created' | 'modified';
+    diffData?: { oldContent: string; newContent: string; isNewFile: boolean };
   } | null>(null);
 
   const sessionModifiedFiles = createMemo(() => {
-    const map = new Map<string, {
-      filePath: string;
-      fileName: string;
-      status: 'modified' | 'created';
-      diffData?: {
-        oldContent: string;
-        newContent: string;
-        filename: string;
-        isNewFile: boolean;
-      };
-    }>();
+    const map = new Map<
+      string,
+      {
+        filePath: string;
+        fileName: string;
+        status: 'created' | 'modified';
+        diffData?: { oldContent: string; newContent: string; isNewFile: boolean };
+      }
+    >();
 
     const msgs = props.visibleMessages || [];
     for (const m of msgs) {
-      if (m.tool_calls) {
-        const calls = parseToolCalls(m.tool_calls);
-        for (const c of calls) {
-          if (c.name === 'workspace_write_file' || c.name === 'workspace_edit_file') {
-            const fp = c.argsObj.file_path || c.argsObj.path;
-            if (fp) {
-              const fileName = fp.split(/[/\\]/).pop() || fp;
-              if (!map.has(fp)) {
-                map.set(fp, {
-                  filePath: fp,
-                  fileName,
-                  status: c.name === 'workspace_write_file' ? 'created' : 'modified',
-                });
-              }
-            }
+      const calls = parseToolCalls(m.tool_calls);
+      for (const call of calls) {
+        const fp = call.argsObj?.filepath || call.argsObj?.path;
+        if (fp) {
+          const fileName = fp.split('/').pop() || fp;
+          if (!map.has(fp)) {
+            map.set(fp, {
+              filePath: fp,
+              fileName,
+              status: 'modified',
+            });
           }
         }
       }
+    }
 
-      if (m.role === 'tool' && m.content) {
-        const out = formatToolOutput(m.content);
-        if (out.diffData && out.filename) {
-          for (const [key, val] of map.entries()) {
-            if (val.fileName === out.filename || val.filePath.endsWith(out.filename)) {
-              val.diffData = out.diffData;
-              val.status = out.diffData.isNewFile ? 'created' : 'modified';
-              break;
-            }
+    for (const m of msgs) {
+      if (m.role !== 'assistant') continue;
+      const out = formatToolOutput(m.content);
+      if (out.diffData && out.filename) {
+        for (const [key, val] of map.entries()) {
+          if (val.fileName === out.filename || val.filePath.endsWith(out.filename)) {
+            val.diffData = out.diffData;
+            val.status = out.diffData.isNewFile ? 'created' : 'modified';
+            break;
           }
         }
       }
@@ -393,190 +267,6 @@ export const AgentChatPane: Component<{
 
     return Array.from(map.values());
   });
-
-  const tokens = createMemo(() => {
-    const text = props.userInput || '';
-    if (!text) return [];
-    const regex = /(?:^|\s)(@[a-zA-Z0-9_\-\./\\]*(?::\d+(?:-\d+)?)?)/g;
-    const result: { text: string; isTag: boolean }[] = [];
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = regex.exec(text)) !== null) {
-      const fullMatch = match[0];
-      const tag = match[1];
-      const tagIndex = match.index + fullMatch.indexOf(tag);
-
-      if (tagIndex > lastIndex) {
-        result.push({ text: text.substring(lastIndex, tagIndex), isTag: false });
-      }
-
-      result.push({ text: tag, isTag: true });
-      lastIndex = tagIndex + tag.length;
-    }
-
-    if (lastIndex < text.length) {
-      result.push({ text: text.substring(lastIndex), isTag: false });
-    }
-
-    return result;
-  });
-
-  const hasTags = createMemo(() => tokens().some((t) => t.isTag));
-
-  // Upward Lazy Loading & Pin to Bottom Management
-  const [isScrolledUp, setIsScrolledUp] = createSignal(false);
-  let messagesContainerEl: HTMLDivElement | undefined;
-  let pinnedSessionId: string | null = null;
-  let lastSeenBottomMsgId: string | null = null;
-
-  const pinToBottom = () => {
-    if (!messagesContainerEl) return;
-    messagesContainerEl.scrollTop = messagesContainerEl.scrollHeight;
-    setIsScrolledUp(false);
-  };
-
-  // Ensure scroll is pinned to the bottom ONLY on initial load / session switch
-  createEffect(() => {
-    const sId = props.currentSession?.id;
-    const loading = props.loadingMessages;
-    const count = props.visibleMessages?.length ?? 0;
-
-    if (sId && !loading && count > 0) {
-      if (pinnedSessionId !== sId) {
-        pinnedSessionId = sId;
-        const msgs = props.visibleMessages || [];
-        lastSeenBottomMsgId = msgs[msgs.length - 1]?.id ?? null;
-
-        pinToBottom();
-        requestAnimationFrame(() => {
-          pinToBottom();
-          requestAnimationFrame(pinToBottom);
-        });
-        setTimeout(pinToBottom, 50);
-        setTimeout(pinToBottom, 150);
-        setTimeout(pinToBottom, 350);
-      }
-    } else if (!sId) {
-      pinnedSessionId = null;
-      lastSeenBottomMsgId = null;
-    }
-  });
-
-  // Auto-scroll only when a NEW message arrives at the bottom (not when older messages are prepended)
-  createEffect(() => {
-    const msgs = props.visibleMessages || [];
-    if (msgs.length === 0) return;
-    const latestId = msgs[msgs.length - 1]?.id;
-    if (latestId && pinnedSessionId === props.currentSession?.id) {
-      if (lastSeenBottomMsgId && latestId !== lastSeenBottomMsgId) {
-        lastSeenBottomMsgId = latestId;
-        if (!isScrolledUp()) {
-          scrollToBottom();
-        }
-      } else if (!lastSeenBottomMsgId) {
-        lastSeenBottomMsgId = latestId;
-      }
-    }
-  });
-
-  // Auto-scroll as streaming text/thought flows in (unless user intentionally scrolled up)
-  createEffect(() => {
-    const text = props.streamingText;
-    const thought = props.streamingThought;
-    if ((text || thought) && !isScrolledUp()) {
-      if (messagesContainerEl) {
-        messagesContainerEl.scrollTop = messagesContainerEl.scrollHeight;
-      }
-    }
-  });
-
-  let isLoadingEarlier = false;
-  const handleLoadEarlier = async () => {
-    if (isLoadingEarlier || !props.onLoadOlderMessages || props.loadingEarlier || !props.hasMoreMessages) return;
-    if (!messagesContainerEl) {
-      await props.onLoadOlderMessages();
-      return;
-    }
-
-    isLoadingEarlier = true;
-    const prevScrollHeight = messagesContainerEl.scrollHeight;
-    const prevScrollTop = messagesContainerEl.scrollTop;
-
-    try {
-      const ok = await props.onLoadOlderMessages();
-      if (ok) {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (messagesContainerEl) {
-              const heightDiff = messagesContainerEl.scrollHeight - prevScrollHeight;
-              messagesContainerEl.scrollTop = prevScrollTop + heightDiff;
-              setIsScrolledUp(true);
-            }
-            isLoadingEarlier = false;
-          });
-        });
-      } else {
-        isLoadingEarlier = false;
-      }
-    } catch {
-      isLoadingEarlier = false;
-    }
-  };
-
-  const handleLoadAll = async () => {
-    if (isLoadingEarlier || !props.onLoadAllMessages || props.loadingEarlier) return;
-    if (!messagesContainerEl) {
-      await props.onLoadAllMessages();
-      return;
-    }
-
-    isLoadingEarlier = true;
-    const prevScrollHeight = messagesContainerEl.scrollHeight;
-    const prevScrollTop = messagesContainerEl.scrollTop;
-
-    try {
-      const ok = await props.onLoadAllMessages();
-      if (ok) {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (messagesContainerEl) {
-              const heightDiff = messagesContainerEl.scrollHeight - prevScrollHeight;
-              messagesContainerEl.scrollTop = prevScrollTop + heightDiff;
-              setIsScrolledUp(true);
-            }
-            isLoadingEarlier = false;
-          });
-        });
-      } else {
-        isLoadingEarlier = false;
-      }
-    } catch {
-      isLoadingEarlier = false;
-    }
-  };
-
-  const handleScroll = (e: Event) => {
-    const el = e.currentTarget as HTMLDivElement;
-    const distanceToBottom = el.scrollHeight - (el.scrollTop + el.clientHeight);
-    setIsScrolledUp(distanceToBottom > 150);
-    props.onMessagesScroll();
-
-    // Auto lazy-load earlier messages when scrolled near top
-    if (el.scrollTop <= 80 && props.hasMoreMessages && !props.loadingEarlier) {
-      handleLoadEarlier();
-    }
-  };
-
-  const scrollToBottom = (smooth = true) => {
-    if (messagesContainerEl) {
-      if (smooth) {
-        messagesContainerEl.scrollTo({ top: messagesContainerEl.scrollHeight, behavior: 'smooth' });
-      } else {
-        messagesContainerEl.scrollTop = messagesContainerEl.scrollHeight;
-      }
-    }
-  };
 
   return (
     <div class="bg-white/[0.03] border border-white/10 flex-1 flex flex-col min-h-0 overflow-hidden shadow-lg relative">
@@ -811,223 +501,28 @@ export const AgentChatPane: Component<{
         </div>
       </Show>
 
-      {/* Messages Stream */}
-      <div 
-        ref={(el) => {
-          messagesContainerEl = el;
-          props.setMessagesContainerRef(el);
-        }}
-        onScroll={handleScroll}
-        class="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3 custom-scrollbar min-w-0 w-full"
-      >
-        {/* Upward Lazy Load Banner for Earlier Messages */}
-        <Show when={props.currentSession && props.hasMoreMessages}>
-          <div class="flex items-center justify-center gap-2 py-2 mb-1 border-b border-white/[0.06] bg-white/[0.02] select-none">
-            <button
-              type="button"
-              onClick={handleLoadEarlier}
-              disabled={props.loadingEarlier}
-              class="px-3 py-1.5 bg-white/5 hover:bg-white/10 active:scale-95 text-white/80 hover:text-white text-xs flex items-center gap-1.5 border border-white/10 transition-colors shadow-sm font-sans disabled:opacity-50"
-            >
-              <History class={`w-3.5 h-3.5 text-gi-primary ${props.loadingEarlier ? 'animate-spin' : ''}`} />
-              <span>{props.loadingEarlier ? 'Loading earlier messages...' : 'Load 25 Earlier Messages'}</span>
-            </button>
-            <Show when={props.onLoadAllMessages}>
-              <button
-                type="button"
-                onClick={handleLoadAll}
-                disabled={props.loadingEarlier}
-                class="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 active:scale-95 text-white/50 hover:text-white/80 text-xs transition-colors font-sans disabled:opacity-50"
-                title="Load all earlier messages in this session"
-              >
-                Show All
-              </button>
-            </Show>
-          </div>
-        </Show>
-
-        <Show when={!props.currentSession}>
-          <div class="h-full flex flex-col items-center justify-center text-center text-white/70 py-12">
-            <Bot class="w-10 h-10 mb-2 text-white/20" />
-            <p class="text-xs">Select a task session on the left or create a new session to start the agent.</p>
-            <button
-              onClick={props.onQuickCreateSession}
-              class="mt-3 px-3.5 py-1.5 text-xs bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-semibold flex items-center gap-1.5 transition-colors"
-            >
-              <Plus class="w-3.5 h-3.5" />
-              New Task
-            </button>
-          </div>
-        </Show>
-
-        <Show when={props.currentSession && props.visibleMessages.length === 0 && !props.loadingMessages}>
-          <div class="h-full flex flex-col items-center justify-center text-center text-white/70 py-12">
-            <Sparkles class="w-8 h-8 mb-2 text-gi-primary/40" />
-            <p class="text-xs font-medium text-white/60">This task session is empty</p>
-            <p class="text-xs text-white/60 max-w-xs mt-1">
-              Type instructions or goals below to run the autonomous agent on the workspace folders.
-            </p>
-          </div>
-        </Show>
-
-        <For each={props.visibleMessages || []}>
-          {(msg) => (
-            <div class={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-              <div class="text-2xs text-theme-text/70 mb-1 px-1 flex items-center gap-1.5">
-                <Show when={msg.role === 'user'} fallback={
-                  <Show when={msg.role === 'tool'} fallback={
-                    <div class="flex items-center gap-1 text-theme-cyan">
-                      <Bot class="w-3 h-3" />
-                      <span>Agent</span>
-                    </div>
-                  }>
-                    <div class="flex items-center gap-1 text-gi-status-success">
-                      <Wrench class="w-3 h-3" />
-                      <span>Tool Output</span>
-                    </div>
-                  </Show>
-                }>
-                  <span class="font-medium text-theme-text/70">You</span>
-                </Show>
-                <span>• #{msg.sequence_num}</span>
-              </div>
-
-              {/* Tool Calls badge if present on assistant */}
-              <Show when={msg.tool_calls}>
-                <div class="w-full max-w-full min-w-0 overflow-hidden">
-                  <ToolCallCard toolCalls={msg.tool_calls!} />
-                </div>
-              </Show>
-
-              {/* Reasoning Thought Collapse if present */}
-              <Show when={msg.thought}>
-                <ThoughtBubble thought={msg.thought!} />
-              </Show>
-
-              {/* Tool Result Bubble if role == 'tool' */}
-              <Show when={msg.role === 'tool'}>
-                <div class="w-full max-w-full min-w-0 overflow-hidden">
-                  <ToolResultCard toolCallId={msg.tool_call_id} content={msg.content} />
-                </div>
-              </Show>
-
-              {/* Standard Message Bubble */}
-              <Show when={msg.role !== 'tool' && msg.content}>
-                <div class={`flex flex-col space-y-1 w-full max-w-full ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                  <Show when={msg.role === 'assistant'}>
-                    <div class="flex items-center justify-between text-2xs text-theme-text/70 px-1">
-                      <span class="font-mono flex items-center gap-1">
-                        <Bot class="w-3 h-3 text-theme-cyan" />
-                        Generative Assistant ({countMessageLines(msg.content)} {countMessageLines(msg.content) === 1 ? 'line' : 'lines'})
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => props.toggleCollapseMessage(msg.id)}
-                        class="flex items-center gap-1 px-2 py-0.5 bg-theme-bg/60 hover:bg-theme-card border border-theme-border/60 hover:text-theme-cyan transition-colors text-2xs"
-                        title={props.isMessageCollapsed(msg.id) ? "Show full message" : "Collapse generative output"}
-                      >
-                        <Show when={props.isMessageCollapsed(msg.id)} fallback={<><ChevronUp class="w-3 h-3" /> Collapse</>}>
-                          <ChevronDown class="w-3 h-3" /> Expand ({countMessageLines(msg.content)} {countMessageLines(msg.content) === 1 ? 'line' : 'lines'})
-                        </Show>
-                      </button>
-                    </div>
-                  </Show>
-
-                  <Show when={props.isMessageCollapsed(msg.id)}>
-                    <div
-                      onClick={() => props.toggleCollapseMessage(msg.id)}
-                      class="cursor-pointer w-full p-2.5 bg-theme-cyan/10 border border-theme-cyan/20 text-xs text-theme-cyan/90 hover:bg-theme-cyan/15 transition-all flex items-center justify-between"
-                    >
-                      <span class="truncate italic text-xs">Generative output collapsed ({countMessageLines(msg.content)} {countMessageLines(msg.content) === 1 ? 'line' : 'lines'})</span>
-                      <span class="text-2xs font-semibold text-theme-cyan underline ml-2 shrink-0">Expand</span>
-                    </div>
-                  </Show>
-
-                  <Show when={!props.isMessageCollapsed(msg.id)}>
-                    <div
-                      class={`w-fit max-w-full px-4 py-3 text-xs leading-relaxed ${
-                        msg.role === 'user'
-                          ? 'bg-theme-card border border-theme-border text-theme-text whitespace-pre-wrap shadow-sm'
-                          : 'bg-theme-bg/80 border border-theme-border text-theme-text/90 shadow-sm'
-                      }`}
-                    >
-                      <Show
-                        when={msg.role === 'assistant'}
-                        fallback={
-                          <UserMessageBody
-                            content={msg.content || ''}
-                            onOpenFile={props.onOpenFileInCodePanel}
-                          />
-                        }
-                      >
-                        <MarkdownView content={msg.content || ''} />
-                      </Show>
-                    </div>
-                  </Show>
-                </div>
-              </Show>
-            </div>
-          )}
-        </For>
-
-        {/* Live Streaming Reasoning / Thought Output */}
-        <Show when={props.streamingThought && props.streamingThought.trim().length > 0}>
-          <div class="flex flex-col items-start w-full max-w-full mb-3">
-            <div class="text-2xs text-gi-status-warning mb-1 px-1 flex items-center gap-1.5 font-semibold uppercase tracking-wider">
-              <Brain class="w-3.5 h-3.5 text-gi-status-warning shrink-0 animate-pulse" />
-              <span>Reasoning (Live...)</span>
-            </div>
-            <div class="w-full max-w-full px-4 py-3 text-xs leading-relaxed bg-gi-status-warning/10 border border-gi-status-warning/25 text-theme-text/90 font-mono whitespace-pre-wrap max-h-56 overflow-y-auto custom-scrollbar shadow-sm">
-              {props.streamingThought}
-              <span class="inline-block w-1.5 h-3.5 bg-gi-status-warning animate-pulse ml-1 align-middle" />
-            </div>
-          </div>
-        </Show>
-
-        {/* Live Streaming Assistant Output */}
-        <Show when={props.streamingText && props.streamingText.trim().length > 0}>
-          <div class="flex flex-col items-start w-full max-w-full">
-            <div class="text-2xs text-white/70 mb-1 px-1 flex items-center gap-1.5">
-              <div class="flex items-center gap-1 text-gi-primary">
-                <Bot class="w-3 h-3 animate-pulse" />
-                <span class="font-medium">Agent (Generating response...)</span>
-              </div>
-            </div>
-            <div class="w-fit max-w-full px-4 py-3 text-xs leading-relaxed bg-white/[0.04] border border-gi-primary/30 text-white/90 shadow-md">
-              <MarkdownView content={props.streamingText || ''} />
-              <span class="inline-block w-1.5 h-3.5 bg-gi-primary animate-pulse ml-1 align-middle" />
-            </div>
-          </div>
-        </Show>
-
-        {/* Active Execution Spinner */}
-        <Show when={props.isCurrentSessionBusy}>
-          <div class="flex items-center gap-2.5 p-3 bg-gi-primary/10 border border-gi-primary/20 text-xs text-gi-primary w-fit animate-pulse">
-            <Loader2 class="w-4 h-4 animate-spin text-gi-status-warning shrink-0" />
-            <div>
-              <div class="font-semibold text-white">
-                {props.currentStepInfo || 'Agent is processing this task session...'}
-              </div>
-              <div class="text-2xs text-white/50">
-                Task is active in background. You can safely switch tasks or projects.
-              </div>
-            </div>
-          </div>
-        </Show>
+      {/* Messages Stream - delegated to MessageList component */}
+      <div class="relative flex-1 flex flex-col min-h-0">
+        <MessageList
+          currentSession={props.currentSession}
+          visibleMessages={props.visibleMessages}
+          loadingMessages={props.loadingMessages}
+          hasMoreMessages={props.hasMoreMessages}
+          loadingEarlier={props.loadingEarlier}
+          onLoadOlderMessages={props.onLoadOlderMessages}
+          onLoadAllMessages={props.onLoadAllMessages}
+          isMessageCollapsed={props.isMessageCollapsed}
+          toggleCollapseMessage={props.toggleCollapseMessage}
+          streamingText={props.streamingText}
+          streamingThought={props.streamingThought}
+          isCurrentSessionBusy={props.isCurrentSessionBusy}
+          currentStepInfo={props.currentStepInfo}
+          onQuickCreateSession={props.onQuickCreateSession}
+          onOpenFileInCodePanel={props.onOpenFileInCodePanel}
+          setMessagesContainerRef={props.setMessagesContainerRef}
+          onMessagesScroll={props.onMessagesScroll}
+        />
       </div>
-
-      {/* Floating Jump to Bottom Button */}
-      <Show when={isScrolledUp()}>
-        <button
-          type="button"
-          onClick={() => scrollToBottom(true)}
-          class="absolute right-6 bottom-24 z-30 flex items-center gap-1.5 px-3 py-1.5 bg-gi-primary hover:bg-gi-primary-hover active:scale-95 text-gi-primary-foreground text-xs font-semibold shadow-xl border border-gi-primary-hover/40 backdrop-blur-md transition-all hover:scale-105 select-none"
-          title="Jump to latest message"
-        >
-          <ArrowDown class="w-3.5 h-3.5" />
-          <span>Jump to bottom</span>
-        </button>
-      </Show>
 
       {/* Chat Input Bar (Unified Modern Card) */}
       <Show when={props.currentSession}>
@@ -1070,35 +565,8 @@ export const AgentChatPane: Component<{
               </div>
             </Show>
 
-            {/* Seamless Auto-Expanding Textarea with Tag Highlighting */}
+            {/* Auto-Expanding Textarea */}
             <div class="relative w-full">
-              {/* Highlight Backdrop Mirror */}
-              <div
-                ref={(el) => (backdropRef = el)}
-                aria-hidden="true"
-                class={`absolute inset-0 pointer-events-none whitespace-pre-wrap break-words overflow-y-auto px-1 py-0.5 text-xs font-sans leading-relaxed select-none ${
-                  hasTags() ? 'block' : 'hidden'
-                }`}
-                style={{
-                  "word-break": "break-word",
-                  "overflow-wrap": "break-word",
-                  "scrollbar-width": "none",
-                }}
-              >
-                <For each={tokens()}>
-                  {(token) => (
-                    <Show
-                      when={token.isTag}
-                      fallback={<span class="text-white">{token.text}</span>}
-                    >
-                      <span class="text-gi-accent bg-gi-accent/20 rounded-xs">{token.text}</span>
-                    </Show>
-                  )}
-                </For>
-                {props.userInput.endsWith('\n') ? '\n' : ''}
-              </div>
-
-              {/* Seamless Auto-Expanding Textarea */}
               <textarea
                 ref={(el) => {
                   props.setChatInputRef(el);
@@ -1114,23 +582,18 @@ export const AgentChatPane: Component<{
                   const target = e.currentTarget;
                   target.style.height = 'auto';
                   target.style.height = `${Math.min(target.scrollHeight, 200)}px`;
-                  if (backdropRef) {
-                    backdropRef.scrollTop = target.scrollTop;
-                  }
                   props.onChatInput(e);
                 }}
-                onScroll={(e) => {
-                  if (backdropRef) {
-                    backdropRef.scrollTop = e.currentTarget.scrollTop;
-                  }
-                }}
                 onKeyDown={props.onChatKeyDown}
-                class={`relative z-10 w-full bg-transparent border-0 px-1 py-0.5 text-xs focus:outline-none focus:ring-0 resize-none min-h-[38px] max-h-52 custom-scrollbar leading-relaxed font-sans caret-white ${
-                  hasTags() ? 'text-transparent selection:bg-gi-primary/30 selection:text-white' : 'text-white placeholder-white/35'
-                }`}
+                class="relative z-10 w-full bg-transparent border-0 px-1 py-0.5 text-xs focus:outline-none focus:ring-0 resize-none min-h-[38px] max-h-52 custom-scrollbar leading-relaxed font-sans text-white caret-white placeholder-white/35 selection:bg-gi-primary/30 selection:text-white"
                 style={{
                   "word-break": "break-word",
                   "overflow-wrap": "break-word",
+                  "background-color": "transparent",
+                  "-webkit-font-smoothing": "antialiased",
+                  "-moz-osx-font-smoothing": "grayscale",
+                  "font-variant-ligatures": "none",
+                  "text-rendering": "optimizeLegibility",
                 }}
               />
             </div>

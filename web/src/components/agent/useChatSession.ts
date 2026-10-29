@@ -1,9 +1,8 @@
-import { createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
+import { createSignal, createMemo, onCleanup } from 'solid-js';
 import { 
   agentService, 
   AgentSession, 
   AgentMessage, 
-  WorkspaceFileItem, 
   configService,
   modelCatalogService,
   API_BASE
@@ -24,28 +23,9 @@ export function useChatSession(
   const [hasMoreMessages, setHasMoreMessages] = createSignal(false);
   const [loadingEarlier, setLoadingEarlier] = createSignal(false);
 
-  // Filter prodding/internal system messages from UI
-  const visibleMessages = createMemo(() => {
-    return messages().filter((m) => {
-      if (m.role === 'system') return false;
-      if (m.role === 'user' && m.content) {
-        const text = m.content.trim();
-        if (text.startsWith('[Workspace Directive]:') ||
-            text.startsWith('Directory and file inspection complete.') ||
-            text.startsWith('Hasil pemeriksaan selesai.') || 
-            text.startsWith('Instructions:') ||
-            text.startsWith('Instruksi:') ||
-            text.startsWith('Workspace System:') ||
-            text.startsWith('Sistem Workspace:')) {
-          return false;
-        }
-      }
-      return true;
-    });
-  });
+  const visibleMessages = createMemo(() => messages().filter((m) => m.role !== 'system' && !m.hidden));
 
   const [userInput, setUserInput] = createSignal('');
-  const [sendingMessage, setSendingMessage] = createSignal(false);
   const [collapsedMessages, setCollapsedMessages] = createSignal<Set<string>>(new Set());
 
   const toggleCollapseMessage = (id: string) => {
@@ -56,13 +36,6 @@ export function useChatSession(
   };
 
   const isMessageCollapsed = (id: string) => collapsedMessages().has(id);
-
-  // Line Range Picker Dialog State
-  const [selectedFileForTag, setSelectedFileForTag] = createSignal<WorkspaceFileItem | null>(null);
-  const [tagStartLine, setTagStartLine] = createSignal('');
-  const [tagEndLine, setTagEndLine] = createSignal('');
-  const [filePreview, setFilePreview] = createSignal<string | null>(null);
-  const [loadingFilePreview, setLoadingFilePreview] = createSignal(false);
 
   // SSE Real-time Streaming State & Micro-batching Buffers
   let activeEventSource: EventSource | null = null;
@@ -77,7 +50,7 @@ export function useChatSession(
   let pendingThoughtBuffer = '';
   let streamRafHandle: number | null = null;
 
-  const flushStreamingBuffers = (onMessageReceived?: () => void) => {
+  const flushStreamingBuffers = () => {
     let hasUpdated = false;
     if (pendingTextBuffer) {
       const chunk = pendingTextBuffer;
@@ -92,14 +65,11 @@ export function useChatSession(
       hasUpdated = true;
     }
     streamRafHandle = null;
-    if (hasUpdated && onMessageReceived) {
-      onMessageReceived();
-    }
   };
 
-  const scheduleStreamUpdate = (onMessageReceived?: () => void) => {
+  const scheduleStreamUpdate = () => {
     if (streamRafHandle === null) {
-      streamRafHandle = requestAnimationFrame(() => flushStreamingBuffers(onMessageReceived));
+      streamRafHandle = requestAnimationFrame(() => flushStreamingBuffers());
     }
   };
 
@@ -164,10 +134,12 @@ export function useChatSession(
       activeEventSource = es;
 
       es.onopen = () => {
+        if (activeEventSource !== es) return;
         sseRetryCount = 0;
       };
 
       es.onmessage = (event) => {
+        if (activeEventSource !== es || selectedSessionId() !== sessionId) return;
         try {
           if (!event.data || event.data.trim() === '') return;
           const payload = JSON.parse(event.data);
@@ -176,13 +148,13 @@ export function useChatSession(
             const delta = payload.data?.delta || '';
             if (delta) {
               pendingTextBuffer += delta;
-              scheduleStreamUpdate(onMessageReceived);
+              scheduleStreamUpdate();
             }
           } else if (payload.type === 'thought_delta') {
             const delta = payload.data?.delta || '';
             if (delta) {
               pendingThoughtBuffer += delta;
-              scheduleStreamUpdate(onMessageReceived);
+              scheduleStreamUpdate();
             }
           } else if (payload.type === 'stream_reset') {
             clearStreamingState();
@@ -237,11 +209,11 @@ export function useChatSession(
               if (st === 'idle' || st === 'completed' || st === 'failed') {
                 markSessionRunning(sessionId, false);
                 if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
-                const pId = selectedProjectId();
-                if (pId) {
-                  loadProjectFiles(pId);
-                  agentService.getSessions(pId).then((latest) => {
-                    if (latest && latest.length > 0) setSessions(latest);
+                const projectIdAtRequest = selectedProjectId();
+                if (projectIdAtRequest) {
+                  loadProjectFiles(projectIdAtRequest);
+                  agentService.getSessions(projectIdAtRequest).then((latest) => {
+                    if (selectedProjectId() === projectIdAtRequest && latest) setSessions(latest);
                   }).catch(() => {});
                 }
               } else if (st === 'running') {
@@ -252,11 +224,11 @@ export function useChatSession(
             clearStreamingState();
             markSessionRunning(sessionId, false);
             if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
-            const pId = selectedProjectId();
-            if (pId) {
-              loadProjectFiles(pId);
-              agentService.getSessions(pId).then((latest) => {
-                if (latest && latest.length > 0) setSessions(latest);
+            const projectIdAtRequest = selectedProjectId();
+            if (projectIdAtRequest) {
+              loadProjectFiles(projectIdAtRequest);
+              agentService.getSessions(projectIdAtRequest).then((latest) => {
+                if (selectedProjectId() === projectIdAtRequest && latest) setSessions(latest);
               }).catch(() => {});
             }
           } else if (payload.type === 'error') {
@@ -264,6 +236,23 @@ export function useChatSession(
             markSessionRunning(sessionId, false);
             if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
             showToast(payload.data?.message || 'An error occurred in the agent execution');
+            
+            // Mark last assistant message with error status
+            const errorMsg = payload.data?.message || 'Agent execution failed';
+            setMessages((prev) => {
+              if (prev.length === 0) return prev;
+              const lastMsg = prev[prev.length - 1];
+              if (lastMsg.role === 'assistant' && !lastMsg.content?.includes('Error:')) {
+                const updated = [...prev];
+                updated[updated.length - 1] = {
+                  ...lastMsg,
+                  content: lastMsg.content ? `${lastMsg.content}\n\n**Error:** ${errorMsg}` : `**Error:** ${errorMsg}`,
+                  status: 'error',
+                };
+                return updated;
+              }
+              return prev;
+            });
           }
         } catch (err) {
           console.warn('Error parsing SSE event:', err);
@@ -275,9 +264,9 @@ export function useChatSession(
           agentService.getMessages(sessionId, { limit: PAGE_SIZE }).then((msgs) => {
             if (msgs && msgs.length > 0) {
               setMessages((prev) => {
-                const existingIds = new Set(prev.map((m) => m.id));
-                const newOnes = msgs.filter((m) => !existingIds.has(m.id));
-                return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+                const byId = new Map(prev.map((message) => [message.id, message]));
+                for (const message of msgs) byId.set(message.id, { ...byId.get(message.id), ...message });
+                return [...byId.values()].sort((a, b) => (a.sequence_num ?? 0) - (b.sequence_num ?? 0));
               });
             }
           }).catch(() => {});
@@ -312,16 +301,23 @@ export function useChatSession(
     }
   });
 
+  let messageRequestToken = 0;
+  let messageRequestSessionId: string | null = null;
   const loadMessages = async (sessionId: string) => {
+    const requestToken = ++messageRequestToken;
+    messageRequestSessionId = sessionId;
     setLoadingMessages(true);
     try {
       const msgs = await agentService.getMessages(sessionId, { limit: PAGE_SIZE });
+      // Validate request is still relevant: token matches AND session still selected
+      if (requestToken !== messageRequestToken) return;
+      if (selectedSessionId() !== sessionId) return;
       setMessages(msgs);
       setHasMoreMessages(msgs.length >= PAGE_SIZE);
     } catch (e) {
       console.error(e);
     } finally {
-      setLoadingMessages(false);
+      if (requestToken === messageRequestToken) setLoadingMessages(false);
     }
   };
 
@@ -350,6 +346,7 @@ export function useChatSession(
         before_sequence_num: oldestSeq,
       });
 
+      if (selectedSessionId() !== sId) return false;
       if (older && older.length > 0) {
         setMessages((prev) => {
           const existingIds = new Set(prev.map((m) => m.id));
@@ -377,6 +374,7 @@ export function useChatSession(
     setLoadingEarlier(true);
     try {
       const allMsgs = await agentService.getMessages(sId);
+      if (selectedSessionId() !== sId) return false;
       setMessages(allMsgs);
       setHasMoreMessages(false);
       return true;
@@ -388,30 +386,45 @@ export function useChatSession(
     }
   };
 
+  let sessionsRequestToken = 0;
+  let selectionRequestToken = 0;
   const selectSession = async (sess: AgentSession) => {
+    const requestToken = ++selectionRequestToken;
     clearStreamingState();
+    setCollapsedMessages(new Set<string>());
+    activeEventSource?.close();
+    activeEventSource = null;
     setSelectedSessionId(sess.id);
     localStorage.setItem('ragasukma_active_session_id', sess.id);
+    localStorage.setItem(`ragasukma_active_session_id:${selectedProjectId()}`, sess.id);
     if (sess.model) {
       setActiveSessionModel(sess.model);
     } else if (!activeSessionModel()) {
       setActiveSessionModel(defaultBrainModel() || (availableModels()[0]?.id ?? ''));
     }
     await loadMessages(sess.id);
-    connectSessionSse(sess.id);
+    // Verify request is still valid after loadMessages completes
+    if (requestToken === selectionRequestToken && selectedSessionId() === sess.id) {
+      connectSessionSse(sess.id);
+    }
   };
-
   const loadSessions = async (projectId: string) => {
+    const requestToken = ++sessionsRequestToken;
+    const selectionAtRequest = selectedSessionId();
     try {
       const sess = await agentService.getSessions(projectId);
+      // Validate each condition separately after API call completes
+      if (requestToken !== sessionsRequestToken) return;
+      if (selectedProjectId() !== projectId) return;
+      if (selectedSessionId() !== selectionAtRequest) return;
       setSessions(sess);
-      const savedSess = localStorage.getItem('ragasukma_active_session_id');
-      const targetSess = (savedSess && sess.some(s => s.id === savedSess)) 
-        ? savedSess 
-        : (sess.length > 0 ? sess[0].id : null);
+      const savedSess = localStorage.getItem(`ragasukma_active_session_id:${projectId}`);
+      const targetSess = (savedSess && sess.some(s => s.id === savedSess)) ? savedSess : (sess[0]?.id ?? null);
 
       if (targetSess) {
         setSelectedSessionId(targetSess);
+        localStorage.setItem(`ragasukma_active_session_id:${projectId}`, targetSess);
+        setCollapsedMessages(new Set<string>());
         const activeS = sess.find(s => s.id === targetSess);
         if (activeS?.model) {
           setActiveSessionModel(activeS.model);
@@ -419,23 +432,41 @@ export function useChatSession(
           setActiveSessionModel(defaultBrainModel() || (availableModels()[0]?.id ?? ''));
         }
         await loadMessages(targetSess);
-        connectSessionSse(targetSess);
-      } else if (sess.length === 0) {
+        // Verify request is still valid after loadMessages completes
+        if (requestToken === sessionsRequestToken && selectedProjectId() === projectId && selectedSessionId() === targetSess) {
+          connectSessionSse(targetSess);
+        }
+      } else {
+        ++messageRequestToken;
         setSelectedSessionId(null);
         setMessages([]);
+        setHasMoreMessages(false);
+        clearStreamingState();
+        try {
+          if (activeEventSource) {
+            activeEventSource.close();
+            console.debug('[loadSessions] SSE closed: no active sessions');
+          }
+        } catch (e) {
+          console.warn('[loadSessions] SSE close error:', e);
+        }
+        activeEventSource = null;
       }
     } catch (e) {
       console.error(e);
     }
   };
 
+  let modelRefreshToken = 0;
   const refreshDynamicModels = async () => {
+    const requestToken = ++modelRefreshToken;
     setIsRefreshingModels(true);
     try {
       const [catalogModels, cfg] = await Promise.all([
         modelCatalogService.getModels(),
         configService.getConfig().catch(() => null),
       ]);
+      if (requestToken !== modelRefreshToken) return;
 
       const list: Array<{ id: string; label: string }> = [...catalogModels];
 
@@ -444,7 +475,9 @@ export function useChatSession(
 
       setAvailableModels(list);
 
-      if (!list.some((model) => model.id === activeSessionModel())) {
+      if (currentSession()?.model) {
+        setActiveSessionModel(currentSession()!.model!);
+      } else if (!activeSessionModel()) {
         setActiveSessionModel(activeBrain || list[0]?.id || '');
       }
     } catch (e) {
@@ -461,7 +494,9 @@ export function useChatSession(
       return;
     }
 
-    const nextNum = sessions().length + 1;
+    const usedNumbers = new Set(sessions().map((session) => Number(session.title.match(/^Task #(\d+)$/)?.[1])).filter(Number.isFinite));
+    let nextNum = 1;
+    while (usedNumbers.has(nextNum)) nextNum++;
     const title = `Task #${nextNum}`;
     const modelToUse = activeSessionModel() || defaultBrainModel() || undefined;
 
@@ -471,13 +506,24 @@ export function useChatSession(
     });
 
     if (res.ok && res.session) {
-      showToast(`Session "${title}" created!`);
-      await loadSessions(projId);
+      if (selectedProjectId() !== projId) return;
+      ++sessionsRequestToken;
+      ++selectionRequestToken;
+      ++messageRequestToken;
+      activeEventSource?.close();
+      activeEventSource = null;
+      clearStreamingState();
+      setSessions((prev) => [res.session!, ...prev.filter((session) => session.id !== res.session!.id)]);
       setSelectedSessionId(res.session.id);
-      if (res.session.model) {
-        setActiveSessionModel(res.session.model);
-      }
+      localStorage.setItem('ragasukma_active_session_id', res.session.id);
+      localStorage.setItem(`ragasukma_active_session_id:${projId}`, res.session.id);
+      if (res.session.model) setActiveSessionModel(res.session.model);
+      setMessages([]);
       await loadMessages(res.session.id);
+      // Only connect SSE if session is still the selected one after loadMessages completes
+      if (selectedProjectId() === projId && selectedSessionId() === res.session.id) {
+        connectSessionSse(res.session.id);
+      }
       onCreated?.();
     } else {
       showToast(res.error || 'Failed to create session');
@@ -487,7 +533,7 @@ export function useChatSession(
   const handleDeleteSession = async (id: string, title: string) => {
     const ok = await showConfirm({
       title: 'Delete Chat Session',
-      message: 'Are you sure you want to permanently delete this chat session?',
+      message: `Are you sure you want to permanently delete "${title}"?`,
       confirmText: 'Delete',
       isDanger: true,
     });
@@ -505,15 +551,30 @@ export function useChatSession(
   const handleStopSession = async () => {
     const sessId = selectedSessionId();
     if (!sessId) return;
-    markSessionRunning(sessId, false);
-    setCurrentStepInfo(null);
-    setStreamingText('');
-    setStreamingThought('');
-    setSessions((prev) =>
-      prev.map((s) => (s.id === sessId ? { ...s, status: 'idle' } : s))
-    );
-    await agentService.stopSession(sessId);
-    showToast('Agent execution stopped');
+    try {
+      const stopped = await agentService.stopSession(sessId);
+      if (!stopped) {
+        showToast('Failed to stop agent execution');
+        return;
+      }
+      if (selectedSessionId() === sessId) {
+        clearStreamingState();
+        setCurrentStepInfo(null);
+        // Close SSE connection for this session
+        if (activeEventSource) {
+          activeEventSource.close();
+          activeEventSource = null;
+        }
+      }
+      markSessionRunning(sessId, false);
+      setSessions((prev) => prev.map((s) => (s.id === sessId ? { ...s, status: 'idle' } : s)));
+      showToast('Agent execution stopped');
+    } catch (e) {
+      console.error('Failed to stop agent execution', e);
+      showToast('Failed to stop agent execution');
+      // Ensure we still mark session as not running even if stop failed
+      markSessionRunning(sessId, false);
+    }
   };
 
   const handleSendMessage = async (onMessageSent?: () => void) => {
@@ -536,6 +597,7 @@ export function useChatSession(
         setMessages([...messages(), res.message]);
         onMessageSent?.();
 
+        // Pass callback so SSE auto-scrolls when agent responds
         connectSessionSse(sessId, onMessageSent);
 
         const currentModel = activeSessionModel() || undefined;
@@ -554,9 +616,6 @@ export function useChatSession(
       showToast(e.message || 'Failed to send message');
       markSessionRunning(sessId, false);
       setCurrentStepInfo(null);
-    } finally {
-      const pId = selectedProjectId();
-      if (pId) loadProjectFiles(pId);
     }
   };
 
@@ -572,20 +631,8 @@ export function useChatSession(
     loadingMessages,
     userInput,
     setUserInput,
-    sendingMessage,
-    setSendingMessage,
     toggleCollapseMessage,
     isMessageCollapsed,
-    selectedFileForTag,
-    setSelectedFileForTag,
-    tagStartLine,
-    setTagStartLine,
-    tagEndLine,
-    setTagEndLine,
-    filePreview,
-    setFilePreview,
-    loadingFilePreview,
-    setLoadingFilePreview,
     currentStepInfo,
     streamingText,
     setStreamingText,

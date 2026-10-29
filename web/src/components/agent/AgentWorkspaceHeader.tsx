@@ -83,47 +83,6 @@ export const AgentWorkspaceHeader: Component<{
                 </p>
               </div>
             </div>
-
-            {/* Read-only Auto-detected Skill Cards */}
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              <For each={props.skills}>
-                {(skill) => (
-                  <div class="p-2.5 border bg-theme-cyan/10 border-theme-cyan/40 shadow-xs flex flex-col justify-between gap-2">
-                    <div class="space-y-1">
-                      <div class="flex items-center justify-between gap-1.5">
-                        <span class="text-xs font-semibold text-theme-text truncate flex items-center gap-1.5">
-                          <span class="w-2 h-2 shrink-0 bg-theme-cyan shadow-xs shadow-theme-cyan/50" />
-                          {skill.name}
-                        </span>
-                        <span class="text-2xs px-1.5 py-0.5 font-mono font-medium bg-theme-cyan/20 text-theme-cyan">
-                          Active
-                        </span>
-                      </div>
-                      <p class="text-xs text-theme-text/60 line-clamp-2 leading-tight">
-                        {skill.description || 'Specialized AI instructions loaded from workspace .skills directory.'}
-                      </p>
-                    </div>
-
-                    <div class="flex items-center justify-between pt-1 border-t border-theme-border/40 text-2xs text-theme-text/70">
-                      <span class="font-mono truncate max-w-[140px] text-theme-cyan/80">
-                        @{skill.slug || 'skill'}
-                      </span>
-                      <span class="text-theme-text/50 text-2xs font-mono">
-                        auto-loaded
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </For>
-            </div>
-
-            <Show when={props.skills.length === 0}>
-              <div class="p-3 text-center border border-dashed border-theme-border bg-theme-bg/30">
-                <p class="text-xs text-theme-text/60">
-                  No custom skills detected yet. Create a <code class="text-theme-cyan font-mono">.skills/</code> folder in your workspace with markdown files (e.g. <code class="text-theme-cyan font-mono">.skills/reviewer.md</code>) to auto-inject specialized prompt skills.
-                </p>
-              </div>
-            </Show>
           </div>
 
           {/* Active MCP Servers Selection */}

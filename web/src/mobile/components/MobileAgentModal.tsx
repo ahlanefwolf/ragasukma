@@ -23,7 +23,8 @@ import {
   CheckCheck,
   Sparkles,
   Zap,
-  X
+  X,
+  CornerDownLeft
 } from 'lucide-solid';
 import { agentService, AgentSession, AgentMessage, Project } from '../../services/agentService';
 import { MarkdownView } from '../../components/agent/MarkdownView';
@@ -1395,8 +1396,8 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                       </Show>
                     </Show>
                     <Show when={!isExecuting() && promptText().length === 0}>
-                      <span class="text-[11px] font-mono text-theme-muted/40 hidden sm:inline">
-                        ↵ send • shift+↵ line
+                      <span class="text-[11px] font-mono text-theme-muted/40 hidden sm:inline-flex items-center gap-0.5">
+                        <CornerDownLeft class="w-3 h-3" /> send · shift+<CornerDownLeft class="w-3 h-3" /> line
                       </span>
                     </Show>
                   </div>

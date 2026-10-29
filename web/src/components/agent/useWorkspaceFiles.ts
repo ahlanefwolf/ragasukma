@@ -62,15 +62,18 @@ export function useWorkspaceFiles(
     return current[dirPath] === true;
   };
 
+  let filesRequestToken = 0;
   const loadProjectFiles = async (projectId: string) => {
+    const requestToken = ++filesRequestToken;
     setLoadingFiles(true);
     try {
       const files = await agentService.getProjectFiles(projectId);
+      if (requestToken !== filesRequestToken || selectedProjectId() !== projectId) return;
       setWorkspaceFiles(files);
     } catch (e) {
       console.error(e);
     } finally {
-      setLoadingFiles(false);
+      if (requestToken === filesRequestToken) setLoadingFiles(false);
     }
   };
 

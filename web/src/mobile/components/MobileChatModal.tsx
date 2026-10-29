@@ -12,7 +12,8 @@ import {
   RefreshCw,
   X,
   Mic,
-  MicOff
+  MicOff,
+  CornerDownLeft
 } from 'lucide-solid';
 import { historyService, ChatTurnItem } from '../../services/historyService';
 import { MarkdownView } from '../../components/agent/MarkdownView';
@@ -560,8 +561,8 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                   </Show>
                 </Show>
                 <Show when={props.inputText.length === 0}>
-                  <span class="text-[11px] font-mono text-theme-muted/40 hidden sm:inline">
-                    ↵ send • shift+↵ line
+                  <span class="text-[11px] font-mono text-theme-muted/40 hidden sm:inline-flex items-center gap-0.5">
+                    <CornerDownLeft class="w-3 h-3" /> send · shift+<CornerDownLeft class="w-3 h-3" /> line
                   </span>
                 </Show>
               </div>

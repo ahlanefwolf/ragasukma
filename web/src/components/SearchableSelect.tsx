@@ -1,5 +1,5 @@
 import { Component, createSignal, createEffect, onCleanup, Show, For } from 'solid-js';
-import { Search, ChevronDown, Check } from 'lucide-solid';
+import { Search, ChevronDown, Check, X } from 'lucide-solid';
 
 interface SearchableSelectOption {
   value: string;
@@ -122,9 +122,10 @@ export const SearchableSelect: Component<SearchableSelectProps> = (props) => {
               <button
                 type="button"
                 onClick={() => setSearch('')}
-                class="text-xs text-theme-muted hover:text-theme-text px-1 font-mono"
+                class="text-theme-muted hover:text-theme-text px-1 flex items-center"
+                aria-label="Clear search"
               >
-                ×
+                <X size={12} />
               </button>
             </Show>
           </div>
