@@ -36,6 +36,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Standard OpenAI-compatible local endpoints (`/v1/chat/completions` & `/v1/models`) for drop-in use with Cursor, Zed, VS Code, and Cline.
   - Reactive in-memory synchronization: account additions, deletions, toggles, and token refreshes take effect instantly without restarting.
   - Clean `model_id`-centric quota inspection and model dropdowns, removing duplicate or confusing display labels.
+- **Autonomous Coding & Workspace Agent Engine (`src/agent`)**:
+  - Resilient self-healing code editor (`workspace_edit_file`) with Git-style 3-way LCS hunk alignment, indentation tolerance, and anchor matching.
+  - Strict sequential tool execution enforcement (one tool per turn) preventing parallel tool call failures and empty argument errors.
+  - KV-cache friendly context compressor: automatic symbol outline generation (>250 lines) and dynamic historical tool call compaction.
+  - Evidence cache and goal verification loop: tracks file mtime/hash for targeted discovery and runs automated test verifications (`cargo test`, `npm test`) prior to goal conclusion.
+  - Full Model Context Protocol (MCP) support for external stdio, SSE, and HTTP tools.
 - **Memory & Resource Efficiency**:
   - Disabled memory pattern cache on ONNX models and enabled safe OS working-set trimming (`malloc_trim`).
   - Thread safety and resource-friendly CPU budgeting preventing OOM issues alongside heavy apps like OBS.

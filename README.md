@@ -77,6 +77,21 @@
   - Automated account rotation, token refresh, and quota failover for uninterrupted conversation flow.
   - Live quota tracking with clean `model_id` display, eliminating redundant labels.
 
+### 7. Autonomous Workspace & Software Engineering Agent (`src/agent`)
+- **Self-Healing Code Modifications & Resilient Editor**:
+  - Git-style 3-way merge LCS hunk decomposition, anchor-based fuzzy matching, and indentation-adaptive patching via `workspace_edit_file` and `workspace_write_file`.
+  - Automatic rollback and safety reverts on failed modifications.
+- **Strict Sequential Tool Execution (One Tool Per Turn)**:
+  - Single-tool turn gating ensuring each action is grounded on actual prior observations, eliminating empty-argument failures and halving wasted turn latency.
+- **KV-Cache Friendly Token Compaction & Outline Discovery**:
+  - Automatic polyglot symbol outline generation for large source files (>250 lines), slicing reads with precision line boundaries (`workspace_read_file`).
+  - Tail-compacted historical tool call arguments and head-tail output truncation to preserve prefix KV-cache across upstream providers.
+- **Evidence Caching & Adaptive Verification Loop**:
+  - Local hash/mtime evidence cache tracking source revisions without heavy vector databases.
+  - Autonomous *Discovery -> Action -> Verification* lifecycle running workspace test commands (`cargo test`, `npm test`, etc.) to validate code changes before closing goals.
+- **Model Context Protocol (MCP) Integration**:
+  - First-class support for project-scoped stdio, SSE, and HTTP external MCP servers and tools.
+
 ---
 
 ## System Requirements
