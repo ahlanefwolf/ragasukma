@@ -27,14 +27,17 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
 
   let logsContainerRef: HTMLDivElement | undefined;
   let isFetching = false;
+  let isMounted = true;
   let scrollRafId: number | null = null;
+  let refreshTimeoutId: ReturnType<typeof setTimeout> | undefined;
+  let copyTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
   const fetchLogs = async () => {
     if (isFetching || document.hidden) return;
     isFetching = true;
     try {
       const data = await api.getLogs();
-      if (data && Array.isArray(data)) {
+      if (data && Array.isArray(data) && isMounted) {
         // Keep at most the last 250 logs so browser remains super responsive without DOM overhead
         const trimmed = data.length > 250 ? data.slice(data.length - 250) : data;
         setLogs(trimmed);
@@ -50,13 +53,18 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     await fetchLogs();
-    setTimeout(() => setIsRefreshing(false), 300);
+    if (!isMounted) return;
+    if (refreshTimeoutId) clearTimeout(refreshTimeoutId);
+    refreshTimeoutId = setTimeout(() => {
+      if (isMounted) setIsRefreshing(false);
+    }, 300);
   };
 
   const handleClearLogs = async () => {
     const ok = await api.clearLogs();
-    if (ok) {
+    if (ok && isMounted) {
       setLogs([]);
+      setCachedLogs([]);
       props.showToast('Activity logs cleared successfully');
     }
   };
@@ -68,7 +76,10 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
     navigator.clipboard.writeText(rawText);
     setCopied(true);
     props.showToast('All logs copied to clipboard');
-    setTimeout(() => setCopied(false), 2000);
+    if (copyTimeoutId) clearTimeout(copyTimeoutId);
+    copyTimeoutId = setTimeout(() => {
+      if (isMounted) setCopied(false);
+    }, 2000);
   };
 
   onMount(() => {
@@ -87,8 +98,11 @@ export const LogsTab: Component<LogsTabProps> = (props) => {
     });
 
     onCleanup(() => {
+      isMounted = false;
       unsubLogs();
       if (scrollRafId) cancelAnimationFrame(scrollRafId);
+      if (refreshTimeoutId) clearTimeout(refreshTimeoutId);
+      if (copyTimeoutId) clearTimeout(copyTimeoutId);
     });
   });
 

@@ -130,21 +130,27 @@ function startWsStream() {
     activeWs = ws;
 
     ws.onopen = () => {
+      // A closed/replaced socket may still dispatch a late event.
+      if (activeWs !== ws) return;
+
       isConnected = true;
       connectionListeners.forEach((cb) => cb(true));
 
-      // Start client ping heartbeat every 15s to keep mobile connection alive
+      // Start client ping heartbeat every 15s to keep mobile connection alive.
+      // This interval always belongs to the current active socket.
       if (wsPingInterval) clearInterval(wsPingInterval);
       wsPingInterval = window.setInterval(() => {
-        if (activeWs && activeWs.readyState === WebSocket.OPEN) {
+        if (activeWs === ws && ws.readyState === WebSocket.OPEN) {
           try {
-            activeWs.send(JSON.stringify({ type: 'ping' }));
+            ws.send(JSON.stringify({ type: 'ping' }));
           } catch {}
         }
       }, 15000);
     };
 
     ws.onmessage = (event) => {
+      if (activeWs !== ws) return;
+
       try {
         const parsed = JSON.parse(event.data);
         if (!parsed || !parsed.event) return;
@@ -173,10 +179,14 @@ function startWsStream() {
     };
 
     ws.onerror = () => {
+      if (activeWs !== ws) return;
       try { ws.close(); } catch {}
     };
 
     ws.onclose = () => {
+      // Do not let a replaced socket tear down a newer connection.
+      if (activeWs !== ws) return;
+
       isConnected = false;
       connectionListeners.forEach((cb) => cb(false));
       activeWs = null;
@@ -289,7 +299,9 @@ export const eventsService = {
       onStateChange(lastKnownState);
     } else {
       fetchStateOnce().then((st) => {
-        if (st) onStateChange(st);
+        if (st && stateListeners.has(onStateChange)) {
+          onStateChange(st);
+        }
       });
     }
     startStateEvents();
