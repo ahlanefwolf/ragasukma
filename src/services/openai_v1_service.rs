@@ -241,8 +241,8 @@ pub async fn axum_v1_chat_completions_handler(
     let model = req.model.clone();
     let cmpl_id = format!("chatcmpl-{}", current_ts());
     let now = current_ts();
-    let is_codex = model.starts_with("cx/") || model.to_lowercase().contains("codex");
-    let is_claude = model.starts_with("cc/") || model.starts_with("claude/") || model.to_lowercase().contains("claude");
+    let is_claude = model.starts_with("cc/");
+    let is_codex = model.starts_with("cx/");
     let req_start_time = std::time::Instant::now();
 
     if is_stream {

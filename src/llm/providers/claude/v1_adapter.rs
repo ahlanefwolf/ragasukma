@@ -9,7 +9,7 @@ pub fn build_claude_payload_from_messages(
     temperature: f32,
     max_tokens: u32,
 ) -> serde_json::Value {
-    let clean_model = model.trim().trim_start_matches("claude/").trim_start_matches("cc/");
+    let clean_model = model.trim().trim_start_matches("cc/");
     let mut claude_messages = Vec::new();
     let mut system_prompt = CLAUDE_DEFAULT_SYSTEM_PROMPT.to_string();
 
@@ -86,7 +86,7 @@ pub fn resolve_claude_thinking_budget(model: &str) -> u32 {
 }
 
 pub fn build_claude_payload_from_v1(req: &V1ChatRequest) -> serde_json::Value {
-    let clean_model = req.model.trim().trim_start_matches("claude/").trim_start_matches("cc/");
+    let clean_model = req.model.trim().trim_start_matches("cc/");
     let mut claude_messages: Vec<serde_json::Value> = Vec::new();
     let mut system_prompt = CLAUDE_DEFAULT_SYSTEM_PROMPT.to_string();
     let mut has_system = false;

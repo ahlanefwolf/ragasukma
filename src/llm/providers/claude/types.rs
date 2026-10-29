@@ -53,7 +53,7 @@ impl ClaudeAccount {
             return true;
         }
         if let Some(m) = model {
-            let clean_m = m.trim().trim_start_matches("claude/").trim_start_matches("cc/");
+            let clean_m = m.trim().trim_start_matches("cc/");
             if let Some(&until) = self.model_rate_limits.get(clean_m) {
                 if until > now {
                     return true;
@@ -66,7 +66,7 @@ impl ClaudeAccount {
     pub fn set_rate_limit_for_model(&mut self, model: Option<&str>, cooldown_secs: u64, now: u64) {
         let until = now + cooldown_secs;
         if let Some(m) = model {
-            let clean_m = m.trim().trim_start_matches("claude/").trim_start_matches("cc/");
+            let clean_m = m.trim().trim_start_matches("cc/");
             if !clean_m.is_empty() {
                 self.model_rate_limits.insert(clean_m.to_string(), until);
                 return;
@@ -81,7 +81,7 @@ impl ClaudeAccount {
             waits.push(self.rate_limited_until - now);
         }
         if let Some(m) = model {
-            let clean_m = m.trim().trim_start_matches("claude/").trim_start_matches("cc/");
+            let clean_m = m.trim().trim_start_matches("cc/");
             if let Some(&until) = self.model_rate_limits.get(clean_m) {
                 if until > now {
                     waits.push(until - now);

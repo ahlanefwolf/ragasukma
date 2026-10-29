@@ -210,7 +210,7 @@ pub async fn resolve_model(session: &Session, model_override: Option<&str>) -> (
         });
 
     let _ = repository::update_session_model(&session.id, &model).await;
-    let is_codex = model.starts_with("cx/") || model.to_lowercase().contains("codex");
+    let is_codex = model.starts_with("cx/");
     (model, is_codex)
 }
 
@@ -222,10 +222,9 @@ pub enum ModelProviderFamily {
 }
 
 pub fn detect_provider_family(model: &str) -> ModelProviderFamily {
-    let lower = model.to_lowercase();
-    if model.starts_with("cc/") || model.starts_with("claude/") || lower.contains("claude") {
+    if model.starts_with("cc/") {
         ModelProviderFamily::Claude
-    } else if model.starts_with("cx/") || lower.contains("codex") {
+    } else if model.starts_with("cx/") {
         ModelProviderFamily::Codex
     } else {
         ModelProviderFamily::Antigravity

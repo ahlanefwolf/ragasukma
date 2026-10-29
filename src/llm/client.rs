@@ -119,8 +119,7 @@ impl LlmClient {
         // 1. Local Mode: Using internal Ragasukma engine (Claude pool, Codex pool, or Antigravity pool)
         let is_claude_engine = self.provider.eq_ignore_ascii_case("claude")
             || self.provider.eq_ignore_ascii_case("anthropic")
-            || self.model.starts_with("cc/")
-            || self.model.starts_with("claude/");
+            || self.model.starts_with("cc/");
 
         if is_claude_engine && !self.claude.accounts.is_empty() {
             let start_time = std::time::Instant::now();
@@ -248,8 +247,6 @@ impl LlmClient {
                     .strip_prefix("ag/")
                     .or_else(|| self.model.strip_prefix("cx/"))
                     .or_else(|| self.model.strip_prefix("cc/"))
-                    .or_else(|| self.model.strip_prefix("claude/"))
-                    .or_else(|| self.model.strip_prefix("codex/"))
                     .unwrap_or(&self.model);
 
                 let ag_model = crate::llm::providers::antigravity::v1_adapter::resolve_model_alias(raw_model);
@@ -550,8 +547,7 @@ impl LlmClient {
 
         let is_claude_engine = self.provider.eq_ignore_ascii_case("claude")
             || self.provider.eq_ignore_ascii_case("anthropic")
-            || self.model.starts_with("cc/")
-            || self.model.starts_with("claude/");
+            || self.model.starts_with("cc/");
 
         if is_claude_engine && !self.claude.accounts.is_empty() {
             let mut dummy_cb = |_text: &str, _emo: &str| -> Result<()> { Ok(()) };
