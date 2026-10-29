@@ -98,13 +98,14 @@ pub async fn build_system_prompt(
     }
 
     system_prompt.push_str("\n### 🛠️ Tool Calling Hierarchy & Automation Directives:\n\
-    1. DEDICATED STRUCTURED TOOLS: ALWAYS use dedicated tools (`workspace_edit_file`, `workspace_write_file`, `workspace_read_file`, `workspace_grep`) for workspace code modifications and file inspections. Never use Python one-liners or bash commands to modify code files directly.\n\
-    2. VENDOR/DEPENDENCY INTEGRITY: NEVER attempt to edit or modify vendor dependencies inside `node_modules/`, `.git/`, or library internals. All bug fixes and changes must be applied cleanly to the project source files (components, plugins, stores, configurations).\n\
-    3. TARGETED DISCOVERY BUDGET: When investigating issues, you have a focused budget of 4-6 inspections. Do not wander across unrelated files. Locate the relevant source file, formulate the fix, and apply it directly.\n\
-    4. PYTHON 3 DATA AUTOMATION: Python 3 runtime is available on this system strictly for non-file operations (e.g. API requests, regex parsing, sqlite queries, or data conversions where no dedicated tool exists).\n\
-    5. WORKSPACE EXECUTION: Use `workspace_run_command` only for project compilation/builds, tests, package manager operations, and git version control.\n\
-    6. CRITICAL SELF-REASONING (<thought>): Before deciding to invoke any tools or answering, you MUST formulate a brief internal reflection (1-3 concise sentences) wrapped inside `<thought>...</thought>`. Evaluate risks, determine which file or command is needed, and critique potential blind spots.\n\
-    7. USER-FACING PREAMBLE: When executing tools, always output 1 short, direct, friendly sentence outside of `<thought>` matching the user's conversation language explaining what you are about to do (e.g., 'I will inspect the backend configuration...', 'I will run the tests to verify the changes...'). Never execute tools silently.\n\n");
+    1. STRICT SEQUENTIAL TOOL INVOCATION (ONE TOOL PER TURN): You MUST invoke at most ONE tool per turn. NEVER invoke multiple tools in parallel (e.g. NEVER call workspace_grep twice or combine read and grep in a single response). Always invoke one tool, wait for its observation, analyze the findings, and only then formulate the next action.\n\
+    2. DEDICATED STRUCTURED TOOLS: ALWAYS use dedicated tools (`workspace_edit_file`, `workspace_write_file`, `workspace_read_file`, `workspace_grep`) for workspace code modifications and file inspections. Never use Python one-liners or bash commands to modify code files directly.\n\
+    3. VENDOR/DEPENDENCY INTEGRITY: NEVER attempt to edit or modify vendor dependencies inside `node_modules/`, `.git/`, or library internals. All bug fixes and changes must be applied cleanly to the project source files (components, plugins, stores, configurations).\n\
+    4. TARGETED DISCOVERY BUDGET: When investigating issues, you have a focused budget of 4-6 inspections. Do not wander across unrelated files. Locate the relevant source file, formulate the fix, and apply it directly.\n\
+    5. PYTHON 3 DATA AUTOMATION: Python 3 runtime is available on this system strictly for non-file operations (e.g. API requests, regex parsing, sqlite queries, or data conversions where no dedicated tool exists).\n\
+    6. WORKSPACE EXECUTION: Use `workspace_run_command` only for project compilation/builds, tests, package manager operations, and git version control.\n\
+    7. CRITICAL SELF-REASONING (<thought>): Before deciding to invoke any tools or answering, you MUST formulate a brief internal reflection (1-3 concise sentences) wrapped inside `<thought>...</thought>`. Evaluate risks, determine which file or command is needed, and critique potential blind spots.\n\
+    8. USER-FACING PREAMBLE: When executing tools, always output 1 short, direct, friendly sentence outside of `<thought>` matching the user's conversation language explaining what you are about to do (e.g., 'I will inspect the backend configuration...', 'I will run the tests to verify the changes...'). Never execute tools silently.\n\n");
 
     if !active_mcp_servers.is_empty() {
         system_prompt.push_str("### ⚡ Active Project External MCP Servers & Services (Raw Configuration):\n\

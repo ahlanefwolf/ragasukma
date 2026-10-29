@@ -205,7 +205,37 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
         };
 
         // If tool calls were returned, execute them
-        if let Some(tool_calls) = turn_res.tool_calls {
+        if let Some(mut tool_calls) = turn_res.tool_calls {
+            if !tool_calls.is_empty() {
+                // Enforce strictly 1 tool call per turn to guarantee stability and prevent empty argument errors
+                if tool_calls.len() > 1 {
+                    eprintln!(
+                        "[Agent Turn] Model returned {} parallel tool calls; enforcing single tool invocation",
+                        tool_calls.len()
+                    );
+                    // Prefer the first tool call with non-empty arguments, or fallback to the first call
+                    let chosen = tool_calls
+                        .into_iter()
+                        .find(|tc| !tc.function.arguments.trim().is_empty())
+                        .unwrap_or_else(|| crate::llm::v1_engine::V1ToolCall {
+                            id: format!("call_{}", crate::llm::v1_engine::generate_v1_uuid("tc")),
+                            call_type: "function".to_string(),
+                            function: crate::llm::v1_engine::V1ToolCallFunction {
+                                name: String::new(),
+                                arguments: String::new(),
+                            },
+                            thought_signature: None,
+                            extra_content: None,
+                            provider_specific_fields: None,
+                        });
+                    tool_calls = if chosen.function.name.is_empty() {
+                        Vec::new()
+                    } else {
+                        vec![chosen]
+                    };
+                }
+            }
+
             if !tool_calls.is_empty() {
                 let tc_json = serde_json::to_string(&tool_calls).unwrap_or_default();
                 let assistant_text = if turn_res.content.is_empty() {
