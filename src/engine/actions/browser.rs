@@ -89,8 +89,8 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
 
             crate::term_log!("[Browser AI Search] Initiating search for: '{}'", query);
 
-            // Reset any previous search AI summary in memory to ensure fresh results
-            crate::services::browser_session_service::reset_copied_text();
+            // Every search owns a generation. Starting a new one invalidates all older workers.
+            let generation = crate::services::browser_session_service::begin_browser_search();
 
             crate::services::browser_session_service::smart_open_or_switch_tab(
                 &google_url,
@@ -99,123 +99,123 @@ pub fn execute_browser_action(action: &str, payload: &str) -> Option<(String, St
             );
 
             let query_str = query.to_string();
+            let expected_google_url = google_url;
             // Reactive event-driven worker: clicks AI Mode, waits for AI completion, copies & updates active context
             std::thread::spawn(move || {
                 use std::time::Duration;
-
-                // Step 1: Wait for snapshot containing Mode AI button or already in Mode AI
-                let mode_ai_snap = crate::services::browser_session_service::wait_for_snapshot_matching(
-                    Duration::from_secs(6),
-                    |snap| {
-                        let snap_url = snap.url.to_lowercase();
-                        if !snap_url.contains("google.") {
-                            return false;
-                        }
-                        if snap_url.contains("udm=50") {
-                            return true;
-                        }
-                        let has_button = snap.buttons.iter().any(|b| {
-                            let label = b.text.as_deref().unwrap_or("").to_lowercase();
-                            let aria = b.aria_label.as_deref().unwrap_or("").to_lowercase();
-                            GOOGLE_AI_KEYWORDS.iter().any(|k| label.contains(k) || aria.contains(k))
-                        });
-                        let has_text = snap.texts.iter().any(|t| {
-                            let label = t.to_lowercase();
-                            GOOGLE_AI_KEYWORDS.iter().any(|k| label.contains(k))
-                        });
-                        has_button || has_text
-                    },
-                );
-
-                let Some(snap) = mode_ai_snap else {
-                    crate::term_log!("[Browser AI Search] Mode AI button not found within timeout (normal search layout).");
-                    return;
+                use crate::services::browser_session_service::{
+                    is_active_browser_search, update_snapshot_summary,
+                    wait_for_copied_text_matching_for_search, wait_for_snapshot_matching_for_search,
                 };
 
-                let snap_url = snap.url.to_lowercase();
-                if snap_url.contains("udm=50") {
-                    crate::term_log!("[Browser AI Search] Already in Mode AI tab (udm=50).");
-                } else {
-                    let matching_button = snap.buttons.iter().find(|b| {
+                // Step 1: Wait for snapshot containing Mode AI button or already in Mode AI.
+                let mode_ai_snap = wait_for_snapshot_matching_for_search(generation, Duration::from_secs(6), |snap| {
+                    let snap_url = snap.url.to_lowercase();
+                    if !snap_url.contains("google.") {
+                        return false;
+                    }
+                    if snap_url.contains("udm=50") {
+                        return true;
+                    }
+                    let has_button = snap.buttons.iter().any(|b| {
                         let label = b.text.as_deref().unwrap_or("").to_lowercase();
                         let aria = b.aria_label.as_deref().unwrap_or("").to_lowercase();
                         GOOGLE_AI_KEYWORDS.iter().any(|k| label.contains(k) || aria.contains(k))
                     });
+                    let has_text = snap.texts.iter().any(|t| {
+                        let label = t.to_lowercase();
+                        GOOGLE_AI_KEYWORDS.iter().any(|k| label.contains(k))
+                    });
+                    has_button || has_text
+                });
+                if !is_active_browser_search(generation) {
+                    return;
+                }
 
-                    let matching_text = snap.texts.iter().find(|t| {
+                let Some(mut result_snapshot) = mode_ai_snap else {
+                    crate::term_log!("[Browser AI Search] Mode AI button not found within timeout (normal search layout).");
+                    return;
+                };
+
+                let snap_url = result_snapshot.url.to_lowercase();
+                if snap_url.contains("udm=50") {
+                    crate::term_log!("[Browser AI Search] Already in Mode AI tab (udm=50).");
+                } else {
+                    let matching_button = result_snapshot.buttons.iter().find(|b| {
+                        let label = b.text.as_deref().unwrap_or("").to_lowercase();
+                        let aria = b.aria_label.as_deref().unwrap_or("").to_lowercase();
+                        GOOGLE_AI_KEYWORDS.iter().any(|k| label.contains(k) || aria.contains(k))
+                    });
+                    let matching_text = result_snapshot.texts.iter().find(|t| {
                         let label = t.to_lowercase();
                         GOOGLE_AI_KEYWORDS.iter().any(|k| label.contains(k))
                     });
 
+                    if !is_active_browser_search(generation) {
+                        return;
+                    }
                     if let Some(btn) = matching_button {
-                        let sel = btn
-                            .selector
-                            .clone()
-                            .or_else(|| btn.text.clone())
-                            .unwrap_or_else(|| "Mode AI".to_string());
+                        let sel = btn.selector.clone().or_else(|| btn.text.clone()).unwrap_or_else(|| "Mode AI".to_string());
                         crate::term_log!("[Browser AI Search] Clicking Mode AI button with selector: '{}'", sel);
                         crate::services::browser_session_service::send_browser_command(
                             crate::services::browser_session_service::BrowserCommand {
-                                action: "CLICK_BUTTON".to_string(),
-                                selector: Some(sel),
-                                ..Default::default()
+                                action: "CLICK_BUTTON".to_string(), selector: Some(sel), ..Default::default()
                             },
                         );
                     } else if let Some(txt) = matching_text {
                         crate::term_log!("[Browser AI Search] Clicking Mode AI text link: '{}'", txt);
                         crate::services::browser_session_service::send_browser_command(
                             crate::services::browser_session_service::BrowserCommand {
-                                action: "CLICK_TEXT".to_string(),
-                                selector: Some(txt.clone()),
-                                ..Default::default()
+                                action: "CLICK_TEXT".to_string(), selector: Some(txt.clone()), ..Default::default()
                             },
                         );
                     }
 
-                    // Explicitly wait until the browser enters Mode AI (URL contains udm=50)
-                    crate::services::browser_session_service::wait_for_snapshot_matching(
-                        Duration::from_secs(8),
-                        |s| s.url.to_lowercase().contains("udm=50"),
-                    );
+                    // Explicitly wait until the browser enters Mode AI (URL contains udm=50).
+                    if let Some(snap) = wait_for_snapshot_matching_for_search(generation, Duration::from_secs(8), |s| {
+                        s.url.to_lowercase().contains("udm=50")
+                    }) {
+                        result_snapshot = snap;
+                    }
+                    if !is_active_browser_search(generation) {
+                        return;
+                    }
                 }
 
-                // Step 2: Reactively wait for Mode AI page to finish loading and extract the AI Overview text
-                let captured_text = match crate::services::browser_session_service::wait_for_copied_text(Duration::from_secs(12)) {
+                // Step 2: Wait for a copied result from this Google page, then fall back to its DOM summary.
+                let captured_text = match wait_for_copied_text_matching_for_search(generation, Duration::from_secs(12), |url| {
+                    let url = url.to_lowercase();
+                    url.contains("google.") && (url.contains("udm=50") || url == expected_google_url.to_lowercase())
+                }) {
                     Some(text) if !text.trim().is_empty() => Some(text),
-                    _ => {
-                        // Fallback: wait for snapshot that has populated text_summary from the AI container
-                        let snap = crate::services::browser_session_service::wait_for_snapshot_matching(
-                            Duration::from_secs(6),
-                            |s| {
-                                let u = s.url.to_lowercase();
-                                (u.contains("udm=50") || u.contains("google.")) && !s.is_loading && !s.text_summary.trim().is_empty()
-                            },
-                        );
-                        snap.and_then(|s| {
-                            let trimmed = s.text_summary.trim().to_string();
-                            if !trimmed.is_empty() {
-                                Some(trimmed)
-                            } else {
-                                None
-                            }
-                        })
-                    }
+                    _ => wait_for_snapshot_matching_for_search(generation, Duration::from_secs(6), |s| {
+                        let u = s.url.to_lowercase();
+                        (u.contains("udm=50") || u.contains("google.")) && !s.is_loading && !s.text_summary.trim().is_empty()
+                    }).map(|snap| {
+                        result_snapshot = snap;
+                        result_snapshot.text_summary.trim().to_string()
+                    }).filter(|text| !text.is_empty()),
                 };
+                if !is_active_browser_search(generation) {
+                    return;
+                }
 
                 if let Some(text) = captured_text {
-                    let trimmed = text.trim();
+                    let trimmed = text.trim().to_string();
                     crate::term_log!(
                         "[Browser AI Mode] Captured fresh AI summary ({} characters). Updating active page context...",
                         trimmed.len()
                     );
 
-                    // Update active browser snapshot with the rich copied markdown text
-                    if let Some(mut snap) = crate::services::browser_session_service::get_latest_snapshot() {
-                        snap.text_summary = trimmed.to_string();
-                        let _ = crate::services::browser_session_service::save_browser_snapshot(snap);
+                    // Do not overwrite a newer navigation or snapshot revision.
+                    if !update_snapshot_summary(&result_snapshot.url, result_snapshot.revision, trimmed.clone()) {
+                        crate::term_log!("[Browser AI Search] Skipped stale snapshot summary update.");
+                        return;
+                    }
+                    if !is_active_browser_search(generation) {
+                        return;
                     }
 
-                    // Trigger natural summarization through the main chat loop by providing the extracted content directly as a tool observation
                     crate::engine::remote_text::inject_remote_text(format!(
                         "[TOOL RESULT: Google Search for '{query_str}']:\n\n{trimmed}\n\nPlease provide a clear, natural, and concise spoken summary of this information directly to the user. Do NOT call any browser search or open commands."
                     ));

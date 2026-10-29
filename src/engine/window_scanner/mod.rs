@@ -372,35 +372,3 @@ pub fn get_focused_window_quick_info_ipc() -> Option<(String, String)> {
         Err(_) => None,
     }
 }
-
-#[allow(dead_code)]
-pub fn start_window_watcher() {
-    let _ = std::thread::Builder::new()
-        .name("ragasukma-window-watcher".to_string())
-        .stack_size(512 * 1024)
-        .spawn(|| {
-            let mut last_quick_info: Option<(String, String)> = None;
-
-            loop {
-                std::thread::sleep(std::time::Duration::from_millis(1500));
-
-                #[cfg(target_os = "linux")]
-                linux::cleanup_idle_atspi_connection();
-
-                let current_info = get_focused_window_quick_info_ipc();
-
-                let window_changed = match (&last_quick_info, &current_info) {
-                    (Some(last), Some(curr)) => last != curr,
-                    (None, Some(_)) => true,
-                    _ => false,
-                };
-
-                // Only scan if active window actually changed
-                if window_changed {
-                    let _ = scan_active_window_ipc();
-                    last_quick_info = current_info;
-                }
-            }
-        })
-        .expect("Failed to spawn window watcher thread");
-}

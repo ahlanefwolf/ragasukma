@@ -101,13 +101,24 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
     // Helper closure: after launching an app for the first time, poll asynchronously
     // or wait briefly and focus the window as soon as it appears
     let focus_launched_app = |query: &str, app: Option<&crate::engine::app_scanner::InstalledApp>| {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static FOCUS_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+        // A newer launch supersedes any older focus poller, so pollers never pile up.
+        let generation = FOCUS_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
         let q = query.to_string();
         let app_clone = app.cloned();
         std::thread::spawn(move || {
             // Poll for up to 3 seconds (30 * 100ms) for the window to appear
             for _ in 0..30 {
                 std::thread::sleep(std::time::Duration::from_millis(100));
+                if FOCUS_GENERATION.load(Ordering::SeqCst) != generation {
+                    return;
+                }
                 if let Ok(snap) = crate::engine::window_scanner::scan_active_window_auto() {
+                    if FOCUS_GENERATION.load(Ordering::SeqCst) != generation {
+                        return;
+                    }
                     if let Some(w) = find_matching_window(&q, app_clone.as_ref(), &snap.windows) {
                         let _ = try_focus_window(w);
                         let _ = snap.save_to_file();

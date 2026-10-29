@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Condvar, Mutex};
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -82,6 +83,8 @@ pub struct BrowserDomSnapshot {
     #[serde(default)]
     pub pending_requests: u32,
     #[serde(default)]
+    pub revision: u64,
+    #[serde(default)]
     pub is_network_idle: bool,
 }
 
@@ -94,38 +97,104 @@ pub static LAST_ACTIVE_SNAPSHOT: Mutex<Option<BrowserDomSnapshot>> = Mutex::new(
 pub static GLOBAL_BROWSER_TABS: Mutex<Vec<BrowserTabInfo>> = Mutex::new(Vec::new());
 pub static PENDING_BROWSER_COMMANDS: Mutex<VecDeque<BrowserCommand>> = Mutex::new(VecDeque::new());
 static SESSION_WORKER_TX: Mutex<Option<SyncSender<BrowserSessionEvent>>> = Mutex::new(None);
+static SESSION_WORKER_STARTED: AtomicBool = AtomicBool::new(false);
 static SNAPSHOT_CONDVAR: Condvar = Condvar::new();
-static LATEST_COPIED_TEXT: Mutex<Option<String>> = Mutex::new(None);
+#[derive(Debug, Clone)]
+struct CopiedText {
+    text: String,
+    url: String,
+}
+static LATEST_COPIED_TEXT: Mutex<Option<CopiedText>> = Mutex::new(None);
 static COPIED_TEXT_CONDVAR: Condvar = Condvar::new();
+static NEXT_BROWSER_SEARCH_GENERATION: AtomicU64 = AtomicU64::new(0);
+static ACTIVE_BROWSER_SEARCH_GENERATION: AtomicU64 = AtomicU64::new(0);
 
-/// Initializes dedicated background worker thread to synchronize `active_tab_browser.json`
+/// Initializes one dedicated background worker thread to synchronize `active_tab_browser.json`.
+/// Repeated calls are harmless and retain the sender owned by the original worker.
 pub fn init_browser_session_worker() {
+    if SESSION_WORKER_STARTED
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return;
+    }
+
     let (tx, rx): (
         SyncSender<BrowserSessionEvent>,
         Receiver<BrowserSessionEvent>,
     ) = sync_channel(128);
 
-    if let Ok(mut lock) = SESSION_WORKER_TX.lock() {
-        *lock = Some(tx);
+    match SESSION_WORKER_TX.lock() {
+        Ok(mut lock) => *lock = Some(tx),
+        Err(error) => {
+            eprintln!("[Browser Worker] Failed to store worker sender: {error}");
+            SESSION_WORKER_STARTED.store(false, Ordering::Release);
+            return;
+        }
     }
 
-    let _ = std::thread::Builder::new()
+    if let Err(error) = std::thread::Builder::new()
         .name("ragasukma-browser-worker".to_string())
         .stack_size(512 * 1024)
         .spawn(move || {
             println!("[Browser Worker] Dedicated BrowserSessionWorker active for active_tab_browser.json");
             browser_worker_loop(rx);
-        });
+        })
+    {
+        eprintln!("[Browser Worker] Failed to start worker: {error}");
+        if let Ok(mut lock) = SESSION_WORKER_TX.lock() {
+            *lock = None;
+        }
+        SESSION_WORKER_STARTED.store(false, Ordering::Release);
+    }
 }
 
 fn write_snapshot_to_disk(snap: &BrowserDomSnapshot) {
     let file_path = get_active_tab_browser_path();
-    if let Some(parent) = file_path.parent() {
-        let _ = fs::create_dir_all(parent);
+    let Some(parent) = file_path.parent() else {
+        eprintln!("[Browser Worker] Snapshot path has no parent: {}", file_path.display());
+        return;
+    };
+
+    if let Err(error) = fs::create_dir_all(parent) {
+        eprintln!(
+            "[Browser Worker] Failed to create snapshot directory {}: {error}",
+            parent.display()
+        );
+        return;
     }
 
-    if let Ok(json_pretty) = serde_json::to_string_pretty(snap) {
-        let _ = fs::write(&file_path, &json_pretty);
+    let json_pretty = match serde_json::to_string_pretty(snap) {
+        Ok(json) => json,
+        Err(error) => {
+            eprintln!("[Browser Worker] Failed to serialize snapshot: {error}");
+            return;
+        }
+    };
+
+    let temporary_path = parent.join(format!(
+        ".{}.{}.tmp",
+        file_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("active_tab_browser.json"),
+        std::process::id()
+    ));
+
+    if let Err(error) = fs::write(&temporary_path, json_pretty) {
+        eprintln!(
+            "[Browser Worker] Failed to write temporary snapshot {}: {error}",
+            temporary_path.display()
+        );
+        return;
+    }
+
+    if let Err(error) = fs::rename(&temporary_path, &file_path) {
+        eprintln!(
+            "[Browser Worker] Failed to replace snapshot {}: {error}",
+            file_path.display()
+        );
+        let _ = fs::remove_file(&temporary_path);
     }
 }
 
@@ -133,9 +202,29 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
     let mut current_snapshot: Option<BrowserDomSnapshot> = None;
     let mut current_tabs: Vec<BrowserTabInfo> = Vec::new();
 
+    // Disk writes are coalesced: bursts of events only mark the snapshot dirty,
+    // and a single write happens once the queue is quiet or the max delay elapsed.
+    const FLUSH_QUIET: Duration = Duration::from_millis(50);
+    const FLUSH_MAX_DELAY: Duration = Duration::from_millis(250);
+    let mut dirty_since: Option<Instant> = None;
+
     loop {
-        // Tunggu event with timeout 500ms so that remain responsif and konsisten in disk
-        let event = rx.recv_timeout(Duration::from_millis(500));
+        let wait = if dirty_since.is_some() {
+            FLUSH_QUIET
+        } else {
+            Duration::from_millis(500)
+        };
+        let event = rx.recv_timeout(wait);
+
+        // Force a flush if a continuous event flood keeps postponing it.
+        if let Some(since) = dirty_since {
+            if event.is_ok() && since.elapsed() >= FLUSH_MAX_DELAY {
+                if let Some(ref snap) = current_snapshot {
+                    write_snapshot_to_disk(snap);
+                }
+                dirty_since = Some(Instant::now());
+            }
+        }
 
         match event {
             Ok(BrowserSessionEvent::NewSnapshot(mut snap)) => {
@@ -193,9 +282,9 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                     *lock = snap.tabs.clone();
                 }
 
-                // Write to disk file
-                write_snapshot_to_disk(&snap);
+                // Disk write is coalesced (flushed after a quiet period)
                 current_snapshot = Some(snap);
+                dirty_since.get_or_insert_with(Instant::now);
             }
 
             Ok(BrowserSessionEvent::UpdateTabs(tabs)) => {
@@ -222,6 +311,7 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                             inputs: Vec::new(),
                             texts: Vec::new(),
                             text_summary: String::new(),
+                            revision: 0,
                             is_loading: false,
                             pending_requests: 0,
                             is_network_idle: true,
@@ -280,11 +370,16 @@ fn browser_worker_loop(rx: Receiver<BrowserSessionEvent>) {
                 }
                 SNAPSHOT_CONDVAR.notify_all();
 
-                write_snapshot_to_disk(&snap);
                 current_snapshot = Some(snap);
+                dirty_since.get_or_insert_with(Instant::now);
             }
 
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                if dirty_since.take().is_some() {
+                    if let Some(ref snap) = current_snapshot {
+                        write_snapshot_to_disk(snap);
+                    }
+                }
                 // Ensure disk file remains present and populated
                 let target_path = get_active_tab_browser_path();
                 if !target_path.exists() {
@@ -408,8 +503,11 @@ pub fn smart_open_or_switch_tab(url: &str, query: Option<&str>, domain_hint: Opt
             query: Some(tab.id.to_string()),
             ..Default::default()
         });
-        // Small delay to let browser close stale tab cleanly before opening fresh one
-        std::thread::sleep(std::time::Duration::from_millis(150));
+        // Non-blocking delay to let browser close stale tab cleanly before opening fresh one
+        // crate::assets::open_browser internally already spawns a background thread
+        // with a 150ms sleep delay, so we can call it directly without double-spawning.
+        crate::assets::open_browser(url);
+        return;
     }
 
     crate::assets::open_browser(url);
@@ -456,19 +554,12 @@ pub fn cleanup_browser_sessions_on_startup() {
         inputs: Vec::new(),
         texts: Vec::new(),
         text_summary: String::new(),
+        revision: 0,
         is_loading: false,
         pending_requests: 0,
         is_network_idle: true,
     };
-    if let Ok(json_pretty) = serde_json::to_string_pretty(&initial_snap) {
-        let _ = fs::write(&file, &json_pretty);
-        if PathBuf::from("Cargo.toml").exists() {
-            let local = PathBuf::from("assets/active_tab_browser.json");
-            if local != file {
-                let _ = fs::write(&local, &json_pretty);
-            }
-        }
-    }
+    write_snapshot_to_disk(&initial_snap);
     println!("[Active Tab] Initializing active tab snapshot at: {:?}", file);
 }
 
@@ -571,25 +662,108 @@ pub fn handle_get_next_browser_command() -> (String, &'static str) {
     }
 }
 
+pub fn begin_browser_search() -> u64 {
+    let generation = NEXT_BROWSER_SEARCH_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    ACTIVE_BROWSER_SEARCH_GENERATION.store(generation, Ordering::Release);
+    reset_copied_text();
+    SNAPSHOT_CONDVAR.notify_all();
+    COPIED_TEXT_CONDVAR.notify_all();
+    generation
+}
+
+pub fn is_active_browser_search(generation: u64) -> bool {
+    ACTIVE_BROWSER_SEARCH_GENERATION.load(Ordering::Acquire) == generation
+}
+
 pub fn reset_copied_text() {
     if let Ok(mut lock) = LATEST_COPIED_TEXT.lock() {
         *lock = None;
     }
 }
 
-pub fn notify_copied_text(text: String) {
+pub fn notify_copied_text(text: String, url: String) {
     if let Ok(mut lock) = LATEST_COPIED_TEXT.lock() {
-        *lock = Some(text);
+        *lock = Some(CopiedText { text, url });
         COPIED_TEXT_CONDVAR.notify_all();
     }
 }
 
+pub fn wait_for_copied_text_matching<F>(
+    timeout: Duration,
+    mut predicate: F,
+) -> Option<String>
+where
+    F: FnMut(&str) -> bool,
+{
+    let start = Instant::now();
+    let mut lock = LATEST_COPIED_TEXT.lock().ok()?;
+    loop {
+        if let Some(copied) = lock.as_ref() {
+            if predicate(&copied.url) {
+                return Some(copied.text.clone());
+            }
+        }
+        let remaining = timeout.checked_sub(start.elapsed())?;
+        let (new_lock, result) = COPIED_TEXT_CONDVAR.wait_timeout(lock, remaining).ok()?;
+        lock = new_lock;
+        if result.timed_out() {
+            return None;
+        }
+    }
+}
+
+pub fn wait_for_copied_text_matching_for_search<F>(
+    generation: u64,
+    timeout: Duration,
+    mut predicate: F,
+) -> Option<String>
+where
+    F: FnMut(&str) -> bool,
+{
+    let start = Instant::now();
+    let mut lock = LATEST_COPIED_TEXT.lock().ok()?;
+    loop {
+        if !is_active_browser_search(generation) {
+            return None;
+        }
+        if let Some(copied) = lock.as_ref() {
+            if predicate(&copied.url) {
+                return Some(copied.text.clone());
+            }
+        }
+        let remaining = timeout.checked_sub(start.elapsed())?;
+        // A short wait bounds cancellation latency even if a notifier is missed.
+        let wait_for = remaining.min(Duration::from_millis(100));
+        let (new_lock, result) = COPIED_TEXT_CONDVAR.wait_timeout(lock, wait_for).ok()?;
+        lock = new_lock;
+        if result.timed_out() && start.elapsed() >= timeout {
+            return None;
+        }
+    }
+}
+
 pub fn wait_for_copied_text(timeout: Duration) -> Option<String> {
-    let lock = LATEST_COPIED_TEXT.lock().ok()?;
-    let (mut new_lock, _) = COPIED_TEXT_CONDVAR
-        .wait_timeout_while(lock, timeout, |val| val.is_none())
-        .ok()?;
-    new_lock.take()
+    wait_for_copied_text_matching(timeout, |_| true)
+}
+
+/// Updates a summary only when the selected snapshot still identifies the same page revision.
+pub fn update_snapshot_summary(expected_url: &str, expected_revision: u64, text_summary: String) -> bool {
+    let Ok(mut lock) = LAST_ACTIVE_SNAPSHOT.lock() else {
+        return false;
+    };
+    let Some(snapshot) = lock.as_mut() else {
+        return false;
+    };
+    if snapshot.url != expected_url || snapshot.revision != expected_revision {
+        return false;
+    }
+    snapshot.text_summary = text_summary;
+    snapshot.revision = snapshot.revision.saturating_add(1);
+    let snapshot = snapshot.clone();
+    SNAPSHOT_CONDVAR.notify_all();
+    drop(lock);
+    write_snapshot_to_disk(&snapshot);
+    true
 }
 
 pub fn wait_for_snapshot_matching<F>(timeout: Duration, mut predicate: F) -> Option<BrowserDomSnapshot>
@@ -623,6 +797,36 @@ where
     None
 }
 
+pub fn wait_for_snapshot_matching_for_search<F>(
+    generation: u64,
+    timeout: Duration,
+    mut predicate: F,
+) -> Option<BrowserDomSnapshot>
+where
+    F: FnMut(&BrowserDomSnapshot) -> bool,
+{
+    let start = Instant::now();
+    let mut lock = LAST_ACTIVE_SNAPSHOT.lock().ok()?;
+    loop {
+        if !is_active_browser_search(generation) {
+            return None;
+        }
+        if let Some(snap) = lock.as_ref() {
+            if predicate(snap) {
+                return Some(snap.clone());
+            }
+        }
+        let remaining = timeout.checked_sub(start.elapsed())?;
+        // Generation changes notify this condvar; the bounded wait is a fallback.
+        let wait_for = remaining.min(Duration::from_millis(100));
+        let (new_lock, result) = SNAPSHOT_CONDVAR.wait_timeout(lock, wait_for).ok()?;
+        lock = new_lock;
+        if result.timed_out() && start.elapsed() >= timeout {
+            return None;
+        }
+    }
+}
+
 pub fn handle_post_browser_copied_text(body: &str) -> (String, &'static str) {
     #[derive(Deserialize)]
     struct CopiedTextPayload {
@@ -634,7 +838,7 @@ pub fn handle_post_browser_copied_text(body: &str) -> (String, &'static str) {
 
     match serde_json::from_str::<CopiedTextPayload>(body) {
         Ok(payload) => {
-            notify_copied_text(payload.text);
+            notify_copied_text(payload.text, payload.url);
             (r#"{"status":"ok"}"#.to_string(), "application/json")
         }
         Err(e) => (

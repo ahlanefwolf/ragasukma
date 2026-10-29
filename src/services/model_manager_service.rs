@@ -115,7 +115,7 @@ pub fn ensure_model_ready_background() {
         return;
     }
 
-    let _ = std::thread::Builder::new()
+    let spawn_res = std::thread::Builder::new()
         .name("model-downloader".to_string())
         .stack_size(1024 * 1024)
         .spawn(move || {
@@ -142,8 +142,21 @@ pub fn ensure_model_ready_background() {
                 });
             }
             IS_DOWNLOADING.store(false, Ordering::SeqCst);
-        })
-        .expect("Failed to spawn model-downloader thread");
+        });
+
+    if let Err(err) = spawn_res {
+        crate::term_err!("[Model Manager] Failed to spawn model-downloader thread: {err}");
+        IS_DOWNLOADING.store(false, Ordering::SeqCst);
+        update_model_status(ModelDownloadStatus {
+            status: "error".to_string(),
+            downloaded_bytes: 0,
+            total_bytes: 0,
+            percent: 0.0,
+            speed_mbps: 0.0,
+            message: format!("Failed to spawn downloader thread: {err}"),
+            model_name: None,
+        });
+    }
 }
 
 fn get_target_models_dir() -> PathBuf {
