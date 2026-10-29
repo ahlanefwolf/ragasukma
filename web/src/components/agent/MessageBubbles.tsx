@@ -1,5 +1,6 @@
 import { Component, For, Show, createMemo, createSignal } from 'solid-js';
 import { Brain, ChevronDown, FileCode } from 'lucide-solid';
+import { parseFileTags } from './fileTags';
 
 // Compact & Collapsible Reasoning / Chain of Thought Component
 export const ThoughtBubble: Component<{ thought: string }> = (props) => {
@@ -39,34 +40,11 @@ export const UserMessageBody: Component<{
   onOpenFile?: (path: string) => void;
 }> = (props) => {
   const parsed = createMemo(() => {
-    const text = props.content || '';
-    if (!text) return [];
-    // Updated regex to support unicode characters and spaces in file paths
-    const regex = /(?:^|\s)(@[\p{L}\p{N}\s_\-\./\\]+(?::\d+(?:-\d+)?)?)/gu;
-    const result: { text: string; isTag: boolean; filePath?: string }[] = [];
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = regex.exec(text)) !== null) {
-      const fullMatch = match[0];
-      const tag = match[1];
-      const tagIndex = match.index + fullMatch.indexOf(tag);
-
-      if (tagIndex > lastIndex) {
-        result.push({ text: text.substring(lastIndex, tagIndex), isTag: false });
-      }
-
-      const rawPath = tag.startsWith('@') ? tag.slice(1) : tag;
-      const filePath = rawPath.replace(/:\d+(?:-\d+)?$/, '');
-      result.push({ text: tag, isTag: true, filePath });
-      lastIndex = tagIndex + tag.length;
-    }
-
-    if (lastIndex < text.length) {
-      result.push({ text: text.substring(lastIndex), isTag: false });
-    }
-
-    return result;
+    // Single source of truth for the `@file` grammar (see ./fileTags.ts).
+    // Using the shared parser guarantees the renderer, the autocomplete and
+    // the inserter can never disagree — an earlier mismatch caused the whole
+    // rest of the line to be highlighted as one giant tag.
+    return parseFileTags(props.content || '');
   });
 
   return (
@@ -78,8 +56,10 @@ export const UserMessageBody: Component<{
             fallback={<span>{token.text}</span>}
           >
             <span
-              class={`inline-flex items-center gap-1 font-mono text-cyan-400 bg-cyan-500/15 border border-cyan-500/30 px-1.5 py-0.5 text-[11px] font-medium align-baseline mx-0.5 select-none ${
-                props.onOpenFile ? 'hover:bg-cyan-500/25 hover:border-cyan-400/50 cursor-pointer transition-all' : ''
+              class={`inline-flex items-center gap-1 font-mono text-blue-400 bg-blue-500/15 border border-blue-400/30 px-1.5 py-0.5 text-[11px] font-medium align-baseline mx-0.5 select-text rounded-sm ${
+                props.onOpenFile
+                  ? 'hover:bg-blue-500/25 hover:border-blue-300/60 cursor-pointer transition-colors'
+                  : ''
               }`}
               onClick={(e) => {
                 if (props.onOpenFile && token.filePath) {

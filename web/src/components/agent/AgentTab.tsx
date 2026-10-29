@@ -21,6 +21,7 @@ import { AgentChatPane } from './AgentChatPane';
 import { useWorkspaceState } from './useWorkspaceState';
 import { useChatSession } from './useChatSession';
 import { useWorkspaceFiles } from './useWorkspaceFiles';
+import { findActiveTagQuery, insertFileTag } from './fileTags';
 
 interface AgentTabProps {
   showToast: (msg: string) => void;
@@ -95,18 +96,20 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
 
   const selectAutocompleteFile = (file: WorkspaceFileItem) => {
     const current = chat.userInput();
-    const cursorPos = autocompleteCursorPos();
-    const textBefore = current.slice(0, cursorPos);
-    const textAfter = current.slice(cursorPos);
-    const updatedBefore = textBefore.replace(/@([^\n]*)$/, `@${file.relative_path} `);
-    chat.setUserInput(updatedBefore + textAfter);
+    // Prefer the live caret: the user may have moved it with the mouse/arrows
+    // after the last `input` event.
+    const cursorPos = chatInputRef?.selectionStart ?? autocompleteCursorPos();
+    // Replaces ONLY the `@token` under the caret, so previously inserted tags
+    // in the same prompt survive (multi-tag prompts are supported).
+    const { value, caret } = insertFileTag(current, cursorPos, file.relative_path);
+    chat.setUserInput(value);
+    setAutocompleteCursorPos(caret);
     setAutocompleteOpen(false);
 
     setTimeout(() => {
       if (chatInputRef) {
         chatInputRef.focus();
-        const newPos = updatedBefore.length;
-        chatInputRef.setSelectionRange(newPos, newPos);
+        chatInputRef.setSelectionRange(caret, caret);
       }
     }, 20);
   };
@@ -118,11 +121,12 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
 
     const cursorPos = target.selectionStart || 0;
     setAutocompleteCursorPos(cursorPos);
-    const textBefore = val.slice(0, cursorPos);
-    const match = textBefore.match(/@([^\n]*)$/);
+    // Shared grammar with the tag renderer & the inserter: a tag is `@` plus
+    // non-whitespace/non-`@` chars, so earlier tags in the prompt stay intact.
+    const active = findActiveTagQuery(val, cursorPos);
 
-    if (match) {
-      setAutocompleteQuery(match[1]);
+    if (active) {
+      setAutocompleteQuery(active.query);
       setAutocompleteIndex(0);
       setAutocompleteOpen(true);
     } else {
@@ -445,7 +449,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
             <div class="w-1/2 min-w-[380px] xl:min-w-[480px] max-w-[50%] flex flex-col min-h-0 h-full overflow-hidden animate-in slide-in-from-right-4 duration-200">
               <AgentCodePanel
                 file={files.selectedFileForTag()}
-                onClose={() => files.setSelectedFileForTag(null)}
+                onClose={files.closeLineRangePicker}
                 tagStartLine={files.tagStartLine()}
                 tagEndLine={files.tagEndLine()}
                 loadingFilePreview={files.loadingFilePreview()}

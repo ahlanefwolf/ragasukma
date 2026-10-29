@@ -1,4 +1,4 @@
-import { createSignal, createMemo } from 'solid-js';
+import { createSignal, createMemo, onCleanup } from 'solid-js';
 import { agentService, WorkspaceFileItem } from '../../services';
 import { FileTreeNode } from './FileTreeNodeRow';
 import { highlightCode } from './highlightUtils';
@@ -150,6 +150,22 @@ export function useWorkspaceFiles(
   const [filePreview, setFilePreview] = createSignal<string | null>(null);
   const [loadingFilePreview, setLoadingFilePreview] = createSignal(false);
 
+  let previewRequestId = 0;
+  let focusInputTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const closeLineRangePicker = () => {
+    previewRequestId++;
+    setSelectedFileForTag(null);
+    setFilePreview(null);
+    setLoadingFilePreview(false);
+    handleResetSelection();
+  };
+
+  onCleanup(() => {
+    previewRequestId++;
+    if (focusInputTimer) clearTimeout(focusInputTimer);
+  });
+
   const insertFileTag = (relPath: string, start?: string, end?: string) => {
     let tag = `@${relPath}`;
     const s = start?.trim();
@@ -167,11 +183,15 @@ export function useWorkspaceFiles(
       setUserInput(`${current} ${tag} `);
     }
     showToast(`Tag ${tag} inserted into prompt!`);
-    setSelectedFileForTag(null);
-    setTimeout(focusChatInput, 50);
+    closeLineRangePicker();
+    if (focusInputTimer) clearTimeout(focusInputTimer);
+    focusInputTimer = setTimeout(() => {
+      focusInputTimer = undefined;
+      focusChatInput();
+    }, 50);
   };
 
-  const copyFileTag = (relPath: string, start?: string, end?: string) => {
+  const copyFileTag = async (relPath: string, start?: string, end?: string) => {
     let tag = `@${relPath}`;
     const s = start?.trim();
     const e = end?.trim();
@@ -181,24 +201,32 @@ export function useWorkspaceFiles(
       tag = `@${relPath}:${s}`;
     }
 
-    navigator.clipboard.writeText(tag);
-    showToast(`Tag ${tag} copied to clipboard!`);
+    try {
+      await navigator.clipboard.writeText(tag);
+      showToast(`Tag ${tag} copied to clipboard!`);
+    } catch {
+      showToast('Unable to copy the file tag. Please copy it manually.');
+    }
   };
 
   const openLineRangePicker = async (file: WorkspaceFileItem) => {
+    const requestId = ++previewRequestId;
     setSelectedFileForTag(file);
     setTagStartLine('');
     setTagEndLine('');
     setFilePreview(null);
 
     const projId = selectedProjectId();
-    if (projId) {
-      setLoadingFilePreview(true);
+    if (!projId) return;
+
+    setLoadingFilePreview(true);
+    try {
       const res = await agentService.getFileContent(projId, file.relative_path);
-      if (res) {
-        setFilePreview(res.content);
+      if (requestId === previewRequestId && selectedFileForTag()?.relative_path === file.relative_path) {
+        setFilePreview(res?.content ?? null);
       }
-      setLoadingFilePreview(false);
+    } finally {
+      if (requestId === previewRequestId) setLoadingFilePreview(false);
     }
   };
 
@@ -328,6 +356,7 @@ export function useWorkspaceFiles(
     insertFileTag,
     copyFileTag,
     openLineRangePicker,
+    closeLineRangePicker,
     highlightedCodeLines,
     handleLineClick,
     handleGutterMouseDown,

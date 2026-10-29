@@ -260,28 +260,27 @@ export function useChatSession(
       };
 
       es.onerror = () => {
-        if (selectedSessionId() === sessionId) {
-          agentService.getMessages(sessionId, { limit: PAGE_SIZE }).then((msgs) => {
-            if (msgs && msgs.length > 0) {
-              setMessages((prev) => {
-                const byId = new Map(prev.map((message) => [message.id, message]));
-                for (const message of msgs) byId.set(message.id, { ...byId.get(message.id), ...message });
-                return [...byId.values()].sort((a, b) => (a.sequence_num ?? 0) - (b.sequence_num ?? 0));
-              });
-            }
-          }).catch(() => {});
+        if (activeEventSource !== es || selectedSessionId() !== sessionId) return;
 
-          // Auto-reconnect with exponential backoff if task is still running or active
-          if (sseRetryCount < 5 && isSessionRunning(sessionId)) {
-            sseRetryCount++;
-            const delay = Math.min(1000 * Math.pow(1.5, sseRetryCount), 6000);
-            if (sseReconnectTimer) clearTimeout(sseReconnectTimer);
-            sseReconnectTimer = setTimeout(() => {
-              if (selectedSessionId() === sessionId) {
-                connectSessionSse(sessionId, onMessageReceived);
-              }
-            }, delay);
-          }
+        agentService.getMessages(sessionId, { limit: PAGE_SIZE }).then((msgs) => {
+          if (activeEventSource !== es || selectedSessionId() !== sessionId || !msgs?.length) return;
+          setMessages((prev) => {
+            const byId = new Map(prev.map((message) => [message.id, message]));
+            for (const message of msgs) byId.set(message.id, { ...byId.get(message.id), ...message });
+            return [...byId.values()].sort((a, b) => (a.sequence_num ?? 0) - (b.sequence_num ?? 0));
+          });
+        }).catch(() => {});
+
+        // Auto-reconnect with exponential backoff if task is still running or active.
+        if (sseRetryCount < 5 && isSessionRunning(sessionId)) {
+          sseRetryCount++;
+          const delay = Math.min(1000 * Math.pow(1.5, sseRetryCount), 6000);
+          if (sseReconnectTimer) clearTimeout(sseReconnectTimer);
+          sseReconnectTimer = setTimeout(() => {
+            if (activeEventSource === es && selectedSessionId() === sessionId) {
+              connectSessionSse(sessionId, onMessageReceived);
+            }
+          }, delay);
         }
       };
     } catch (e) {
