@@ -118,14 +118,8 @@ pub struct UserConfig {
     pub personality_role: String,
     #[serde(default, alias = "assistantGender")]
     pub assistant_gender: String,
-    #[serde(default, alias = "llmProvider")]
-    pub llm_provider: String,
-    #[serde(default, alias = "llmBaseUrl")]
-    pub llm_base_url: String,
     #[serde(default, alias = "llmModel")]
     pub llm_model: String,
-    #[serde(default, alias = "llmApiKey")]
-    pub llm_api_key: String,
     #[serde(default = "default_lang")]
     pub lang: String,
     #[serde(default = "default_voice", alias = "ttsVoiceName", alias = "voiceName")]
@@ -153,10 +147,7 @@ impl Default for UserConfig {
             user_callsign: "".to_string(),
             personality_role: "".to_string(),
             assistant_gender: "".to_string(),
-            llm_provider: "".to_string(),
-            llm_base_url: "".to_string(),
             llm_model: "".to_string(),
-            llm_api_key: "".to_string(),
             lang: "id".to_string(),
             tts_voice_name: "F4".to_string(),
             tts_speed: 1.0,
@@ -448,10 +439,7 @@ fn save_user_config_locked(cfg: &UserConfig) -> Result<(), String> {
 
 #[derive(Debug, Clone)]
 pub struct AppConfig {
-    pub llm_provider: String,
-    pub llm_base_url: String,
     pub llm_model: String,
-    pub llm_api_key: String,
     pub lang: String,
     pub tts_voice_name: String,
     pub tts_speed: f32,
@@ -470,10 +458,7 @@ impl AppConfig {
         let u = load_user_config();
 
         Self {
-            llm_provider: u.llm_provider,
-            llm_base_url: u.llm_base_url,
             llm_model: u.llm_model,
-            llm_api_key: u.llm_api_key,
             lang: u.lang,
             tts_voice_name: u.tts_voice_name,
             tts_speed: u.tts_speed,

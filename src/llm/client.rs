@@ -3,32 +3,24 @@ use super::prompt::{build_system_prompt, build_system_prompt_indexed};
 use super::providers::antigravity::AntigravityProvider;
 use super::providers::claude::ClaudeProvider;
 use super::providers::codex::CodexProvider;
-use super::types::{ChatMessage, ChatRequest, OllamaChatRequest, OllamaChatResponse};
-use anyhow::{bail, Context, Result};
+use super::providers::custom::CustomProvider;
+use super::types::{ChatMessage, ChatRequest};
+use anyhow::Result;
 
 pub struct LlmClient {
-    pub provider: String,
-    pub base_url: String,
-    pub api_key: Option<String>,
     pub model: String,
     pub client: reqwest::blocking::Client,
     pub history: Vec<ChatMessage>,
     pub antigravity: AntigravityProvider,
     pub codex: CodexProvider,
     pub claude: ClaudeProvider,
+    pub custom: CustomProvider,
 }
 
 impl LlmClient {
     pub fn new() -> Self {
-        let u = crate::config::load_user_config();
-        let api_key = if !u.llm_api_key.trim().is_empty() {
-            Some(u.llm_api_key)
-        } else {
-            None
-        };
-        let provider = u.llm_provider;
-        let base_url = u.llm_base_url;
-        let model = u.llm_model;
+        let config = crate::config::load_user_config();
+        let model = config.llm_model;
 
         let client = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(60))
@@ -45,17 +37,16 @@ impl LlmClient {
         let antigravity = AntigravityProvider::new_with_client(client.clone());
         let codex = CodexProvider::new_with_client(client.clone());
         let claude = ClaudeProvider::new_with_client(client.clone());
+        let custom = CustomProvider::new_with_client(client.clone());
 
         Self {
-            provider,
-            base_url,
-            api_key,
             model,
             client,
             history,
             antigravity,
             codex,
             claude,
+            custom,
         }
     }
 
@@ -116,13 +107,11 @@ impl LlmClient {
         let _ = self.codex.load_accounts();
         let _ = self.claude.load_accounts();
 
-        // 1. Local Mode: Using internal Ragasukma engine (Claude pool, Codex pool, or Antigravity pool)
-        let is_claude_engine = self.provider.eq_ignore_ascii_case("claude")
-            || self.provider.eq_ignore_ascii_case("anthropic")
-            || self.model.starts_with("cc/");
+        let is_claude_engine = self.model.starts_with("cc/");
 
         if is_claude_engine && !self.claude.accounts.is_empty() {
             let start_time = std::time::Instant::now();
+
             let in_tokens = self.history.iter().map(|m| m.content.len() / 4).sum::<usize>().max(1);
             match self.claude.chat_stream(
                 &self.model,
@@ -177,9 +166,7 @@ impl LlmClient {
             }
         }
 
-        let is_codex_engine = self.provider.eq_ignore_ascii_case("codex")
-            || self.provider.eq_ignore_ascii_case("openai-codex")
-            || self.model.starts_with("cx/");
+        let is_codex_engine = self.model.starts_with("cx/");
 
         if is_codex_engine && !self.codex.accounts.is_empty() {
             let start_time = std::time::Instant::now();
@@ -237,17 +224,10 @@ impl LlmClient {
             }
         }
 
-        let is_local_engine = self.provider.eq_ignore_ascii_case("local")
-            || self.provider.eq_ignore_ascii_case("antigravity");
-
-        if is_local_engine {
+        let is_antigravity_model = self.model.starts_with("ag/");
+        if is_antigravity_model {
             if !self.antigravity.accounts.is_empty() {
-                let raw_model = self
-                    .model
-                    .strip_prefix("ag/")
-                    .or_else(|| self.model.strip_prefix("cx/"))
-                    .or_else(|| self.model.strip_prefix("cc/"))
-                    .unwrap_or(&self.model);
+                let raw_model = self.model.strip_prefix("ag/").unwrap_or(&self.model);
 
                 let ag_model = crate::llm::providers::antigravity::v1_adapter::resolve_model_alias(raw_model);
                 let start_time = std::time::Instant::now();
@@ -302,253 +282,81 @@ impl LlmClient {
                             duration_ms,
                             "error",
                         );
-                        crate::term_err!(
-                            "[LLM Client] Local Engine error: {e}. Attempting fallback..."
-                        );
+                        crate::term_err!("[LLM Client] Antigravity error: {e}");
+                        return Err(e);
                     }
                 }
             } else {
-                crate::term_log!(
-                    "[LLM Client] Provider set to 'local', but no local engine account is connected to the pool."
+                return Err(anyhow::anyhow!("No Antigravity account is connected"));
+            }
+        }
+
+        // Route user-defined prefix/model requests through the matching OpenAI-compatible account.
+        let start_time = std::time::Instant::now();
+        let in_tokens = self.history.iter().map(|m| m.content.len() / 4).sum::<usize>().max(1);
+
+        match self.custom.chat_stream(
+            &self.model,
+            &self.history,
+            0.7,
+            8192,
+            &mut on_sentence,
+        ) {
+            Ok(reply) => {
+                let duration_ms = start_time.elapsed().as_millis() as u64;
+                let clean = clean_ai_text(&reply);
+                let out_tokens = (clean.len() / 4).max(1);
+                crate::llm::usage::record_usage(
+                    "custom",
+                    &self.model,
+                    in_tokens,
+                    0,
+                    out_tokens,
+                    duration_ms,
+                    "success",
                 );
-            }
-        }
 
-        // 2. Mode Custom: AI Assistant kustom (OpenAI-compatible, Ollama, LM Studio, vLLM, Groq, dll)
-        // Custom endpoint strictly obeys base_url configuration and user-selected model
-        let custom_endpoint = if self.base_url.ends_with("/chat/completions") {
-            self.base_url.clone()
-        } else {
-            format!("{}/chat/completions", self.base_url.trim_end_matches('/'))
-        };
+                self.history.push(ChatMessage {
+                    role: "assistant".to_string(),
+                    content: clean.clone(),
+                });
+                self.prune_history();
 
-        let req_body = ChatRequest {
-            model: self.model.clone(),
-            messages: self.history.clone(),
-            temperature: 0.5,
-            max_tokens: 2048,
-            stream: true,
-            response_format: None,
-        };
+                let u = crate::config::load_user_config();
+                crate::llm::history::log_conversation_turn(
+                    &u.user_callsign,
+                    &u.assistant_name,
+                    &u.personality_role,
+                    input_text,
+                    &clean,
+                );
 
-        let mut req_builder = self
-            .client
-            .post(&custom_endpoint)
-            .header("Content-Type", "application/json");
-
-        if let Some(ref key) = self.api_key {
-            if !key.trim().is_empty() {
-                req_builder = req_builder.header("Authorization", format!("Bearer {key}"));
-            }
-        }
-
-        use std::io::BufRead;
-        match req_builder.json(&req_body).send() {
-            Ok(response) => {
-                if response.status().is_success() {
-                    let reader = std::io::BufReader::new(response);
-                    let mut full_reply = String::new();
-                    let mut current_sentence = String::new();
-                    let mut active_emotion = "neutral";
-
-                    for line in reader.lines() {
-                        if crate::app_state::is_interruption_requested() {
-                            bail!("Interrupted by user");
-                        }
-                        let line = match line {
-                            Ok(l) => l,
-                            Err(e) => {
-                                if crate::app_state::is_interruption_requested() {
-                                    bail!("Interrupted by user");
-                                }
-                                return Err(e.into());
-                            }
-                        };
-                        let trimmed = line.trim();
-                        if let Some(data_str) = trimmed.strip_prefix("data: ") {
-                            if data_str.trim() == "[DONE]" {
-                                break;
-                            }
-                            if let Ok(val) = serde_json::from_str::<serde_json::Value>(data_str) {
-                                if val.pointer("/choices/0/delta/reasoning_content").is_some() {
-                                    continue;
-                                }
-
-                                let chunk_text = val
-                                    .pointer("/choices/0/delta/content")
-                                    .or_else(|| val.pointer("/choices/0/message/content"))
-                                    .and_then(|v| v.as_str());
-
-                                if let Some(delta) = chunk_text {
-                                    full_reply.push_str(delta);
-                                    current_sentence.push_str(delta);
-
-                                    let has_skill_tag = current_sentence.contains("[SKILL:")
-                                        || current_sentence.contains("[CMD:");
-                                    let has_skill_closed =
-                                        has_skill_tag && current_sentence.contains(']');
-
-                                    if !has_skill_tag || has_skill_closed {
-                                        while let Some(pos) =
-                                            current_sentence.find(['.', '?', '!', '\n'])
-                                        {
-                                            if let Some(tag_idx) = current_sentence
-                                                .find("[SKILL:")
-                                                .or_else(|| current_sentence.find("[CMD:"))
-                                            {
-                                                if pos > tag_idx {
-                                                    break;
-                                                }
-                                            }
-
-                                            // Do not break in the middle of ellipses (... or ..)
-                                            let mut end_pos = pos;
-                                            if current_sentence.as_bytes().get(pos) == Some(&b'.') {
-                                                while end_pos + 1 < current_sentence.len()
-                                                    && current_sentence.as_bytes().get(end_pos + 1) == Some(&b'.')
-                                                {
-                                                    end_pos += 1;
-                                                }
-                                            }
-
-                                            let sentence = current_sentence[..=end_pos].to_string();
-                                            current_sentence =
-                                                current_sentence[end_pos + 1..].to_string();
-
-                                            if let Some(emo) =
-                                                crate::ui::renderer::expressions::detect_emotion(
-                                                    &sentence,
-                                                )
-                                            {
-                                                active_emotion = emo;
-                                            }
-
-                                            let clean = clean_ai_text(&sentence);
-                                            if !clean.is_empty() {
-                                                on_sentence(&clean, active_emotion)?;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    let clean_rest = clean_ai_text(&current_sentence);
-                    if !clean_rest.is_empty() {
-                        if let Some(emo) =
-                            crate::ui::renderer::expressions::detect_emotion(&current_sentence)
-                        {
-                            active_emotion = emo;
-                        }
-                        on_sentence(&clean_rest, active_emotion)?;
-                    }
-
-                    let clean = clean_ai_text(&full_reply);
-                    self.history.push(ChatMessage {
-                        role: "assistant".to_string(),
-                        content: clean.clone(),
-                    });
-                    self.prune_history();
-
-                    let u = crate::config::load_user_config();
-                    crate::llm::history::log_conversation_turn(
-                        &u.user_callsign,
-                        &u.assistant_name,
-                        &u.personality_role,
-                        input_text,
-                        &clean,
-                    );
-
-                    return Ok(full_reply);
-                } else {
-                    let status = response.status();
-                    let err_text = response.text().unwrap_or_default();
-                    anyhow::bail!("Endpoint {custom_endpoint} returned status {status}: {err_text}");
-                }
+                Ok(reply)
             }
             Err(e) => {
-                if crate::app_state::is_interruption_requested() {
-                    bail!("Interrupted by user");
-                }
-                // Only fallback to Ollama if the endpoint specifically points to Ollama /api/chat
-                if !self.base_url.contains("/api/chat") && !self.base_url.contains(":11434") {
-                    return Err(anyhow::anyhow!("Failed streaming request to {custom_endpoint}: {e}"));
-                }
+                let duration_ms = start_time.elapsed().as_millis() as u64;
+                crate::llm::usage::record_usage(
+                    "custom",
+                    &self.model,
+                    in_tokens,
+                    0,
+                    0,
+                    duration_ms,
+                    "error",
+                );
+                crate::term_err!("[Custom LLM Error]: {}", e);
+                Err(e)
             }
         }
-
-        // 3. Fallback if custom endpoint Ollama native /api/chat used
-        self.chat_fallback_ollama(input_text, on_sentence)
-    }
-
-    fn chat_fallback_ollama<F>(&mut self, input_text: &str, mut on_sentence: F) -> Result<String>
-    where
-        F: FnMut(&str, &str) -> Result<()>,
-    {
-        let ollama_endpoint = if self.base_url.ends_with("/api/chat") {
-            self.base_url.clone()
-        } else {
-            format!("{}/api/chat", self.base_url.trim_end_matches('/'))
-        };
-
-        let req_body = OllamaChatRequest {
-            model: self.model.clone(),
-            messages: self.history.clone(),
-            stream: false,
-            format: None,
-        };
-
-        let res = self
-            .client
-            .post(&ollama_endpoint)
-            .json(&req_body)
-            .send()
-            .map_err(|e| anyhow::anyhow!("Failed to connect to Ollama ({ollama_endpoint}): {e}"))?;
-
-        if !res.status().is_success() {
-            let err_text = res.text().unwrap_or_default();
-            anyhow::bail!("Ollama error: {err_text}");
-        }
-
-        let chat_res: OllamaChatResponse = res.json().context("Failed to parse Ollama response")?;
-        let emo = crate::ui::renderer::expressions::detect_emotion_with_fallback(
-            &chat_res.message.content,
-        );
-        let final_reply = clean_ai_text(&chat_res.message.content);
-
-        if !final_reply.is_empty() {
-            on_sentence(&final_reply, emo)?;
-        }
-
-        self.history.push(ChatMessage {
-            role: "assistant".to_string(),
-            content: final_reply.clone(),
-        });
-        self.prune_history();
-
-        let u = crate::config::load_user_config();
-        crate::llm::history::log_conversation_turn(
-            &u.user_callsign,
-            &u.assistant_name,
-            &u.personality_role,
-            input_text,
-            &final_reply,
-        );
-
-        Ok(chat_res.message.content)
     }
 
     /// Complete a prompt or message sequence silently without triggering audio playback or modifying chat history.
     pub fn complete_messages_silent(&mut self, messages: &[ChatMessage]) -> Result<String> {
         let _ = self.antigravity.load_accounts();
-        let _ = self.codex.load_accounts();
         let _ = self.claude.load_accounts();
+        let _ = self.codex.load_accounts();
 
-        let is_claude_engine = self.provider.eq_ignore_ascii_case("claude")
-            || self.provider.eq_ignore_ascii_case("anthropic")
-            || self.model.starts_with("cc/");
-
+        let is_claude_engine = self.model.starts_with("cc/");
         if is_claude_engine && !self.claude.accounts.is_empty() {
             let mut dummy_cb = |_text: &str, _emo: &str| -> Result<()> { Ok(()) };
             if let Ok(reply) = self.claude.chat_stream(
@@ -562,10 +370,7 @@ impl LlmClient {
             }
         }
 
-        let is_codex_engine = self.provider.eq_ignore_ascii_case("codex")
-            || self.provider.eq_ignore_ascii_case("openai-codex")
-            || self.model.starts_with("cx/");
-
+        let is_codex_engine = self.model.starts_with("cx/");
         if is_codex_engine && !self.codex.accounts.is_empty() {
             let mut dummy_cb = |_text: &str, _emo: &str| -> Result<()> { Ok(()) };
             if let Ok(reply) = self.codex.chat_stream(
@@ -579,13 +384,13 @@ impl LlmClient {
             }
         }
 
-        let is_local_engine = self.provider.eq_ignore_ascii_case("local")
-            || self.provider.eq_ignore_ascii_case("antigravity");
-
-        if is_local_engine && !self.antigravity.accounts.is_empty() {
+        let is_antigravity_model = self.model.starts_with("ag/");
+        if is_antigravity_model && !self.antigravity.accounts.is_empty() {
+            let raw_model = self.model.strip_prefix("ag/").unwrap_or(&self.model);
+            let ag_model = crate::llm::providers::antigravity::v1_adapter::resolve_model_alias(raw_model);
             let mut dummy_cb = |_text: &str, _emo: &str| -> Result<()> { Ok(()) };
             if let Ok(reply) = self.antigravity.chat_stream(
-                &self.model,
+                &ag_model,
                 messages,
                 0.2, // Low temperature for deterministic planning
                 4096,
@@ -595,15 +400,27 @@ impl LlmClient {
             }
         }
 
-        // Custom OpenAI-compatible endpoint
-        let custom_endpoint = if self.base_url.ends_with("/chat/completions") {
-            self.base_url.clone()
+        let custom_account = self.model.split_once('/').and_then(|(prefix, model)| {
+            if model.trim().is_empty() {
+                return None;
+            }
+            crate::llm::providers::custom::load_accounts()
+                .into_iter()
+                .find(|account| account.enabled && account.prefix.eq_ignore_ascii_case(prefix))
+                .map(|account| (account, model.to_string()))
+        });
+
+        let (account, request_model) = custom_account
+            .ok_or_else(|| anyhow::anyhow!("No enabled provider account found for model '{}'", self.model))?;
+
+        let custom_endpoint = if account.base_url.ends_with("/chat/completions") {
+            account.base_url
         } else {
-            format!("{}/chat/completions", self.base_url.trim_end_matches('/'))
+            format!("{}/chat/completions", account.base_url.trim_end_matches('/'))
         };
 
         let req_body = ChatRequest {
-            model: self.model.clone(),
+            model: request_model,
             messages: messages.to_vec(),
             temperature: 0.2,
             max_tokens: 4096,
@@ -616,44 +433,18 @@ impl LlmClient {
             .post(&custom_endpoint)
             .header("Content-Type", "application/json");
 
-        if let Some(ref key) = self.api_key {
-            if !key.trim().is_empty() {
-                req_builder = req_builder.header("Authorization", format!("Bearer {key}"));
+        if !account.api_key.trim().is_empty() {
+            req_builder = req_builder.header("Authorization", format!("Bearer {}", account.api_key));
+        }
+
+        let response = req_builder.json(&req_body).send()?;
+        if response.status().is_success() {
+            let res_json = response.json::<serde_json::Value>()?;
+            if let Some(reply) = res_json["choices"][0]["message"]["content"].as_str() {
+                return Ok(reply.to_string());
             }
         }
 
-        if let Ok(response) = req_builder.json(&req_body).send() {
-            if response.status().is_success() {
-                if let Ok(res_json) = response.json::<serde_json::Value>() {
-                    if let Some(reply) = res_json["choices"][0]["message"]["content"].as_str() {
-                        return Ok(reply.to_string());
-                    }
-                }
-            }
-        }
-
-        // Fallback to Ollama native format
-        let ollama_endpoint = if self.base_url.ends_with("/api/chat") {
-            self.base_url.clone()
-        } else {
-            format!("{}/api/chat", self.base_url.trim_end_matches('/'))
-        };
-
-        let req_body = OllamaChatRequest {
-            model: self.model.clone(),
-            messages: messages.to_vec(),
-            stream: false,
-            format: Some("json".to_string()),
-        };
-
-        let res = self
-            .client
-            .post(&ollama_endpoint)
-            .json(&req_body)
-            .send()
-            .map_err(|e| anyhow::anyhow!("Failed to connect to Ollama ({ollama_endpoint}): {e}"))?;
-
-        let chat_res: OllamaChatResponse = res.json().context("Failed to parse Ollama response")?;
-        Ok(chat_res.message.content)
+        anyhow::bail!("Failed silent completion via {custom_endpoint}")
     }
 }

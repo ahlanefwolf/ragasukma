@@ -15,6 +15,9 @@ pub fn register_llm_routes(
     router: Router<Arc<Mutex<ServerSharedState>>>,
 ) -> Router<Arc<Mutex<ServerSharedState>>> {
     router
+        // User-defined OpenAI-compatible providers
+        .route("/api/llm/custom/accounts", get(axum_custom_accounts).post(axum_custom_save_accounts))
+        .route("/api/llm/custom/accounts/delete", post(axum_custom_delete_account))
         // LLM Providers - Antigravity
         .route("/api/llm/antigravity/models", get(axum_ag_models))
         .route("/api/llm/antigravity/accounts", get(axum_ag_accounts).post(axum_ag_add_account))
@@ -49,6 +52,53 @@ pub fn register_llm_routes(
         .route("/api/llm/usage/summary", get(axum_usage_summary))
         .route("/api/llm/usage/records", get(axum_usage_records))
         .route("/api/llm/usage/clear", post(axum_usage_clear))
+}
+
+// -----------------------------------------------------------------------------
+// User-defined OpenAI-compatible providers
+// -----------------------------------------------------------------------------
+#[derive(Deserialize)]
+pub(crate) struct CustomAccountsPayload {
+    accounts: Vec<crate::llm::providers::custom::CustomLlmAccount>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct CustomPrefixPayload {
+    prefix: String,
+}
+
+pub(crate) async fn axum_custom_accounts() -> impl IntoResponse {
+    let accounts = crate::llm::providers::custom::load_accounts();
+    Json(accounts)
+}
+
+pub(crate) async fn axum_custom_save_accounts(Json(payload): Json<CustomAccountsPayload>) -> impl IntoResponse {
+    let mut prefixes = std::collections::HashSet::new();
+    for account in &payload.accounts {
+        if let Err(error) = crate::llm::providers::custom::validate_account(account) {
+            return (StatusCode::BAD_REQUEST, Json(json!({"error": error.to_string()}))).into_response();
+        }
+        if !prefixes.insert(account.prefix.to_lowercase()) {
+            return (StatusCode::BAD_REQUEST, Json(json!({"error": "Prefixes must be unique"}))).into_response();
+        }
+    }
+    match crate::llm::providers::custom::save_accounts(&payload.accounts) {
+        Ok(()) => Json(json!({"status":"success"})).into_response(),
+        Err(error) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error":error.to_string()}))).into_response(),
+    }
+}
+
+pub(crate) async fn axum_custom_delete_account(Json(payload): Json<CustomPrefixPayload>) -> impl IntoResponse {
+    let mut accounts = crate::llm::providers::custom::load_accounts();
+    let previous = accounts.len();
+    accounts.retain(|account| !account.prefix.eq_ignore_ascii_case(&payload.prefix));
+    if accounts.len() == previous {
+        return (StatusCode::NOT_FOUND, Json(json!({"error":"Account not found"}))).into_response();
+    }
+    match crate::llm::providers::custom::save_accounts(&accounts) {
+        Ok(()) => Json(json!({"status":"success"})).into_response(),
+        Err(error) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error":error.to_string()}))).into_response(),
+    }
 }
 
 // -----------------------------------------------------------------------------

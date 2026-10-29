@@ -189,7 +189,7 @@ mod tests {
         .await
         .unwrap();
 
-        sqlx::query("UPDATE goals SET status = 'completed', conclusion = 'Bug token validation fixed and verified', updated_at = 1004 WHERE id = 'G1'")
+        sqlx::query("UPDATE goals SET status = 'completed', phase = 'concluded', conclusion = 'Bug token validation fixed and verified', updated_at = 1004 WHERE id = 'G1'")
             .execute(&pool)
             .await
             .unwrap();
@@ -283,8 +283,8 @@ mod tests {
 
         // 5. Test Audit Log insertion on test pool
         sqlx::query(
-            "INSERT INTO agent_audit_logs (id, session_id, goal_id, tool_name, target_path, command, status, reason, duration_ms, created_at) \
-             VALUES ('audit_1', 'sess_test', 'G1', 'workspace_run_command', 'src/main.rs', 'cargo check', 'executed', NULL, 42, 1006)",
+            "INSERT INTO agent_audit_logs (id, goal_id, tool_name, target_path, command, status, reason, duration_ms, created_at) \
+             VALUES ('audit_1', 'G1', 'workspace_run_command', 'src/main.rs', 'cargo test', 'executed', NULL, 42, 1006)",
         )
         .execute(&pool)
         .await

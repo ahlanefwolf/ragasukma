@@ -219,6 +219,7 @@ pub enum ModelProviderFamily {
     Antigravity,
     Codex,
     Claude,
+    Custom,
 }
 
 pub fn detect_provider_family(model: &str) -> ModelProviderFamily {
@@ -226,7 +227,9 @@ pub fn detect_provider_family(model: &str) -> ModelProviderFamily {
         ModelProviderFamily::Claude
     } else if model.starts_with("cx/") {
         ModelProviderFamily::Codex
-    } else {
+    } else if model.starts_with("ag/") {
         ModelProviderFamily::Antigravity
+    } else {
+        ModelProviderFamily::Custom
     }
 }

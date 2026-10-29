@@ -4,11 +4,9 @@ import {
   AgentSession, 
   AgentMessage, 
   WorkspaceFileItem, 
-  antigravityService, 
-  codexService, 
-  CodexModelItem, 
-  configService, 
-  API_BASE 
+  configService,
+  modelCatalogService,
+  API_BASE
 } from '../../services';
 import { highlightCode } from './highlightUtils';
 import { showConfirm } from '../ConfirmModal';
@@ -434,52 +432,20 @@ export function useChatSession(
   const refreshDynamicModels = async () => {
     setIsRefreshingModels(true);
     try {
-      const [dynamicAg, codexModels, cfg] = await Promise.all([
-        antigravityService.getDynamicModels().catch(() => [] as Array<{ model_id: string; display_name: string }>),
-        codexService.getModels().catch(() => [] as CodexModelItem[]),
+      const [catalogModels, cfg] = await Promise.all([
+        modelCatalogService.getModels(),
         configService.getConfig().catch(() => null),
       ]);
 
-      const list: Array<{ id: string; label: string }> = [];
-
-      if (dynamicAg && dynamicAg.length > 0) {
-        dynamicAg.forEach((m: { model_id: string; display_name?: string }) => {
-          const fullId = `ag/${m.model_id}`;
-          list.push({
-            id: fullId,
-            label: m.display_name ? `${m.display_name} (${fullId})` : fullId,
-          });
-        });
-      }
-
-      if (codexModels && codexModels.length > 0) {
-        codexModels.forEach((m: CodexModelItem) => {
-          list.push({
-            id: m.id,
-            label: m.display_name ? `${m.display_name} (${m.id})` : m.id,
-          });
-        });
-      }
+      const list: Array<{ id: string; label: string }> = [...catalogModels];
 
       const activeBrain = cfg?.llm_model?.trim() || '';
       setDefaultBrainModel(activeBrain);
 
-      if (activeBrain && !list.some((m) => m.id === activeBrain)) {
-        list.unshift({ id: activeBrain, label: `${activeBrain} (Brain Persona)` });
-      }
-
-      if (list.length === 0) {
-        list.push(
-          { id: 'ag/gemini-2.5-flash', label: 'Gemini 2.5 Flash (ag/gemini-2.5-flash)' },
-          { id: 'ag/claude-3-7-sonnet', label: 'Claude 3.7 Sonnet (ag/claude-3-7-sonnet)' },
-          { id: 'cx/gpt-4o', label: 'GPT-4o (cx/gpt-4o)' }
-        );
-      }
-
       setAvailableModels(list);
 
-      if (!activeSessionModel()) {
-        setActiveSessionModel(activeBrain || (list.length > 0 ? list[0].id : ''));
+      if (!list.some((model) => model.id === activeSessionModel())) {
+        setActiveSessionModel(activeBrain || list[0]?.id || '');
       }
     } catch (e) {
       console.error('Failed to load dynamic models for agent workspace', e);

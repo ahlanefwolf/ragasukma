@@ -128,6 +128,16 @@ pub fn get_v1_models() -> ModelListResponse {
         }
     }
 
+    // Append custom OpenAI-compatible models from enabled accounts.
+    for (id, provider_name) in crate::llm::providers::custom::fetch_models() {
+        data.push(ModelItem {
+            id,
+            object: "model".to_string(),
+            created: now,
+            owned_by: provider_name,
+        });
+    }
+
     ModelListResponse {
         object: "list".to_string(),
         data,

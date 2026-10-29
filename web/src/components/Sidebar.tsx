@@ -64,6 +64,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
     { id: 'provider-antigravity', label: 'Antigravity Engine' },
     { id: 'provider-codex', label: 'Codex Provider' },
     { id: 'provider-claude', label: 'Claude Provider' },
+    { id: 'provider-custom', label: 'Custom OpenAI-Compatible' },
   ];
 
   const isProviderActive = () => props.activeTab.startsWith('provider-');

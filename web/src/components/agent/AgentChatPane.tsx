@@ -636,34 +636,29 @@ export const AgentChatPane: Component<{
             <Cpu class="w-3.5 h-3.5 text-gi-primary shrink-0" />
             <SearchableSelect
               value={props.activeSessionModel || props.currentSession?.model || props.defaultBrainModel}
+              placeholder={props.isRefreshingModels ? 'Loading models...' : 'No models available'}
               onChange={(val) => props.setActiveSessionModel(val)}
               options={[
-                ...(props.defaultBrainModel
-                  ? [
-                      {
-                        value: props.defaultBrainModel,
-                        label: `⭐ ${props.defaultBrainModel}`,
-                        badge: 'default',
-                      },
-                    ]
+                ...(props.isRefreshingModels && props.availableModels.length === 0
+                  ? [{ value: '', label: 'Loading models...' }]
+                  : props.availableModels.length === 0
+                  ? [{ value: '', label: 'No models available' }]
                   : []),
-                ...props.availableModels
-                  .filter((m) => m.id !== props.defaultBrainModel)
-                  .map((m) => ({
-                    value: m.id,
-                    label: m.label || m.id,
-                    sublabel: m.id.startsWith('claude-')
-                      ? 'Anthropic'
-                      : m.id.startsWith('gpt-')
-                      ? 'OpenAI'
-                      : m.id.startsWith('gemini-')
-                      ? 'Google'
-                      : m.id.startsWith('deepseek')
-                      ? 'DeepSeek'
-                      : m.id.startsWith('cx/')
-                      ? 'Codex'
-                      : undefined,
-                  })),
+                ...props.availableModels.map((m) => ({
+                  value: m.id,
+                  label: m.label || m.id,
+                  sublabel: m.id.startsWith('claude-')
+                    ? 'Anthropic'
+                    : m.id.startsWith('gpt-')
+                    ? 'OpenAI'
+                    : m.id.startsWith('gemini-')
+                    ? 'Google'
+                    : m.id.startsWith('deepseek')
+                    ? 'DeepSeek'
+                    : m.id.startsWith('cx/')
+                    ? 'Codex'
+                    : undefined,
+                })),
               ]}
               buttonClass="flex items-center justify-between gap-1.5 text-white font-mono text-xs max-w-[210px] truncate hover:text-gi-primary-hover transition-colors"
               dropdownClass="absolute right-0 mt-2 w-72 bg-theme-surface border border-theme-border shadow-2xl z-50 overflow-hidden flex flex-col max-h-80"

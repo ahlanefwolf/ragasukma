@@ -59,10 +59,7 @@ impl AppSession {
 
         let interrup_changed = latest_config.voice_interruption != self.config.voice_interruption;
 
-        let llm_changed = latest_config.llm_provider != self.config.llm_provider
-            || latest_config.llm_base_url != self.config.llm_base_url
-            || latest_config.llm_model != self.config.llm_model
-            || latest_config.llm_api_key != self.config.llm_api_key
+        let llm_changed = latest_config.llm_model != self.config.llm_model
             || latest_config.assistant_name != self.config.assistant_name
             || latest_config.user_callsign != self.config.user_callsign
             || latest_config.personality_role != self.config.personality_role
@@ -90,8 +87,7 @@ impl AppSession {
         if llm_changed {
             self.llm = LlmClient::new();
             crate::term_log!(
-                "[Reactive Update] LLM Provider / Model / Persona switched to: {} / {} ({})",
-                latest_config.llm_provider,
+                "[Reactive Update] LLM Model / Persona switched to: {} ({})",
                 latest_config.llm_model,
                 latest_config.assistant_name
             );

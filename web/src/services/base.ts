@@ -18,7 +18,7 @@ export async function fetchWithTimeout(url: string, options: RequestInit = {}, t
   }
   const controller = new AbortController();
   const id = timeoutMs > 0 ? setTimeout(() => {
-    controller.abort(new Error(`Permintaan timeout setelah ${timeoutMs / 1000} detik`));
+    throw new Error(`Request timed out after ${timeoutMs / 1000} seconds`);
   }, timeoutMs) : null;
 
   try {
