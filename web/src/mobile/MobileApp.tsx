@@ -1263,6 +1263,7 @@ export const MobileApp: Component<MobileAppProps> = (props) => {
           state={visualState()}
           emotion={emotion()}
           isAudioStreaming={isHpAudioActive()}
+          paused={showAgentModal() || showChatModal() || showSettings() || showLogsDrawer()}
         />
       </div>
 

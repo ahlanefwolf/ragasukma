@@ -32,6 +32,7 @@ export class VrmSceneManager {
   private mainLight: THREE.DirectionalLight | null = null;
   private currentQuality: RenderQuality = 'hd';
   private currentFpsLimit: FpsLimit = 60; // Default 60 FPS (cool & stable for mobile battery)
+  private isPaused = false;
   private lastRenderTimestamp = 0;
   private defaultCamPos = DEFAULT_CAM_POS.clone();
   private defaultTarget = DEFAULT_TARGET.clone();
@@ -81,6 +82,7 @@ export class VrmSceneManager {
       powerPreference: 'high-performance',
       stencil: false,
       depth: true,
+      preserveDrawingBuffer: true,
     });
     this.renderer.shadowMap.enabled = false;
     this.renderer.setSize(width, height);
@@ -271,8 +273,12 @@ export class VrmSceneManager {
     );
 
     this.renderer.setAnimationLoop((timestamp) => {
-      // Pause render loop if mobile browser tab is minimized or backgrounded
+      // Pause render loop if mobile browser tab is minimized or backgrounded, or if paused by modal
       if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
+
+      if (this.isPaused) {
         return;
       }
 
@@ -318,6 +324,20 @@ export class VrmSceneManager {
 
   public setFpsLimit(fps: FpsLimit): void {
     this.currentFpsLimit = fps;
+  }
+
+  public setPaused(paused: boolean): void {
+    if (this.isPaused === paused) return;
+    this.isPaused = paused;
+    if (!paused) {
+      // Reset lastFrameTime to prevent sudden delta jump when resuming
+      this.lastFrameTime = performance.now();
+    } else {
+      // Render one last static frame before freezing the animation loop
+      if (this.renderer && this.scene && this.camera) {
+        this.renderer.render(this.scene, this.camera);
+      }
+    }
   }
 
   public setRenderQuality(quality: RenderQuality): void {

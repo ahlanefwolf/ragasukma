@@ -1,4 +1,4 @@
-import { Component, Show, createSignal, onMount, onCleanup } from 'solid-js';
+import { Component, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { API_BASE } from '../services/base';
 import {
   AvatarViewerProps,
@@ -94,6 +94,10 @@ export const AvatarViewer: Component<AvatarViewerProps> = (props) => {
       localStorage.setItem('avatar_fps_limit', String(nextFps));
     } catch (_) {}
   };
+
+  createEffect(() => {
+    sceneManager.setPaused(!!props.paused);
+  });
 
   onMount(() => {
     // 1. Initialize 3D canvas immediately without blocking on network fetch

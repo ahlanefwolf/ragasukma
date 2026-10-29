@@ -8,6 +8,7 @@ export interface AvatarViewerProps {
   state: AvatarState;
   emotion?: string;
   isAudioStreaming?: boolean;
+  paused?: boolean;
 }
 
 interface PoseKeyframe {
