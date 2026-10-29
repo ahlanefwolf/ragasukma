@@ -21,12 +21,12 @@ const TAG_CORE = /@([^\s@]+)/gu;
 const TRAILING_PUNCT = /[,.;!?)\]}>"'»]+$/u;
 
 /** Trim trailing sentence punctuation from a raw `@token`. */
-export function stripTagPunctuation(rawTag: string): string {
+function stripTagPunctuation(rawTag: string): string {
   return rawTag.replace(TRAILING_PUNCT, '');
 }
 
 /** `@src/foo.rs:10-20` -> `src/foo.rs` */
-export function tagToFilePath(rawTag: string): string {
+function tagToFilePath(rawTag: string): string {
   const withoutAt = rawTag.startsWith('@') ? rawTag.slice(1) : rawTag;
   return withoutAt.replace(/:\d+(?:-\d+)?$/, '');
 }
