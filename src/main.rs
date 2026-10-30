@@ -186,6 +186,12 @@ fn main() -> Result<()> {
     let config = AppConfig::load();
     let config_clone = config.clone();
 
+    // Prune expired agent telemetry (messages / audit logs) without blocking startup.
+    // Retention windows are read from the environment; see `agent::maintenance`.
+    crate::app_state::get_global_tokio_runtime().spawn(async {
+        crate::agent::maintenance::run_retention_loop().await;
+    });
+
     crate::term_log!("====================================================");
     crate::term_log!(
         "  Ragasukma - Personal Assistant: {} (Anime ID)",

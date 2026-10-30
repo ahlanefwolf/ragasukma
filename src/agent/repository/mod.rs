@@ -13,6 +13,15 @@ pub use projects_and_sessions::*;
 
 static ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
+/// Single entry point for obtaining the database pool.
+///
+/// Every repository function goes through this instead of touching
+/// `crate::llm::usage::get_pool()` directly, so the pool source can be swapped in one
+/// place and so multi-statement operations can obtain a transaction from it.
+pub async fn pool() -> &'static sqlx::SqlitePool {
+    crate::llm::usage::get_pool().await
+}
+
 pub fn now_secs() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -295,5 +304,22 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(audit_count.0, 1);
+    }
+}
+
+/// Serializes tests that depend on global database state.
+///
+/// Most tests are independent: they create rows with unique ids and only read their own
+/// data. A few assert on table-wide sweeps or counts, and those must not interleave with
+/// tests that create session-less fixtures mid-run. This lock is for them.
+#[cfg(test)]
+pub mod testsupport {
+    use std::sync::OnceLock;
+    use tokio::sync::Mutex;
+
+    static DB_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    pub async fn db_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+        DB_LOCK.get_or_init(|| Mutex::new(())).lock().await
     }
 }

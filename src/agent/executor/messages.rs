@@ -9,7 +9,15 @@ use crate::agent::models::Message;
 use crate::agent::tools::expand_file_tags;
 use crate::llm::v1_engine::{V1Message, V1ToolCall};
 
-pub const MAX_HISTORY_TOKEN_BUDGET: usize = 12_000;
+/// How many of the newest messages are loaded from the database for one turn.
+///
+/// The sliding window in `prepare_turn_messages` keeps at most `MAX_HISTORY_MESSAGES`
+/// messages, so loading a small multiple of that gives the pruner room to work without
+/// reading the whole session every turn.
+pub const TURN_HISTORY_TAIL_LIMIT: i64 = 64;
+
+/// Hard cap on how many history messages may be sent to the model in one turn.
+pub const MAX_HISTORY_MESSAGES: usize = 24;
 
 pub fn prepare_turn_messages(
     session_id: &str,
@@ -17,6 +25,7 @@ pub fn prepare_turn_messages(
     db_messages: &[Message],
     allowed_folders: &[String],
     ephemeral_directive: Option<String>,
+    history_token_budget: usize,
 ) -> Vec<V1Message> {
     let mut v1_messages = Vec::new();
 
@@ -34,7 +43,7 @@ pub fn prepare_turn_messages(
     let total_history_tokens: usize = db_messages.iter().map(estimate_message_tokens).sum();
 
     let mut evicted_older_messages: Vec<&Message> = Vec::new();
-    let messages_to_send: Vec<&Message> = if total_history_tokens > MAX_HISTORY_TOKEN_BUDGET || db_messages.len() > 24 {
+    let messages_to_send: Vec<&Message> = if total_history_tokens > history_token_budget || db_messages.len() > MAX_HISTORY_MESSAGES {
         let mut pruned = Vec::new();
         if let Some(first_user_msg) = db_messages.iter().find(|m| m.role == "user") {
             pruned.push(first_user_msg);
@@ -45,7 +54,7 @@ pub fn prepare_turn_messages(
         let mut tail_start_idx = db_messages.len().saturating_sub(1);
         while tail_start_idx > 0 {
             let msg_tok = estimate_message_tokens(&db_messages[tail_start_idx]);
-            if accumulated_tail_tokens + msg_tok > MAX_HISTORY_TOKEN_BUDGET && (db_messages.len() - tail_start_idx) >= 10 {
+            if accumulated_tail_tokens + msg_tok > history_token_budget && (db_messages.len() - tail_start_idx) >= 10 {
                 break;
             }
             accumulated_tail_tokens += msg_tok;

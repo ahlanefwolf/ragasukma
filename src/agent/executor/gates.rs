@@ -10,6 +10,55 @@ pub enum GateResult {
     Pass,
 }
 
+/// Decides whether the assistant has genuinely finished, using only structural
+/// signals that hold in every language.
+///
+/// No keyword lists: the model already understands the request, and intent
+/// detection by vocabulary breaks as soon as the user switches language, mixes
+/// languages, or phrases things unusually. What we can rely on is what actually
+/// happened during the turn.
+fn turn_reached_a_conclusion(state: &TurnState, final_content: &str) -> bool {
+    // Real work happened, so whatever the model says is a legitimate wrap-up.
+    if state.has_taken_any_action || !state.modified_files.is_empty() {
+        return true;
+    }
+
+    // Escalation budget exhausted: never trap the agent in a loop. Let it speak.
+    if state.intent_without_action_nudges >= 2 {
+        return true;
+    }
+
+    // Nothing was done and the reply is a bare acknowledgement or noise.
+    let trimmed = final_content.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    // A reply that contains no line breaks, no list markers, no code fence and
+    // very few sentences is, structurally, a one-off remark rather than a final
+    // report. This does not depend on the language of the text.
+    let line_breaks = trimmed.matches('\n').count();
+    let has_structure = line_breaks >= 2
+        || trimmed.contains("- ")
+        || trimmed.contains("* ")
+        || trimmed.contains('`')
+        || trimmed.contains("1.")
+        || trimmed.contains("| ");
+
+    if has_structure {
+        return true;
+    }
+
+    // Sentence terminators are language-agnostic punctuation; count them.
+    let terminators = trimmed.matches('.')
+        .chain(trimmed.matches('!'))
+        .chain(trimmed.matches('?'))
+        .chain(trimmed.matches('\u{2026}'))
+        .count();
+
+    terminators >= 3
+}
+
 pub fn evaluate_turn_gates(
     state: &mut TurnState,
     final_content: &str,
@@ -28,6 +77,33 @@ pub fn evaluate_turn_gates(
         return GateResult::Pass;
     } else {
         state.consecutive_empty_turns = 0;
+    }
+
+    // 1b. CONCLUSION GATE:
+    // A model (DeepSeek in particular) often replies with "Oke, gue eksplor dulu"
+    // and zero tool calls. Previously any non-empty text passed every gate, so the
+    // turn ended immediately and the user had to prod it with "gimana coba".
+    //
+    // The decision is deliberately language-agnostic: we never inspect the wording
+    // of the user's message. We only ask whether this turn actually concluded
+    // anything measurable, and we give the model a small, bounded budget of nudges
+    // before accepting its answer. This behaves identically for any language.
+    if !turn_reached_a_conclusion(state, final_content)
+        && !state.force_final_text_only
+        && state.iteration < state.max_safety_iterations - 2
+    {
+        state.intent_without_action_nudges += 1;
+        if state.intent_without_action_nudges <= 1 {
+            state.ephemeral_directive = Some(
+                "You have not inspected or changed anything yet, and the user's request is not resolved. Act now: invoke the appropriate tool (e.g. `workspace_list_dir` or `workspace_grep`) instead of describing what you are about to do. If you can already answer completely from what you know, answer conclusively now.".to_string()
+            );
+            return GateResult::Continue;
+        }
+
+        state.ephemeral_directive = Some(
+            "Still no action taken. Either perform the tool calls now, or give your complete final answer based on what you already know. Do not restate your plan.".to_string()
+        );
+        return GateResult::Continue;
     }
 
     // 2. Action Gate:
@@ -251,10 +327,13 @@ pub async fn handle_iteration_limit_fallback(
     )
     .await?;
 
+    // An iteration-limited turn never concludes a goal. It either left changes in flight, stopped
+    // mid-inspection, or produced findings, and none of that is proof the goal is done. The status
+    // records where the work stands; the goal stays open so the user can ask for the rest.
     let final_fallback_status = if !state.modified_files.is_empty() {
         crate::agent::orchestrator::GoalState::Action
     } else if recent_findings.is_some() {
-        crate::agent::orchestrator::GoalState::Completed
+        crate::agent::orchestrator::GoalState::Verification
     } else {
         crate::agent::orchestrator::GoalState::Failed
     };
@@ -281,4 +360,113 @@ pub async fn handle_iteration_limit_fallback(
     );
 
     Ok(fallback_summary)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{turn_reached_a_conclusion, GateResult};
+    use crate::agent::executor::state::TurnState;
+
+    fn idle_state() -> TurnState {
+        TurnState::new(
+            "goal_test".to_string(),
+            "discovery".to_string(),
+            Vec::new(),
+            0,
+        )
+    }
+
+    #[test]
+    fn test_forces_action_when_nothing_inspected_yet() {
+        // The reported failure: model replied "Oke, gue eksplor dulu..." with zero
+        // tool calls and the turn ended.
+        let mut state = idle_state();
+        let result = super::evaluate_turn_gates(
+            &mut state,
+            "Oke, gue eksplor dulu struktur dan baca file-file intinya.",
+            &[],
+            None,
+        );
+
+        assert!(matches!(result, GateResult::Continue));
+        assert!(state.ephemeral_directive.is_some());
+        assert_eq!(state.intent_without_action_nudges, 1);
+    }
+
+    #[test]
+    fn test_same_behaviour_across_languages() {
+        // Identical handling for every language: no keyword lists involved.
+        for msg in [
+            "Siap, bentar gue intip dulu isinya.",
+            "Sure, let me take a quick look first.",
+            "\u{0e2a}\u{0e31}\u{0e01}\u{0e04}\u{0e23}\u{0e39}\u{0e1a}\u{0e17}\u{0e35}\u{0e19}\u{0e35}\u{0e49}\u{0e01}\u{0e48}\u{0e2d}\u{0e19}",
+            "\u{3058}\u{3083}\u{3001}\u{898b}\u{3066}\u{307f}\u{308b}\u{306d}",
+        ] {
+            let mut state = idle_state();
+            let result = super::evaluate_turn_gates(&mut state, msg, &[], None);
+            assert!(matches!(result, GateResult::Continue), "should nudge: {msg}");
+        }
+    }
+
+    #[test]
+    fn test_allows_conclusion_after_real_action() {
+        let mut state = idle_state();
+        state.has_taken_any_action = true;
+        state.modified_files.push("src/main.rs".to_string());
+
+        let answer = "Agent ini punya tiga kelemahan utama pada lapisan eksekusi dan parsing.";
+        let result = super::evaluate_turn_gates(&mut state, answer, &[], None);
+        assert!(matches!(result, GateResult::Pass));
+    }
+
+    #[test]
+    fn test_structured_answer_without_tools_is_accepted() {
+        // A question can be answered from existing knowledge; we must not force
+        // tool usage just because no tool ran. A real report has structure.
+        let mut state = idle_state();
+        let answer = "Ada tiga alasan utama:\n\n- Ownership menghindari data race.\n- Borrow checker memvalidasi referensi saat kompilasi.\n- Tidak ada garbage collector.";
+        let result = super::evaluate_turn_gates(&mut state, answer, &[], None);
+        assert!(matches!(result, GateResult::Pass));
+    }
+
+    #[test]
+    fn test_short_chatter_without_action_is_nudged() {
+        let mut state = idle_state();
+        let result = super::evaluate_turn_gates(
+            &mut state,
+            "Oke, gue eksplor dulu struktur dan baca file-file intinya.",
+            &[],
+            None,
+        );
+        assert!(matches!(result, GateResult::Continue));
+    }
+
+    #[test]
+    fn test_budget_prevents_infinite_loop() {
+        let mut state = idle_state();
+
+        assert!(matches!(
+            super::evaluate_turn_gates(&mut state, "ok", &[], None),
+            GateResult::Continue
+        ));
+        assert!(matches!(
+            super::evaluate_turn_gates(&mut state, "ok", &[], None),
+            GateResult::Continue
+        ));
+        // Third attempt must be accepted so the agent can never be trapped.
+        assert!(matches!(
+            super::evaluate_turn_gates(&mut state, "ok", &[], None),
+            GateResult::Pass
+        ));
+    }
+
+    #[test]
+    fn test_conclusion_ignores_wording_entirely() {
+        let mut state = idle_state();
+        assert!(!turn_reached_a_conclusion(&state, "halo bro"));
+        assert!(!turn_reached_a_conclusion(&state, "hello there"));
+
+        state.has_taken_any_action = true;
+        assert!(turn_reached_a_conclusion(&state, "halo bro"));
+    }
 }

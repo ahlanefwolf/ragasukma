@@ -16,7 +16,7 @@ pub async fn list_messages_paginated(
     offset: Option<i64>,
     before_seq: Option<i64>,
 ) -> Result<Vec<Message>> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let messages = match (limit, before_seq) {
         (Some(lim), Some(b_seq)) => {
             let mut list = sqlx::query_as::<_, Message>(
@@ -75,7 +75,7 @@ pub async fn create_message(
     token_usage_input: Option<i64>,
     token_usage_output: Option<i64>,
 ) -> Result<Message> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let now = now_secs();
 
     // Atomic subquery + transaction + retry loop prevents UNIQUE(session_id, sequence_num) race conditions
@@ -135,23 +135,46 @@ pub async fn create_message(
     }
 }
 
+// ============================================================================
+// RETENTION
+// ============================================================================
+
+/// Deletes messages older than `cutoff_epoch_secs` and returns how many rows were removed.
+///
+/// The cutoff is supplied by the caller so the retention window stays a runtime policy
+/// instead of being hardcoded into the query.
+pub async fn delete_expired_messages(cutoff_epoch_secs: i64) -> Result<u64> {
+    let pool = super::pool().await;
+    let res = sqlx::query("DELETE FROM messages WHERE created_at < ?1")
+        .bind(cutoff_epoch_secs)
+        .execute(pool)
+        .await?;
+    Ok(res.rows_affected())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[tokio::test]
     async fn test_create_message_atomic_sequences() {
-        let pool = crate::llm::usage::get_pool().await;
+        let _guard = crate::agent::repository::testsupport::db_test_lock().await;
+        let pool = super::super::pool().await;
         // Prepare test session
         let test_session_id = format!("test_session_seq_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos());
-        let _ = sqlx::query("INSERT INTO projects (id, name, description, created_at, updated_at) VALUES (?1, 'P', 'Desc', 1, 1)")
+        // Timestamps must reflect "now": a retroactively old `updated_at` makes these rows
+        // look expired to the retention sweep running concurrently in another test.
+        let now = super::super::now_secs();
+        sqlx::query("INSERT INTO projects (id, name, description, created_at, updated_at) VALUES (?1, 'P', 'Desc', ?2, ?2)")
             .bind(&test_session_id)
+            .bind(now)
             .execute(pool)
             .await
             .unwrap();
-        let _ = sqlx::query("INSERT INTO sessions (id, project_id, title, status, created_at, updated_at) VALUES (?1, ?2, 'S', 'idle', 1, 1)")
+        sqlx::query("INSERT INTO sessions (id, project_id, title, status, created_at, updated_at) VALUES (?1, ?2, 'S', 'idle', ?3, ?3)")
             .bind(&test_session_id)
             .bind(&test_session_id)
+            .bind(now)
             .execute(pool)
             .await
             .unwrap();

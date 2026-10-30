@@ -48,6 +48,8 @@ pub fn register_agent_routes(
         .route("/api/agent/goals/:id", get(get_goal_details))
         .route("/api/agent/goals/:id/evidence", get(get_goal_evidences))
         .route("/api/agent/goals/:id/verifications", get(get_goal_verifications_list))
+        .route("/api/agent/goals/:id/audit", get(get_goal_audit_logs))
+        .route("/api/agent/sessions/:id/audit", get(get_session_audit_logs))
         .route("/api/agent/goals/:id/conclude", post(conclude_goal_handler))
 }
 
@@ -1090,6 +1092,42 @@ async fn get_goal_evidences(Path(id): Path<String>) -> impl IntoResponse {
 async fn get_goal_verifications_list(Path(id): Path<String>) -> impl IntoResponse {
     match repository::list_goal_verifications(&id).await {
         Ok(verifs) => (StatusCode::OK, Json(json!(verifs))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        ),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct AuditQuery {
+    #[serde(default = "default_audit_limit")]
+    pub limit: i64,
+}
+
+fn default_audit_limit() -> i64 {
+    100
+}
+
+async fn get_goal_audit_logs(
+    Path(id): Path<String>,
+    Query(q): Query<AuditQuery>,
+) -> impl IntoResponse {
+    match repository::list_goal_audit_logs(&id, q.limit).await {
+        Ok(logs) => (StatusCode::OK, Json(json!(logs))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        ),
+    }
+}
+
+async fn get_session_audit_logs(
+    Path(id): Path<String>,
+    Query(q): Query<AuditQuery>,
+) -> impl IntoResponse {
+    match repository::list_session_audit_logs(&id, q.limit).await {
+        Ok(logs) => (StatusCode::OK, Json(json!(logs))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"error": e.to_string()})),

@@ -17,6 +17,48 @@ pub use helpers::{detect_project_verification_commands, is_verification_command,
 pub use snapshot::WorkspaceSnapshot;
 pub use state::TurnState;
 
+/// Releases the per-turn file backups once the turn is over.
+///
+/// Every write/edit stores the previous file bytes so the session can be reverted. That
+/// store is global and lives as long as the process, so without this it grows with every
+/// file the agent ever touches. Called from every exit path of `execute_session_turn`,
+/// after the turn can no longer need to restore anything.
+fn release_turn_snapshots() {
+    crate::agent::executor::snapshot::WorkspaceSnapshot::global().clear();
+}
+
+#[cfg(test)]
+mod turn_boundary_tests {
+    use super::release_turn_snapshots;
+    use crate::agent::executor::snapshot::WorkspaceSnapshot;
+
+    /// Guards the behaviour, not the helper: a turn boundary must leave the global
+    /// snapshot store empty. Testing `WorkspaceSnapshot::clear()` directly proves the
+    /// method works but says nothing about whether anything ever calls it, which is how
+    /// this store ended up growing for the lifetime of the process unnoticed.
+    #[test]
+    fn a_finished_turn_leaves_no_backups_behind() {
+        let dir = std::env::temp_dir().join(format!("turn-snap-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("touched.txt");
+        std::fs::write(&file, b"before").unwrap();
+
+        WorkspaceSnapshot::global().backup_file(&file).unwrap();
+        assert!(
+            !WorkspaceSnapshot::global().tracked_files().is_empty(),
+            "precondition: the turn must have recorded a backup"
+        );
+
+        release_turn_snapshots();
+
+        assert!(
+            WorkspaceSnapshot::global().tracked_files().is_empty(),
+            "the global store must be released when the turn ends"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
 use crate::agent::models::AgentSessionEvent;
 use crate::agent::repository;
 
@@ -48,33 +90,47 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
         },
     );
 
-    // 3. Load message history and resolve active goal
-    let mut db_messages = repository::list_messages(session_id).await?;
-    let (goal_id, current_phase, locked_targets, discovery_counter) =
+    // 3. Load message history and resolve active goal.
+    //
+    // Only the recent tail is needed: `prepare_turn_messages` prunes the context to a
+    // bounded window anyway, so reading the entire session on every turn is wasted work
+    // that grows quadratically with session length.
+    let mut db_messages = repository::list_messages_paginated(
+        session_id,
+        Some(messages::TURN_HISTORY_TAIL_LIMIT),
+        None,
+        None,
+    )
+    .await?;
+    let (goal_id, current_phase, locked_targets) =
         state::resolve_or_create_goal(&session, &project, &db_messages, &allowed_folders).await?;
 
-    // 4. Assemble system prompt
-    let system_prompt = prompt::build_system_prompt(
-        &project,
-        &allowed_folders,
-        &prompt_skills,
-        &active_mcp_servers,
-        &mcp_tools,
-        session_id,
-        &goal_id,
-    ).await?;
+    // 4. Resolve the model first: the system prompt adapts to what the provider
+    //    can actually do (e.g. native hidden reasoning vs. inline <thought> tags).
+    let (model, is_codex) = state::resolve_model(&session, model_override).await;
+    let family = state::detect_provider_family(&model);
+    let capabilities = state::model_capabilities(family);
 
-    // 5. Initialize turn state & resolve model
+    let system_prompt = prompt::build_system_prompt(prompt::AgentPromptContext {
+        project: &project,
+        allowed_folders: &allowed_folders,
+        prompt_skills: &prompt_skills,
+        active_mcp_servers: &active_mcp_servers,
+        mcp_tools: &mcp_tools,
+        session_id,
+        goal_id: &goal_id,
+        capabilities,
+    }).await?;
+
+    // 5. Initialize turn state
     let prior_verifs = repository::list_goal_verifications(&goal_id).await.unwrap_or_default();
     let mut state = TurnState::new(
         goal_id.clone(),
         current_phase,
         locked_targets,
-        discovery_counter,
         prior_verifs.len(),
     );
 
-    let (model, is_codex) = state::resolve_model(&session, model_override).await;
     let detected_verifier = crate::agent::languages::detect_primary_verification_command(&allowed_folders);
 
     // 6. Autonomous Tool Execution Loop
@@ -109,6 +165,7 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
             &db_messages,
             &allowed_folders,
             current_directive,
+            capabilities.history_token_budget,
         );
 
         // Stream from provider
@@ -194,6 +251,7 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                     },
                 );
 
+                release_turn_snapshots();
                 return Ok(err_msg_content);
             }
         };
@@ -228,11 +286,26 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                             extra_content: None,
                             provider_specific_fields: None,
                         });
-                    tool_calls = if chosen.function.name.is_empty() {
+                    tool_calls = if chosen.function.name.trim().is_empty() {
                         Vec::new()
                     } else {
                         vec![chosen]
                     };
+                }
+
+                // Drop any call whose name is blank. Persisting such a call only poisons
+                // the conversation history and makes the model repeat the same mistake.
+                let blank_calls = tool_calls.iter().filter(|tc| tc.function.name.trim().is_empty()).count();
+                if blank_calls > 0 {
+                    eprintln!(
+                        "[Agent Turn] Dropped {} tool call(s) with an empty name on iteration {}",
+                        blank_calls, state.iteration
+                    );
+                    tool_calls.retain(|tc| !tc.function.name.trim().is_empty());
+                    state.consecutive_tool_errors += blank_calls;
+                    state.ephemeral_directive = Some(
+                        "Your last response contained a tool call with no tool name, so it was discarded. Call a tool by its exact name with valid JSON arguments, or answer the user directly.".to_string()
+                    );
                 }
             }
 
@@ -273,11 +346,41 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
                     &mut db_messages,
                 ).await?;
 
-                // Approaching safety limit notice
-                if state.iteration >= state.max_safety_iterations.saturating_sub(2) {
-                    state.ephemeral_directive = Some(
-                        "TURN LIMIT APPROACHING: Please finalize your actions now. Summarize your findings, code modifications, or answer the user directly.".to_string()
+                // Circuit breaker: if the tool surface keeps failing in exactly the same
+                // way, stop burning the iteration budget and force a final answer.
+                if state.repeated_tool_error_count >= 5 {
+                    eprintln!(
+                        "[Agent Circuit Breaker] Repeated tool failure x{} on iteration {}: {:?}",
+                        state.repeated_tool_error_count,
+                        state.iteration,
+                        state.last_tool_error_signature
                     );
+                    state.trip_circuit_breaker(
+                        "CIRCUIT BREAKER: the same tool failure repeated 5 times. Tools are now closed for this turn. Explain to the user what facts you already established, what blocked you, and what they should check.",
+                    );
+                } else if state.consecutive_tool_errors >= 8 {
+                    eprintln!(
+                        "[Agent Circuit Breaker] {} consecutive tool errors on iteration {}",
+                        state.consecutive_tool_errors, state.iteration
+                    );
+                    state.trip_circuit_breaker(
+                        "CIRCUIT BREAKER: consecutive tool errors exceeded the safe limit. Tools are now closed for this turn. Summarize findings and answer the user now.",
+                    );
+                }
+
+                // If the breaker tripped, do not loop back into tool calling; fall
+                // through so the model must produce a final text answer.
+                if state.circuit_breaker_triggered {
+                    continue;
+                }
+
+                // Approaching safety limit notice
+                // Warn once the turn has consumed more than half its budget.
+                if state.iteration >= state.inspect_soft_limit {
+                    state.ephemeral_directive = Some(format!(
+                        "BUDGET: you have used {} of {} tool executions for this request. Wrap up: finish the remaining edits, run verification, and give the user a concrete summary of what was established.",
+                        state.iteration, state.max_safety_iterations
+                    ));
                 }
 
                 continue;
@@ -303,13 +406,28 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
         );
         let content_to_save = composed_content.as_str();
 
-        let final_goal_status = if state.last_command_had_error || state.last_tool_had_error {
-            crate::agent::orchestrator::GoalState::Failed
-        } else {
-            crate::agent::orchestrator::GoalState::Completed
-        };
+        // Final turn conclusion.
+        //
+        // Three endings, three outcomes. Collapsing them into one "completed" write is what used
+        // to record a clarifying question as a goal's conclusion, which then leaked back into the
+        // next turn's prompt as if it were finished work.
         let orch = crate::agent::orchestrator::GoalOrchestrator::new(&goal_id, &project.id);
-        let _ = orch.conclude_with_status(final_goal_status, content_to_save).await;
+        if state.last_command_had_error || state.last_tool_had_error {
+            let _ = orch
+                .conclude_with_status(crate::agent::orchestrator::GoalState::Failed, content_to_save)
+                .await;
+        } else if state.has_taken_any_action || !state.modified_files.is_empty() {
+            // Real work happened. `conclude_after_work` prefers a verified completion and only
+            // labels the goal unverified when no passing verification exists.
+            if let Err(e) = orch.conclude_after_work(content_to_save).await {
+                eprintln!("[Agent Conclusion Warning] Goal {} could not be concluded: {}", goal_id, e);
+            }
+        } else {
+            // The turn only produced conversation: an answer, a clarifying question, or nothing at
+            // all. That ends the turn, not the goal. The goal stays open so a follow-up continues
+            // it instead of silently starting over, and no conclusion text is invented for it.
+            let _ = repository::update_session_status(session_id, "idle").await;
+        }
 
         let final_msg = repository::create_message(
             session_id,
@@ -343,9 +461,11 @@ pub async fn execute_session_turn(session_id: &str, model_override: Option<&str>
             },
         );
 
+        release_turn_snapshots();
         return Ok(content_to_save.to_string());
     }
 
     // Fallback: If iteration limit reached while still running tools
+    release_turn_snapshots();
     gates::handle_iteration_limit_fallback(session_id, &state).await
 }

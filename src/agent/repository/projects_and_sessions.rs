@@ -7,7 +7,7 @@ use super::{generate_id, now_secs};
 // ============================================================================
 
 pub async fn list_projects() -> Result<Vec<Project>> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let projects = sqlx::query_as::<_, Project>(
         "SELECT id, name, description, root_path, custom_instructions, created_at, updated_at \
          FROM projects ORDER BY created_at DESC",
@@ -18,7 +18,7 @@ pub async fn list_projects() -> Result<Vec<Project>> {
 }
 
 pub async fn get_project(id: &str) -> Result<Option<Project>> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let project = sqlx::query_as::<_, Project>(
         "SELECT id, name, description, root_path, custom_instructions, created_at, updated_at \
          FROM projects WHERE id = ?1",
@@ -35,7 +35,7 @@ pub async fn create_project(
     root_path: Option<&str>,
     custom_instructions: Option<&str>,
 ) -> Result<Project> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let id = generate_id("proj");
     let now = now_secs();
 
@@ -71,7 +71,7 @@ pub async fn update_project(
     root_path: Option<&str>,
     custom_instructions: Option<&str>,
 ) -> Result<()> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let now = now_secs();
 
     sqlx::query(
@@ -91,7 +91,7 @@ pub async fn update_project(
 }
 
 pub async fn delete_project(id: &str) -> Result<()> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     sqlx::query("DELETE FROM projects WHERE id = ?1")
         .bind(id)
         .execute(pool)
@@ -104,7 +104,7 @@ pub async fn delete_project(id: &str) -> Result<()> {
 // ============================================================================
 
 pub async fn list_sessions(project_id: &str) -> Result<Vec<Session>> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let sessions = sqlx::query_as::<_, Session>(
         "SELECT s.id, s.project_id, s.title, s.status, s.model, s.temperature, s.source_chat_id, s.metadata, s.created_at, s.updated_at, \
          COALESCE(SUM(m.token_usage_input), 0) AS total_tokens_input, \
@@ -122,7 +122,7 @@ pub async fn list_sessions(project_id: &str) -> Result<Vec<Session>> {
 }
 
 pub async fn get_session(id: &str) -> Result<Option<Session>> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let session = sqlx::query_as::<_, Session>(
         "SELECT s.id, s.project_id, s.title, s.status, s.model, s.temperature, s.source_chat_id, s.metadata, s.created_at, s.updated_at, \
          COALESCE(SUM(m.token_usage_input), 0) AS total_tokens_input, \
@@ -145,7 +145,7 @@ pub async fn create_session(
     temperature: Option<f64>,
     source_chat_id: Option<&str>,
 ) -> Result<Session> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let id = generate_id("sess");
     let now = now_secs();
     let temp = temperature.unwrap_or(0.1);
@@ -182,7 +182,7 @@ pub async fn create_session(
 }
 
 pub async fn get_session_status(id: &str) -> Result<Option<String>> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let row: Option<(String,)> = sqlx::query_as("SELECT status FROM sessions WHERE id = ?1")
         .bind(id)
         .fetch_optional(pool)
@@ -191,7 +191,7 @@ pub async fn get_session_status(id: &str) -> Result<Option<String>> {
 }
 
 pub async fn update_session_status(id: &str, status: &str) -> Result<()> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let now = now_secs();
     sqlx::query("UPDATE sessions SET status = ?1, updated_at = ?2 WHERE id = ?3")
         .bind(status)
@@ -203,7 +203,7 @@ pub async fn update_session_status(id: &str, status: &str) -> Result<()> {
 }
 
 pub async fn update_session_model(id: &str, model: &str) -> Result<()> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let now = now_secs();
     sqlx::query("UPDATE sessions SET model = ?1, updated_at = ?2 WHERE id = ?3")
         .bind(model)
@@ -215,31 +215,109 @@ pub async fn update_session_model(id: &str, model: &str) -> Result<()> {
 }
 
 pub async fn delete_session(id: &str) -> Result<()> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
+
+    // All five statements are one logical deletion. Running them outside a transaction
+    // means a mid-way failure leaves a session with goals but no evidence, or evidence
+    // pointing at goals that no longer exist.
+    let mut tx = pool.begin().await?;
+
     // 1. Clean up goal verifications and goal evidence for any goal in this session
     sqlx::query("DELETE FROM goal_verifications WHERE goal_id IN (SELECT id FROM goals WHERE session_id = ?1)")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     sqlx::query("DELETE FROM goal_evidence WHERE goal_id IN (SELECT id FROM goals WHERE session_id = ?1)")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     // 2. Clean up goals belonging to this session
     sqlx::query("DELETE FROM goals WHERE session_id = ?1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     // 3. Purge orphaned evidence_cache entries no longer attached to any active goal
     sqlx::query("DELETE FROM evidence_cache WHERE id NOT IN (SELECT evidence_id FROM goal_evidence)")
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     // 4. Delete the session itself (messages cascade via foreign key)
     sqlx::query("DELETE FROM sessions WHERE id = ?1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+
+    tx.commit().await?;
     Ok(())
+}
+
+/// Deletes sessions that have been idle longer than `cutoff_epoch_secs`.
+///
+/// Unlike `delete_session`, this removes rows directly: stale-session cleanup runs on a
+/// schedule and must stay cheap. Foreign keys cascade `messages`, and goals/evidence are
+/// swept separately, so nothing is orphaned.
+///
+/// Returns the number of sessions removed.
+pub async fn delete_expired_sessions(cutoff_epoch_secs: i64) -> Result<u64> {
+    let pool = super::pool().await;
+
+    let mut tx = pool.begin().await?;
+
+    // Remove goals (and their dependent rows) belonging to expired sessions first.
+    sqlx::query(
+        "DELETE FROM goal_verifications WHERE goal_id IN (SELECT id FROM goals WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?1))",
+    )
+    .bind(cutoff_epoch_secs)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "DELETE FROM goal_evidence WHERE goal_id IN (SELECT id FROM goals WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?1))",
+    )
+    .bind(cutoff_epoch_secs)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "DELETE FROM goals WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?1)",
+    )
+    .bind(cutoff_epoch_secs)
+    .execute(&mut *tx)
+    .await?;
+
+    let res = sqlx::query("DELETE FROM sessions WHERE updated_at < ?1")
+        .bind(cutoff_epoch_secs)
+        .execute(&mut *tx)
+        .await?;
+
+    tx.commit().await?;
+    Ok(res.rows_affected())
+}
+
+/// Deletes projects that have no sessions left at all.
+///
+/// A project with zero sessions carries no recoverable work: every goal, evidence row
+/// and message hangs off a session. These accumulate from exploratory projects and from
+/// earlier test runs that wrote to the live database, so they are swept on a schedule.
+///
+/// Returns the number of projects removed.
+pub async fn delete_orphan_projects() -> Result<u64> {
+    let pool = super::pool().await;
+
+    let mut tx = pool.begin().await?;
+
+    // Evidence is project-scoped rather than session-scoped, so clear it explicitly.
+    sqlx::query(
+        "DELETE FROM evidence_cache WHERE project_id IN (SELECT p.id FROM projects p WHERE NOT EXISTS (SELECT 1 FROM sessions s WHERE s.project_id = p.id))",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    let res = sqlx::query(
+        "DELETE FROM projects WHERE NOT EXISTS (SELECT 1 FROM sessions s WHERE s.project_id = projects.id)",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(res.rows_affected())
 }
 
 // ============================================================================
@@ -247,7 +325,7 @@ pub async fn delete_session(id: &str) -> Result<()> {
 // ============================================================================
 
 pub async fn list_mcp_servers() -> Result<Vec<McpServer>> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let servers = sqlx::query_as::<_, McpServer>(
         "SELECT id, name, config, is_enabled, created_at \
          FROM mcp_servers ORDER BY name ASC",
@@ -263,7 +341,7 @@ pub async fn create_or_update_mcp_server(
     config: &str,
     is_enabled: bool,
 ) -> Result<()> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let now = now_secs();
     let enabled_int = if is_enabled { 1 } else { 0 };
 
@@ -287,7 +365,7 @@ pub async fn create_or_update_mcp_server(
 }
 
 pub async fn delete_mcp_server(id: &str) -> Result<()> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     sqlx::query("DELETE FROM mcp_servers WHERE id = ?1")
         .bind(id)
         .execute(pool)
@@ -298,7 +376,7 @@ pub async fn delete_mcp_server(id: &str) -> Result<()> {
 /// Retrieve MCP servers that are active for a specific project.
 /// If no custom project-level configuration exists yet, defaults to all globally enabled MCP servers.
 pub async fn get_project_active_mcp_servers(project_id: &str) -> Result<Vec<McpServer>> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
 
     // Check if this project has any explicit rows configured in project_mcp_servers
     let count: i64 = sqlx::query_scalar(
@@ -345,7 +423,7 @@ pub async fn get_project_mcp_server_ids(project_id: &str) -> Result<Vec<String>>
 /// Update active MCP servers for a project.
 /// Explicitly marks each registered server as enabled (1) or disabled (0) for this project.
 pub async fn set_project_mcp_servers(project_id: &str, active_server_ids: &[String]) -> Result<()> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = super::pool().await;
     let all_servers = list_mcp_servers().await?;
 
     sqlx::query("DELETE FROM project_mcp_servers WHERE project_id = ?1")

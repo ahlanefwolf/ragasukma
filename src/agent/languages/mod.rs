@@ -263,6 +263,21 @@ pub fn detect_verifiers_for_modified_files(
 pub fn is_verification_command(cmd: &str) -> bool {
     let lower = cmd.trim().to_lowercase();
 
+    // Commands that only rearrange the filesystem. They cannot fail in a way that says
+    // anything about the code's correctness, so a successful run is not evidence.
+    //
+    // This is deliberately a property ("did the command merely create, move, or delete
+    // files?") rather than an exhaustive inventory of every shell builtin that can do so.
+    let fs_mutation_prefixes = [
+        "mkdir", "md ", "new-item", "ni ", "touch", "cp ", "copy ", "copy-item",
+        "mv ", "move ", "move-item", "rm ", "del ", "remove-item", "rd ", "rmdir",
+        "mkdir ", "rmdir ", "set-content", "add-content", "out-file", "chmod", "chown",
+        "ln ", "new-item",
+    ];
+
+    // A bare existence probe reports a fact about the filesystem, not about behaviour.
+    let fs_probe_prefixes = ["test-path", "test ", "[ -f", "[ -d", "ls ", "dir "];
+
     // Commands that are purely informational / navigation and NEVER count as verification
     let pure_info_prefixes = [
         "git status", "git log", "git diff", "git show", "git branch", "git remote",
@@ -300,6 +315,14 @@ pub fn is_verification_command(cmd: &str) -> bool {
 
         // If the sub-command starts with a known pure-info command, skip it
         if pure_info_prefixes.iter().any(|info| sub_trimmed == *info || sub_trimmed.starts_with(info)) {
+            continue;
+        }
+
+        // Filesystem bookkeeping carries no signal about correctness. Skipping it here
+        // means `mkdir -p dist && npm run build` is judged on the build, not on the mkdir.
+        if fs_mutation_prefixes.iter().any(|p| sub_trimmed.starts_with(p))
+            || fs_probe_prefixes.iter().any(|p| sub_trimmed.starts_with(p))
+        {
             continue;
         }
 
@@ -431,6 +454,47 @@ mod tests {
 
         let success_json = r#"{"command":"npx tsc --noEmit","cwd":"/home/headway/MyWork/project/portofolio","exit_code":0,"stderr":"","stdout":"","success":true}"#;
         assert!(!crate::agent::executor::is_command_output_error(success_json));
+    }
+
+    /// Filesystem mutations are not verification, however they are spelled.
+    ///
+    /// A real session recorded `New-Item ... ; Test-Path ...` as a PASSED verification
+    /// because the classifier only knew a blocklist of informational commands, and
+    /// `New-Item` was not on it. An inventory of forbidden commands will always be
+    /// incomplete, so the failure mode to guard against is "unrecognised command is
+    /// treated as evidence of correctness".
+    #[test]
+    fn filesystem_mutations_never_count_as_verification() {
+        for cmd in [
+            "New-Item -ItemType Directory -Force -Path src\\components | Out-Null; Test-Path src\\components",
+            "New-Item -ItemType Directory -Force -Path src",
+            "mkdir -p src/components",
+            "touch src/index.css",
+            "cp a.rs b.rs",
+            "mv a.rs b.rs",
+            "rm -rf dist",
+            "Set-Content -Path a.txt -Value 'x'",
+        ] {
+            assert!(
+                !is_verification_command(cmd),
+                "`{cmd}` only changes the filesystem; it proves nothing about correctness"
+            );
+        }
+    }
+
+    /// The classes of command that *are* verification must keep working, so the guard
+    /// above cannot be satisfied by simply returning `false` everywhere.
+    #[test]
+    fn genuine_verification_is_still_recognised() {
+        for cmd in [
+            "npm run build",
+            "cargo test",
+            "pytest -q",
+            "go test ./...",
+            "mkdir -p out && npm run build",
+        ] {
+            assert!(is_verification_command(cmd), "`{cmd}` must count as verification");
+        }
     }
 
     #[test]

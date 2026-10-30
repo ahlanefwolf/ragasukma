@@ -470,12 +470,24 @@ impl CustomProvider {
                             let args = func.and_then(|f| f.get("arguments")).and_then(|s| s.as_str()).unwrap_or("");
 
                             if let Some(ref tc_id) = id {
-                                entry.id = tc_id.clone();
+                                if !tc_id.trim().is_empty() {
+                                    entry.id = tc_id.clone();
+                                }
                             }
+                            // DeepSeek (via 9Router) sends `"name": ""` on every delta
+                            // after the first one. Only a non-blank name may overwrite,
+                            // otherwise the tool call ends up unnamed and the agent
+                            // fails with `Unknown tool ''`.
                             if let Some(ref tc_name) = name {
-                                entry.function.name = tc_name.clone();
+                                if !tc_name.trim().is_empty() {
+                                    entry.function.name = tc_name.clone();
+                                }
                             }
-                            entry.function.arguments.push_str(args);
+                            // Arguments are streamed in fragments; the empty-string
+                            // re-sends carry no information, so skip them.
+                            if !args.is_empty() {
+                                entry.function.arguments.push_str(args);
+                            }
 
                             callback(V1StreamEvent::ToolCallDelta {
                                 index: idx,
@@ -489,7 +501,11 @@ impl CustomProvider {
             }
         }
 
-        let tool_calls: Vec<_> = tool_calls_map.into_values().collect();
+        // Drop unnamed calls: forwarding them would surface as `Unknown tool ''`.
+        let tool_calls: Vec<_> = tool_calls_map
+            .into_values()
+            .filter(|tc| !tc.function.name.trim().is_empty())
+            .collect();
         let tool_calls_opt = if tool_calls.is_empty() {
             None
         } else {

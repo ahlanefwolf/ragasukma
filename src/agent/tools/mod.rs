@@ -154,6 +154,24 @@ pub fn get_dynamic_agent_tools_schema(mcp_tools: &[crate::agent::mcp::ActiveMcpT
     schema.push(json!({
         "type": "function",
         "function": {
+            "name": "workspace_rollback",
+            "description": "Revert files to the state they were in before this session modified them. Every write and edit is backed up automatically. Pass 'file_path' to revert a single file, or omit it to revert every file this session touched. Use this when the user rejects a change, when an edit went in the wrong direction, or when a build broke and you want to start over from a known-good state.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Optional path to a single file to revert. Omit to revert every file modified during this session."
+                    }
+                },
+                "required": []
+            }
+        }
+    }));
+
+    schema.push(json!({
+        "type": "function",
+        "function": {
             "name": "workspace_grep",
             "description": "Fast regex and literal text search across files in the workspace (ignores node_modules, target, .git, etc.). Returns up to 50 results formatted with file paths and line numbers.",
             "parameters": {
@@ -1104,6 +1122,14 @@ mod tests {
             s.pointer("/function/name").and_then(|n| n.as_str()) == Some("workspace_edit_file")
         });
         assert!(has_edit, "workspace_edit_file must be exposed in dynamic agent tools schema");
+
+        // Every write/edit backs up the file first, so the revert tool must actually be
+        // callable. A backup nobody can roll back is dead weight, which is exactly what
+        // this tool was before it was added to the schema.
+        let has_rollback = dynamic_schema.iter().any(|s| {
+            s.pointer("/function/name").and_then(|n| n.as_str()) == Some("workspace_rollback")
+        });
+        assert!(has_rollback, "workspace_rollback must be exposed so backups can be undone");
 
         // 2. Validate workspace_grep with 'folder' parameter resolves subfolder cleanly
         let grep_out = execute_tool_call(

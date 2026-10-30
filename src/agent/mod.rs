@@ -1,9 +1,12 @@
 pub mod compressor;
 pub mod context_builder;
 pub mod diagnostics;
+pub mod evidence_ranking;
+pub mod evidence_scoring;
 pub mod events;
 pub mod executor;
 pub mod languages;
+pub mod maintenance;
 pub mod mcp;
 pub mod models;
 pub mod orchestrator;

@@ -101,3 +101,59 @@ impl WorkspaceSnapshot {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The snapshot store is global and lives as long as the process.
+    ///
+    /// Nothing used to call `clear`, so every file the agent ever touched stayed resident
+    /// in memory for the lifetime of the app. A turn boundary must release it.
+    #[test]
+    fn clear_releases_every_tracked_backup() {
+        let snap = WorkspaceSnapshot::new();
+        let dir = std::env::temp_dir().join(format!("snap-clear-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("a.txt");
+        std::fs::write(&file, b"original").unwrap();
+
+        snap.backup_file(&file).unwrap();
+        assert_eq!(snap.tracked_files().len(), 1, "the file must be tracked after backup");
+
+        snap.clear();
+        assert!(
+            snap.tracked_files().is_empty(),
+            "clear must drop the backups, otherwise memory grows for the life of the process"
+        );
+
+        // Clearing is not rolling back: the file on disk stays as it is.
+        assert_eq!(std::fs::read(&file).unwrap(), b"original");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The revert tool is only worth exposing if it actually restores content and
+    /// deletes files the session created.
+    #[test]
+    fn rollback_restores_edited_content_and_removes_created_files() {
+        let snap = WorkspaceSnapshot::new();
+        let dir = std::env::temp_dir().join(format!("snap-rb-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let edited = dir.join("edited.txt");
+        let created = dir.join("created.txt");
+        std::fs::write(&edited, b"before").unwrap();
+
+        snap.backup_file(&edited).unwrap();
+        snap.backup_file(&created).unwrap(); // does not exist yet
+
+        std::fs::write(&edited, b"after").unwrap();
+        std::fs::write(&created, b"new file").unwrap();
+
+        let restored = snap.rollback_all().unwrap();
+        assert_eq!(restored.len(), 2);
+        assert_eq!(std::fs::read(&edited).unwrap(), b"before", "edited file must be restored");
+        assert!(!created.exists(), "a file created during the session must be removed");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
