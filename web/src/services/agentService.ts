@@ -70,7 +70,6 @@ export interface WorkspaceFileItem {
   name: string;
   is_dir: boolean;
   size: number;
-  line_count?: number;
 }
 
 export interface FileContentResult {

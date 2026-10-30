@@ -59,6 +59,7 @@ export const AgentSidebar: Component<{
   onInsertFileTag: (path: string) => void;
   onOpenRangePicker: (file: WorkspaceFileItem) => void;
   onCopyFileTag: (path: string) => void;
+  getLineCount: (path: string) => number | undefined;
 }> = (props) => {
   return (
     <div class="lg:col-span-4 flex flex-col space-y-2.5 min-h-0 h-full overflow-hidden">
@@ -304,6 +305,7 @@ export const AgentSidebar: Component<{
                       onOpenRange={props.onOpenRangePicker}
                       onCopyTag={props.onCopyFileTag}
                       onTagFolder={(path) => props.onInsertFileTag(path)}
+                      getLineCount={props.getLineCount}
                     />
                   )}
                 </For>

@@ -88,10 +88,29 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
     if (!autocompleteOpen()) return [];
     const q = autocompleteQuery().toLowerCase();
     const all = files.workspaceFiles();
-    if (!q) return all.slice(0, 10);
-    return all
-      .filter((f) => f.relative_path.toLowerCase().includes(q) || f.name.toLowerCase().includes(q))
-      .slice(0, 10);
+
+    // No query yet: the raw list is sorted root-folder-first, so a plain
+    // `slice(0, 10)` showed only folders and never a single real file. Prefer
+    // actual files here so "@" immediately surfaces something taggable.
+    if (!q) {
+      const realFiles = all.filter((f) => !f.is_dir);
+      return (realFiles.length > 0 ? realFiles : all).slice(0, 10);
+    }
+
+    // Rank matches: basename prefix > basename contains > path contains.
+    // `includes()` alone buried `agentService.ts` behind unrelated paths.
+    const scored: { file: WorkspaceFileItem; score: number }[] = [];
+    for (const f of all) {
+      const name = f.name.toLowerCase();
+      const path = f.relative_path.toLowerCase();
+      let score = -1;
+      if (name.startsWith(q)) score = 0;
+      else if (name.includes(q)) score = 1;
+      else if (path.includes(q)) score = 2;
+      if (score >= 0) scored.push({ file: f, score });
+    }
+    scored.sort((a, b) => a.score - b.score || a.file.relative_path.localeCompare(b.file.relative_path));
+    return scored.slice(0, 10).map((s) => s.file);
   });
 
   const selectAutocompleteFile = (file: WorkspaceFileItem) => {
@@ -348,6 +367,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
               onInsertFileTag={(path) => files.insertFileTag(path)}
               onOpenRangePicker={files.openLineRangePicker}
               onCopyFileTag={(path) => files.copyFileTag(path)}
+              getLineCount={files.getLineCount}
             />
           </div>
 
@@ -417,6 +437,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
                 autocompleteSuggestions={autocompleteSuggestions()}
                 autocompleteIndex={autocompleteIndex()}
                 onSelectAutocompleteFile={selectAutocompleteFile}
+                getLineCount={files.getLineCount}
                 setChatInputRef={(el) => (chatInputRef = el)}
                 userInput={chat.userInput()}
                 onChatInput={handleChatInput}

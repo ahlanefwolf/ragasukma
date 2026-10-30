@@ -9,7 +9,6 @@ pub struct WorkspaceFileInfo {
     pub name: String,
     pub is_dir: bool,
     pub size: u64,
-    pub line_count: Option<usize>,
 }
 
 /// Execute workspace grep across files with line-length capping and total output bounding.
@@ -180,11 +179,82 @@ pub fn run_workspace_grep(
     }))
 }
 
+/// Directory names that are never walked (pruned before descending) because they
+/// are build artifact / dependency caches. Pruning early keeps the walk O(source)
+/// instead of O(everything) — this is the single biggest RAM + latency win.
+const PRUNE_DIRS: &[&str] = &[
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    "out",
+    "coverage",
+    ".git",
+    ".hg",
+    ".svn",
+    ".venv",
+    "venv",
+    "env",
+    "__pycache__",
+    ".cache",
+    ".next",
+    ".nuxt",
+    ".output",
+    ".svelte-kit",
+    ".turbo",
+    ".parcel-cache",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".gradle",
+    ".terraform",
+    ".idea",
+    ".vscode",
+    "vendor",
+    "Pods",
+    "DerivedData",
+];
+
+/// Hard ceiling on deep nesting — avoids pathological symlink trees.
+const MAX_WALK_DEPTH: usize = 32;
+
+/// Global budget of *file* entries (directories are always kept intact so the
+/// tree structure never looks broken). 20k is far more than any human scrolls,
+/// yet bounded so a huge monorepo can't blow up the payload.
+const MAX_FILE_ENTRIES: usize = 20_000;
+
+// NOTE: line counts are deliberately NOT computed while listing the tree.
+// Counting lines requires opening and reading every file, so listing a large
+// repo meant one `open()` + full read per entry (up to MAX_FILE_ENTRIES) on
+// every project switch, with no caching. The count is pure UI decoration, and
+// the exact number is already returned by the file-content endpoint
+// (`total_lines`) the moment a file is actually opened. The UI therefore fills
+// these in lazily as the user browses. The field was removed from
+// `WorkspaceFileInfo` entirely once no consumer remained.
+
+fn is_pruned_dir(entry: &ignore::DirEntry) -> bool {
+    if entry.depth() == 0 {
+        return false;
+    }
+    let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+    if !is_dir {
+        return false;
+    }
+    let name = entry.file_name().to_string_lossy();
+    PRUNE_DIRS.iter().any(|d| name.eq_ignore_ascii_case(d))
+}
+
 /// Recursively list files across all allowed root folders in the project,
 /// strictly respecting .gitignore, git global/exclude rules, and filtering out heavy build artifacts.
+///
+/// Design goals (keep the workspace tree complete + cheap):
+/// * every directory is always emitted, so no folder ever renders as "empty";
+/// * only the *file* entries have a global budget (`MAX_FILE_ENTRIES`);
+/// * ignored/heavy directories are pruned before descending, not filtered after;
+/// * no file is opened while listing (line counts are resolved lazily by the UI).
 pub fn list_workspace_files(allowed_roots: &[String]) -> Result<Vec<WorkspaceFileInfo>> {
     let mut files = Vec::new();
-    let max_items = 2500;
+    let mut file_budget = MAX_FILE_ENTRIES;
     for root in allowed_roots {
         let r_path = Path::new(root);
         if !r_path.exists() || !r_path.is_dir() {
@@ -204,7 +274,6 @@ pub fn list_workspace_files(allowed_roots: &[String]) -> Result<Vec<WorkspaceFil
                 name: folder_name.clone(),
                 is_dir: true,
                 size: 0,
-                line_count: None,
             });
         }
 
@@ -215,37 +284,26 @@ pub fn list_workspace_files(allowed_roots: &[String]) -> Result<Vec<WorkspaceFil
             .git_global(true)
             .git_exclude(true)
             .parents(true)
-            .max_depth(Some(12));
+            .threads(1)
+            .max_depth(Some(MAX_WALK_DEPTH));
 
+        // `.gitignore` is the source of truth for what the project considers
+        // noise, so we only override OS cruft here and let the git rules do the
+        // rest. Heavy dirs are pruned structurally via `filter_entry` below,
+        // which is much cheaper than post-filtering every descendant.
         let mut overrides = ignore::overrides::OverrideBuilder::new(r_path);
-        let _ = overrides.add("!.git");
-        let _ = overrides.add("!.git/**");
-        let _ = overrides.add("!node_modules");
-        let _ = overrides.add("!node_modules/**");
-        let _ = overrides.add("!target");
-        let _ = overrides.add("!target/**");
-        let _ = overrides.add("!dist");
-        let _ = overrides.add("!dist/**");
-        let _ = overrides.add("!build");
-        let _ = overrides.add("!build/**");
-        let _ = overrides.add("!.venv");
-        let _ = overrides.add("!.venv/**");
-        let _ = overrides.add("!venv");
-        let _ = overrides.add("!venv/**");
-        let _ = overrides.add("!__pycache__");
-        let _ = overrides.add("!__pycache__/**");
-        let _ = overrides.add("!.cache");
-        let _ = overrides.add("!.cache/**");
         let _ = overrides.add("!.DS_Store");
         let _ = overrides.add("!Thumbs.db");
+        let _ = overrides.add("!*.swp");
+        let _ = overrides.add("!*.swo");
         if let Ok(ov) = overrides.build() {
             builder.overrides(ov);
         }
 
+        // Prune artifact/cache directories *before* descending (never walked).
+        builder.filter_entry(|entry| !is_pruned_dir(entry));
+
         for result in builder.build() {
-            if files.len() >= max_items {
-                break;
-            }
             let entry = match result {
                 Ok(e) => e,
                 Err(_) => continue,
@@ -263,6 +321,14 @@ pub fn list_workspace_files(allowed_roots: &[String]) -> Result<Vec<WorkspaceFil
             }
 
             let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+
+            // Directories are ALWAYS kept (complete tree); only files are budgeted.
+            if !is_dir {
+                if file_budget == 0 {
+                    continue;
+                }
+                file_budget -= 1;
+            }
 
             let inner_rel = path
                 .strip_prefix(r_path)
@@ -283,18 +349,11 @@ pub fn list_workspace_files(allowed_roots: &[String]) -> Result<Vec<WorkspaceFil
                 entry.metadata().map(|m| m.len()).unwrap_or(0)
             };
 
-            let line_count = if !is_dir && size < 500_000 {
-                fs::read_to_string(path).ok().map(|c| c.lines().count())
-            } else {
-                None
-            };
-
             files.push(WorkspaceFileInfo {
                 relative_path: rel_path,
                 name,
                 is_dir,
                 size,
-                line_count,
             });
         }
     }

@@ -14,13 +14,33 @@ export function useWorkspaceFiles(
   const [loadingFiles, setLoadingFiles] = createSignal(false);
   const [fileSearch, setFileSearch] = createSignal('');
 
+  // Lazily-populated `relative_path -> total_lines` cache.
+  //
+  // The backend no longer counts lines while listing the tree (that required
+  // opening & reading every file on every project switch). The authoritative
+  // exact count comes back as `total_lines` from the file-content endpoint, so
+  // we simply record it whenever a file is actually opened. Badges fill in as
+  // the user browses and reset when switching projects.
+  const [lineCounts, setLineCounts] = createSignal<{ [path: string]: number }>({});
+
+  const getLineCount = (relPath: string): number | undefined => lineCounts()[relPath];
+
+  const rememberLineCount = (relPath: string, total: number | undefined | null) => {
+    if (typeof total !== 'number' || !Number.isFinite(total) || total <= 0) return;
+    setLineCounts((prev) => (prev[relPath] === total ? prev : { ...prev, [relPath]: total }));
+  };
+
   // Tree View Expand/Collapse state
   const [expandedDirs, setExpandedDirs] = createSignal<{ [path: string]: boolean }>({});
 
   const toggleDir = (dirPath: string) => {
+    // Toggle against the *effective* visibility (see `isDirExpanded`), not the
+    // raw map value. Nested dirs default to collapsed and root dirs to
+    // expanded, so inverting `prev[path]` directly made the first click on any
+    // nested folder a no-op ("files won't open / won't show up").
     setExpandedDirs((prev) => ({
       ...prev,
-      [dirPath]: prev[dirPath] !== undefined ? !prev[dirPath] : false,
+      [dirPath]: !isDirExpanded(dirPath),
     }));
   };
 
@@ -70,6 +90,8 @@ export function useWorkspaceFiles(
       const files = await agentService.getProjectFiles(projectId);
       if (requestToken !== filesRequestToken || selectedProjectId() !== projectId) return;
       setWorkspaceFiles(files);
+      // Line counts are per-project; stale numbers must not leak across projects.
+      setLineCounts({});
     } catch (e) {
       console.error(e);
     } finally {
@@ -222,6 +244,10 @@ export function useWorkspaceFiles(
     setLoadingFilePreview(true);
     try {
       const res = await agentService.getFileContent(projId, file.relative_path);
+      // Record the exact backend line count even if the user has since opened a
+      // different file: the cache is keyed by path, so a late response is still
+      // correct and simply stops the badge from staying blank forever.
+      rememberLineCount(file.relative_path, res?.total_lines);
       if (requestId === previewRequestId && selectedFileForTag()?.relative_path === file.relative_path) {
         setFilePreview(res?.content ?? null);
       }
@@ -355,6 +381,7 @@ export function useWorkspaceFiles(
     loadingFilePreview,
     insertFileTag,
     copyFileTag,
+    getLineCount,
     openLineRangePicker,
     closeLineRangePicker,
     highlightedCodeLines,

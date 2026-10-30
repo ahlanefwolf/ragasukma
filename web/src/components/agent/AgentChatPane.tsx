@@ -56,6 +56,8 @@ export const AgentChatPane: Component<{
   autocompleteSuggestions: WorkspaceFileItem[];
   autocompleteIndex: number;
   onSelectAutocompleteFile: (file: WorkspaceFileItem) => void;
+  /** Lazily-known line count for a path (undefined until the file is opened). */
+  getLineCount: (path: string) => number | undefined;
   setChatInputRef: (el: HTMLTextAreaElement) => void;
   userInput: string;
   onChatInput: (e: InputEvent & { currentTarget: HTMLTextAreaElement }) => void;
@@ -543,8 +545,10 @@ export const AgentChatPane: Component<{
                         <span class="text-2xs opacity-50 truncate">@{file.relative_path}</span>
                       </div>
                       <Show when={file.is_dir} fallback={
-                        <Show when={file.line_count !== undefined && file.line_count !== null}>
-                          <span class="text-2xs opacity-40 shrink-0 ml-2">{file.line_count}L</span>
+                        <Show when={props.getLineCount(file.relative_path) !== undefined}>
+                          <span class="text-2xs opacity-40 shrink-0 ml-2">
+                            {props.getLineCount(file.relative_path)}L
+                          </span>
                         </Show>
                       }>
                         <span class="text-2xs text-gi-status-warning/80 shrink-0 ml-2 font-mono">folder</span>

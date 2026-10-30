@@ -27,6 +27,12 @@ export const FileTreeNodeRow: Component<{
   onOpenRange: (file: WorkspaceFileItem) => void;
   onCopyTag: (path: string) => void;
   onTagFolder: (path: string) => void;
+  /**
+   * Lazily-known line count for a path. The backend no longer counts lines
+   * while listing the tree, so this returns `undefined` until the file has
+   * been opened at least once in this session.
+   */
+  getLineCount: (path: string) => number | undefined;
 }> = (props) => {
   return (
     <div>
@@ -53,9 +59,9 @@ export const FileTreeNodeRow: Component<{
             </div>
 
             <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-              <Show when={props.node.item?.line_count !== undefined && props.node.item?.line_count !== null}>
+              <Show when={props.getLineCount(props.node.path) !== undefined}>
                 <span class="text-2xs text-theme-text/70 font-mono mr-1">
-                  {props.node.item?.line_count}L
+                  {props.getLineCount(props.node.path)}L
                 </span>
               </Show>
               {/* Range Picker Button */}
@@ -142,6 +148,7 @@ export const FileTreeNodeRow: Component<{
                       onOpenRange={props.onOpenRange}
                       onCopyTag={props.onCopyTag}
                       onTagFolder={props.onTagFolder}
+                      getLineCount={props.getLineCount}
                     />
                   )}
                 </For>
