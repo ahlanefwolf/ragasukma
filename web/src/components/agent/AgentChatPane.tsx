@@ -1,23 +1,14 @@
 import { Component, For, Show, createMemo, createSignal, createEffect, onCleanup } from 'solid-js';
-import { 
-  MessageSquare, 
-  Cpu, 
-  RefreshCw, 
-  Bot, 
-  Plus, 
-  Sparkles, 
-  Wrench, 
-  Brain, 
-  ChevronDown, 
-  ChevronUp, 
-  AtSign, 
-  FileCode, 
-  Folder, 
-  Send, 
-  Loader2,
+import {
+  MessageSquare,
+  Cpu,
+  RefreshCw,
+  ChevronDown,
+  AtSign,
+  FileCode,
+  Folder,
+  Send,
   Square,
-  History,
-  ArrowDown,
   FolderGit2,
   ExternalLink,
   Download,
@@ -27,15 +18,14 @@ import {
   X,
   Zap,
   ArrowDownToLine,
-  ArrowUpToLine
+  ArrowUpToLine,
 } from 'lucide-solid';
 import { Project, AgentSession, AgentMessage, WorkspaceFileItem } from '../../services';
 import { MarkdownView } from './MarkdownView';
 import { ToolCallCard, ToolResultCard, GitDiffViewer, parseToolCalls, formatToolOutput } from './ToolCards';
 import { countMessageLines } from './highlightUtils';
 import { SearchableSelect } from '../SearchableSelect';
-import { ThoughtBubble, UserMessageBody } from './MessageBubbles';
-import { MessageList, MessageListProps } from './MessageList';
+import { MessageList } from './MessageList';
 
 export const AgentChatPane: Component<{
   currentProject: Project | null | undefined;

@@ -1,4 +1,4 @@
-import { createSignal, createMemo, onMount } from 'solid-js';
+import { createSignal, createMemo } from 'solid-js';
 import { 
   agentService, 
   Project, 

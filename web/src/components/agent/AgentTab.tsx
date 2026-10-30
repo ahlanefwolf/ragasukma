@@ -1,4 +1,4 @@
-import { Component, createSignal, onMount, Show, createMemo, createEffect, onCleanup } from 'solid-js';
+import { Component, createSignal, onMount, Show, createMemo, createEffect } from 'solid-js';
 import { 
   FolderGit2, 
   Layers, 
