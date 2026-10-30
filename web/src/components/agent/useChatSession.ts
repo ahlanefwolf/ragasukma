@@ -415,8 +415,10 @@ export function useChatSession(
       // Validate each condition separately after API call completes
       if (requestToken !== sessionsRequestToken) return;
       if (selectedProjectId() !== projectId) return;
-      if (selectedSessionId() !== selectionAtRequest) return;
+      // The fetched list is always safe to apply — only the auto-selection below
+      // must respect a selection the user made while this request was in flight.
       setSessions(sess);
+      if (selectedSessionId() !== selectionAtRequest) return;
       const savedSess = localStorage.getItem(`ragasukma_active_session_id:${projectId}`);
       const targetSess = (savedSess && sess.some(s => s.id === savedSess)) ? savedSess : (sess[0]?.id ?? null);
 
