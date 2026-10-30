@@ -96,9 +96,12 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
   const [extensionModalOpen, setExtensionModalOpen] = createSignal(false);
   const [appsModalOpen, setAppsModalOpen] = createSignal(false);
 
-  onMount(async () => {
-    const cfg = await api.getConfig();
-    if (cfg) {
+  onMount(() => {
+    let disposed = false;
+
+    const loadConfig = async () => {
+      const cfg = await api.getConfig();
+      if (disposed || !cfg) return;
       setAssistantName(cfg.assistant_name);
       setTtsEngineName(
         cfg.tts_voice_name
@@ -106,7 +109,9 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
           : `Supertonic F4 (${cfg.lang || 'en'})`
       );
       setVoiceInterruption(Boolean(cfg.voice_interruption));
-    }
+    };
+
+    void loadConfig();
 
     const handleConfigUpdated = (e: CustomEvent) => {
       const updated = e.detail;
@@ -183,6 +188,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     setMicActive(true);
 
     onCleanup(() => {
+      disposed = true;
       window.removeEventListener('ragasukma:config_updated' as any, handleConfigUpdated);
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
