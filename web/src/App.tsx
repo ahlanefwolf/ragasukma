@@ -1,4 +1,4 @@
-import { Component, createSignal, createEffect, onMount, onCleanup, Show } from 'solid-js';
+import { Component, createSignal, createEffect, onMount, onCleanup, Show, lazy, Suspense } from 'solid-js';
 import { Sidebar } from './components/Sidebar';
 import { MenuTab } from './components/MenuTab';
 import { RecipesTab } from './components/RecipesTab';
@@ -14,7 +14,7 @@ import { AntigravityTab } from './components/AntigravityTab';
 import { CodexTab } from './components/CodexTab';
 import { ClaudeTab } from './components/ClaudeTab';
 import { CustomLlmTab } from './components/CustomLlmTab';
-import { AgentTab } from './components/agent/AgentTab';
+const AgentTab = lazy(() => import('./components/agent/AgentTab').then((m) => ({ default: m.AgentTab })));
 import { RemoteTab } from './components/RemoteTab';
 import { MobileClientView } from './components/MobileClientView';
 import { BottomPlayer } from './components/BottomPlayer';
@@ -22,7 +22,7 @@ import { ModelLoadingOverlay } from './components/ModelLoadingOverlay';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ModelDownloadStatus } from './services/eventsService';
 import { initGlobalAudio, killGlobalAudio, currentTrack, isPlaying, isPaused } from './playerStore';
-import { Menu as MenuIcon, X } from 'lucide-solid';
+import { Menu as MenuIcon, X, Bot } from 'lucide-solid';
 import { api, killCurrentSession } from './api';
 import { VoiceSessionManager } from './services/voiceSession';
 
@@ -411,7 +411,22 @@ const App: Component = () => {
                 </Show>
 
                 <Show when={activeTab() === 'agent'}>
-                  <AgentTab showToast={showToast} />
+                  <Suspense
+                    fallback={
+                      <div class="h-full w-full flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[400px]">
+                        <div class="relative flex items-center justify-center mb-4">
+                          <div class="w-12 h-12 rounded-full border-2 border-theme-cyan/20 border-t-theme-cyan animate-spin" />
+                          <Bot class="w-5 h-5 text-theme-cyan absolute" />
+                        </div>
+                        <h3 class="text-sm font-semibold text-theme-text mb-1 tracking-wide">Loading Agent Workspace...</h3>
+                        <p class="text-xs text-theme-text/50 max-w-sm">
+                          Please wait while the agent environment and components are being loaded.
+                        </p>
+                      </div>
+                    }
+                  >
+                    <AgentTab showToast={showToast} />
+                  </Suspense>
                 </Show>
 
                 <Show when={activeTab() === 'recipes'}>

@@ -3,7 +3,8 @@ import {
   FolderGit2, 
   Layers, 
   Sparkles, 
-  Server
+  Server,
+  RefreshCw
 } from 'lucide-solid';
 import { 
   agentService, 
@@ -298,7 +299,22 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
 
       {/* ── SUB-TAB: PROJECTS & WORKSPACES ─────────────────────────────── */}
       <Show when={ws.activeSubTab() === 'projects'}>
-        <div class="flex-1 flex flex-row gap-2.5 min-h-0 overflow-hidden">
+        <Show
+          when={!ws.loading() || ws.projects().length > 0}
+          fallback={
+            <div class="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[400px]">
+              <div class="relative flex items-center justify-center mb-4">
+                <div class="w-10 h-10 rounded-full border-2 border-theme-cyan/20 border-t-theme-cyan animate-spin" />
+                <RefreshCw class="w-4 h-4 text-theme-cyan absolute animate-spin" />
+              </div>
+              <h4 class="text-sm font-semibold text-theme-text mb-1 tracking-wide">Loading Workspace...</h4>
+              <p class="text-xs text-theme-text/50 max-w-xs">
+                Fetching projects, sessions, and agent configuration.
+              </p>
+            </div>
+          }
+        >
+          <div class="flex-1 flex flex-row gap-2.5 min-h-0 overflow-hidden">
           {/* Left Column: Projects List & Sessions */}
           <div class="w-72 xl:w-80 shrink-0 flex flex-col min-h-0 h-full overflow-hidden">
             <AgentSidebar
@@ -495,6 +511,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
             </div>
           </Show>
         </div>
+        </Show>
       </Show>
 
       {/* ── SUB-TAB: MCP SERVERS REGISTRY ──────────────────────────────── */}

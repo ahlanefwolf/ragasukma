@@ -125,13 +125,13 @@ export const CustomLlmTab: Component<{ showToast: (message: string) => void }> =
       </div>
       <div class="grid gap-4 md:grid-cols-2">
         <label class="block text-xs font-semibold text-theme-text/80">Prefix
-          <input required value={form().prefix} onInput={e => setForm({ ...form(), prefix: e.currentTarget.value })} placeholder="e.g. or or local" class={fieldClass} />
+          <input required value={form().prefix} onInput={e => setForm({ ...form(), prefix: e.currentTarget.value })} placeholder="e.g. 9r or or" class={fieldClass} />
         </label>
         <label class="block text-xs font-semibold text-theme-text/80">Account name
-          <input required value={form().name} onInput={e => setForm({ ...form(), name: e.currentTarget.value })} placeholder="OpenRouter" class={fieldClass} />
+          <input required value={form().name} onInput={e => setForm({ ...form(), name: e.currentTarget.value })} placeholder="e.g. 9router or OpenRouter" class={fieldClass} />
         </label>
         <label class="block text-xs font-semibold text-theme-text/80 md:col-span-2">Base URL
-          <input required type="url" value={form().base_url} onInput={e => setForm({ ...form(), base_url: e.currentTarget.value })} placeholder="https://openrouter.ai/api/v1" class={fieldClass} />
+          <input required type="url" value={form().base_url} onInput={e => setForm({ ...form(), base_url: e.currentTarget.value })} placeholder="e.g. http://localhost:20128/v1 or https://openrouter.ai/api/v1" class={fieldClass} />
         </label>
         <label class="block text-xs font-semibold text-theme-text/80 md:col-span-2">API key
           <input type="password" value={form().api_key} onInput={e => setForm({ ...form(), api_key: e.currentTarget.value })} placeholder="Enter API key" class={fieldClass} />
