@@ -47,6 +47,7 @@
 - **Desktop 3D VRM Companion**:
   - Lightweight transparent 3D window overlay with MToon cel-shaded rendering.
   - Full Verlet Spring Bone physics synchronization for realistic hair and clothing movement, gravity, and body colliders.
+  - **Custom Model Support & Hot-Reload**: Easily swap the default avatar with any `.vrm` 3D model (created via [VRoid Studio](https://vroid.com/studio), Blender, or downloaded from Booth / VRoid Hub) directly from the Web Dashboard or by replacing `assets/char.vrm`.
 - **Emotion & Lip-Sync Synchronization**:
   - Real-time AIUEO lip-sync matched to speech audio playback.
   - Dynamic facial expressions and automatic eye-blinking reflecting 8 canonical emotions (*happy*, *shy*, *excited*, *surprised*, *thinking*, *sad*, *angry*, *neutral*).
@@ -118,6 +119,23 @@ Once launched, the floating 3D avatar appears on your desktop and the web contro
 1. Navigate to the **Main Menu** on the dashboard.
 2. Click **Start Conversation (Enable AI)**.
 3. Speak directly into your microphone to chat, trigger browser actions, play music, or clone your favorite voice character!
+
+### 3. Customizing Your 3D Avatar (.vrm)
+You can replace the avatar with any 3D character model you like at any time:
+- **Via Web Dashboard**: Open `http://127.0.0.1:42128` -> Go to **Settings** tab -> **Avatar & 3D Model** -> Click **Select VRM File (.vrm)**. The new avatar will be uploaded and hot-reloaded immediately on your desktop without restarting the app.
+- **Via Local File**: Replace `assets/char.vrm` (or place your `.vrm` in your application data directory).
+- **Create Your Own**: You can design and export your own free custom avatar in minutes using [VRoid Studio](https://vroid.com/studio).
+
+---
+
+## Acknowledgements & Credits
+
+Special thanks to the following open-source projects, research teams, and creators:
+- **[Supertonic 3](https://supertonic3.github.io/)**: Ultra-fast on-device neural Text-to-Speech architecture.
+- **[OpenVoice (MyShell.ai)](https://github.com/myshell-ai/openvoice)**: Versatile instant zero-shot voice cloning and tone color conversion.
+- **[9router](https://github.com/decolua/9router)**: Architectural inspiration and reference for multi-provider LLM routing.
+- **[oh-my-pi](https://github.com/can1357/oh-my-pi)**: Reference implementation for the AI harness.
+- **[VRoid Hub](https://hub.vroid.com/) & [miHoYo / HoYoverse](https://www.hoyoverse.com/)**: Default preview 3D model ("Navia" character design © miHoYo). Provided as a sample avatar for demonstration and testing purposes; users can freely replace it with their own custom VRM models.
 
 ---
 

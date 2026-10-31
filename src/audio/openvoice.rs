@@ -1,3 +1,12 @@
+//! OpenVoice V2 Tone Color Converter & Speaker Embedding Pipeline
+//!
+//! Adapted from OpenVoice by MyShell.ai:
+//! - Repository: https://github.com/myshell-ai/openvoice
+//! - Paper: OpenVoice: Versatile Instant Voice Cloning (Qin et al.)
+//!
+//! Implements high-performance DSP (Radix-2 FFT, STFT spectrogram)
+//! and ONNX Tone Color Converter for zero-shot voice morphing.
+
 use anyhow::{Result, anyhow};
 use ort::ep::CPU;
 use ort::session::Session;

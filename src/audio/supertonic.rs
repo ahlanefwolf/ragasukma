@@ -1,3 +1,11 @@
+//! Supertonic-3 Pure Rust ONNX TTS Engine
+//!
+//! Based on Supertonic-3 on-device neural speech synthesis:
+//! - Project / Web: https://supertonic3.github.io/
+//!
+//! Handles text encoding, duration prediction, iterative flow-matching
+//! vector estimation, and neural vocoding via ONNX Runtime.
+
 use anyhow::{Result, anyhow};
 use ort::ep::CPU;
 use ort::session::Session;
