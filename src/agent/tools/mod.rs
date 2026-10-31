@@ -223,7 +223,7 @@ pub fn get_dynamic_agent_tools_schema(mcp_tools: &[crate::agent::mcp::ActiveMcpT
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": "Full shell command to execute. Supports chaining with '&&'."
+                        "description": "Full shell command to execute. Multiple sequential commands can be combined (use ';' on Windows PowerShell, '&&' on Unix)."
                     },
                     "cwd": {
                         "type": "string",

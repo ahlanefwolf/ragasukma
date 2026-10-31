@@ -41,13 +41,19 @@ fn build_static_prompt(
         .unwrap_or("run project verification or test commands if available");
 
     #[cfg(target_os = "windows")]
-    let shell_desc = "PowerShell. Use native PowerShell syntax for scripts and paths.";
+    let shell_desc = "PowerShell. Use native PowerShell syntax for scripts and paths. For multiple commands in one execution, use ';' as separator (do not use '&&' as Windows PowerShell 5.1 does not support it).";
 
     #[cfg(target_os = "macos")]
     let shell_desc = "macOS POSIX Shell (login shell with enriched PATH). Use standard Unix shell syntax.";
 
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     let shell_desc = "Linux POSIX Shell (login shell with enriched PATH). Use standard Unix/Linux shell syntax.";
+
+    #[cfg(target_os = "windows")]
+    let multiple_cmd_hint = "When running sequential terminal commands, combine them into a single execution to save turn latency: use ';' (e.g. `cmd1 ; cmd2`) on Windows PowerShell instead of '&&'.";
+
+    #[cfg(not(target_os = "windows"))]
+    let multiple_cmd_hint = "When running sequential terminal commands, combine them into a single execution (chain with '&&') to save turn latency.";
 
     // Real limit taken from TurnState, so the prompt never advertises a budget the
     // runtime does not enforce.
@@ -77,7 +83,7 @@ fn build_static_prompt(
             - When inspecting large files, use `workspace_read_file` with `start_line` and `end_line` around the target function/area rather than reading the entire file. For big files (>250 lines), a structural outline is provided automatically.\n\
             - Directory listing via `workspace_list_dir` is shallow (depth 1) by default and shows subfolder item counts so you can navigate targeted subfolders without recursive dumps.\n\
             - Avoid redundant reads of the same file. Formulate changes and apply them directly.\n\
-            - When running sequential terminal commands, chain them with `&&` where appropriate to save turn latency.\n\
+            - {}\n\
             - Do not run unnecessary exploratory commands (e.g. git logs, unprompted status checks) when the goal is direct code editing.\n\
          4. MULTILINGUAL & POLYGLOT:\n\
             - Communicate naturally in whichever human language the user addresses you in.\n\
@@ -92,7 +98,7 @@ fn build_static_prompt(
             - Never mark a checklist item as completed `[x]` or claim a feature is implemented without physically verifying that every requested file was actually created and non-empty (via `workspace_list_dir` or `workspace_read_file`) and that required exports/logic exist.\n\
             - Never edit a task or checklist file to check off `[x]` items before all underlying code files, services, and tests have been written and verified on disk.\n\
          </core-guidelines>\n\n",
-        os_name, arch_name, shell_desc, verifier_hint, max_iterations
+        os_name, arch_name, shell_desc, verifier_hint, max_iterations, multiple_cmd_hint
     );
 
     if !allowed_folders.is_empty() {
