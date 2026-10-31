@@ -4,13 +4,6 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, RwLock};
 
-/// Embedded fallback dictionary for Indonesian (compile-time zero failure guarantee)
-const EMBEDDED_ID_JSON: &str = include_str!("../../assets/i18n/id.json");
-/// Embedded fallback dictionary for English
-const EMBEDDED_EN_JSON: &str = include_str!("../../assets/i18n/en.json");
-/// Embedded fallback dictionary for Japanese
-const EMBEDDED_JA_JSON: &str = include_str!("../../assets/i18n/ja.json");
-
 /// Raw dictionary structure matching `assets/i18n/{lang}.json`
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LocaleIntentData {
@@ -89,14 +82,9 @@ pub fn load_locale_data(lang: &str) -> LocaleIntentData {
 
     // 2. Fallback to embedded compile-time JSON if filesystem was empty or missing
     if data.music.is_empty() {
-        let embedded_content = match norm.as_str() {
-            "id" => Some(EMBEDDED_ID_JSON),
-            "en" => Some(EMBEDDED_EN_JSON),
-            "ja" => Some(EMBEDDED_JA_JSON),
-            _ => None,
-        };
-        if let Some(raw) = embedded_content {
-            if let Ok(parsed) = serde_json::from_str::<LocaleIntentData>(raw) {
+        let asset_path = format!("i18n/{norm}.json");
+        if let Some(embedded_file) = crate::assets::EmbeddedAssets::get(&asset_path) {
+            if let Ok(parsed) = serde_json::from_slice::<LocaleIntentData>(&embedded_file.data) {
                 data = parsed;
             }
         }
@@ -392,5 +380,13 @@ mod tests {
                 "Language {lang} failed to match universal browser command"
             );
         }
+    }
+
+    #[test]
+    fn test_embedded_assets_presence() {
+        assert!(crate::assets::EmbeddedAssets::get("char.vrm").is_some(), "char.vrm must be embedded");
+        assert!(crate::assets::EmbeddedAssets::get("ragasukma-companion.zip").is_some(), "ragasukma-companion.zip must be embedded");
+        assert!(crate::assets::EmbeddedAssets::get("i18n/id.json").is_some(), "i18n/id.json must be embedded");
+        assert!(crate::assets::EmbeddedAssets::get("i18n/en.json").is_some(), "i18n/en.json must be embedded");
     }
 }
