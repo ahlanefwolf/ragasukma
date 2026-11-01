@@ -27,12 +27,12 @@ jobs:
             os_name: "linux"
 
           # ------------------------------------------------------------------
-          # Windows (x86_64 NSIS Installer / .exe)
+          # Windows (x86_64 NSIS Installer / .exe) - Already released
           # ------------------------------------------------------------------
-          - platform: "windows-latest"
-            target: "x86_64-pc-windows-msvc"
-            package_format: "nsis"
-            os_name: "windows"
+          # - platform: "windows-latest"
+          #   target: "x86_64-pc-windows-msvc"
+          #   package_format: "nsis"
+          #   os_name: "windows"
 
           # ------------------------------------------------------------------
           # macOS (Apple Silicon / aarch64 DMG) - Temporarily disabled
@@ -64,6 +64,7 @@ jobs:
             pkg-config \
             libssl-dev \
             libasound2-dev \
+            libdbus-1-dev \
             squashfs-tools \
             libfuse2
 
