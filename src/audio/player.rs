@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::OnceLock;
 use std::sync::atomic::Ordering;
 
 static CURRENT_TITLE: Mutex<Option<String>> = Mutex::new(None);
@@ -31,7 +30,7 @@ static PLAYBACK_STATE: Mutex<MusicPlayState> = Mutex::new(MusicPlayState {
     is_playing: false,
 });
 
-static AUDIO_HANDLE: OnceLock<Option<rodio::OutputStreamHandle>> = OnceLock::new();
+static AUDIO_HANDLE: Mutex<Option<rodio::OutputStreamHandle>> = Mutex::new(None);
 static NATIVE_MUSIC_SINK: Mutex<Option<rodio::Sink>> = Mutex::new(None);
 static NATIVE_VOICE_SINK: Mutex<Option<Arc<rodio::Sink>>> = Mutex::new(None);
 static VOICE_PLAYBACK_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -145,18 +144,107 @@ pub fn get_current_lip_sync_weights() -> LipSyncWeights {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn setup_linux_audio_env() {
+    static INIT_DONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if INIT_DONE.swap(true, Ordering::SeqCst) {
+        return;
+    }
+
+    // 1. Detect PipeWire / PulseAudio runtime sockets
+    if let Ok(xdg_runtime) = std::env::var("XDG_RUNTIME_DIR") {
+        let runtime_path = Path::new(&xdg_runtime);
+        let pw_socket = runtime_path.join("pipewire-0");
+        let pulse_socket = runtime_path.join("pulse/native");
+
+        if pw_socket.exists() {
+            crate::term_log!("[Audio] Detected active PipeWire audio server: {}", pw_socket.display());
+        } else if pulse_socket.exists() {
+            crate::term_log!("[Audio] Detected active PulseAudio server: {}", pulse_socket.display());
+        }
+
+        // Set PULSE_SERVER fallback if pulse socket exists and not yet defined
+        if pulse_socket.exists() && std::env::var_os("PULSE_SERVER").is_none() {
+            let pulse_val = format!("unix:{}", pulse_socket.display());
+            // SAFETY: Inisialisasi awal sebelum stream audio dijalankan
+            unsafe {
+                std::env::set_var("PULSE_SERVER", &pulse_val);
+            }
+            crate::term_log!("[Audio] Configured PULSE_SERVER={pulse_val}");
+        }
+    }
+
+    // 2. Ensure ALSA_CONFIG_PATH is set so ALSA can read host configuration
+    if std::env::var_os("ALSA_CONFIG_PATH").is_none() {
+        for candidate in ["/usr/share/alsa/alsa.conf", "/etc/alsa/alsa.conf"] {
+            if Path::new(candidate).exists() {
+                // SAFETY: Inisialisasi awal sebelum stream audio dibuka
+                unsafe {
+                    std::env::set_var("ALSA_CONFIG_PATH", candidate);
+                }
+                crate::term_log!("[Audio] Configured ALSA_CONFIG_PATH={candidate}");
+                break;
+            }
+        }
+    }
+
+    // 3. Ensure ALSA_PLUGIN_DIR is set to discover host PCM plugins (PipeWire/PulseAudio)
+    if std::env::var_os("ALSA_PLUGIN_DIR").is_none() {
+        let plugin_candidates = [
+            "/usr/lib64/alsa-lib",
+            "/usr/lib/x86_64-linux-gnu/alsa-lib",
+            "/usr/lib/alsa-lib",
+            "/usr/local/lib/alsa-lib",
+        ];
+        for dir in plugin_candidates {
+            let p = Path::new(dir);
+            if p.is_dir() {
+                if let Ok(entries) = std::fs::read_dir(p) {
+                    let has_so = entries.flatten().any(|e| {
+                        e.path()
+                            .extension()
+                            .and_then(|s| s.to_str())
+                            == Some("so")
+                    });
+                    if has_so {
+                        // SAFETY: Inisialisasi awal sebelum libasound memuat modul plugin
+                        unsafe {
+                            std::env::set_var("ALSA_PLUGIN_DIR", dir);
+                        }
+                        crate::term_log!("[Audio] Configured ALSA_PLUGIN_DIR={dir}");
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn get_audio_handle() -> Option<rodio::OutputStreamHandle> {
-    AUDIO_HANDLE
-        .get_or_init(|| {
-            rodio::OutputStream::try_default()
-                .ok()
-                .map(|(stream, handle)| {
-                    // Keep stream alive throughout application runtime
-                    Box::leak(Box::new(stream));
-                    handle
-                })
-        })
-        .clone()
+    if let Ok(guard) = AUDIO_HANDLE.lock() {
+        if let Some(handle) = guard.as_ref() {
+            return Some(handle.clone());
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    setup_linux_audio_env();
+
+    match rodio::OutputStream::try_default() {
+        Ok((stream, handle)) => {
+            // Keep stream alive throughout application runtime
+            Box::leak(Box::new(stream));
+            if let Ok(mut guard) = AUDIO_HANDLE.lock() {
+                *guard = Some(handle.clone());
+            }
+            crate::term_log!("[Audio] Output stream audio berhasil diinisialisasi");
+            Some(handle)
+        }
+        Err(e) => {
+            crate::term_log!("[Audio Error] Gagal inisialisasi output audio: {e}");
+            None
+        }
+    }
 }
 
 pub struct VoiceChunk {
