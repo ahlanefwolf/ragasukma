@@ -7,7 +7,8 @@
 
   [![Release](https://img.shields.io/github/v/release/ahlanefwolf/ragasukma?style=flat-square&color=7BDFF2)](https://github.com/ahlanefwolf/ragasukma/releases)
   [![Platform](https://img.shields.io/badge/Platform-Linux_%7C_Windows_%7C_macOS-2F3B46?style=flat-square)](https://github.com/ahlanefwolf/ragasukma/releases)
-  [![License](https://img.shields.io/badge/License-Proprietary-F2B5D4?style=flat-square)](https://github.com/ahlanefwolf/ragasukma)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-F2B5D4?style=flat-square)](LICENSE)
+  [![Donate](https://img.shields.io/badge/Donate-SociaBuzz-FF7043?style=flat-square&logo=coffeescript&logoColor=white)](https://sociabuzz.com/ahlanefwolf)
 
   <p align="center">
     A high-performance desktop AI companion and autonomous agent built in native Rust. Features an interactive transparent 3D avatar overlay, instant zero-shot voice cloning, hands-free browser automation, background music streaming, an autonomous coding engine, a local OpenAI-compatible API router, and encrypted remote mobile access via Cloudflare Tunnel.
@@ -22,13 +23,13 @@
 
 ## Previews & Showcase
 
-### Web Control Dashboard & Configuration
-<img src="previews/application-2.webp" alt="Web Control Dashboard & Configuration" width="100%" />
+### Agent Harness Workspace
+<img src="previews/application-2.webp" alt="Agent Harness Workspace" width="100%" />
 
 ### Mobile Web Companion (Remote Access)
-| Mobile 3D Avatar Companion | Remote Pairing & Controls | Remote Agent & Task Monitoring |
+| Mobile 3D Avatar Companion | Remote Pairing & Controls | AI Agent |
 | :---: | :---: | :---: |
-| ![Mobile 3D Avatar Companion](previews/remote-1.webp) | ![Remote Pairing & Controls](previews/remote-2.webp) | ![Remote Agent & Task Monitoring](previews/remote-3.webp) |
+| ![Mobile 3D Avatar Companion](previews/remote-1.webp) | ![Remote Pairing & Controls](previews/remote-2.webp) | ![Chat AI Assistant](previews/remote-3.webp) |
 
 ---
 
@@ -82,14 +83,14 @@
 
 ### 2. Interactive 3D Avatar (Desktop Companion)
 - **Transparent Desktop Overlay**:
-  - Borderless, transparent window that floats on top of your desktop while you work, study, or game.
+  - Borderless, transparent window powered by native Rust (`winit` + `wgpu`) that floats on top of your desktop while you work, study, or game.
   - Click-through and repositionable modes allow you to place your companion anywhere on screen without obstructing your workflow.
-- **Expressive 3D Character Physics**:
-  - Powered by Three.js and `@pixiv/three-vrm` with full support for spring bone dynamics (hair, clothing, ribbons) that react to head turns and mouse movement.
+- **Native GPU Shading & Physics (WGSL)**:
+  - Hardware-accelerated native rendering pipeline written in WGSL with MToon cel-shading, realistic lighting, and smooth spring bone dynamics (hair, clothing, ribbons) that react to head turns and mouse movement.
   - Dynamic facial blendshapes reflecting emotional states (*happy, shy, excited, surprised, thinking, sad, and neutral*).
   - Accurate viseme lip-sync matching audio phonemes in real time.
 - **Swap Any 3D Character Model (.vrm)**:
-  - 100% compatible with the universal VRM 0.0 and VRM 1.0 standard.
+  - 100% compatible with universal VRM 0.0 and VRM 1.0 standards loaded directly by the native parser.
   - Load your favorite avatars from [VRoid Hub](https://hub.vroid.com/) or design your own custom character in minutes using [VRoid Studio](https://vroid.com/studio).
   - Swap models on the fly through the web settings panel without restarting the application.
 
@@ -151,7 +152,7 @@
   - Zero router configuration, zero port-forwarding, and no public IP needed.
   - Protected with cryptographically generated session access keys and instant QR code camera pairing.
 - **Dedicated Mobile PWA (`web/src/mobile`)**:
-  - Responsive, touch-optimized interface featuring a live 3D WebGL avatar rendering smoothly on mobile displays.
+  - Responsive, touch-optimized interface featuring a live 3D WebGL avatar powered by **Three.js** and **`@pixiv/three-vrm`** rendering smoothly on mobile displays.
   - **Bi-Directional Audio Streaming**: Speak into your phone’s microphone to talk to the assistant, and hear speech responses or background music streamed back to your phone’s speaker.
   - **Mobile Command Center**: Send prompts, monitor autonomous coding agent activity, manage to-dos, or control desktop media playback on the go.
 
@@ -162,8 +163,8 @@
 | Layer | Technology | Role & Capability |
 | :--- | :--- | :--- |
 | **Core Engine** | **Rust** (Axum, Tokio) | High-performance, memory-safe native backend managing processes, WebSocket/SSE communication, and OS automation |
-| **Desktop Overlay** | **Winit / Webview** | Transparent, borderless window with click-through toggle and hardware-accelerated rendering |
-| **3D Avatar Engine** | **Three.js / `@pixiv/three-vrm`** | Real-time WebGL rendering with spring bone physics, viseme lip-sync, and facial blendshapes |
+| **Desktop 3D Overlay** | **Native WGPU & WGSL Shaders** | Transparent, borderless window with custom WGSL shaders, MToon cel-shading, spring bone physics, and lip-sync |
+| **Mobile 3D Companion** | **Three.js & `@pixiv/three-vrm`** | Real-time WebGL 3D avatar rendering for the remote mobile companion PWA |
 | **Speech Engine** | **Supertonic 3 & OpenVoice** | On-device ONNX neural TTS for 31 languages + zero-shot voice tone color cloning |
 | **Web Dashboard & Mobile** | **SolidJS & TailwindCSS** | Ultra-lightweight reactive UI for the control panel and mobile companion PWA |
 | **Remote Gateway** | **Cloudflare Tunnel (`cloudflared`)** | Zero-trust encrypted remote tunneling with automatic binary setup |
@@ -225,7 +226,17 @@ Special thanks to the open-source projects, research teams, and creators whose w
 
 ---
 
-## Copyright & License
+## Support & Donation
+
+If you find **Ragasukma** useful and would like to support its development, you can buy me a coffee or donate via:
+
+- ☕ **SociaBuzz**: [sociabuzz.com/ahlanefwolf](https://sociabuzz.com/ahlanefwolf)
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE) — see the [LICENSE](LICENSE) file for details.
 
 Created by **Ahlan Saputra** ([@ahlanefwolf](https://github.com/ahlanefwolf)).  
-Copyright © 2026 Ahlan Saputra. All rights reserved (*Proprietary*).
+Copyright © 2026 Ahlan Saputra.

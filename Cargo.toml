@@ -2,6 +2,7 @@
 name = "ragasukma"
 version = "0.2.0"
 edition = "2024"
+license = "MIT"
 description = "AI Voice Assistant with 3D/2D Native WGPU Overlay"
 authors = ["Ahlan Saputra <hlnsptr@gmail.com>"]
 
