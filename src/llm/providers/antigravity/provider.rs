@@ -593,12 +593,9 @@ impl AntigravityProvider {
         let reader = std::io::BufReader::new(response);
         let mut full_reply = String::new();
         let mut current_sentence = String::new();
-        let mut active_emotion = "neutral";
+        let active_emotion = "neutral";
 
         for line in reader.lines() {
-            if crate::app_state::is_interruption_requested() {
-                bail!("Interrupted by user");
-            }
             let line = line?;
             let trimmed = line.trim();
             if let Some(data_str) = trimmed.strip_prefix("data: ") {
@@ -661,14 +658,6 @@ impl AntigravityProvider {
                                                 current_sentence =
                                                     current_sentence[end_pos + 1..].to_string();
 
-                                                if let Some(emo) =
-                                                    crate::ui::renderer::expressions::detect_emotion(
-                                                        &sentence,
-                                                    )
-                                                {
-                                                    active_emotion = emo;
-                                                }
-
                                                 let clean =
                                                     crate::llm::cleaner::clean_ai_text(&sentence);
                                                 if !clean.is_empty() {
@@ -687,9 +676,6 @@ impl AntigravityProvider {
 
         let clean_rest = crate::llm::cleaner::clean_ai_text(&current_sentence);
         if !clean_rest.is_empty() {
-            if let Some(emo) = crate::ui::renderer::expressions::detect_emotion(&current_sentence) {
-                active_emotion = emo;
-            }
             on_sentence(&clean_rest, active_emotion)?;
         }
 

@@ -1,7 +1,6 @@
 pub mod cleaner;
 pub mod client;
-pub mod history;
-pub mod prompt;
+pub use crate::repository::chat_history as history;
 pub mod providers;
 pub mod types;
 pub mod usage;

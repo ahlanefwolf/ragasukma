@@ -18,7 +18,8 @@ pub(crate) fn check_and_consume_cmd() -> Option<String> {
 
 impl AppSession {
     pub fn new(config: AppConfig) -> Result<Self> {
-        let llm = LlmClient::new();
+        let mut llm = LlmClient::new();
+        llm.set_system_prompt(crate::engine::prompt::build_system_prompt());
         crate::term_log!(
             " Character {} (Cute & Shy) ready to accompany {}.",
             config.assistant_name,
@@ -85,7 +86,9 @@ impl AppSession {
         }
 
         if llm_changed {
-            self.llm = LlmClient::new();
+            let mut new_llm = LlmClient::new();
+            new_llm.set_system_prompt(crate::engine::prompt::build_system_prompt());
+            self.llm = new_llm;
             crate::term_log!(
                 "[Reactive Update] LLM Model / Persona switched to: {} ({})",
                 latest_config.llm_model,

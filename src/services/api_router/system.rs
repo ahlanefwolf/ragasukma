@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -16,8 +15,6 @@ pub fn register_system_routes(
     router: Router<Arc<Mutex<ServerSharedState>>>,
 ) -> Router<Arc<Mutex<ServerSharedState>>> {
     router
-        // Config Service
-        .route("/api/config", get(axum_get_config).post(axum_post_config))
         // System & Model Manager
         .route("/api/system/apps", get(axum_get_apps))
         .route("/api/system/extension-path", get(axum_get_extension_path))
@@ -30,11 +27,6 @@ pub fn register_system_routes(
         .route("/api/state", get(axum_get_state).post(axum_post_state))
         // Actions Polling
         .route("/api/actions/since", get(axum_get_actions_since))
-        // History
-        .route("/api/history/dates", get(axum_get_history_dates))
-        .route("/api/history/view", get(axum_get_history_view))
-        .route("/api/history/delete", post(axum_delete_history))
-        .route("/api/chat/events", get(axum_chat_events_sse))
         // Logs
         .route("/api/logs", get(axum_get_logs))
         .route("/api/logs/clear", post(axum_clear_logs))
@@ -44,32 +36,8 @@ pub fn register_system_routes(
 }
 
 // -----------------------------------------------------------------------------
-// 1. Config Service
+// 1. System & Model Manager Service
 // -----------------------------------------------------------------------------
-pub(crate) async fn axum_get_config() -> impl IntoResponse {
-    Json(crate::assets::load_config())
-}
-
-pub(crate) async fn axum_post_config(
-    State(shared): State<Arc<Mutex<ServerSharedState>>>,
-    Json(cfg): Json<crate::config::UserConfig>,
-) -> impl IntoResponse {
-    if let Err(e) = crate::assets::save_config(&cfg) {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": e })),
-        )
-            .into_response()
-    } else {
-        if let Ok(mut lock) = shared.lock() {
-            lock.config_updated = true;
-        }
-        Json(json!({ "success": true })).into_response()
-    }
-}
-
-// -----------------------------------------------------------------------------
-// 2. System & Model Manager Service
 // -----------------------------------------------------------------------------
 pub(crate) async fn axum_get_apps() -> impl IntoResponse {
     Json(crate::engine::get_installed_applications())
@@ -303,141 +271,7 @@ pub(crate) async fn axum_get_actions_since(Query(q): Query<LastIdQuery>) -> impl
 }
 
 // -----------------------------------------------------------------------------
-// 5. History Service
-// -----------------------------------------------------------------------------
-// 5. History Service (SQLite-Powered with Legacy Markdown Fallback)
-// -----------------------------------------------------------------------------
-pub(crate) async fn axum_get_history_dates() -> impl IntoResponse {
-    let dates = crate::llm::history::get_history_dates().await;
-    Json(dates)
-}
-
-#[derive(Deserialize)]
-pub(crate) struct HistoryViewQuery {
-    #[serde(default)]
-    pub(crate) date: Option<String>,
-    #[serde(default)]
-    pub(crate) page: Option<usize>,
-    #[serde(default)]
-    pub(crate) limit: Option<usize>,
-    #[serde(default)]
-    pub(crate) order: Option<String>,
-}
-
-pub(crate) async fn axum_get_history_view(Query(q): Query<HistoryViewQuery>) -> impl IntoResponse {
-    let target_date = match q.date {
-        Some(ref d) if !d.trim().is_empty() => d.trim().to_string(),
-        _ => {
-            let dates = crate::llm::history::get_history_dates().await;
-            dates.first().cloned().unwrap_or_default()
-        }
-    };
-
-    if target_date.is_empty() {
-        return Json(json!({
-            "date": "",
-            "turns": [],
-            "total_turns": 0,
-            "page": 1,
-            "limit": 20,
-            "total_pages": 1
-        }))
-        .into_response();
-    }
-
-    let page = q.page.unwrap_or(1);
-    let limit = q.limit.unwrap_or(20);
-    let paginated = crate::llm::history::get_history_by_date_paginated(&target_date, page, limit, q.order.as_deref()).await;
-    Json(paginated).into_response()
-}
-
-#[derive(Deserialize)]
-pub(crate) struct DeleteHistoryPayload {
-    pub(crate) date: String,
-}
-
-pub(crate) async fn axum_delete_history(Json(payload): Json<DeleteHistoryPayload>) -> impl IntoResponse {
-    let clean_date = payload.date.trim();
-    if clean_date.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "Missing date parameter" })),
-        )
-            .into_response();
-    }
-
-    match crate::llm::history::delete_history_by_date(clean_date).await {
-        Ok(true) => Json(json!({ "success": true })).into_response(),
-        Ok(false) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "History record not found" })),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("Failed to delete history: {e}") })),
-        )
-            .into_response(),
-    }
-}
-
-pub(crate) async fn axum_chat_events_sse() -> impl IntoResponse {
-    let sender = crate::llm::history::get_chat_event_sender();
-    let mut rx = sender.subscribe();
-
-    let stream = async_stream::stream! {
-        let init_json = serde_json::json!({
-            "type": "connected"
-        });
-        yield Ok::<_, std::convert::Infallible>(format!("data: {}\n\n", init_json));
-
-        // Persistent keep-alive ping interval (prevents reallocating timer futures on every token)
-        let mut ping_interval = tokio::time::interval(std::time::Duration::from_secs(3));
-        ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
-        loop {
-            tokio::select! {
-                res = rx.recv() => {
-                    match res {
-                        Ok(item) => {
-                            let evt = serde_json::json!({
-                                "type": "chat_turn",
-                                "item": item
-                            });
-                            if let Ok(json_str) = serde_json::to_string(&evt) {
-                                yield Ok(format!("data: {}\n\n", json_str));
-                            }
-                        }
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(missed)) => {
-                            eprintln!("[Chat SSE] Recv lagged by {} messages", missed);
-                            continue;
-                        }
-                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                            break;
-                        }
-                    }
-                }
-                _ = ping_interval.tick() => {
-                    // Send periodic keep-alive event every 3s to flush Cloudflare & proxy buffers
-                    yield Ok("event: ping\ndata: {}\n\n".to_string());
-                }
-            }
-        }
-    };
-
-    axum::response::Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "text/event-stream; charset=utf-8")
-        .header("Cache-Control", "no-cache, no-transform")
-        .header("Connection", "keep-alive")
-        .header("X-Accel-Buffering", "no")
-        .header("Access-Control-Allow-Origin", "*")
-        .body(axum::body::Body::from_stream(stream))
-        .unwrap_or_else(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to create SSE stream").into_response())
-}
-
-// -----------------------------------------------------------------------------
-// 6. Logs Service
+// Logs Service
 // -----------------------------------------------------------------------------
 #[derive(Deserialize)]
 pub(crate) struct LogsQuery {

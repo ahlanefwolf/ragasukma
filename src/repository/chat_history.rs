@@ -252,16 +252,12 @@ pub async fn get_history_dates() -> Vec<String> {
     let pool = crate::llm::usage::get_pool().await;
     let mut dates: Vec<String> = Vec::new();
 
-    if let Ok(rows) = sqlx::query("SELECT DISTINCT date_str FROM chat_history ORDER BY date_str DESC")
-        .fetch_all(pool)
-        .await
+    if let Ok(rows) =
+        sqlx::query_scalar::<_, String>("SELECT DISTINCT date_str FROM chat_history ORDER BY date_str DESC")
+            .fetch_all(pool)
+            .await
     {
-        for r in rows {
-            use sqlx::Row;
-            if let Ok(d) = r.try_get::<String, _>("date_str") {
-                dates.push(d);
-            }
-        }
+        dates = rows;
     }
 
     dates

@@ -1,5 +1,4 @@
 use super::cleaner::clean_ai_text;
-use super::prompt::{build_system_prompt, build_system_prompt_indexed};
 use super::providers::antigravity::AntigravityProvider;
 use super::providers::claude::ClaudeProvider;
 use super::providers::codex::CodexProvider;
@@ -11,6 +10,7 @@ pub struct LlmClient {
     pub model: String,
     pub client: reqwest::blocking::Client,
     pub history: Vec<ChatMessage>,
+    pub default_system_prompt: String,
     pub antigravity: AntigravityProvider,
     pub codex: CodexProvider,
     pub claude: ClaudeProvider,
@@ -27,11 +27,11 @@ impl LlmClient {
             .build()
             .unwrap_or_default();
 
-        let system_prompt = build_system_prompt();
+        let default_system_prompt = "You are a helpful AI assistant.".to_string();
 
         let history = vec![ChatMessage {
             role: "system".to_string(),
-            content: system_prompt,
+            content: default_system_prompt.clone(),
         }];
 
         let antigravity = AntigravityProvider::new_with_client(client.clone());
@@ -43,6 +43,7 @@ impl LlmClient {
             model,
             client,
             history,
+            default_system_prompt,
             antigravity,
             codex,
             claude,
@@ -50,10 +51,24 @@ impl LlmClient {
         }
     }
 
+    pub fn set_system_prompt(&mut self, prompt: String) {
+        self.default_system_prompt = prompt.clone();
+        if let Some(first) = self.history.first_mut() {
+            if first.role == "system" {
+                first.content = prompt;
+                return;
+            }
+        }
+        self.history.insert(0, ChatMessage {
+            role: "system".to_string(),
+            content: prompt,
+        });
+    }
+
     pub fn reset_history(&mut self) {
         self.history = vec![ChatMessage {
             role: "system".to_string(),
-            content: build_system_prompt(),
+            content: self.default_system_prompt.clone(),
         }];
     }
 
@@ -78,6 +93,19 @@ impl LlmClient {
         &mut self,
         role: &str,
         input_text: &str,
+        on_sentence: F,
+    ) -> Result<String>
+    where
+        F: FnMut(&str, &str) -> Result<()>,
+    {
+        self.chat_stream_with_role_and_prompt(role, input_text, None, on_sentence)
+    }
+
+    pub fn chat_stream_with_role_and_prompt<F>(
+        &mut self,
+        role: &str,
+        input_text: &str,
+        custom_system_prompt: Option<&str>,
         mut on_sentence: F,
     ) -> Result<String>
     where
@@ -87,12 +115,10 @@ impl LlmClient {
             return Ok(String::new());
         }
 
-        if role == "user" {
-            // Dynamic Prompt Indexing: suntikkan only Ground of Truth which relevan with ucapan user!
-            let current_sys_prompt = build_system_prompt_indexed(Some(input_text));
+        if let Some(sys_prompt) = custom_system_prompt {
             if let Some(first_msg) = self.history.first_mut() {
                 if first_msg.role == "system" {
-                    first_msg.content = current_sys_prompt;
+                    first_msg.content = sys_prompt.to_string();
                 }
             }
         }

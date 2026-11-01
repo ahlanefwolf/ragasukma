@@ -7,6 +7,7 @@ pub mod hardware_probe;
 pub mod intent;
 pub mod os_efficiency;
 pub mod perception;
+pub mod prompt;
 pub mod remote_text;
 pub mod session;
 pub mod skills;

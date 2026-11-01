@@ -28,7 +28,8 @@ pub fn process_llm_response_with_role(
     // Initialize streaming voice session for parallel sentence synthesis & playback
     let mut voice_session = tts.start_streaming_session(asst_name);
 
-    let result = llm.chat_stream_with_role(role, effective_input, |sentence, emotion| {
+    let system_prompt = crate::engine::prompt::build_system_prompt_indexed(Some(effective_input));
+    let result = llm.chat_stream_with_role_and_prompt(role, effective_input, Some(&system_prompt), |sentence, emotion| {
         // Strip any action tags or internal markdown before sending to TTS and printing
         let clean_sentence = crate::llm::cleaner::clean_ai_text(sentence)
             .trim()
@@ -42,14 +43,20 @@ pub fn process_llm_response_with_role(
             return Err(anyhow::anyhow!("Interrupted by user"));
         }
 
+        let active_emotion = if !emotion.is_empty() {
+            emotion
+        } else {
+            crate::ui::renderer::expressions::detect_emotion(&clean_sentence).unwrap_or("neutral")
+        };
+
         // Push sentence segments directly to background TTS worker
-        voice_session.push_sentence(&clean_sentence, emotion);
+        voice_session.push_sentence(&clean_sentence, active_emotion);
 
         // Update emotion avatar real-time to renderer 3D
         TrayState::update_with_emotion(
             AssistantState::Thinking,
             &format!("{asst_name} Berpikir"),
-            emotion,
+            active_emotion,
         );
 
         if first_token_time.is_none() {

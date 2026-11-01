@@ -13,6 +13,7 @@ mod config;
 pub mod engine;
 
 mod llm;
+pub mod repository;
 pub mod server;
 pub mod services;
 pub mod ui;

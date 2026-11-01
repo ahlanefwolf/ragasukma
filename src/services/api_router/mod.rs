@@ -5,11 +5,15 @@ use crate::app_state::ServerSharedState;
 
 pub mod agent;
 pub mod automation;
+pub mod config;
+pub mod history;
 pub mod llm;
 pub mod media;
 pub mod system;
 
 pub use automation::*;
+pub use config::*;
+pub use history::*;
 pub use llm::*;
 pub use media::*;
 pub use system::*;
@@ -17,6 +21,8 @@ pub use system::*;
 pub fn register_api_routes(
     router: Router<Arc<Mutex<ServerSharedState>>>,
 ) -> Router<Arc<Mutex<ServerSharedState>>> {
+    let router = config::register_config_routes(router);
+    let router = history::register_history_routes(router);
     let router = system::register_system_routes(router);
     let router = automation::register_automation_routes(router);
     let router = media::register_media_routes(router);

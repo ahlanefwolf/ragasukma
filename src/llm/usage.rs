@@ -307,7 +307,7 @@ pub async fn record_usage_to_pool(
     duration_ms: u64,
     status: &str,
 ) -> anyhow::Result<LlmUsageRecord> {
-    let (date_str, time_str) = crate::llm::history::get_local_date_and_time();
+    let (date_str, time_str) = crate::repository::chat_history::get_local_date_and_time();
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()

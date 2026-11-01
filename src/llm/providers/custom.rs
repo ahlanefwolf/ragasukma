@@ -243,12 +243,9 @@ impl CustomProvider {
         let reader = std::io::BufReader::new(resp);
         let mut full_reply = String::new();
         let mut current_sentence = String::new();
-        let mut active_emotion = "neutral";
+        let active_emotion = "neutral";
 
         for line in reader.lines() {
-            if crate::app_state::is_interruption_requested() {
-                anyhow::bail!("Interrupted by user");
-            }
             let line = line?;
             let trimmed = line.trim();
             if trimmed.is_empty() || trimmed.starts_with(':') {
@@ -302,12 +299,6 @@ impl CustomProvider {
                                 let sentence = current_sentence[..=end_pos].to_string();
                                 current_sentence = current_sentence[end_pos + 1..].to_string();
 
-                                if let Some(emo) =
-                                    crate::ui::renderer::expressions::detect_emotion(&sentence)
-                                {
-                                    active_emotion = emo;
-                                }
-
                                 let clean = crate::llm::cleaner::clean_ai_text(&sentence);
                                 if !clean.is_empty() {
                                     on_sentence(&clean, active_emotion)?;
@@ -321,9 +312,6 @@ impl CustomProvider {
 
         let clean_rest = crate::llm::cleaner::clean_ai_text(&current_sentence);
         if !clean_rest.is_empty() {
-            if let Some(emo) = crate::ui::renderer::expressions::detect_emotion(&current_sentence) {
-                active_emotion = emo;
-            }
             on_sentence(&clean_rest, active_emotion)?;
         }
 
