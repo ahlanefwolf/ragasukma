@@ -19,20 +19,20 @@ jobs:
       matrix:
         include:
           # ------------------------------------------------------------------
-          # Linux (x86_64 AppImage)
+          # Linux (x86_64 AppImage) - Completed
           # ------------------------------------------------------------------
-          - platform: "ubuntu-24.04"
-            target: "x86_64-unknown-linux-gnu"
-            package_format: "appimage"
-            os_name: "linux"
+          # - platform: "ubuntu-24.04"
+          #   target: "x86_64-unknown-linux-gnu"
+          #   package_format: "appimage"
+          #   os_name: "linux"
 
           # ------------------------------------------------------------------
-          # Windows (x86_64 NSIS Installer / .exe) - Already released
+          # Windows (x86_64 NSIS Installer / .exe)
           # ------------------------------------------------------------------
-          # - platform: "windows-latest"
-          #   target: "x86_64-pc-windows-msvc"
-          #   package_format: "nsis"
-          #   os_name: "windows"
+          - platform: "windows-latest"
+            target: "x86_64-pc-windows-msvc"
+            package_format: "nsis"
+            os_name: "windows"
 
           # ------------------------------------------------------------------
           # macOS (Apple Silicon / aarch64 DMG) - Temporarily disabled
@@ -122,13 +122,33 @@ jobs:
       # ======================================================================
       - name: Build Release Binary
         shell: bash
-        env:
-          CC: gcc-14
-          CXX: g++-14
         run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            export CC=gcc-14
+            export CXX=g++-14
+          fi
           cargo build \
             --release \
             --target ${{ matrix.target }}
+
+      # ======================================================================
+      # PREPARE WINDOWS DEPENDENCIES
+      # ======================================================================
+      - name: Prepare Windows DLLs
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist_dlls
+          echo "=== Copying runtime DLLs to dist_dlls ==="
+          find target -name "*.dll" -exec cp -v {} dist_dlls/ \; || true
+          if [ ! -f "dist_dlls/DirectML.dll" ]; then
+            echo "DirectML.dll not found in target, fetching Microsoft DirectML redistributable..."
+            curl -sLo directml.zip "https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/1.15.2"
+            unzip -q directml.zip -d directml_nuget
+            cp -v directml_nuget/bin/x64-win/DirectML.dll dist_dlls/
+          fi
+          echo "=== Bundled DLLs for Installer ==="
+          ls -lh dist_dlls/
 
       # ======================================================================
       # PACKAGE

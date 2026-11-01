@@ -519,25 +519,43 @@ mod tests {
         assert_eq!(detected[1].primary_verifier, "cd frontend && npm run check && npm run build");
 
         let primary_chained = detect_primary_verification_command(&allowed);
-        assert_eq!(
-            primary_chained,
-            Some("(cd backend && cargo test) && (cd frontend && npm run check && npm run build)".to_string())
-        );
+        if is_executable_available("npm", &allowed) {
+            assert_eq!(
+                primary_chained,
+                Some("(cd backend && cargo test) && (cd frontend && npm run check && npm run build)".to_string())
+            );
+        } else {
+            assert_eq!(
+                primary_chained,
+                Some("cd backend && cargo test".to_string())
+            );
+        }
 
         // Test file scoping
         let mod_frontend = vec!["frontend/src/App.tsx".to_string()];
         let scoped_front = detect_verifiers_for_modified_files(&allowed, &mod_frontend);
-        assert_eq!(scoped_front, vec!["cd frontend && npm run check && npm run build".to_string()]);
+        if is_executable_available("npm", &allowed) {
+            assert_eq!(scoped_front, vec!["cd frontend && npm run check && npm run build".to_string()]);
+        } else {
+            assert!(scoped_front.is_empty());
+        }
 
         let mod_both = vec!["backend/src/main.rs".to_string(), "frontend/src/App.tsx".to_string()];
         let scoped_both = detect_verifiers_for_modified_files(&allowed, &mod_both);
-        assert_eq!(
-            scoped_both,
-            vec![
-                "cd backend && cargo test".to_string(),
-                "cd frontend && npm run check && npm run build".to_string()
-            ]
-        );
+        if is_executable_available("npm", &allowed) {
+            assert_eq!(
+                scoped_both,
+                vec![
+                    "cd backend && cargo test".to_string(),
+                    "cd frontend && npm run check && npm run build".to_string()
+                ]
+            );
+        } else {
+            assert_eq!(
+                scoped_both,
+                vec!["cd backend && cargo test".to_string()]
+            );
+        }
 
         let _ = fs::remove_dir_all(&temp);
     }

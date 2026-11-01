@@ -13,7 +13,7 @@ category = "Utility"
 authors = ["Ahlan Saputra"]
 description = "AI Voice Assistant & 3D/2D Avatar Assistant"
 icons = ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"]
-resources = ["assets"]
+resources = ["assets", "dist_dlls/*.dll"]
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"
