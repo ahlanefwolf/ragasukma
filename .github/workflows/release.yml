@@ -65,6 +65,12 @@ jobs:
             libssl-dev \
             libasound2-dev \
             libdbus-1-dev \
+            libxcb1-dev \
+            libxcb-randr0-dev \
+            libxcb-shm0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libx11-dev \
             squashfs-tools
           sudo apt-get install -y libfuse2t64 2>/dev/null || sudo apt-get install -y libfuse2 || true
 
