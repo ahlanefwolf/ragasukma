@@ -484,11 +484,19 @@ impl VrmModelData {
                         if let Some(col) = vprops.and_then(|v| v.get("_Color")).and_then(|a| a.as_array()) {
                             if col.len() >= 4 {
                                 let c_alpha = col[3].as_f64().unwrap_or(1.0) as f32;
+                                // For standard OPAQUE materials, glTF 2.0 treats alpha as 1.0.
+                                // For MASK (Cutout) or BLEND (Transparent), preserve the MToon _Color alpha
+                                // so that intentionally transparent helper quads/layers (alpha 0.0) are discarded.
+                                let final_alpha = if render_queue < 2450 && matches!(mat.alpha_mode(), gltf::material::AlphaMode::Opaque) {
+                                    1.0
+                                } else {
+                                    c_alpha
+                                };
                                 base_color_factor = [
                                     col[0].as_f64().unwrap_or(1.0) as f32,
                                     col[1].as_f64().unwrap_or(1.0) as f32,
                                     col[2].as_f64().unwrap_or(1.0) as f32,
-                                    if !is_blend { 1.0 } else { c_alpha },
+                                    final_alpha,
                                 ];
                             }
                         }
