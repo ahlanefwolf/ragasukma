@@ -57,6 +57,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            gcc-14 \
+            g++-14 \
+            libstdc++-14-dev \
             build-essential \
             curl \
             wget \
@@ -72,6 +75,10 @@ jobs:
             libxcb-xfixes0-dev \
             libx11-dev \
             squashfs-tools
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100
+          sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-14 100
+          sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-14 100
           sudo apt-get install -y libfuse2t64 2>/dev/null || sudo apt-get install -y libfuse2 || true
 
       # ======================================================================
@@ -115,6 +122,9 @@ jobs:
       # ======================================================================
       - name: Build Release Binary
         shell: bash
+        env:
+          CC: gcc-14
+          CXX: g++-14
         run: |
           cargo build \
             --release \
