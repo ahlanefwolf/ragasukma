@@ -104,26 +104,39 @@ impl Renderer {
 
         let surface = instance.create_surface(window)?;
 
-        let adapter = instance
+        let adapter = match instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::LowPower,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
             })
             .await
-            .ok_or_else(|| anyhow::anyhow!("Failed to find a suitable GPU adapter"))?;
+        {
+            Some(adapter) => adapter,
+            None => {
+                eprintln!("[WGPU Adapter] Hardware adapter not found, trying fallback software adapter...");
+                instance
+                    .request_adapter(&wgpu::RequestAdapterOptions {
+                        power_preference: wgpu::PowerPreference::LowPower,
+                        compatible_surface: Some(&surface),
+                        force_fallback_adapter: true,
+                    })
+                    .await
+                    .ok_or_else(|| anyhow::anyhow!("Failed to find a suitable GPU or fallback adapter"))?
+            }
+        };
 
         println!(
-            "[WGPU Adapter] Using GPU: {}",
-            adapter.get_info().name
+            "[WGPU Adapter] Using GPU: {} ({:?})",
+            adapter.get_info().name,
+            adapter.get_info().backend
         );
 
         let mut required_limits = wgpu::Limits::downlevel_webgl2_defaults();
         let adapter_limits = adapter.limits();
-        // Allow larger uniform buffers (for models with up to 512 bone matrices = 32KB)
-        required_limits.max_uniform_buffer_binding_size = adapter_limits
-            .max_uniform_buffer_binding_size
-            .max(65536);
+        // Allow larger uniform buffers (for models with up to 512 bone matrices = 32KB),
+        // capped at what the adapter can actually provide so device creation won't fail on low-end adapters.
+        required_limits.max_uniform_buffer_binding_size = 65536.min(adapter_limits.max_uniform_buffer_binding_size);
 
         let (device, queue) = adapter
             .request_device(
@@ -142,7 +155,8 @@ impl Renderer {
             .iter()
             .copied()
             .find(|f| f.is_srgb())
-            .unwrap_or(surface_caps.formats[0]);
+            .or_else(|| surface_caps.formats.first().copied())
+            .unwrap_or(wgpu::TextureFormat::Bgra8UnormSrgb);
 
         let alpha_mode = surface_caps
             .alpha_modes
@@ -156,7 +170,8 @@ impl Renderer {
                     .copied()
                     .find(|m| *m == wgpu::CompositeAlphaMode::Auto)
             })
-            .unwrap_or(surface_caps.alpha_modes[0]);
+            .or_else(|| surface_caps.alpha_modes.first().copied())
+            .unwrap_or(wgpu::CompositeAlphaMode::Auto);
 
         println!(
             "[WGPU Surface] Formats: {:?}, Alpha Modes: {:?}",
