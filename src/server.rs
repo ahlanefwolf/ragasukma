@@ -339,10 +339,10 @@ pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
             let cors = tower_http::cors::CorsLayer::permissive();
 
             // Start background callback listeners for OAuth
-            crate::services::llm_providers::codex_service::ensure_port_1455_listener();
-            crate::services::llm_providers::claude_service::ensure_port_54321_listener();
+            crate::llm::service::codex_service::ensure_port_1455_listener();
+            crate::llm::service::claude_service::ensure_port_54321_listener();
 
-            use crate::services::openai_v1_service::{
+            use crate::llm::service::openai_v1::{
                 axum_v1_chat_completions_handler, axum_v1_models_handler, axum_v1_options_handler,
                 axum_v1_root_handler,
             };
@@ -352,8 +352,8 @@ pub fn start_http_server(shared: Arc<Mutex<ServerSharedState>>) {
                     axum::Json(serde_json::json!({ "app": "ragasukma", "status": "running" }))
                 }))
                 .route("/api/ws", axum::routing::get(crate::services::events_service::axum_ws_handler))
-                .route("/auth/callback", axum::routing::get(crate::services::llm_providers::codex_service::axum_codex_oauth_callback))
-                .route("/callback", axum::routing::get(crate::services::llm_providers::codex_service::axum_codex_oauth_callback))
+                .route("/auth/callback", axum::routing::get(crate::llm::service::codex_service::axum_codex_oauth_callback))
+                .route("/callback", axum::routing::get(crate::llm::service::codex_service::axum_codex_oauth_callback))
                 .route("/api/tts/audio", axum::routing::get(axum_tts_audio_handler))
                 .route("/api/tts/evict", axum::routing::post(axum_tts_evict_handler))
                 .route("/api/tts/ack", axum::routing::post(axum_tts_evict_handler))

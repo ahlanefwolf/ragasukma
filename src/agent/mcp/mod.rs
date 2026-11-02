@@ -70,7 +70,7 @@ pub use types::*;
 /// Resolves executable command and arguments, resolving python runtime when applicable.
 fn resolve_executable(command_str: &str, args: &[String]) -> (String, Vec<String>, Option<std::path::PathBuf>) {
     let lower = command_str.trim().to_lowercase();
-    let py_bin = crate::engine::python::find_python_bin();
+    let py_bin = crate::agent::engine::python::find_python_bin();
 
     if lower == "python" || lower == "python3" || lower == "py" {
         if let Some(ref bin) = py_bin {

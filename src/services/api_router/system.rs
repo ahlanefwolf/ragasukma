@@ -83,12 +83,12 @@ pub(crate) async fn axum_post_model_download() -> impl IntoResponse {
 }
 
 pub(crate) async fn axum_python_info() -> impl IntoResponse {
-    Json(crate::engine::python::get_python_info())
+    Json(crate::agent::engine::python::get_python_info())
 }
 
 pub(crate) async fn axum_python_install() -> impl IntoResponse {
-    crate::engine::python::ensure_python_installed_background();
-    Json(crate::engine::python::get_python_info())
+    crate::agent::engine::python::ensure_python_installed_background();
+    Json(crate::agent::engine::python::get_python_info())
 }
 
 // -----------------------------------------------------------------------------

@@ -91,7 +91,7 @@ pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> 
             selected_path_init
         );
         let mut cmd = std::process::Command::new("powershell");
-        crate::engine::skills::configure_subprocess(&mut cmd);
+        crate::agent::engine::configure_subprocess(&mut cmd);
         cmd.arg("-ExecutionPolicy")
             .arg("Bypass")
             .arg("-WindowStyle")
@@ -125,7 +125,7 @@ pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> 
             r#"POSIX path of (choose folder with prompt "Select Workspace Folder")"#.to_string()
         };
         let mut cmd = std::process::Command::new("osascript");
-        crate::engine::skills::configure_subprocess(&mut cmd);
+        crate::agent::engine::configure_subprocess(&mut cmd);
         cmd.arg("-e").arg(&script);
         let output = cmd.output()?;
         if output.status.success() {
@@ -154,7 +154,7 @@ pub fn open_path_in_file_manager(path_str: &str) -> Result<()> {
     {
         let mut cmd = std::process::Command::new("xdg-open");
         cmd.arg(path_str);
-        crate::engine::skills::configure_subprocess(&mut cmd);
+        crate::agent::engine::configure_subprocess(&mut cmd);
         cmd.spawn()?;
         Ok(())
     }
@@ -163,7 +163,7 @@ pub fn open_path_in_file_manager(path_str: &str) -> Result<()> {
     {
         let mut cmd = std::process::Command::new("explorer.exe");
         cmd.arg(path_str);
-        crate::engine::skills::configure_subprocess(&mut cmd);
+        crate::agent::engine::configure_subprocess(&mut cmd);
         cmd.spawn()?;
         Ok(())
     }
@@ -172,7 +172,7 @@ pub fn open_path_in_file_manager(path_str: &str) -> Result<()> {
     {
         let mut cmd = std::process::Command::new("open");
         cmd.arg(path_str);
-        crate::engine::skills::configure_subprocess(&mut cmd);
+        crate::agent::engine::configure_subprocess(&mut cmd);
         cmd.spawn()?;
         Ok(())
     }

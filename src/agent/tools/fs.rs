@@ -291,7 +291,7 @@ pub fn ensure_git_and_gitignore_opt(root_path: &Path, auto_git_init: bool) -> Re
     if !git_dir.exists() && auto_git_init {
         let mut cmd = std::process::Command::new("git");
         cmd.arg("init").current_dir(root_path);
-        crate::engine::skills::configure_subprocess(&mut cmd);
+        crate::agent::engine::configure_subprocess(&mut cmd);
         match cmd.output() {
             Ok(out) => {
                 if out.status.success() {
@@ -332,7 +332,7 @@ pub fn create_workspace_command(command_str: &str) -> std::process::Command {
     #[cfg(target_os = "windows")]
     {
         let mut cmd = std::process::Command::new("powershell");
-        crate::engine::skills::configure_subprocess(&mut cmd);
+        crate::agent::engine::configure_subprocess(&mut cmd);
         cmd.arg("-ExecutionPolicy")
             .arg("Bypass")
             .arg("-WindowStyle")

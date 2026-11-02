@@ -1,6 +1,7 @@
 pub mod compressor;
 pub mod context_builder;
 pub mod diagnostics;
+pub mod engine;
 pub mod evidence_ranking;
 pub mod evidence_scoring;
 pub mod events;
@@ -12,5 +13,7 @@ pub mod models;
 pub mod orchestrator;
 pub mod repository;
 pub mod provider;
+pub mod service;
+pub use service as router;
 pub mod skills;
 pub mod tools;
