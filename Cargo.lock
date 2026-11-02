@@ -3479,7 +3479,7 @@ dependencies = [
 [[package]]
 name = "ragasukma-core"
 version = "0.2.0"
-source = "git+https://github.com/ahlanefwolf/ragasukma-core.git#f55986c02012846b61fc48a1da1b65d1db9504cc"
+source = "git+https://github.com/ahlanefwolf/ragasukma-core.git#39f88459324d7803054363d6e39058a806f3881c"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -3496,6 +3496,7 @@ dependencies = [
  "sha2 0.10.9",
  "sqlx",
  "tokio",
+ "windows 0.58.0",
 ]
 
 [[package]]
