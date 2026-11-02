@@ -1,4 +1,4 @@
-import { Component, createSignal, onMount, createEffect, For, Show } from 'solid-js';
+import { Component, createSignal, onMount, createEffect, untrack, For, Show } from 'solid-js';
 import { X, Search, Layers, RefreshCw, Terminal } from 'lucide-solid';
 import { api, InstalledApp } from '../api';
 
@@ -41,7 +41,7 @@ export const SystemAppsModal: Component<SystemAppsModalProps> = (props) => {
 
   // Reactively fetch when opened if empty
   createEffect(() => {
-    if (props.isOpen && apps().length === 0) {
+    if (props.isOpen && untrack(() => apps().length === 0)) {
       loadApps();
     }
   });

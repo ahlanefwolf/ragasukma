@@ -92,12 +92,13 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     version: '',
     is_installing: false,
   });
+  let pythonPollTimer: ReturnType<typeof setInterval> | null = null;
+  let disposed = false;
   const [pythonChecking, setPythonChecking] = createSignal(false);
   const [extensionModalOpen, setExtensionModalOpen] = createSignal(false);
   const [appsModalOpen, setAppsModalOpen] = createSignal(false);
 
   onMount(() => {
-    let disposed = false;
 
     const loadConfig = async () => {
       const cfg = await api.getConfig();
@@ -189,6 +190,10 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
 
     onCleanup(() => {
       disposed = true;
+      if (pythonPollTimer !== null) {
+        clearInterval(pythonPollTimer);
+        pythonPollTimer = null;
+      }
       window.removeEventListener('ragasukma:config_updated' as any, handleConfigUpdated);
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
@@ -319,12 +324,26 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       setPythonInfo(res);
       // Poll a few times
       let attempts = 0;
-      const timer = setInterval(async () => {
+      if (pythonPollTimer !== null) {
+        clearInterval(pythonPollTimer);
+      }
+      pythonPollTimer = setInterval(async () => {
+        if (disposed) {
+          if (pythonPollTimer !== null) {
+            clearInterval(pythonPollTimer);
+            pythonPollTimer = null;
+          }
+          return;
+        }
         attempts++;
         const updated = await api.getPythonInfo();
+        if (disposed) return;
         setPythonInfo(updated);
         if (updated.installed || attempts > 15) {
-          clearInterval(timer);
+          if (pythonPollTimer !== null) {
+            clearInterval(pythonPollTimer);
+            pythonPollTimer = null;
+          }
           if (updated.installed) {
             props.showToast(`Python 3 is ready: ${updated.version}`);
           }

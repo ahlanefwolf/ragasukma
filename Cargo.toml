@@ -88,4 +88,4 @@ strip = true
 panic = "abort"
 
 # [patch."https://github.com/ahlanefwolf/ragasukma-core.git"]
-# ragasukma-core = { path = "../ragasukma-core" }
+# ragasukma-core = { path = "../../rust/ragasukma-core" }
