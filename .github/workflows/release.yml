@@ -27,12 +27,12 @@ jobs:
             os_name: "linux"
 
           # ------------------------------------------------------------------
-          # Windows (x86_64 NSIS Installer / .exe)
+          # Windows (x86_64 NSIS Installer / .exe) - Temporarily disabled
           # ------------------------------------------------------------------
-          - platform: "windows-latest"
-            target: "x86_64-pc-windows-msvc"
-            package_format: "nsis"
-            os_name: "windows"
+          # - platform: "windows-latest"
+          #   target: "x86_64-pc-windows-msvc"
+          #   package_format: "nsis"
+          #   os_name: "windows"
 
           # ------------------------------------------------------------------
           # macOS (Apple Silicon / aarch64 DMG) - Temporarily disabled
@@ -156,6 +156,9 @@ jobs:
       - name: Package Native Installer
         shell: bash
         run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            export NO_STRIP=true
+          fi
           cargo packager \
             --release \
             --target ${{ matrix.target }} \

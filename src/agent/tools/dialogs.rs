@@ -7,6 +7,7 @@ pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> 
     {
         // 1. Try zenity (standard on GNOME, Fedora, Ubuntu, Sway/Wayland, etc.)
         let mut cmd = std::process::Command::new("zenity");
+        crate::agent::engine::configure_subprocess(&mut cmd);
         cmd.arg("--file-selection")
             .arg("--directory")
             .arg("--title=Select Workspace Folder")
@@ -43,6 +44,7 @@ pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> 
 
         // 2. Try kdialog (standard on KDE Plasma)
         let mut kcmd = std::process::Command::new("kdialog");
+        crate::agent::engine::configure_subprocess(&mut kcmd);
         kcmd.arg("--getexistingdirectory");
         if let Some(init) = initial_path {
             let trimmed = init.trim();
@@ -61,7 +63,42 @@ pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> 
             }
         }
 
-        bail!("Unable to open file manager dialog (zenity or kdialog). Ensure GUI is available or enter the folder path manually.")
+        // 3. Fallback: Python3 tkinter filedialog
+        let mut py_cmd = std::process::Command::new("python3");
+        crate::agent::engine::configure_subprocess(&mut py_cmd);
+        let py_script = r#"
+import tkinter as tk
+from tkinter import filedialog
+import sys
+
+try:
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes('-topmost', True)
+    root.lift()
+    root.focus_force()
+    initial = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1].strip() else None
+    folder = filedialog.askdirectory(initialdir=initial, title="Select Workspace Folder")
+    if folder:
+        print(folder)
+except Exception:
+    sys.exit(2)
+"#;
+        py_cmd.arg("-c").arg(py_script);
+        if let Some(init) = initial_path {
+            py_cmd.arg(init.trim());
+        }
+        if let Ok(output) = py_cmd.output() {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !stdout.is_empty() {
+                    return Ok(Some(stdout));
+                }
+                return Ok(None);
+            }
+        }
+
+        bail!("Unable to open file manager dialog (zenity, kdialog, or tkinter). Ensure GUI is available or enter the folder path manually.")
     }
 
     #[cfg(target_os = "windows")]
@@ -80,13 +117,17 @@ pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> 
         let ps_script = format!(
             r#"
         Add-Type -AssemblyName System.Windows.Forms
+        $form = New-Object System.Windows.Forms.Form
+        $form.TopMost = $true
+        $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
         $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
         $dialog.Description = "Select Workspace Folder"
         $dialog.ShowNewFolderButton = $true
         {}
-        if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{
+        if ($dialog.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {{
             Write-Output $dialog.SelectedPath
         }}
+        $form.Dispose()
         "#,
             selected_path_init
         );
@@ -115,14 +156,23 @@ pub fn pick_folder_dialog(initial_path: Option<&str>) -> Result<Option<String>> 
             let trimmed = init.trim().replace('"', "\\\"");
             if !trimmed.is_empty() {
                 format!(
-                    r#"POSIX path of (choose folder with prompt "Select Workspace Folder" default location (POSIX file "{}"))"#,
+                    r#"tell current application
+activate
+return POSIX path of (choose folder with prompt "Select Workspace Folder" default location (POSIX file "{}"))
+end tell"#,
                     trimmed
                 )
             } else {
-                r#"POSIX path of (choose folder with prompt "Select Workspace Folder")"#.to_string()
+                r#"tell current application
+activate
+return POSIX path of (choose folder with prompt "Select Workspace Folder")
+end tell"#.to_string()
             }
         } else {
-            r#"POSIX path of (choose folder with prompt "Select Workspace Folder")"#.to_string()
+            r#"tell current application
+activate
+return POSIX path of (choose folder with prompt "Select Workspace Folder")
+end tell"#.to_string()
         };
         let mut cmd = std::process::Command::new("osascript");
         crate::agent::engine::configure_subprocess(&mut cmd);
