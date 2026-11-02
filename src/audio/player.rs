@@ -237,11 +237,11 @@ fn get_audio_handle() -> Option<rodio::OutputStreamHandle> {
             if let Ok(mut guard) = AUDIO_HANDLE.lock() {
                 *guard = Some(handle.clone());
             }
-            crate::term_log!("[Audio] Output stream audio berhasil diinisialisasi");
+            crate::term_log!("[Audio] Audio output stream initialized successfully");
             Some(handle)
         }
         Err(e) => {
-            crate::term_log!("[Audio Error] Gagal inisialisasi output audio: {e}");
+            crate::term_log!("[Audio Error] Failed to initialize audio output: {e}");
             None
         }
     }

@@ -104,7 +104,7 @@ export const MusicTab: Component<MusicTabProps> = (props) => {
     const result = await api.downloadMusic(q);
     setDownloading(false);
     if (result.success) {
-      props.showToast('Download selesai!');
+      props.showToast('Download completed!');
       setSearchQuery('');
       await loadLibrary();
       if (result.track) {

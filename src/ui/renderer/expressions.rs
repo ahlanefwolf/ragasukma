@@ -253,8 +253,8 @@ pub fn update_facial_expressions_and_lip_sync(
         }
     }
 
-    // 3. Audio-Driven Lip Sync Vokal Vowel (A, I, U, E, O) when Speaking
-    if current_state == AssistantVisualState::Speaking && !is_tuning {
+    // 3. Audio-Driven Lip Sync Vokal Vowel (A, I, U, E, O) when Speaking or audio is active
+    if (current_state == AssistantVisualState::Speaking || crate::app_state::is_ai_speaking()) && !is_tuning {
         let lip_weights = crate::audio::player::get_current_lip_sync_weights();
 
         if lip_weights.mouth_open > 0.015 {

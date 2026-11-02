@@ -28,52 +28,92 @@ pub fn process_llm_response_with_role(
     // Initialize streaming voice session for parallel sentence synthesis & playback
     let mut voice_session = tts.start_streaming_session(asst_name);
 
+    // Buffer and state for stream-to-sentence assembly
+    let mut sentence_buffer = String::new();
+    let mut in_think_block = false;
+
     let system_prompt = crate::engine::prompt::build_system_prompt_indexed(Some(effective_input));
-    let result = llm.chat_stream_with_role_and_prompt(role, effective_input, Some(&system_prompt), |sentence, emotion| {
-        // Strip any action tags or internal markdown before sending to TTS and printing
-        let clean_sentence = crate::llm::cleaner::clean_ai_text(sentence)
-            .trim()
-            .to_string();
-        if !clean_sentence.chars().any(|c| c.is_alphanumeric()) {
-            return Ok(());
-        }
+    let result = llm.chat_stream_with_role_and_prompt(role, effective_input, Some(&system_prompt), |delta: &str| {
+        sentence_buffer.push_str(delta);
 
-        if crate::app_state::is_interruption_requested() {
-            voice_session.abort();
-            return Err(anyhow::anyhow!("Interrupted by user"));
-        }
+        loop {
+            if in_think_block {
+                if let Some(end_idx) = sentence_buffer.find("</think>") {
+                    sentence_buffer.drain(..end_idx + "</think>".len());
+                    in_think_block = false;
+                } else {
+                    // Masih di dalam blok <think>, tunggu penutup
+                    break;
+                }
+            }
 
-        let active_emotion = if !emotion.is_empty() {
-            emotion
-        } else {
-            crate::ui::renderer::expressions::detect_emotion(&clean_sentence).unwrap_or("neutral")
-        };
+            if let Some(start_idx) = sentence_buffer.find("<think>") {
+                let pre_think = sentence_buffer[..start_idx].to_string();
+                sentence_buffer.drain(..start_idx + "<think>".len());
+                in_think_block = true;
 
-        // Push sentence segments directly to background TTS worker
-        voice_session.push_sentence(&clean_sentence, active_emotion);
+                if !pre_think.trim().is_empty() {
+                    dispatch_sentence_to_tts(
+                        &pre_think,
+                        &mut voice_session,
+                        asst_name,
+                        &mut first_token_time,
+                        &mut printed_header,
+                        llm_start,
+                    )?;
+                }
+                continue;
+            }
 
-        // Update emotion avatar real-time to renderer 3D
-        TrayState::update_with_emotion(
-            AssistantState::Thinking,
-            &format!("{asst_name} Berpikir"),
-            active_emotion,
-        );
+            // Cari batas kalimat di luar tag think: '.', '!', '?', '\n', '。', '！', '？'
+            let mut split_pos = None;
+            for (idx, ch) in sentence_buffer.char_indices() {
+                if ch == '\n' || ch == '!' || ch == '?' || ch == '。' || ch == '！' || ch == '？' {
+                    split_pos = Some(idx + ch.len_utf8());
+                    break;
+                } else if ch == '.' {
+                    // Hindari pemotongan ellipsis (...) atau angka desimal (misal 3.14)
+                    let next_char = sentence_buffer[idx + 1..].chars().next();
+                    let is_ellipsis = next_char == Some('.');
+                    let is_decimal = next_char.is_some_and(|c| c.is_ascii_digit());
+                    if !is_ellipsis && !is_decimal {
+                        split_pos = Some(idx + 1);
+                        break;
+                    }
+                }
+            }
 
-        if first_token_time.is_none() {
-            let first_elapsed = llm_start.elapsed();
-            first_token_time = Some(first_elapsed);
-            if !printed_header {
-                print!("\r\n[{}] [{:.2?}]:\r\n   ", asst_name, first_elapsed);
-                printed_header = true;
+            if let Some(pos) = split_pos {
+                let sentence = sentence_buffer[..pos].to_string();
+                sentence_buffer.drain(..pos);
+
+                dispatch_sentence_to_tts(
+                    &sentence,
+                    &mut voice_session,
+                    asst_name,
+                    &mut first_token_time,
+                    &mut printed_header,
+                    llm_start,
+                )?;
+            } else {
+                break;
             }
         }
 
-        print!("{} ", clean_sentence);
-        use std::io::Write;
-        let _ = std::io::stdout().flush();
-
         Ok(())
     });
+
+    // Flush sisa teks di buffer yang tersisa setelah stream berakhir
+    if !in_think_block && !sentence_buffer.trim().is_empty() {
+        let _ = dispatch_sentence_to_tts(
+            &sentence_buffer,
+            &mut voice_session,
+            asst_name,
+            &mut first_token_time,
+            &mut printed_header,
+            llm_start,
+        );
+    }
 
     println!();
 
@@ -118,4 +158,138 @@ pub fn process_llm_response_with_role(
     }
 
     result
+}
+
+/// Splits long sentences into smaller responsive chunks based on punctuation clauses
+/// and word boundaries so TTS synthesizes immediately and keeps lip sync perfectly synced.
+fn split_sentence_for_streaming(sentence: &str, max_chars: usize) -> Vec<String> {
+    let trimmed = sentence.trim();
+    if trimmed.chars().count() <= max_chars {
+        return vec![trimmed.to_string()];
+    }
+
+    let mut result = Vec::new();
+    let mut current_buf = String::new();
+
+    // Split candidate segments by primary clause delimiters
+    for part in trimmed.split_inclusive(&[',', ';', ':', '—', '-'][..]) {
+        let part_trimmed = part.trim();
+        if part_trimmed.is_empty() {
+            continue;
+        }
+
+        if current_buf.is_empty() {
+            current_buf.push_str(part_trimmed);
+        } else if current_buf.chars().count() + part_trimmed.chars().count() < max_chars {
+            current_buf.push(' ');
+            current_buf.push_str(part_trimmed);
+        } else {
+            result.push(current_buf.trim().to_string());
+            current_buf.clear();
+            current_buf.push_str(part_trimmed);
+        }
+    }
+
+    if !current_buf.is_empty() {
+        result.push(current_buf.trim().to_string());
+    }
+
+    // Secondary fallback: if any segment is still longer than max_chars (e.g. no punctuation),
+    // split cleanly at word boundaries.
+    let mut final_chunks = Vec::new();
+    for seg in result {
+        if seg.chars().count() <= max_chars {
+            final_chunks.push(seg);
+        } else {
+            let mut word_buf = String::new();
+            for word in seg.split_whitespace() {
+                if word_buf.is_empty() {
+                    word_buf.push_str(word);
+                } else if word_buf.chars().count() + word.chars().count() < max_chars {
+                    word_buf.push(' ');
+                    word_buf.push_str(word);
+                } else {
+                    final_chunks.push(word_buf.trim().to_string());
+                    word_buf.clear();
+                    word_buf.push_str(word);
+                }
+            }
+            if !word_buf.is_empty() {
+                final_chunks.push(word_buf.trim().to_string());
+            }
+        }
+    }
+
+    if final_chunks.is_empty() && !trimmed.is_empty() {
+        vec![trimmed.to_string()]
+    } else {
+        final_chunks
+    }
+}
+
+fn dispatch_sentence_to_tts(
+    sentence: &str,
+    voice_session: &mut crate::audio::tts::StreamingVoiceSession,
+    asst_name: &str,
+    first_token_time: &mut Option<std::time::Duration>,
+    printed_header: &mut bool,
+    llm_start: std::time::Instant,
+) -> anyhow::Result<()> {
+    let active_emotion = crate::ui::renderer::expressions::detect_emotion(sentence).unwrap_or("neutral");
+
+    let clean_sentence = crate::llm::cleaner::clean_ai_text(sentence)
+        .trim()
+        .to_string();
+    if !clean_sentence.chars().any(|c| c.is_alphanumeric()) {
+        return Ok(());
+    }
+
+    if crate::app_state::is_interruption_requested() {
+        voice_session.abort();
+        return Err(anyhow::anyhow!("Interrupted by user"));
+    }
+
+    let sub_chunks = split_sentence_for_streaming(&clean_sentence, 70);
+
+    for chunk in sub_chunks {
+        let chunk_clean = chunk.trim();
+        if chunk_clean.is_empty() {
+            continue;
+        }
+
+        voice_session.push_sentence(chunk_clean, active_emotion);
+
+        let state = if crate::app_state::is_ai_speaking() {
+            AssistantState::Speaking
+        } else {
+            AssistantState::Thinking
+        };
+        TrayState::update_with_emotion(
+            state,
+            &format!(
+                "{asst_name} {}",
+                if state == AssistantState::Speaking {
+                    "Speaking"
+                } else {
+                    "Thinking"
+                }
+            ),
+            active_emotion,
+        );
+    }
+
+    if first_token_time.is_none() {
+        let first_elapsed = llm_start.elapsed();
+        *first_token_time = Some(first_elapsed);
+        if !*printed_header {
+            print!("\r\n[{}] [{:.2?}]:\r\n   ", asst_name, first_elapsed);
+            *printed_header = true;
+        }
+    }
+
+    print!("{} ", clean_sentence);
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
+
+    Ok(())
 }

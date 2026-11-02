@@ -359,7 +359,7 @@ export const AudioTtsSection: Component<AudioTtsSectionProps> = (props) => {
       });
 
       if (!res.ok) {
-        throw new Error(`Sintesis Supertonic HTTP ${res.status}`);
+        throw new Error(`Supertonic synthesis HTTP ${res.status}`);
       }
 
       const blob = await res.blob();

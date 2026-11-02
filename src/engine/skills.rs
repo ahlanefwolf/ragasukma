@@ -72,28 +72,6 @@ pub async fn sync_skills_from_db() -> Vec<SkillItem> {
     .await
     .unwrap_or_default();
 
-    if rows.is_empty() {
-        let default_skills = vec![
-            SkillItem::new("Btop", "Launch btop", "btop"),
-        ];
-        let now = get_now_secs();
-        for s in &default_skills {
-            let _ = sqlx::query(
-                "INSERT INTO skills (name, description, command, is_active, created_at) VALUES (?1, ?2, ?3, 1, ?4) ON CONFLICT(name) DO UPDATE SET description = excluded.description, command = excluded.command, is_active = 1",
-            )
-            .bind(&s.name)
-            .bind(&s.description)
-            .bind(&s.command)
-            .bind(now)
-            .execute(pool)
-            .await;
-        }
-
-        let mut guard = SKILLS_CACHE.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = Some(default_skills.clone());
-        return default_skills;
-    }
-
     let mut guard = SKILLS_CACHE.lock().unwrap_or_else(|e| e.into_inner());
     *guard = Some(rows.clone());
     rows

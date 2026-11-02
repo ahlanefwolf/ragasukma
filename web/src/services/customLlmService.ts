@@ -43,7 +43,7 @@ export const customLlmService = {
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      throw new Error(data.error || `Gagal menghapus akun (${response.status})`);
+      throw new Error(data.error || `Failed to delete account (${response.status})`);
     }
   },
 };

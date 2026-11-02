@@ -77,14 +77,11 @@ fn map_tool_call_to_cmd(
     // 2. Dots / generic tool mapping
     match clean_name {
         "command" | "cmd" => {
-            // E.g. <invoke name="command"><parameter name="text">Providers</parameter></invoke>
-            // or <parameter name="text">[CMD:desktop:click_text|Providers]</parameter>
             if let Some(val) = primary_param {
                 let trimmed = val.trim();
                 if trimmed.starts_with("[CMD:") || trimmed.starts_with("[SKILL:") {
                     return Some(trimmed.to_string());
                 }
-                // If it's a bare word/target without namespace, default to desktop text click
                 return Some(format!("[CMD:desktop:click_text|{trimmed}]"));
             }
             None
@@ -98,57 +95,38 @@ fn map_tool_call_to_cmd(
         "desktop_click_button" | "desktop:click_button" | "click_button" => {
             primary_param.map(|val| format!("[CMD:desktop:click_button|{val}]"))
         }
-        "desktop_click_at" | "desktop:click_at" | "click_at" => {
-            let x = params.get("x").map_or("0", |s| s.as_str());
-            let y = params.get("y").map_or("0", |s| s.as_str());
-            Some(format!("[CMD:desktop:click_at|{x}|{y}]"))
-        }
-        "desktop_type" | "desktop:type" => {
+        "desktop_type" | "desktop:type" | "type" => {
             primary_param.map(|val| format!("[CMD:desktop:type|{val}]"))
         }
-        "desktop_key" | "desktop:key" => {
-            primary_param.map(|val| format!("[CMD:desktop:key|{val}]"))
-        }
-        "desktop_focus" | "desktop:focus" => {
-            primary_param.map(|val| format!("[CMD:desktop:focus|{val}]"))
-        }
-        "desktop_minimize" | "desktop:minimize" => Some("[CMD:desktop:minimize]".to_string()),
-        "desktop_maximize" | "desktop:maximize" => Some("[CMD:desktop:maximize]".to_string()),
-        "desktop_close" | "desktop:close" => Some("[CMD:desktop:close]".to_string()),
-        "browser_open" | "browser:open" => {
+        "browser_open" | "browser:open" | "open_browser" => {
             primary_param.map(|val| format!("[CMD:browser:open|{val}]"))
         }
-        "browser_search" | "browser:search" => {
+        "browser_search" | "browser:search" | "search" => {
             primary_param.map(|val| format!("[CMD:browser:search|{val}]"))
         }
-        "browser_switch" | "browser:switch" => {
-            primary_param.map(|val| format!("[CMD:browser:switch|{val}]"))
+        "clipboard_read" | "clipboard:read" => Some("[CMD:clipboard:read]".to_string()),
+        "clipboard_write" | "clipboard:write" => {
+            primary_param.map(|val| format!("[CMD:clipboard:write|{val}]"))
         }
-        "browser_close" | "browser:close" => {
-            primary_param.map(|val| format!("[CMD:browser:close|{val}]"))
+        "terminal_run" | "terminal:run" | "bash" | "sh" | "exec" => {
+            primary_param.map(|val| format!("[CMD:terminal:run|{val}]"))
         }
-        "browser_scroll" | "browser:scroll" => {
-            let dist = primary_param.unwrap_or_else(|| "400".to_string());
-            Some(format!("[CMD:browser:scroll|{dist}]"))
+        "system_notify" | "system:notify" | "notify" => {
+            primary_param.map(|val| format!("[CMD:system:notify|{val}]"))
         }
-        "browser_type" | "browser:type" => {
-            primary_param.map(|val| format!("[CMD:browser:type|{val}]"))
+        "media_play" | "media:play" | "play_media" => {
+            primary_param.map(|val| format!("[CMD:media:play|{val}]"))
         }
-        "browser_enter" | "browser:enter" => Some("[CMD:browser:enter]".to_string()),
-        "app_open" | "app:open" => primary_param.map(|val| format!("[CMD:app:open|{val}]")),
-        "media_play" | "media:play" => primary_param.map(|val| format!("[CMD:media:play|{val}]")),
-        "media_pause" | "media:pause" => Some("[CMD:media:pause]".to_string()),
-        "media_resume" | "media:resume" => Some("[CMD:media:resume]".to_string()),
-        "media_stop" | "media:stop" => Some("[CMD:media:stop]".to_string()),
-        "os_volume_up" | "os:volume_up" => Some("[CMD:os:volume_up]".to_string()),
-        "os_volume_down" | "os:volume_down" => Some("[CMD:os:volume_down]".to_string()),
-        "os_mute" | "os:mute" => Some("[CMD:os:mute]".to_string()),
-        "os_screenshot" | "os:screenshot" => Some("[CMD:os:screenshot]".to_string()),
-        "os_lock" | "os:lock" => Some("[CMD:os:lock]".to_string()),
+        "media_pause" | "media:pause" | "pause_media" => Some("[CMD:media:pause]".to_string()),
+        "media_next" | "media:next" => Some("[CMD:media:next]".to_string()),
+        "media_prev" | "media:prev" => Some("[CMD:media:prev]".to_string()),
+        "pose_set" | "pose:set" | "avatar_pose" => {
+            primary_param.map(|val| format!("[CMD:pose:set|{val}]"))
+        }
         "todo_add" | "todo:add" => primary_param.map(|val| format!("[CMD:todo:add|{val}]")),
+        "todo_list" | "todo:list" => Some("[CMD:todo:list]".to_string()),
         "todo_done" | "todo:done" => primary_param.map(|val| format!("[CMD:todo:done|{val}]")),
         _ => {
-            // Check if name has namespace:action format directly
             if let Some((ns, act)) = clean_name.split_once(':') {
                 if let Some(param) = primary_param {
                     Some(format!("[CMD:{ns}:{act}|{param}]"))

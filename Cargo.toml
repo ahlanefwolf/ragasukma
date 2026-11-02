@@ -21,7 +21,7 @@ winres = "0.1"
 
 
 [dependencies]
-# Async Runtime & Web Server Engine (Axum + Tokio)
+ragasukma-core = { git = "https://github.com/ahlanefwolf/ragasukma-core.git" }
 tokio = { version = "1.38", features = ["full"] }
 axum = { version = "0.7", features = ["ws"] }
 tower-http = { version = "0.5", features = ["cors"] }

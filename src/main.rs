@@ -190,7 +190,7 @@ fn main() -> Result<()> {
     // Prune expired agent telemetry (messages / audit logs) without blocking startup.
     // Retention windows are read from the environment; see `agent::maintenance`.
     crate::app_state::get_global_tokio_runtime().spawn(async {
-        crate::agent::maintenance::run_retention_loop().await;
+        ragasukma_core::agent::maintenance::run_retention_loop().await;
     });
 
     crate::term_log!("====================================================");
