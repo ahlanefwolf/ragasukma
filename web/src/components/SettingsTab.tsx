@@ -28,11 +28,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
   const [assistantGender, setAssistantGender] = createSignal('female');
   const [personalityRole, setPersonalityRole] = createSignal('tsundere');
 
-  // AI LLM Provider
-  const [llmProvider, setLlmProvider] = createSignal('custom');
-  const [llmBaseUrl, setLlmBaseUrl] = createSignal('');
+  // AI Brain Model (Routing via AccountTab)
   const [llmModel, setLlmModel] = createSignal('');
-  const [llmApiKey, setLlmApiKey] = createSignal('');
 
   // Audio & STT
   const [voiceInterruption, setVoiceInterruption] = createSignal(true);
@@ -95,27 +92,24 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
     const cfg = await api.getConfig();
     if (!isComponentMounted) return;
     if (cfg) {
-      if (cfg.assistant_name !== undefined) setAssistantName(cfg.assistant_name);
-      if (cfg.user_callsign !== undefined) setUserCallsign(cfg.user_callsign);
-      if (cfg.assistant_gender !== undefined) setAssistantGender(cfg.assistant_gender);
-      if (cfg.personality_role !== undefined) setPersonalityRole(cfg.personality_role);
+      if (cfg.assistant_name != null) setAssistantName(cfg.assistant_name);
+      if (cfg.user_callsign != null) setUserCallsign(cfg.user_callsign);
+      if (cfg.assistant_gender != null) setAssistantGender(cfg.assistant_gender);
+      if (cfg.personality_role != null) setPersonalityRole(cfg.personality_role);
 
-      if (cfg.llm_provider !== undefined) setLlmProvider(cfg.llm_provider);
-      if (cfg.llm_base_url !== undefined) setLlmBaseUrl(cfg.llm_base_url);
-      if (cfg.llm_model !== undefined) setLlmModel(cfg.llm_model);
-      if (cfg.llm_api_key !== undefined) setLlmApiKey(cfg.llm_api_key);
+      if (cfg.llm_model != null) setLlmModel(cfg.llm_model);
 
-      if (cfg.voice_interruption !== undefined) setVoiceInterruption(cfg.voice_interruption);
-      if (cfg.vad_threshold !== undefined) setVadThreshold(cfg.vad_threshold);
-      if (cfg.vad_noise_suppression !== undefined) setVadNoiseSuppression(cfg.vad_noise_suppression);
+      if (cfg.voice_interruption != null) setVoiceInterruption(cfg.voice_interruption);
+      if (cfg.vad_threshold != null) setVadThreshold(cfg.vad_threshold);
+      if (cfg.vad_noise_suppression != null) setVadNoiseSuppression(cfg.vad_noise_suppression);
 
-      if (cfg.lang !== undefined) setLang(cfg.lang);
-      if (cfg.tts_voice_name !== undefined) setTtsVoiceName(cfg.tts_voice_name);
-      if (cfg.tts_speed !== undefined) setTtsSpeed(cfg.tts_speed);
-      if (cfg.tts_volume !== undefined) setTtsVolume(cfg.tts_volume);
+      if (cfg.lang != null) setLang(cfg.lang);
+      if (cfg.tts_voice_name != null) setTtsVoiceName(cfg.tts_voice_name);
+      if (cfg.tts_speed != null) setTtsSpeed(cfg.tts_speed);
+      if (cfg.tts_volume != null) setTtsVolume(cfg.tts_volume);
 
-      if (cfg.avatar_type !== undefined) setAvatarType(cfg.avatar_type);
-      if (cfg.always_on_top !== undefined) setAlwaysOnTop(cfg.always_on_top);
+      if (cfg.avatar_type != null) setAvatarType(cfg.avatar_type);
+      if (cfg.always_on_top != null) setAlwaysOnTop(cfg.always_on_top);
     }
     if (isComponentMounted) {
       await loadAssetInfoData();
@@ -176,23 +170,20 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
     setIsSaving(true);
 
     const payload: UserConfig = {
-      assistant_name: assistantName().trim(),
-      user_callsign: userCallsign().trim(),
-      assistant_gender: assistantGender(),
-      personality_role: personalityRole(),
-      voice_interruption: voiceInterruption(),
-      vad_threshold: vadThreshold(),
-      vad_noise_suppression: vadNoiseSuppression(),
-      llm_provider: llmProvider(),
-      llm_base_url: llmBaseUrl().trim(),
-      llm_model: llmModel().trim(),
-      llm_api_key: llmApiKey().trim(),
-      lang: lang(),
-      tts_voice_name: ttsVoiceName(),
-      tts_speed: ttsSpeed(),
-      tts_volume: ttsVolume(),
-      avatar_type: avatarType(),
-      always_on_top: alwaysOnTop(),
+      assistant_name: (assistantName() || '').trim(),
+      user_callsign: (userCallsign() || '').trim(),
+      assistant_gender: assistantGender() || 'female',
+      personality_role: personalityRole() || 'tsundere',
+      voice_interruption: Boolean(voiceInterruption()),
+      vad_threshold: Number(vadThreshold() ?? 0.5),
+      vad_noise_suppression: Boolean(vadNoiseSuppression()),
+      llm_model: (llmModel() || '').trim(),
+      lang: lang() || 'id',
+      tts_voice_name: ttsVoiceName() || 'F2',
+      tts_speed: Number(ttsSpeed() ?? 1.05),
+      tts_volume: Number(ttsVolume() ?? 1.6),
+      avatar_type: avatarType() || 'vrm',
+      always_on_top: Boolean(alwaysOnTop()),
     };
 
     const ok = await api.saveConfig(payload);
@@ -299,14 +290,8 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
           setAssistantGender={setAssistantGender}
           personalityRole={personalityRole()}
           setPersonalityRole={setPersonalityRole}
-          llmProvider={llmProvider()}
-          setLlmProvider={setLlmProvider}
-          llmBaseUrl={llmBaseUrl()}
-          setLlmBaseUrl={setLlmBaseUrl}
           llmModel={llmModel()}
           setLlmModel={setLlmModel}
-          llmApiKey={llmApiKey()}
-          setLlmApiKey={setLlmApiKey}
           ttsVoiceName={ttsVoiceName()}
           setTtsVoiceName={setTtsVoiceName}
         />

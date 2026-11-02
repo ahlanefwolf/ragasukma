@@ -12,14 +12,8 @@ interface PersonaAiSectionProps {
   setAssistantGender: (val: string) => void;
   personalityRole: string;
   setPersonalityRole: (val: string) => void;
-  llmProvider: string;
-  setLlmProvider: (val: string) => void;
-  llmBaseUrl: string;
-  setLlmBaseUrl: (val: string) => void;
   llmModel: string;
   setLlmModel: (val: string) => void;
-  llmApiKey: string;
-  setLlmApiKey: (val: string) => void;
   ttsVoiceName?: string;
   setTtsVoiceName?: (val: string) => void;
   isActive?: boolean;

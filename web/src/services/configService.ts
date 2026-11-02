@@ -5,10 +5,10 @@ export interface UserConfig {
   user_callsign: string;
   personality_role: string;
   assistant_gender: string;
-  llm_provider: string;
-  llm_base_url: string;
+  llm_provider?: string;
+  llm_base_url?: string;
   llm_model: string;
-  llm_api_key: string;
+  llm_api_key?: string;
   lang: string;
   tts_voice_name?: string;
   tts_speed: number;
