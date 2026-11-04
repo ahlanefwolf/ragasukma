@@ -131,22 +131,6 @@ export const api = {
   getModelStatus: eventsService.getModelStatus,
   subscribeModelStatus: eventsService.subscribeModelStatus,
   triggerModelDownload: eventsService.triggerModelDownload,
-
-  // Python Runtime Management Service
-  getPythonInfo: async (): Promise<{ installed: boolean; version: string; path?: string; is_installing: boolean; error?: string }> => {
-    try {
-      const res = await fetch('/api/system/python/info');
-      if (!res.ok) throw new Error('Failed to retrieve Python info');
-      return await res.json();
-    } catch {
-      return { installed: false, version: '', is_installing: false };
-    }
-  },
-  installPython: async (): Promise<{ installed: boolean; version: string; path?: string; is_installing: boolean; error?: string }> => {
-    const res = await fetch('/api/system/python/install', { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to trigger Python installation');
-    return await res.json();
-  },
 };
 
 export type { AntigravityAccount, AntigravityQuotaResponse } from './services/antigravityService';

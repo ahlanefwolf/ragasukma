@@ -51,18 +51,6 @@ pub fn register_agent_routes(
         .route("/api/agent/goals/:id/audit", get(get_goal_audit_logs))
         .route("/api/agent/sessions/:id/audit", get(get_session_audit_logs))
         .route("/api/agent/goals/:id/conclude", post(conclude_goal_handler))
-        // Python Environment
-        .route("/api/agent/python/info", get(agent_python_info))
-        .route("/api/agent/python/install", post(agent_python_install))
-}
-
-pub(crate) async fn agent_python_info() -> impl IntoResponse {
-    Json(crate::agent::engine::python::get_python_info())
-}
-
-pub(crate) async fn agent_python_install() -> impl IntoResponse {
-    crate::agent::engine::python::ensure_python_installed_background();
-    Json(crate::agent::engine::python::get_python_info())
 }
 
 // -----------------------------------------------------------------------------

@@ -1,6 +1,5 @@
 pub mod actions;
 pub mod app_scanner;
-pub mod python;
 pub mod chat_loop;
 pub mod cloudflared;
 pub mod hardware_probe;
@@ -18,15 +17,16 @@ pub mod ytdlp;
 
 pub use actions::*;
 pub use app_scanner::*;
-pub use python::*;
 pub use cloudflared::*;
 pub use hardware_probe::*;
 pub use intent::*;
 pub use os_efficiency::*;
 pub use perception::*;
+pub use prompt::*;
 pub use remote_text::*;
 pub use session::*;
 pub use skills::*;
 pub use tasks::*;
 pub use todo::*;
 pub use window_scanner::*;
+pub use ytdlp::*;

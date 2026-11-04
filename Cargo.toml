@@ -87,5 +87,5 @@ codegen-units = 1
 strip = true
 panic = "abort"
 
-# [patch."https://github.com/ahlanefwolf/ragasukma-core.git"]
-# ragasukma-core = { path = "../../rust/ragasukma-core" }
+[patch."https://github.com/ahlanefwolf/ragasukma-core.git"]
+ragasukma-core = { path = "../ragasukma-core" }

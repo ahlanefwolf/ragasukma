@@ -50,6 +50,22 @@ jobs:
         uses: actions/checkout@v4
 
       # ======================================================================
+      # STRIP LOCAL CARGO PATCHES (FORCE USE CLOUD GIT)
+      # ======================================================================
+      - name: Strip local Cargo patches for CI build
+        shell: bash
+        run: |
+          echo "=== Removing local [patch] from Cargo.toml ==="
+          node -e '
+            const fs = require("fs");
+            let c = fs.readFileSync("Cargo.toml", "utf8");
+            c = c.replace(/\[patch\.[^\]]+\][\s\S]*?(?=\n\[|$)/g, "");
+            fs.writeFileSync("Cargo.toml", c.trimEnd() + "\n");
+          '
+          echo "=== Verified Cargo.toml Tail ==="
+          tail -n 15 Cargo.toml
+
+      # ======================================================================
       # LINUX DEPENDENCIES
       # ======================================================================
       - name: Install System Dependencies (Linux)

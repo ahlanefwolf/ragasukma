@@ -18,7 +18,6 @@ import {
   ZapOff,
   Workflow,
   MessageSquare,
-  Terminal,
   Circle
 } from 'lucide-solid';
 import { api } from '../api';
@@ -87,14 +86,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     releaseNotes: '',
     releaseUrl: '',
   });
-  const [pythonInfo, setPythonInfo] = createSignal<{ installed: boolean; version: string; path?: string; is_installing: boolean }>({
-    installed: false,
-    version: '',
-    is_installing: false,
-  });
-  let pythonPollTimer: ReturnType<typeof setInterval> | null = null;
   let disposed = false;
-  const [pythonChecking, setPythonChecking] = createSignal(false);
   const [extensionModalOpen, setExtensionModalOpen] = createSignal(false);
   const [appsModalOpen, setAppsModalOpen] = createSignal(false);
 
@@ -139,9 +131,6 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     getOrCreateWebAudioAnalyser().then((analyser) => {
       localAnalyser = analyser;
     });
-
-    // Check Python status on mount
-    fetchPythonStatus();
 
     // 1. Global AI State Stream
     const unsubscribeState = api.subscribeState((payload) => {
@@ -190,10 +179,6 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
 
     onCleanup(() => {
       disposed = true;
-      if (pythonPollTimer !== null) {
-        clearInterval(pythonPollTimer);
-        pythonPollTimer = null;
-      }
       window.removeEventListener('ragasukma:config_updated' as any, handleConfigUpdated);
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
@@ -288,69 +273,6 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
       props.showToast(`Ragasukma is up to date (${CURRENT_APP_VERSION})`);
     } finally {
       setIsUpdating(false);
-    }
-  };
-
-  const fetchPythonStatus = async () => {
-    try {
-      const info = await api.getPythonInfo();
-      setPythonInfo(info);
-    } catch (e) {
-      console.warn('Failed to fetch Python status:', e);
-    }
-  };
-
-  const handleCheckPythonStatus = async () => {
-    setPythonChecking(true);
-    try {
-      const info = await api.getPythonInfo();
-      setPythonInfo(info);
-      if (info.installed) {
-        props.showToast(`Python detected: ${info.version}`);
-      } else {
-        props.showToast('Python 3 not detected on this system');
-      }
-    } catch {
-      props.showToast('Could not fetch Python status');
-    } finally {
-      setPythonChecking(false);
-    }
-  };
-
-  const handleTriggerInstallPython = async () => {
-    try {
-      props.showToast('Initiating Python 3 setup in background...');
-      const res = await api.installPython();
-      setPythonInfo(res);
-      // Poll a few times
-      let attempts = 0;
-      if (pythonPollTimer !== null) {
-        clearInterval(pythonPollTimer);
-      }
-      pythonPollTimer = setInterval(async () => {
-        if (disposed) {
-          if (pythonPollTimer !== null) {
-            clearInterval(pythonPollTimer);
-            pythonPollTimer = null;
-          }
-          return;
-        }
-        attempts++;
-        const updated = await api.getPythonInfo();
-        if (disposed) return;
-        setPythonInfo(updated);
-        if (updated.installed || attempts > 15) {
-          if (pythonPollTimer !== null) {
-            clearInterval(pythonPollTimer);
-            pythonPollTimer = null;
-          }
-          if (updated.installed) {
-            props.showToast(`Python 3 is ready: ${updated.version}`);
-          }
-        }
-      }, 3000);
-    } catch {
-      props.showToast('Failed to trigger Python setup');
     }
   };
 
@@ -461,65 +383,6 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             {voiceInterruption() ? <Zap size={17} class="shrink-0 fill-current" /> : <ZapOff size={17} class="shrink-0" />}
             <span class="truncate">{voiceInterruption() ? 'Interruption: ON' : 'Interruption: OFF'}</span>
           </button>
-        </div>
-
-        {/* Python 3 Runtime Status Bar */}
-        <div class="mt-3 p-3 bg-theme-bg/80 border border-theme-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div class="flex items-center gap-2.5">
-            <Terminal size={18} class="shrink-0 text-theme-cyan" />
-            <div>
-              <div class="flex items-center gap-2 font-mono">
-                <span class="font-bold text-theme-text">Python 3 Runtime:</span>
-                {pythonInfo().installed ? (
-                  <span class="text-theme-cyan font-semibold flex items-center gap-1.5">
-                    <span class="inline-block w-2 h-2 bg-theme-cyan animate-pulse"></span>
-                    Detected ({pythonInfo().version})
-                  </span>
-                ) : pythonInfo().is_installing ? (
-                  <span class="text-amber-400 font-semibold flex items-center gap-1.5">
-                    <RefreshCw size={12} class="animate-spin" />
-                    Setting up in background...
-                  </span>
-                ) : (
-                  <span class="text-theme-rose font-semibold">Not Detected</span>
-                )}
-              </div>
-              <p class="text-[11px] text-theme-text/60 mt-0.5">
-                Standard scripting engine utilized by autonomous agents for web scraping, sqlite, and terminal automation tasks.
-              </p>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
-            {!pythonInfo().installed && (
-              <button
-                onClick={handleTriggerInstallPython}
-                disabled={pythonInfo().is_installing}
-                class="px-2.5 py-1 text-xs font-semibold bg-theme-cyan/20 hover:bg-theme-cyan/30 text-theme-cyan border border-theme-cyan/40 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                <Download size={12} />
-                <span>{pythonInfo().is_installing ? 'Setting up...' : 'Setup Python 3'}</span>
-              </button>
-            )}
-            <button
-              onClick={handleCheckPythonStatus}
-              disabled={pythonChecking()}
-              title="Refresh Python 3 detection"
-              class="px-2.5 py-1 text-xs font-semibold bg-theme-card hover:bg-theme-surface text-theme-text hover:text-theme-cyan border border-theme-border flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              <RefreshCw size={12} class={pythonChecking() ? 'animate-spin text-theme-cyan' : ''} />
-              <span>{pythonChecking() ? 'Checking...' : 'Check Status'}</span>
-            </button>
-            <a
-              href="https://www.python.org"
-              target="_blank"
-              rel="noreferrer"
-              title="Open Python.org"
-              class="p-1 text-theme-text/60 hover:text-theme-cyan transition-colors"
-            >
-              <ExternalLink size={14} />
-            </a>
-          </div>
         </div>
       </div>
 
