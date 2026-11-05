@@ -63,6 +63,7 @@ export interface AgentSession {
   updated_at: number;
   total_tokens_input?: number;
   total_tokens_output?: number;
+  total_requests?: number;
 }
 
 export interface WorkspaceFileItem {

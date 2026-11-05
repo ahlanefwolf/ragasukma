@@ -216,6 +216,15 @@ export const AgentSidebar: Component<{
                               <span>{formatTokens(totalTokens())}</span>
                             </span>
                           </Show>
+                          <Show when={(sess.total_requests || 0) > 0}>
+                            <span class="text-theme-text/30 shrink-0">•</span>
+                            <span
+                              class="inline-flex items-center gap-0.5 text-2xs font-mono font-medium text-theme-text/60 shrink-0"
+                              title={`Task Requests:\n• ${sess.total_requests} turns/calls recorded in database`}
+                            >
+                              <span>{(sess.total_requests || 0).toLocaleString()} reqs</span>
+                            </span>
+                          </Show>
                         </div>
                       </div>
 

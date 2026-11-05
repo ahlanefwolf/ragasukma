@@ -73,23 +73,28 @@ export const AgentChatPane: Component<{
   const [exportMenuOpen, setExportMenuOpen] = createSignal(false);
   const [copiedTranscript, setCopiedTranscript] = createSignal(false);
 
-  // Calculate total session token usage
+  // Calculate total session token & request telemetry
   const sessionTokenStats = createMemo(() => {
     const msgs = props.visibleMessages || [];
     let runningIn = 0;
     let runningOut = 0;
+    let runningReqs = 0;
     for (const m of msgs) {
       if (m.token_usage_input) runningIn += m.token_usage_input;
       if (m.token_usage_output) runningOut += m.token_usage_output;
+      if (m.role === 'assistant' || m.role === 'tool') runningReqs++;
     }
     const sessIn = props.currentSession?.total_tokens_input || 0;
     const sessOut = props.currentSession?.total_tokens_output || 0;
+    const sessReqs = props.currentSession?.total_requests || 0;
     const finalIn = Math.max(runningIn, sessIn);
     const finalOut = Math.max(runningOut, sessOut);
+    const finalReqs = Math.max(runningReqs, sessReqs);
     return {
       totalIn: finalIn,
       totalOut: finalOut,
       total: finalIn + finalOut,
+      totalRequests: finalReqs,
     };
   });
 
@@ -275,10 +280,10 @@ export const AgentChatPane: Component<{
                 {props.currentSession?.status}
               </span>
             </Show>
-            <Show when={sessionTokenStats().total > 0}>
+            <Show when={sessionTokenStats().total > 0 || sessionTokenStats().totalRequests > 0}>
               <div
                 class="flex items-center gap-1.5 px-2 py-0.5 text-2xs font-mono font-medium bg-white/5 border border-white/10 text-theme-text/80 select-none shadow-sm"
-                title={`Task Token Telemetry:\n• Total: ${sessionTokenStats().total.toLocaleString()} tokens\n• Input: ${sessionTokenStats().totalIn.toLocaleString()}\n• Output: ${sessionTokenStats().totalOut.toLocaleString()}`}
+                title={`Task Telemetry:\n• Total: ${sessionTokenStats().total.toLocaleString()} tokens\n• Input: ${sessionTokenStats().totalIn.toLocaleString()}\n• Output: ${sessionTokenStats().totalOut.toLocaleString()}\n• Requests: ${sessionTokenStats().totalRequests.toLocaleString()} calls`}
               >
                 <Zap class="w-3 h-3 text-gi-status-warning shrink-0" />
                 <span class="text-gi-status-warning font-semibold">{sessionTokenStats().total.toLocaleString()}</span>
@@ -292,6 +297,12 @@ export const AgentChatPane: Component<{
                   <ArrowUpToLine class="w-2.5 h-2.5 shrink-0" />
                   <span>{sessionTokenStats().totalOut.toLocaleString()} out</span>
                 </span>
+                <Show when={sessionTokenStats().totalRequests > 0}>
+                  <span class="text-theme-text/25">•</span>
+                  <span class="text-white/60">
+                    <span class="text-white/90 font-medium">{sessionTokenStats().totalRequests.toLocaleString()}</span> reqs
+                  </span>
+                </Show>
               </div>
             </Show>
             <Show when={sessionModifiedFiles().length > 0}>
