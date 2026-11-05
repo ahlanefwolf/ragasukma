@@ -65,6 +65,37 @@ async function getOrCreateWebAudioAnalyser(): Promise<AnalyserNode | null> {
   }
 }
 
+const CURRENT_APP_VERSION = 'v0.2.0';
+
+/**
+ * Compares two SemVer versions (e.g. "v0.2.0" vs "0.10.0").
+ * Returns:
+ *   1 if a > b (a is newer than b)
+ *  -1 if a < b (a is older than b)
+ *   0 if a === b
+ */
+function compareSemVer(a: string, b: string): number {
+  const parseParts = (v: string): number[] => {
+    const clean = v.trim().replace(/^v/i, '').split(/[-+]/)[0];
+    return clean.split('.').map((p) => {
+      const n = parseInt(p, 10);
+      return Number.isNaN(n) ? 0 : n;
+    });
+  };
+
+  const partsA = parseParts(a);
+  const partsB = parseParts(b);
+  const maxLen = Math.max(partsA.length, partsB.length, 3);
+
+  for (let i = 0; i < maxLen; i++) {
+    const numA = partsA[i] ?? 0;
+    const numB = partsB[i] ?? 0;
+    if (numA > numB) return 1;
+    if (numA < numB) return -1;
+  }
+  return 0;
+}
+
 export const MenuTab: Component<MenuTabProps> = (props) => {
   const [isRunning, setIsRunning] = createSignal(true);
   const [isPaused, setIsPaused] = createSignal(false);
@@ -80,8 +111,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
   const [updateModalOpen, setUpdateModalOpen] = createSignal(false);
   const [updateInfo, setUpdateInfo] = createSignal({
     hasUpdate: false,
-    currentVersion: 'v0.2.0',
-    latestVersion: 'v0.2.0',
+    currentVersion: CURRENT_APP_VERSION,
+    latestVersion: CURRENT_APP_VERSION,
     releaseName: '',
     releaseNotes: '',
     releaseUrl: '',
@@ -229,28 +260,39 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     }
   };
 
-  const CURRENT_APP_VERSION = 'v0.2.0';
-
   const handleCheckUpdate = async () => {
     setIsUpdating(true);
     try {
-      const res = await fetch('https://api.github.com/repos/ahlanefwolf/ragasukma/releases/latest');
+      const res = await fetch('https://api.github.com/repos/ahlanefwolf/ragasukma/releases/latest', {
+        headers: {
+          Accept: 'application/vnd.github.v3+json',
+        },
+      });
+
       if (!res.ok) {
-        throw new Error('Failed to fetch GitHub release data');
+        if (res.status === 403) {
+          throw new Error('GitHub API rate limit exceeded. Please try again later.');
+        }
+        if (res.status === 404) {
+          throw new Error('No published releases found on GitHub repository.');
+        }
+        throw new Error(`GitHub API error (${res.status})`);
       }
+
       const data = await res.json();
       const latestTag = (data.tag_name || '').trim();
-      const cleanLatest = latestTag.replace(/^v/, '');
-      const cleanCurrent = CURRENT_APP_VERSION.replace(/^v/, '');
+      if (!latestTag) {
+        throw new Error('Release tag information is missing from GitHub response.');
+      }
 
-      const isNewer = cleanLatest !== cleanCurrent && cleanLatest > cleanCurrent;
+      const isNewer = compareSemVer(latestTag, CURRENT_APP_VERSION) > 0;
 
       setUpdateInfo({
         hasUpdate: isNewer,
         currentVersion: CURRENT_APP_VERSION,
-        latestVersion: latestTag || CURRENT_APP_VERSION,
+        latestVersion: latestTag,
         releaseName: data.name || latestTag,
-        releaseNotes: data.body || 'No release notes available.',
+        releaseNotes: data.body?.trim() || 'No release notes provided for this release.',
         releaseUrl: data.html_url || 'https://github.com/ahlanefwolf/ragasukma/releases',
       });
       setUpdateModalOpen(true);
@@ -261,16 +303,8 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
         props.showToast(`Ragasukma is up to date (${CURRENT_APP_VERSION})`);
       }
     } catch (err: any) {
-      setUpdateInfo({
-        hasUpdate: false,
-        currentVersion: CURRENT_APP_VERSION,
-        latestVersion: CURRENT_APP_VERSION,
-        releaseName: `Ragasukma ${CURRENT_APP_VERSION}`,
-        releaseNotes: 'The application is already running the latest stable release.',
-        releaseUrl: 'https://github.com/ahlanefwolf/ragasukma/releases',
-      });
-      setUpdateModalOpen(true);
-      props.showToast(`Ragasukma is up to date (${CURRENT_APP_VERSION})`);
+      console.warn('Update check failed:', err);
+      props.showToast(err?.message || 'Failed to check for updates. Please check your internet connection.');
     } finally {
       setIsUpdating(false);
     }
