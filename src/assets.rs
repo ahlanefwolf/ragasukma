@@ -118,6 +118,33 @@ pub fn ensure_default_user_assets() {
         ("antigravity_accounts.json", "[]\n"),
         ("codex_accounts.json", "[]\n"),
         ("claude_accounts.json", "[]\n"),
+        (
+            "api_llm_accounts.json",
+            r#"[
+  {
+    "prefix": "groq",
+    "name": "Groq Cloud LPU",
+    "base_url": "https://api.groq.com/openai/v1",
+    "api_key": "",
+    "enabled": false
+  },
+  {
+    "prefix": "deepseek",
+    "name": "DeepSeek API Platform",
+    "base_url": "https://api.deepseek.com/v1",
+    "api_key": "",
+    "enabled": false
+  },
+  {
+    "prefix": "local",
+    "name": "Local Ollama / vLLM",
+    "base_url": "http://localhost:11434/v1",
+    "api_key": "",
+    "enabled": true
+  }
+]
+"#,
+        ),
     ];
 
     for (filename, default_content) in config_initial_files {
