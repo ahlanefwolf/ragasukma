@@ -414,25 +414,11 @@ export function useWorkspaceState(showToast: (msg: string) => void) {
     handleTestMcpServer: async (serverOrPayload: SaveMcpServerPayload | McpServerConfig) => {
       let payload: SaveMcpServerPayload;
       if ('created_at' in serverOrPayload) {
-        let args: string[] = [];
-        try {
-          const parsed = JSON.parse(serverOrPayload.args || '[]');
-          if (Array.isArray(parsed)) args = parsed;
-        } catch {}
-        let env: Record<string, string> = {};
-        try {
-          const parsed = JSON.parse(serverOrPayload.env || '{}');
-          if (typeof parsed === 'object' && parsed !== null) env = parsed;
-        } catch {}
         payload = {
           id: serverOrPayload.id,
           name: serverOrPayload.name,
-          transport: serverOrPayload.transport,
-          command: serverOrPayload.command,
-          args,
-          env,
-          url: serverOrPayload.url,
-          is_enabled: true,
+          config: serverOrPayload.config,
+          is_enabled: serverOrPayload.is_enabled !== 0,
         };
       } else {
         payload = serverOrPayload;

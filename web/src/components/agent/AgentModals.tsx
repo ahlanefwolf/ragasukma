@@ -376,32 +376,7 @@ export const McpServerModal: Component<{
 
       if (props.initialData) {
         setName(props.initialData.name || '');
-
-        const cfg: any = {
-          name: props.initialData.name,
-          transport: props.initialData.transport || 'stdio',
-        };
-        if (props.initialData.url) cfg.url = props.initialData.url;
-        if (props.initialData.command) cfg.command = props.initialData.command;
-        try {
-          const parsedArgs = JSON.parse(props.initialData.args || '[]');
-          if (Array.isArray(parsedArgs) && parsedArgs.length > 0) {
-            cfg.args = parsedArgs;
-          }
-        } catch {}
-
-        try {
-          const parsedEnv = JSON.parse(props.initialData.env || '{}');
-          if (typeof parsedEnv === 'object' && parsedEnv !== null && Object.keys(parsedEnv).length > 0) {
-            for (const [k, v] of Object.entries(parsedEnv)) {
-              if (cfg[k] === undefined) {
-                cfg[k] = v;
-              }
-            }
-          }
-        } catch {}
-
-        setJsonText(JSON.stringify(cfg, null, 2));
+        setJsonText(props.initialData.config || '');
       } else {
         const defaultTmpl = MCP_TEMPLATES[0];
         setName(defaultTmpl.json.name);
@@ -413,22 +388,17 @@ export const McpServerModal: Component<{
   const handleSave = async () => {
     const raw = jsonText().trim();
     if (!raw) {
-      setJsonError('JSON configuration cannot be empty');
-      return;
-    }
-
-    let parsed: any;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (e: any) {
-      setJsonError(`Invalid JSON syntax: ${e?.message}`);
+      setJsonError('Configuration cannot be empty');
       return;
     }
 
     let finalName = name().trim();
-    if (!finalName && parsed.name) {
-      finalName = String(parsed.name).trim();
-      setName(finalName);
+    if (!finalName) {
+      // Check if json has name
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.name) finalName = String(parsed.name).trim();
+      } catch {}
     }
 
     if (!finalName) {
@@ -437,10 +407,10 @@ export const McpServerModal: Component<{
     }
 
     const payload: SaveMcpServerPayload = {
-      id: props.initialData?.id || 'mcp_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6),
+      id: props.initialData?.id || undefined,
       name: finalName,
-      raw_json: parsed,
-      is_enabled: true,
+      config: raw,
+      is_enabled: props.initialData ? props.initialData.is_enabled !== 0 : true,
     };
 
     setIsSaving(true);

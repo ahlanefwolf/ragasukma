@@ -136,13 +136,13 @@ export const AgentWorkspaceHeader: Component<{
                           </span>
                         </div>
                         <p class="text-xs text-theme-text/60 line-clamp-1 font-mono">
-                          {server.transport === 'sse' ? server.url : `${server.command || ''} ${server.args || ''}`}
+                          {server.config || server.name}
                         </p>
                       </div>
 
                       <div class="flex items-center justify-between pt-1 border-t border-theme-border/40 text-2xs text-theme-text/70">
                         <span class="font-mono uppercase text-2xs px-1.5 py-0.2 bg-theme-bg border border-theme-border">
-                          {server.transport}
+                          {server.is_enabled !== 0 ? 'enabled' : 'disabled'}
                         </span>
                         <span class="text-2xs text-theme-text/50">
                           {isActive() ? 'Click to disable' : 'Click to enable'}

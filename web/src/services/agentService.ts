@@ -18,6 +18,7 @@ export interface PromptSkill {
 export interface SaveMcpServerPayload {
   id?: string;
   name: string;
+  config?: string;
   transport?: 'stdio' | 'sse' | 'http';
   command?: string;
   args?: string[];
@@ -30,13 +31,15 @@ export interface SaveMcpServerPayload {
 export interface McpServerConfig {
   id: string;
   name: string;
-  transport: 'stdio' | 'sse' | 'http';
-  command?: string;
-  args: string;
-  env: string;
-  url?: string;
+  config: string;
   is_enabled: number;
   created_at: number;
+}
+
+export interface McpServerTool {
+  server_id: string;
+  name: string;
+  config: string;
 }
 
 
@@ -505,25 +508,26 @@ export const agentService = {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/agent/mcp`);
       if (!res.ok) return [];
-      return await res.json();
+      const data = await res.json().catch(() => []);
+      return Array.isArray(data) ? data : (data.servers || []);
     } catch (e) {
       console.error('Failed to get MCP servers:', e);
       return [];
     }
   },
 
-  async saveMcpServer(server: SaveMcpServerPayload): Promise<{ ok: boolean; error?: string }> {
+  async saveMcpServer(server: SaveMcpServerPayload): Promise<{ ok: boolean; id?: string; error?: string }> {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/agent/mcp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(server),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
         return { ok: false, error: data.error || `HTTP ${res.status}` };
       }
-      return { ok: true };
+      return { ok: true, id: data.id };
     } catch (e: any) {
       return { ok: false, error: e?.message || 'Failed to save MCP server' };
     }
@@ -544,13 +548,56 @@ export const agentService = {
     }
   },
 
+  async listMcpServerTools(serverId: string): Promise<McpServerTool[]> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/mcp/${encodeURIComponent(serverId)}/tools`);
+      if (!res.ok) return [];
+      const data = await res.json().catch(() => ({}));
+      return data.tools || [];
+    } catch (e) {
+      console.error('Failed to list MCP server tools:', e);
+      return [];
+    }
+  },
+
+  async syncMcpServer(serverId: string, model?: string): Promise<{ ok: boolean; tools_count?: number; tools?: McpServerTool[]; error?: string }> {
+    try {
+      // MCP discovery involves external network calls & LLM inference, give it up to 3 minutes
+      const res = await fetchWithTimeout(
+        `${API_BASE}/api/agent/mcp/${encodeURIComponent(serverId)}/sync`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(model ? { model } : {}),
+        },
+        180000
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || (data.ok === false && data.error)) {
+        return { ok: false, error: data.error || `HTTP ${res.status}` };
+      }
+      return {
+        ok: true,
+        tools_count: data.tools_count ?? (data.tools ? data.tools.length : 0),
+        tools: data.tools || [],
+      };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'Failed to sync MCP server tools' };
+    }
+  },
+
   async testMcpServer(server: SaveMcpServerPayload): Promise<{ ok: boolean; tools_count?: number; error?: string }> {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/agent/mcp/test`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(server),
-      });
+      // MCP test connection / discovery can take time
+      const res = await fetchWithTimeout(
+        `${API_BASE}/api/agent/mcp/test`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(server),
+        },
+        120000
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.error) {
         return { ok: false, error: data.error || `HTTP ${res.status}` };
