@@ -68,13 +68,6 @@ export const AntigravityAccountCard: Component<AntigravityAccountCardProps> = (p
                 Disabled
               </span>
             </Show>
-
-            {/* Plan badge */}
-            <Show when={props.quotaData?.plan}>
-              <span class="text-xs font-mono px-2 py-0.5 bg-theme-cyan/10 text-theme-cyan border border-theme-cyan/30 font-bold">
-                {props.quotaData?.plan}
-              </span>
-            </Show>
           </div>
 
           <div class="flex items-center gap-3 text-xs text-theme-text/60 flex-wrap">

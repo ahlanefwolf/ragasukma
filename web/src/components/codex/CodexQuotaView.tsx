@@ -110,11 +110,6 @@ export const CodexQuotaView: Component<CodexQuotaViewProps> = (props) => {
         <div class="flex items-center gap-2">
           <Gauge size={15} class="text-theme-cyan" />
           <span class="text-xs font-bold text-theme-text">OpenAI Codex Usage Status</span>
-          <Show when={props.quotaData?.plan}>
-            <span class="text-xs font-mono px-2 py-0.5 bg-theme-cyan/10 text-theme-cyan border border-theme-cyan/20 font-bold uppercase">
-              {props.quotaData?.plan}
-            </span>
-          </Show>
           <Show when={props.quotaData?.reset_credits !== undefined && props.quotaData?.reset_credits !== null}>
             <span class="text-xs font-mono px-2 py-0.5 bg-theme-rose/10 text-theme-rose border border-theme-rose/20 font-bold">
               {props.quotaData?.reset_credits} Reset Credits
