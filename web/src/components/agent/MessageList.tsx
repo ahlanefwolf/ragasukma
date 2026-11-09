@@ -382,7 +382,7 @@ export const MessageList: Component<MessageListProps> = (props) => {
         </Show>
 
         {/* Active Execution Spinner */}
-        <Show when={props.isCurrentSessionBusy}>
+        <Show when={props.isCurrentSessionBusy && (!props.streamingText || props.streamingText.trim().length === 0)}>
           <div class="flex items-center gap-2.5 p-3 bg-gi-primary/10 border border-gi-primary/20 text-xs text-gi-primary w-fit animate-pulse">
             <Loader2 class="w-4 h-4 animate-spin text-gi-status-warning shrink-0" />
             <div>

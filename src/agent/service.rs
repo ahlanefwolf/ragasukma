@@ -642,7 +642,7 @@ pub struct CreateSessionFromChatPayload {
 async fn create_session_from_chat(
     Json(payload): Json<CreateSessionFromChatPayload>,
 ) -> impl IntoResponse {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = crate::db::get_pool().await;
     let turn: Option<(String, String)> = match sqlx::query_as(
         "SELECT user_msg, assistant_msg FROM chat_history WHERE id = ?1",
     )

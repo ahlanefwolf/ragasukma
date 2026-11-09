@@ -142,25 +142,51 @@ export function useChatSession(
         if (activeEventSource !== es || selectedSessionId() !== sessionId) return;
         try {
           if (!event.data || event.data.trim() === '') return;
-          const payload = JSON.parse(event.data);
+          const raw = JSON.parse(event.data);
 
-          if (payload.type === 'delta') {
-            const delta = payload.data?.delta || '';
+          let eventType = raw.type;
+          let eventData = raw.data;
+          if (!eventType) {
+            const keys = Object.keys(raw);
+            if (keys.length === 1) {
+              eventType = keys[0];
+              eventData = raw[eventType];
+            }
+          }
+
+          if (eventType === 'connected') {
+            const st = eventData?.status;
+            if (st) {
+              setSessions((prev) =>
+                prev.map((s) => (s.id === sessionId ? { ...s, status: st } : s))
+              );
+              if (st === 'running') {
+                markSessionRunning(sessionId, true);
+              } else if (st === 'idle' || st === 'completed' || st === 'failed') {
+                markSessionRunning(sessionId, false);
+                if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
+              }
+            }
+          } else if (eventType === 'delta') {
+            const delta = eventData?.delta || '';
             if (delta) {
               pendingTextBuffer += delta;
               scheduleStreamUpdate();
             }
-          } else if (payload.type === 'thought_delta') {
-            const delta = payload.data?.delta || '';
+          } else if (eventType === 'thought_delta') {
+            const delta = eventData?.delta || '';
             if (delta) {
               pendingThoughtBuffer += delta;
               scheduleStreamUpdate();
             }
-          } else if (payload.type === 'stream_reset') {
+          } else if (eventType === 'stream_reset') {
             clearStreamingState();
-          } else if (payload.type === 'message') {
-            clearStreamingState();
-            const newMsg: AgentMessage = payload.data;
+          } else if (eventType === 'message') {
+            const newMsg: AgentMessage = eventData;
+            // Only clear live streaming text once assistant message is created
+            if (newMsg?.role === 'assistant') {
+              clearStreamingState();
+            }
             setMessages((prev) => {
               const idx = prev.findIndex((m) => m.id === newMsg.id);
               if (idx !== -1) {
@@ -173,7 +199,7 @@ export function useChatSession(
             onMessageReceived?.();
 
             // Real-time update session token usage in sidebar
-            if (newMsg.token_usage_input || newMsg.token_usage_output) {
+            if (newMsg?.token_usage_input || newMsg?.token_usage_output) {
               setSessions((prev) =>
                 prev.map((s) => {
                   if (s.id === sessionId) {
@@ -188,7 +214,7 @@ export function useChatSession(
               );
             }
 
-            if (newMsg.role === 'tool' && newMsg.content) {
+            if (newMsg?.role === 'tool' && newMsg?.content) {
               const content = newMsg.content;
               const isMutation = content.includes('"bytes_written"') || 
                                  content.includes('"is_new_file"') || 
@@ -198,15 +224,16 @@ export function useChatSession(
                 if (pId) loadProjectFiles(pId);
               }
             }
-          } else if (payload.type === 'step') {
-            setCurrentStepInfo(payload.data?.details || payload.data?.action || null);
-          } else if (payload.type === 'status') {
-            const st = payload.data?.status;
+          } else if (eventType === 'step') {
+            setCurrentStepInfo(eventData?.details || eventData?.action || null);
+          } else if (eventType === 'status') {
+            const st = eventData?.status;
             if (st) {
               setSessions((prev) =>
                 prev.map((s) => (s.id === sessionId ? { ...s, status: st } : s))
               );
               if (st === 'idle' || st === 'completed' || st === 'failed') {
+                clearStreamingState();
                 markSessionRunning(sessionId, false);
                 if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
                 const projectIdAtRequest = selectedProjectId();
@@ -220,9 +247,12 @@ export function useChatSession(
                 markSessionRunning(sessionId, true);
               }
             }
-          } else if (payload.type === 'done') {
+          } else if (eventType === 'done') {
             clearStreamingState();
             markSessionRunning(sessionId, false);
+            setSessions((prev) =>
+              prev.map((s) => (s.id === sessionId ? { ...s, status: 'idle' } : s))
+            );
             if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
             const projectIdAtRequest = selectedProjectId();
             if (projectIdAtRequest) {
@@ -231,14 +261,17 @@ export function useChatSession(
                 if (selectedProjectId() === projectIdAtRequest && latest) setSessions(latest);
               }).catch(() => {});
             }
-          } else if (payload.type === 'error') {
+          } else if (eventType === 'error') {
             clearStreamingState();
             markSessionRunning(sessionId, false);
+            setSessions((prev) =>
+              prev.map((s) => (s.id === sessionId ? { ...s, status: 'idle' } : s))
+            );
             if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
-            showToast(payload.data?.message || 'An error occurred in the agent execution');
+            showToast(eventData?.message || 'An error occurred in the agent execution');
             
             // Mark last assistant message with error status
-            const errorMsg = payload.data?.message || 'Agent execution failed';
+            const errorMsg = eventData?.message || 'Agent execution failed';
             setMessages((prev) => {
               if (prev.length === 0) return prev;
               const lastMsg = prev[prev.length - 1];
@@ -281,6 +314,20 @@ export function useChatSession(
               connectSessionSse(sessionId, onMessageReceived);
             }
           }, delay);
+        } else if (sseRetryCount >= 5) {
+          const projectIdAtRequest = selectedProjectId();
+          if (projectIdAtRequest) {
+            agentService.getSessions(projectIdAtRequest).then((latest) => {
+              if (latest) {
+                setSessions(latest);
+                const current = latest.find((s) => s.id === sessionId);
+                if (current && current.status !== 'running') {
+                  markSessionRunning(sessionId, false);
+                  if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
+                }
+              }
+            }).catch(() => {});
+          }
         }
       };
     } catch (e) {

@@ -1,3 +1,3 @@
-pub use ragasukma_core::repository::{chat_history, skill, todo};
+pub use ragasukma_core::repository::{chat_history, todo};
 
 pub mod recipe;

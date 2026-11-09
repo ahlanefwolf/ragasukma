@@ -90,7 +90,7 @@ fn ensure_cache_loaded() {
 }
 
 pub async fn sync_todos_from_db() -> Vec<TodoItem> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = crate::db::get_pool().await;
     let rows = sqlx::query_as::<_, TodoItem>(
         "SELECT id, task, is_done, created_at, completed_at FROM todos ORDER BY id ASC",
     )
@@ -159,7 +159,7 @@ pub fn add_task(task_text: &str) -> std::io::Result<String> {
     // Persist to SQLite
     let t_string = task.to_string();
     spawn_db_task(async move {
-        let pool = crate::llm::usage::get_pool().await;
+        let pool = crate::db::get_pool().await;
         let _ = sqlx::query(
             "INSERT INTO todos (task, is_done, created_at) VALUES (?1, 0, ?2)",
         )
@@ -228,7 +228,7 @@ pub fn complete_task(query: &str) -> std::io::Result<String> {
     if let Some(target_id) = found_id {
         let m_title = matched_title.clone();
         spawn_db_task(async move {
-            let pool = crate::llm::usage::get_pool().await;
+            let pool = crate::db::get_pool().await;
             let _ = sqlx::query(
                 "UPDATE todos SET is_done = 1, completed_at = ?1 WHERE id = ?2 OR (task = ?3 AND is_done = 0)",
             )
@@ -261,7 +261,7 @@ pub fn delete_task(id: i64) -> bool {
 
     if removed {
         spawn_db_task(async move {
-            let pool = crate::llm::usage::get_pool().await;
+            let pool = crate::db::get_pool().await;
             let _ = sqlx::query("DELETE FROM todos WHERE id = ?1")
                 .bind(id)
                 .execute(pool)

@@ -11,7 +11,7 @@ pub use ragasukma_core::agent::maintenance;
 pub use ragasukma_core::agent::mcp;
 pub use ragasukma_core::agent::models;
 pub use ragasukma_core::agent::orchestrator;
-pub use ragasukma_core::agent::repository;
+pub use ragasukma_core::repository::agent as repository;
 pub use ragasukma_core::agent::skills;
 pub use ragasukma_core::agent::tools;
 

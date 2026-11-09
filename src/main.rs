@@ -10,6 +10,7 @@ pub mod app_state;
 pub mod assets;
 mod audio;
 mod config;
+pub use ragasukma_core::db;
 pub mod engine;
 
 mod llm;

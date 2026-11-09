@@ -64,7 +64,7 @@ fn ensure_cache_loaded() {
 }
 
 pub async fn sync_skills_from_db() -> Vec<SkillItem> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = crate::db::get_pool().await;
     let rows = sqlx::query_as::<_, SkillItem>(
         "SELECT name, description, command FROM skills WHERE is_active = 1 ORDER BY name ASC",
     )
@@ -78,7 +78,7 @@ pub async fn sync_skills_from_db() -> Vec<SkillItem> {
 }
 
 pub async fn save_skill_to_db(skill: &SkillItem) -> Result<(), String> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = crate::db::get_pool().await;
     let now = get_now_secs();
 
     sqlx::query(
@@ -97,7 +97,7 @@ pub async fn save_skill_to_db(skill: &SkillItem) -> Result<(), String> {
 }
 
 pub async fn delete_skill_from_db(name: &str) -> Result<(), String> {
-    let pool = crate::llm::usage::get_pool().await;
+    let pool = crate::db::get_pool().await;
 
     sqlx::query("DELETE FROM skills WHERE name = ?1 COLLATE NOCASE")
         .bind(name)
@@ -125,7 +125,7 @@ pub fn save_skills_markdown(skills: &[SkillItem]) -> std::io::Result<()> {
     let items_clone = skills.to_vec();
     let now = get_now_secs();
     spawn_db_task(async move {
-        let pool = crate::llm::usage::get_pool().await;
+        let pool = crate::db::get_pool().await;
         for s in &items_clone {
             let _ = sqlx::query(
                 "INSERT INTO skills (name, description, command, is_active, created_at) VALUES (?1, ?2, ?3, 1, ?4) ON CONFLICT(name) DO UPDATE SET description = excluded.description, command = excluded.command, is_active = 1",
