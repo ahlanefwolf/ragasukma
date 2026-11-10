@@ -2,6 +2,7 @@ import { createSignal, createMemo, onCleanup } from 'solid-js';
 import { agentService, WorkspaceFileItem } from '../../services';
 import { FileTreeNode } from './FileTreeNodeRow';
 import { highlightCode } from './highlightUtils';
+import { formatFileTag } from './fileTags';
 
 export function useWorkspaceFiles(
   showToast: (msg: string) => void,
@@ -189,14 +190,7 @@ export function useWorkspaceFiles(
   });
 
   const insertFileTag = (relPath: string, start?: string, end?: string) => {
-    let tag = `@${relPath}`;
-    const s = start?.trim();
-    const e = end?.trim();
-    if (s && e) {
-      tag = `@${relPath}:${s}-${e}`;
-    } else if (s) {
-      tag = `@${relPath}:${s}`;
-    }
+    const tag = formatFileTag(relPath, start, end);
 
     const current = userInput().trim();
     if (!current) {
@@ -214,14 +208,7 @@ export function useWorkspaceFiles(
   };
 
   const copyFileTag = async (relPath: string, start?: string, end?: string) => {
-    let tag = `@${relPath}`;
-    const s = start?.trim();
-    const e = end?.trim();
-    if (s && e) {
-      tag = `@${relPath}:${s}-${e}`;
-    } else if (s) {
-      tag = `@${relPath}:${s}`;
-    }
+    const tag = formatFileTag(relPath, start, end);
 
     try {
       await navigator.clipboard.writeText(tag);

@@ -29,6 +29,14 @@ static RE_PARAM_BLOCK: LazyLock<Regex> = LazyLock::new(|| {
 /// into canonical Ragasukma `[CMD:...]` action tags so they execute seamlessly.
 #[must_use]
 pub fn normalize_tool_calls_to_commands(text: &str) -> String {
+    // Fast path: avoid regex passes if no tool invocation tags are present
+    if !text.contains("<invoke")
+        && !text.contains("<dots_function_call")
+        && !text.contains("<tool_call")
+    {
+        return text.to_string();
+    }
+
     let mut normalized = text.to_string();
 
     for cap in RE_INVOKE_BLOCK.captures_iter(text) {

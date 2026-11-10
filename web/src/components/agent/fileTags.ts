@@ -129,3 +129,18 @@ export function insertFileTag(
   const value = text.slice(0, replaceStart) + insert + text.slice(safeCaret);
   return { value, caret: replaceStart + insert.length };
 }
+
+/**
+ * Format a canonical `@relPath` or `@relPath:start-end` tag string.
+ */
+export function formatFileTag(relPath: string, start?: string, end?: string): string {
+  const s = start?.trim();
+  const e = end?.trim();
+  if (s && e) {
+    return `@${relPath}:${s}-${e}`;
+  }
+  if (s) {
+    return `@${relPath}:${s}`;
+  }
+  return `@${relPath}`;
+}
