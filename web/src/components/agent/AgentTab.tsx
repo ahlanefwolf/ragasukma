@@ -33,7 +33,7 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
   let chatInputRef: HTMLTextAreaElement | undefined;
   let isUserScrolledUp = false;
 
-  const [sidebarTab, setSidebarTab] = createSignal<'sessions' | 'files'>('sessions');
+  const [sidebarTab, setSidebarTab] = createSignal<'sessions' | 'files' | 'mcp'>('sessions');
   const [showWorkspaceSettings, setShowWorkspaceSettings] = createSignal(false);
 
   // 1. Workspace State (Projects, Skills, MCP, Folders)
@@ -71,10 +71,13 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
     });
   };
 
-  // Reset scrolled up state on session switch
+  // Reset scrolled up state & sync MCP servers on session switch
   createEffect(() => {
-    chat.selectedSessionId();
+    const sid = chat.selectedSessionId();
     isUserScrolledUp = false;
+    if (sid) {
+      ws.loadSessionMcpServers(sid);
+    }
   });
 
   // Note: Auto-scroll on send is now handled via onMessageSent callback in handleSendMessage
@@ -266,56 +269,28 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
           </div>
           <div>
             <h2 class="text-base font-semibold text-theme-text">Agent Workspace</h2>
-            <p class="text-xs text-theme-text/50">Multi-folder Projects, Task Sessions & MCP</p>
+            <p class="text-xs text-theme-text/50">Multi-folder Projects, Task Sessions, File Inspector & MCP</p>
           </div>
-        </div>
-
-        {/* Sub-tabs Toggle */}
-        <div class="flex items-center gap-1 bg-white/5 p-1 border border-white/5 self-start sm:self-auto">
-          <button
-            onClick={() => ws.setActiveSubTab('projects')}
-            class={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 ${
-              ws.activeSubTab() === 'projects'
-                ? 'bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 font-semibold shadow-sm'
-                : 'text-theme-text/60 hover:text-theme-text hover:bg-theme-bg/60'
-            }`}
-          >
-            <FolderGit2 class="w-3.5 h-3.5" />
-            Projects
-          </button>
-          <button
-            onClick={() => ws.setActiveSubTab('mcp')}
-            class={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 ${
-              ws.activeSubTab() === 'mcp'
-                ? 'bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/40 font-semibold shadow-sm'
-                : 'text-theme-text/60 hover:text-theme-text hover:bg-theme-bg/60'
-            }`}
-          >
-            <Server class="w-3.5 h-3.5" />
-            MCP Servers ({ws.mcpServers().length})
-          </button>
         </div>
       </div>
 
-      {/* ── SUB-TAB: PROJECTS & WORKSPACES ─────────────────────────────── */}
-      <Show when={ws.activeSubTab() === 'projects'}>
-        <Show
-          when={!ws.loading() || ws.projects().length > 0}
-          fallback={
-            <div class="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[400px]">
-              <div class="relative flex items-center justify-center mb-4">
-                <div class="w-10 h-10 rounded-full border-2 border-theme-cyan/20 border-t-theme-cyan animate-spin" />
-                <RefreshCw class="w-4 h-4 text-theme-cyan absolute animate-spin" />
-              </div>
-              <h4 class="text-sm font-semibold text-theme-text mb-1 tracking-wide">Loading Workspace...</h4>
-              <p class="text-xs text-theme-text/50 max-w-xs">
-                Fetching projects, sessions, and agent configuration.
-              </p>
+      <Show
+        when={!ws.loading() || ws.projects().length > 0}
+        fallback={
+          <div class="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[400px]">
+            <div class="relative flex items-center justify-center mb-4">
+              <div class="w-10 h-10 rounded-full border-2 border-theme-cyan/20 border-t-theme-cyan animate-spin" />
+              <RefreshCw class="w-4 h-4 text-theme-cyan absolute animate-spin" />
             </div>
-          }
-        >
-          <div class="flex-1 flex flex-row gap-2.5 min-h-0 overflow-hidden">
-          {/* Left Column: Projects List & Sessions */}
+            <h4 class="text-sm font-semibold text-theme-text mb-1 tracking-wide">Loading Workspace...</h4>
+            <p class="text-xs text-theme-text/50 max-w-xs">
+              Fetching projects, sessions, and agent configuration.
+            </p>
+          </div>
+        }
+      >
+        <div class="flex-1 flex flex-row gap-2.5 min-h-0 overflow-hidden">
+          {/* Left Column: Projects List, Sessions, Files Tree & MCP */}
           <div class="w-72 xl:w-80 shrink-0 flex flex-col min-h-0 h-full overflow-hidden">
             <AgentSidebar
               projects={ws.projects()}
@@ -384,6 +359,13 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
               onOpenRangePicker={files.openLineRangePicker}
               onCopyFileTag={(path) => files.copyFileTag(path)}
               getLineCount={files.getLineCount}
+              mcpServers={ws.mcpServers()}
+              activeSessionMcpIds={ws.sessionActiveMcpServerIds()}
+              onToggleSessionMcp={ws.handleToggleSessionMcpServer}
+              onNewMcpServer={ws.handleOpenNewMcpServer}
+              onEditMcpServer={ws.handleOpenEditMcpServer}
+              onDeleteMcpServer={ws.handleDeleteMcpServer}
+              onRefreshMcpServers={ws.refreshMcpServers}
             />
           </div>
 
@@ -404,11 +386,6 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
                 showWorkspaceSettings={showWorkspaceSettings()}
                 onToggleWorkspaceSettings={() => setShowWorkspaceSettings(!showWorkspaceSettings())}
                 skills={ws.skills()}
-                mcpServers={ws.mcpServers()}
-                activeProjectMcpServerIds={ws.activeProjectMcpServerIds()}
-                savingProjectMcpServers={ws.savingProjectMcpServers()}
-                onToggleProjectMcpServer={ws.handleToggleProjectMcpServer}
-                onOpenMcpTab={() => ws.setActiveSubTab('mcp')}
                 folderInput={ws.folderInput()}
                 setFolderInput={ws.setFolderInput}
                 validatingFolder={ws.validatingFolder()}
@@ -511,18 +488,6 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
             </div>
           </Show>
         </div>
-        </Show>
-      </Show>
-
-      {/* ── SUB-TAB: MCP SERVERS REGISTRY ──────────────────────────────── */}
-      <Show when={ws.activeSubTab() === 'mcp'}>
-        <McpSubTab
-          mcpServers={ws.mcpServers()}
-          onNewServer={ws.handleOpenNewMcpServer}
-          onEditServer={ws.handleOpenEditMcpServer}
-          onDeleteServer={ws.handleDeleteMcpServer}
-          onRefreshServers={ws.refreshMcpServers}
-        />
       </Show>
 
       {/* ── MODALS ──────────────────────────────────────────────────────── */}

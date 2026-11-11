@@ -504,6 +504,36 @@ export const agentService = {
   },
 
   // MCP Servers
+  async getSessionMcpServers(sessionId: string): Promise<string[]> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/sessions/${encodeURIComponent(sessionId)}/mcp`);
+      if (!res.ok) return [];
+      const data = await res.json().catch(() => ({}));
+      return Array.isArray(data.active_ids) ? data.active_ids : [];
+    } catch (e) {
+      console.error('Failed to get session MCP servers:', e);
+      return [];
+    }
+  },
+
+  async setSessionMcpServer(sessionId: string, serverId: string, isActive: boolean, env?: Record<string, string>): Promise<boolean> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/agent/sessions/${encodeURIComponent(sessionId)}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          server_id: serverId,
+          is_active: isActive,
+          env: env ? JSON.stringify(env) : undefined,
+        }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.error('Failed to set session MCP server:', e);
+      return false;
+    }
+  },
+
   async getMcpServers(): Promise<McpServerConfig[]> {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/agent/mcp`);

@@ -13,13 +13,13 @@ export function useWorkspaceState(showToast: (msg: string) => void) {
   const [activeSubTab, setActiveSubTab] = createSignal<'projects' | 'mcp'>('projects');
   const [loading, setLoading] = createSignal(false);
   const [projects, setProjects] = createSignal<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = createSignal<string | null>(null);
   const [skills, setSkills] = createSignal<PromptSkill[]>([]);
   const [mcpServers, setMcpServers] = createSignal<McpServerConfig[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = createSignal<string | null>(null);
-
-  // Active Project MCP Servers
   const [activeProjectMcpServerIds, setActiveProjectMcpServerIds] = createSignal<string[]>([]);
+  const [sessionActiveMcpServerIds, setSessionActiveMcpServerIds] = createSignal<string[]>([]);
   const [savingProjectMcpServers, setSavingProjectMcpServers] = createSignal(false);
+  const [savingSessionMcpServers, setSavingSessionMcpServers] = createSignal(false);
 
   // Modals
   const [showNewProjectModal, setShowNewProjectModal] = createSignal(false);
@@ -40,6 +40,42 @@ export function useWorkspaceState(showToast: (msg: string) => void) {
   const currentProject = createMemo(() => {
     return projects().find((p) => p.id === selectedProjectId()) || null;
   });
+
+  const loadSessionMcpServers = async (sessionId: string) => {
+    try {
+      const activeIds = await agentService.getSessionMcpServers(sessionId);
+      setSessionActiveMcpServerIds(activeIds);
+    } catch (e) {
+      console.error('Failed to load session MCP servers:', e);
+    }
+  };
+
+  const handleToggleSessionMcpServer = async (sessionId: string, serverId: string) => {
+    if (!sessionId) return;
+    const current = sessionActiveMcpServerIds();
+    const willBeActive = !current.includes(serverId);
+    const updated = willBeActive
+      ? [...current, serverId]
+      : current.filter((id) => id !== serverId);
+
+    setSessionActiveMcpServerIds(updated);
+    setSavingSessionMcpServers(true);
+    try {
+      const ok = await agentService.setSessionMcpServer(sessionId, serverId, willBeActive);
+      if (ok) {
+        showToast(`MCP server ${willBeActive ? 'enabled' : 'disabled'} for session`);
+      } else {
+        showToast('Failed to update session MCP server');
+        // Rollback state on failure
+        setSessionActiveMcpServerIds(current);
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Failed to toggle session MCP server');
+      setSessionActiveMcpServerIds(current);
+    } finally {
+      setSavingSessionMcpServers(false);
+    }
+  };
 
   const loadProjectMcpServers = async (projectId: string) => {
     try {
@@ -317,10 +353,13 @@ export function useWorkspaceState(showToast: (msg: string) => void) {
     setSelectedProjectId,
     currentProject,
     activeProjectMcpServerIds,
-    setActiveProjectMcpServerIds,
+    sessionActiveMcpServerIds,
     savingProjectMcpServers,
+    savingSessionMcpServers,
     loadProjectMcpServers,
+    loadSessionMcpServers,
     handleToggleProjectMcpServer,
+    handleToggleSessionMcpServer,
     showNewProjectModal,
     setShowNewProjectModal,
     projName,

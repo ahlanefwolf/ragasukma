@@ -19,6 +19,9 @@ import { SearchableSelect } from '../SearchableSelect';
 
 export const McpSubTab: Component<{
   mcpServers: McpServerConfig[];
+  activeSessionId?: string | null;
+  activeSessionMcpIds?: string[];
+  onToggleSessionMcp?: (sessionId: string, serverId: string) => void;
   onNewServer: (initialMode?: 'form' | 'json') => void;
   onEditServer: (server: McpServerConfig) => void;
   onDeleteServer: (id: string, name: string) => void;
@@ -141,9 +144,14 @@ export const McpSubTab: Component<{
     <div class="space-y-4">
       <div class="bg-theme-card/60 border border-theme-border p-4 flex items-center justify-between shadow-sm flex-wrap gap-3">
         <div>
-          <h3 class="text-sm font-semibold text-theme-text">Model Context Protocol (MCP) Servers</h3>
+          <div class="flex items-center gap-2">
+            <h3 class="text-sm font-semibold text-theme-text">Model Context Protocol (MCP) Servers</h3>
+            <span class="text-xs px-2 py-0.5 font-mono bg-theme-bg border border-theme-border text-theme-cyan">
+              {props.activeSessionMcpIds ? props.activeSessionMcpIds.length : 0}/{props.mcpServers.length} Active
+            </span>
+          </div>
           <p class="text-xs text-theme-text/50 mt-0.5">
-            Configure external MCP servers via Markdown or JSON specifications and discover/synchronize their tools.
+            Configure external MCP servers and toggle active tools for the active session (synchronized with TUI).
           </p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -168,7 +176,16 @@ export const McpSubTab: Component<{
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         <For each={props.mcpServers}>
           {(server) => {
-            const isEnabled = () => server.is_enabled !== 0;
+            const isSessionActive = () =>
+              props.activeSessionMcpIds ? props.activeSessionMcpIds.includes(server.id) : server.is_enabled !== 0;
+
+            const handleToggle = () => {
+              if (props.activeSessionId && props.onToggleSessionMcp) {
+                props.onToggleSessionMcp(props.activeSessionId, server.id);
+              } else {
+                handleToggleEnabled(server);
+              }
+            };
 
             return (
               <div class="bg-theme-card border border-theme-border p-4 flex flex-col justify-between space-y-3 group hover:border-theme-cyan/50 transition-colors shadow-sm">
@@ -180,15 +197,15 @@ export const McpSubTab: Component<{
                     </span>
                     <div class="flex items-center gap-1.5">
                       <button
-                        onClick={() => handleToggleEnabled(server)}
+                        onClick={handleToggle}
                         class={`text-2xs px-2 py-0.5 uppercase font-semibold border flex items-center gap-1 transition-colors ${
-                          isEnabled()
+                          isSessionActive()
                             ? 'bg-theme-cyan/15 text-theme-cyan border-theme-cyan/30 hover:bg-theme-cyan/25'
                             : 'bg-theme-border/20 text-theme-text/40 border-theme-border/40 hover:bg-theme-border/40'
                         }`}
-                        title="Click to toggle enabled/disabled"
+                        title={props.activeSessionId ? "Toggle active for current session" : "Click to toggle"}
                       >
-                        {isEnabled() ? 'Enabled' : 'Disabled'}
+                        {isSessionActive() ? 'Active in Session' : 'Inactive'}
                       </button>
 
                       <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1">

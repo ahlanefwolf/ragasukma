@@ -21,11 +21,6 @@ export const AgentWorkspaceHeader: Component<{
   showWorkspaceSettings: boolean;
   onToggleWorkspaceSettings: () => void;
   skills: PromptSkill[];
-  mcpServers: McpServerConfig[];
-  activeProjectMcpServerIds: string[];
-  savingProjectMcpServers: boolean;
-  onToggleProjectMcpServer: (serverId: string) => void;
-  onOpenMcpTab: () => void;
   folderInput: string;
   setFolderInput: (val: string) => void;
   validatingFolder: boolean;
@@ -72,99 +67,33 @@ export const AgentWorkspaceHeader: Component<{
         <div class="pt-3 border-t border-theme-border/60 space-y-4">
           {/* Auto-detected Skills Section */}
           <div class="bg-theme-bg/40 border border-theme-border/70 p-3 space-y-2.5">
-            <div class="flex items-center justify-between">
-              <div>
-                <label class="text-xs text-theme-text font-semibold flex items-center gap-1.5">
-                  <Sparkles class="w-3.5 h-3.5 text-theme-cyan" />
-                  Auto-detected Agent Skills ({props.skills.length})
-                </label>
-                <p class="text-xs text-theme-text/50 mt-0.5">
-                  Skills are automatically loaded from <code class="text-theme-cyan">.skills/</code> or <code class="text-theme-cyan">.skill/</code> folder in your workspace.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Active MCP Servers Selection */}
-          <div class="bg-theme-bg/40 border border-theme-border/70 p-3 space-y-2.5">
-            <div class="flex items-center justify-between">
-              <div>
-                <label class="text-xs text-theme-text font-semibold flex items-center gap-1.5">
-                  <Server class="w-3.5 h-3.5 text-gi-status-info" />
-                  Workspace MCP Servers & Tools
-                </label>
-                <p class="text-xs text-theme-text/50 mt-0.5">
-                  External Model Context Protocol tools available to the AI agent in this workspace (SQLite, GitHub, Web, Terminal, Filesystem).
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={props.onOpenMcpTab}
-                class="text-xs text-theme-cyan hover:underline shrink-0 font-medium"
-              >
-                Open MCP Registry &rarr;
-              </button>
+            <div>
+              <label class="text-xs text-theme-text font-semibold flex items-center gap-1.5">
+                <Sparkles class="w-3.5 h-3.5 text-theme-cyan" />
+                Auto-detected Agent Skills ({props.skills.length})
+              </label>
+              <p class="text-xs text-theme-text/50 mt-0.5">
+                Found in attached folders. Loaded on-demand into prompt context when matching tasks are initiated.
+              </p>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              <For each={props.mcpServers}>
-                {(server) => {
-                  const isActive = () => props.activeProjectMcpServerIds.includes(server.id);
-                  return (
-                    <div
-                      onClick={() => !props.savingProjectMcpServers && props.onToggleProjectMcpServer(server.id)}
-                      class={`cursor-pointer p-2.5 border transition-all text-left flex flex-col justify-between gap-2 select-none ${
-                        isActive()
-                          ? 'bg-gi-status-info/10 border-gi-status-info/50 shadow-xs'
-                          : 'bg-theme-card/60 border-theme-border hover:border-theme-border-hover hover:bg-theme-card opacity-70'
-                      }`}
-                    >
-                      <div class="space-y-1">
-                        <div class="flex items-center justify-between gap-1.5">
-                          <span class="text-xs font-semibold text-theme-text truncate flex items-center gap-1.5">
-                            <span class={`w-2 h-2 shrink-0 ${isActive() ? 'bg-gi-status-info shadow-xs' : 'bg-theme-text/20'}`} />
-                            {server.name}
-                          </span>
-                          <span
-                            class={`text-2xs px-1.5 py-0.5 font-mono font-medium ${
-                              isActive()
-                                ? 'bg-gi-status-info/20 text-gi-status-info'
-                                : 'bg-theme-bg text-theme-text/70'
-                            }`}
-                          >
-                            {isActive() ? 'Active' : 'Disabled'}
-                          </span>
-                        </div>
-                        <p class="text-xs text-theme-text/60 line-clamp-1 font-mono">
-                          {server.config || server.name}
-                        </p>
-                      </div>
-
-                      <div class="flex items-center justify-between pt-1 border-t border-theme-border/40 text-2xs text-theme-text/70">
-                        <span class="font-mono uppercase text-2xs px-1.5 py-0.2 bg-theme-bg border border-theme-border">
-                          {server.is_enabled !== 0 ? 'enabled' : 'disabled'}
-                        </span>
-                        <span class="text-2xs text-theme-text/50">
-                          {isActive() ? 'Click to disable' : 'Click to enable'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                }}
-              </For>
-            </div>
-
-            <Show when={props.mcpServers.length === 0}>
-              <div class="p-3 text-center border border-dashed border-theme-border bg-theme-bg/30">
-                <p class="text-xs text-theme-text/60 mb-2">No MCP servers registered in registry yet.</p>
-                <button
-                  type="button"
-                  onClick={props.onOpenMcpTab}
-                  class="text-xs px-3 py-1 bg-theme-cyan text-theme-bg font-medium hover:bg-theme-cyan/90 transition-colors inline-flex items-center gap-1.5"
-                >
-                  <Server class="w-3.5 h-3.5" />
-                  Add MCP Server
-                </button>
+            <Show
+              when={props.skills.length > 0}
+              fallback={
+                <div class="text-xs text-theme-text/70 py-2 italic font-mono bg-theme-bg/30 p-2 border border-dashed border-theme-border/60">
+                  No skill files detected in attached folders. Add SKILL.md or .skill/ directories to customize prompt behaviors.
+                </div>
+              }
+            >
+              <div class="flex flex-wrap gap-1.5">
+                <For each={props.skills}>
+                  {(s) => (
+                    <span class="inline-flex items-center gap-1 text-2xs px-2 py-1 bg-theme-bg border border-theme-border font-mono text-theme-text/80 hover:border-theme-cyan/50 hover:text-theme-cyan transition-colors">
+                      <Sparkles class="w-2.5 h-2.5 text-theme-cyan shrink-0" />
+                      {s.name}
+                    </span>
+                  )}
+                </For>
               </div>
             </Show>
           </div>

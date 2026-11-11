@@ -40,6 +40,8 @@ pub fn register_agent_routes(
         .route("/api/agent/projects/:id/skills", get(get_project_skills))
         .route("/api/agent/projects/:id/mcp", get(get_project_mcp_servers_handler).post(set_project_mcp_servers_handler))
         .route("/api/agent/projects/:id/mcp-servers", get(get_project_mcp_servers_endpoint).post(set_project_mcp_servers_endpoint))
+        // Session MCP Servers (Active per session, 1:1 with TUI)
+        .route("/api/agent/sessions/:id/mcp", get(get_session_mcp_servers_handler).post(set_session_mcp_server_handler))
         // MCP Servers
         .route("/api/agent/mcp", get(list_mcp_servers_endpoint).post(save_mcp_server))
         .route("/api/agent/mcp/:id", delete(delete_mcp_server_endpoint))
@@ -837,6 +839,55 @@ async fn set_project_mcp_servers_handler(
     Json(payload): Json<SetProjectMcpPayload>,
 ) -> impl IntoResponse {
     match repository::set_project_mcp_servers(&project_id, &payload.server_ids).await {
+        Ok(_) => (StatusCode::OK, Json(json!({"status": "ok"}))),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        ),
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Session MCP Servers Endpoints (1:1 with TUI)
+// -----------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct SetSessionMcpPayload {
+    pub server_id: String,
+    #[serde(default)]
+    pub env: Option<String>,
+    pub is_active: bool,
+}
+
+async fn get_session_mcp_servers_handler(Path(session_id): Path<String>) -> impl IntoResponse {
+    match repository::projects_and_sessions::get_session_active_mcp_servers(&session_id).await {
+        Ok(active_list) => {
+            let active_ids: Vec<String> = active_list.into_iter().map(|(srv, _)| srv.id).collect();
+            (StatusCode::OK, Json(json!({
+                "session_id": session_id,
+                "active_ids": active_ids
+            })))
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        ),
+    }
+}
+
+async fn set_session_mcp_server_handler(
+    Path(session_id): Path<String>,
+    Json(payload): Json<SetSessionMcpPayload>,
+) -> impl IntoResponse {
+    let env_str = payload.env.unwrap_or_else(|| "{}".to_string());
+    match repository::projects_and_sessions::upsert_session_mcp_server(
+        &session_id,
+        &payload.server_id,
+        &env_str,
+        payload.is_active,
+    )
+    .await
+    {
         Ok(_) => (StatusCode::OK, Json(json!({"status": "ok"}))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
