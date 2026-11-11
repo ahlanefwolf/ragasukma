@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [v0.3.0] - 2026-03-30
+
+### 🚀 Major Features & Enhancements
+- Unified ecosystem version bump across `ragasukma-core`, `ragasukma`, and `ragasukma-tui`.
+- Full parity between TUI and GUI interfaces with shared configuration, session history, and local router capabilities.
+- Native multiplatform packaging and release CI/CD automation.
+
 ## [v0.2.0] - 2026-10-10
 
 ### 🚀 Major Features & Enhancements

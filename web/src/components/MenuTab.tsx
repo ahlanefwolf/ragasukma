@@ -65,7 +65,7 @@ async function getOrCreateWebAudioAnalyser(): Promise<AnalyserNode | null> {
   }
 }
 
-const CURRENT_APP_VERSION = 'v0.2.0';
+const CURRENT_APP_VERSION = 'v0.3.0';
 
 /**
  * Compares two SemVer versions (e.g. "v0.2.0" vs "0.10.0").

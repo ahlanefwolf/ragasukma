@@ -167,7 +167,7 @@ pub async fn axum_v1_root_handler() -> axum::response::Response {
     let json = serde_json::json!({
         "status": "ok",
         "service": "ragasukma-openai-v1",
-        "version": "0.2.0"
+        "version": "0.3.0"
     });
     axum::response::Response::builder()
         .status(axum::http::StatusCode::OK)
