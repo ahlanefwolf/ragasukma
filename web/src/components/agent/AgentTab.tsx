@@ -12,8 +12,7 @@ import {
   parseProjectFolders 
 } from '../../services';
 
-import { McpSubTab } from './SkillsAndMcpTabs';
-import { CreateProjectModal, McpServerModal } from './AgentModals';
+import { CreateProjectModal } from './AgentModals';
 import { AgentCodePanel } from './AgentCodePanel';
 import { AgentSidebar } from './AgentSidebar';
 import { AgentWorkspaceHeader } from './AgentWorkspaceHeader';
@@ -361,10 +360,6 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
               getLineCount={files.getLineCount}
               mcpServers={ws.mcpServers()}
               activeSessionMcpIds={ws.sessionActiveMcpServerIds()}
-              onToggleSessionMcp={ws.handleToggleSessionMcpServer}
-              onNewMcpServer={ws.handleOpenNewMcpServer}
-              onEditMcpServer={ws.handleOpenEditMcpServer}
-              onDeleteMcpServer={ws.handleDeleteMcpServer}
               onRefreshMcpServers={ws.refreshMcpServers}
             />
           </div>
@@ -516,19 +511,6 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
           await chat.loadSessions(id);
           files.loadProjectFiles(id);
         })}
-      />
-
-      <McpServerModal
-        isOpen={ws.showMcpModal()}
-        isEditing={!!ws.editingMcpServer()}
-        initialMode={ws.mcpModalInitialMode()}
-        onClose={() => {
-          ws.setShowMcpModal(false);
-          ws.setEditingMcpServer(null);
-        }}
-        onSave={ws.handleSaveMcpServer}
-        onTest={ws.handleTestMcpServer}
-        initialData={ws.editingMcpServer()}
       />
     </div>
   );

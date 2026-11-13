@@ -62,13 +62,9 @@ export const AgentSidebar: Component<{
   onOpenRangePicker: (file: WorkspaceFileItem) => void;
   onCopyFileTag: (path: string) => void;
   getLineCount: (path: string) => number | undefined;
-  // MCP support
+  // MCP support (read-only status, managed via prompt)
   mcpServers: McpServerConfig[];
   activeSessionMcpIds?: string[];
-  onToggleSessionMcp?: (sessionId: string, serverId: string) => void;
-  onNewMcpServer?: (mode?: 'form' | 'json') => void;
-  onEditMcpServer?: (server: McpServerConfig) => void;
-  onDeleteMcpServer?: (id: string, name: string) => void;
   onRefreshMcpServers?: () => void;
 }> = (props) => {
   return (
@@ -363,16 +359,6 @@ export const AgentSidebar: Component<{
                       <RefreshCw class="w-3 h-3" />
                     </button>
                   </Show>
-                  <Show when={props.onNewMcpServer}>
-                    <button
-                      onClick={() => props.onNewMcpServer?.('form')}
-                      class="px-1.5 py-0.5 text-2xs font-medium bg-theme-cyan/20 text-theme-cyan hover:bg-theme-cyan/30 border border-theme-cyan/30 rounded transition-colors flex items-center gap-1"
-                      title="Add new MCP Server"
-                    >
-                      <Plus class="w-2.5 h-2.5" />
-                      Add
-                    </button>
-                  </Show>
                 </div>
               </div>
 
@@ -381,13 +367,10 @@ export const AgentSidebar: Component<{
                 <Show when={props.mcpServers.length === 0}>
                   <div class="text-xs text-theme-text/70 py-8 text-center flex flex-col items-center justify-center">
                     <Server class="w-7 h-7 text-theme-text/20 mb-2" />
-                    <span>No MCP servers configured</span>
-                    <button
-                      onClick={() => props.onNewMcpServer?.('form')}
-                      class="mt-2 text-2xs text-theme-cyan underline font-medium"
-                    >
-                      + Add MCP Server
-                    </button>
+                    <span>No MCP servers registered</span>
+                    <span class="mt-1 text-2xs text-theme-text/50">
+                      Managed via chat prompt
+                    </span>
                   </div>
                 </Show>
 
@@ -396,7 +379,7 @@ export const AgentSidebar: Component<{
                     const isActive = () =>
                       props.activeSessionMcpIds
                         ? props.activeSessionMcpIds.includes(server.id)
-                        : server.is_enabled !== 0;
+                        : false;
 
                     return (
                       <div class="bg-theme-card/80 border border-theme-border p-2 space-y-1.5 group hover:border-theme-cyan/40 transition-colors">
@@ -405,48 +388,21 @@ export const AgentSidebar: Component<{
                             <span class={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive() ? 'bg-theme-cyan shadow-xs' : 'bg-theme-text/30'}`} />
                             {server.name}
                           </span>
-                          <button
-                            onClick={() => {
-                              if (props.selectedSessionId && props.onToggleSessionMcp) {
-                                props.onToggleSessionMcp(props.selectedSessionId, server.id);
-                              }
-                            }}
-                            class={`text-2xs px-1.5 py-0.5 uppercase font-semibold border transition-colors ${
+                          <span
+                            class={`text-2xs px-1.5 py-0.5 uppercase font-semibold border ${
                               isActive()
-                                ? 'bg-theme-cyan/15 text-theme-cyan border-theme-cyan/30 hover:bg-theme-cyan/25'
-                                : 'bg-theme-border/20 text-theme-text/40 border-theme-border/40 hover:bg-theme-border/40'
+                                ? 'bg-theme-cyan/15 text-theme-cyan border-theme-cyan/30'
+                                : 'bg-theme-border/20 text-theme-text/40 border-theme-border/40'
                             }`}
-                            title="Toggle server for active task session"
                           >
                             {isActive() ? 'Active' : 'Off'}
-                          </button>
+                          </span>
                         </div>
 
                         <div class="flex items-center justify-between text-2xs text-theme-text/50 font-mono">
-                          <span class="truncate max-w-[140px] text-theme-text/60" title={server.config}>
-                            {server.config ? server.config.slice(0, 30) : 'stdio'}
+                          <span class="truncate max-w-[180px] text-theme-text/60" title={server.config}>
+                            {server.config ? server.config.slice(0, 40) : 'stdio'}
                           </span>
-                          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Show when={props.onEditMcpServer}>
-                              <button
-                                onClick={() => props.onEditMcpServer?.(server)}
-                                class="p-0.5 text-theme-text/60 hover:text-theme-cyan transition-colors"
-                                title="Edit Server"
-                              >
-                                Edit
-                              </button>
-                            </Show>
-                            <Show when={props.onDeleteMcpServer}>
-                              <span class="text-theme-border">|</span>
-                              <button
-                                onClick={() => props.onDeleteMcpServer?.(server.id, server.name)}
-                                class="p-0.5 text-theme-text/60 hover:text-red-400 transition-colors"
-                                title="Delete Server"
-                              >
-                                Del
-                              </button>
-                            </Show>
-                          </div>
                         </div>
                       </div>
                     );

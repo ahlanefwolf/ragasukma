@@ -4,7 +4,6 @@ import {
   Project, 
   PromptSkill, 
   McpServerConfig,
-  SaveMcpServerPayload,
   parseProjectFolders 
 } from '../../services';
 import { showConfirm } from '../ConfirmModal';
@@ -18,14 +17,9 @@ export function useWorkspaceState(showToast: (msg: string) => void) {
   const [mcpServers, setMcpServers] = createSignal<McpServerConfig[]>([]);
   const [activeProjectMcpServerIds, setActiveProjectMcpServerIds] = createSignal<string[]>([]);
   const [sessionActiveMcpServerIds, setSessionActiveMcpServerIds] = createSignal<string[]>([]);
-  const [savingProjectMcpServers, setSavingProjectMcpServers] = createSignal(false);
-  const [savingSessionMcpServers, setSavingSessionMcpServers] = createSignal(false);
 
   // Modals
   const [showNewProjectModal, setShowNewProjectModal] = createSignal(false);
-  const [showMcpModal, setShowMcpModal] = createSignal(false);
-  const [editingMcpServer, setEditingMcpServer] = createSignal<McpServerConfig | null>(null);
-  const [mcpModalInitialMode, setMcpModalInitialMode] = createSignal<'form' | 'json'>('json');
 
   // New Project Form
   const [projName, setProjName] = createSignal('');
@@ -50,64 +44,12 @@ export function useWorkspaceState(showToast: (msg: string) => void) {
     }
   };
 
-  const handleToggleSessionMcpServer = async (sessionId: string, serverId: string) => {
-    if (!sessionId) return;
-    const current = sessionActiveMcpServerIds();
-    const willBeActive = !current.includes(serverId);
-    const updated = willBeActive
-      ? [...current, serverId]
-      : current.filter((id) => id !== serverId);
-
-    setSessionActiveMcpServerIds(updated);
-    setSavingSessionMcpServers(true);
-    try {
-      const ok = await agentService.setSessionMcpServer(sessionId, serverId, willBeActive);
-      if (ok) {
-        showToast(`MCP server ${willBeActive ? 'enabled' : 'disabled'} for session`);
-      } else {
-        showToast('Failed to update session MCP server');
-        // Rollback state on failure
-        setSessionActiveMcpServerIds(current);
-      }
-    } catch (e: any) {
-      showToast(e.message || 'Failed to toggle session MCP server');
-      setSessionActiveMcpServerIds(current);
-    } finally {
-      setSavingSessionMcpServers(false);
-    }
-  };
-
   const loadProjectMcpServers = async (projectId: string) => {
     try {
       const activeIds = await agentService.getProjectMcpServers(projectId);
       setActiveProjectMcpServerIds(activeIds);
     } catch (e) {
       console.error('Failed to load project MCP servers:', e);
-    }
-  };
-
-  const handleToggleProjectMcpServer = async (serverId: string) => {
-    const projId = selectedProjectId();
-    if (!projId) return;
-
-    const current = activeProjectMcpServerIds();
-    const updated = current.includes(serverId)
-      ? current.filter((id) => id !== serverId)
-      : [...current, serverId];
-
-    setActiveProjectMcpServerIds(updated);
-    setSavingProjectMcpServers(true);
-    try {
-      const ok = await agentService.setProjectMcpServers(projId, updated);
-      if (ok) {
-        showToast('Project MCP servers updated');
-      } else {
-        showToast('Failed to update project MCP servers');
-      }
-    } catch (e: any) {
-      showToast(e.message || 'Failed to save project MCP servers');
-    } finally {
-      setSavingProjectMcpServers(false);
     }
   };
 
@@ -354,12 +296,8 @@ export function useWorkspaceState(showToast: (msg: string) => void) {
     currentProject,
     activeProjectMcpServerIds,
     sessionActiveMcpServerIds,
-    savingProjectMcpServers,
-    savingSessionMcpServers,
     loadProjectMcpServers,
     loadSessionMcpServers,
-    handleToggleProjectMcpServer,
-    handleToggleSessionMcpServer,
     showNewProjectModal,
     setShowNewProjectModal,
     projName,
@@ -385,63 +323,6 @@ export function useWorkspaceState(showToast: (msg: string) => void) {
     handleRemoveFolderFromActiveProject,
     handleCreateProject,
     handleDeleteProject,
-    showMcpModal,
-    setShowMcpModal,
-    editingMcpServer,
-    setEditingMcpServer,
-    mcpModalInitialMode,
-    setMcpModalInitialMode,
-    handleOpenNewMcpServer: (mode: 'form' | 'json' = 'json') => {
-      setEditingMcpServer(null);
-      setMcpModalInitialMode(mode);
-      setShowMcpModal(true);
-    },
-    handleOpenEditMcpServer: (server: McpServerConfig, mode: 'form' | 'json' = 'json') => {
-      setEditingMcpServer(server);
-      setMcpModalInitialMode(mode);
-      setShowMcpModal(true);
-    },
-    handleSaveMcpServer: async (payload: SaveMcpServerPayload): Promise<boolean> => {
-      try {
-        const res = await agentService.saveMcpServer(payload);
-        if (res.ok) {
-          showToast(`MCP server "${payload.name}" saved!`);
-          setShowMcpModal(false);
-          setEditingMcpServer(null);
-          const mList = await agentService.getMcpServers();
-          setMcpServers(mList);
-          return true;
-        } else {
-          showToast(res.error || 'Failed to save MCP server');
-          return false;
-        }
-      } catch (e: any) {
-        showToast(e.message || 'Failed to save MCP server');
-        return false;
-      }
-    },
-    handleDeleteMcpServer: async (id: string, name: string) => {
-      const ok = await showConfirm({
-        title: 'Delete MCP Server',
-        message: `Remove MCP server "${name}"? It will be unlinked from any workspace.`,
-        confirmText: 'Delete Server',
-        cancelText: 'Cancel',
-        isDanger: true,
-      });
-      if (!ok) return;
-      try {
-        const okDel = await agentService.deleteMcpServer(id);
-        if (okDel) {
-          showToast(`MCP server "${name}" deleted`);
-          const mList = await agentService.getMcpServers();
-          setMcpServers(mList);
-        } else {
-          showToast('Failed to delete MCP server');
-        }
-      } catch (e: any) {
-        showToast(e.message || 'Failed to delete MCP server');
-      }
-    },
     refreshMcpServers: async () => {
       try {
         const mList = await agentService.getMcpServers();
@@ -449,20 +330,6 @@ export function useWorkspaceState(showToast: (msg: string) => void) {
       } catch (e) {
         console.error('Failed to refresh MCP servers:', e);
       }
-    },
-    handleTestMcpServer: async (serverOrPayload: SaveMcpServerPayload | McpServerConfig) => {
-      let payload: SaveMcpServerPayload;
-      if ('created_at' in serverOrPayload) {
-        payload = {
-          id: serverOrPayload.id,
-          name: serverOrPayload.name,
-          config: serverOrPayload.config,
-          is_enabled: serverOrPayload.is_enabled !== 0,
-        };
-      } else {
-        payload = serverOrPayload;
-      }
-      return await agentService.testMcpServer(payload);
     },
   };
 }

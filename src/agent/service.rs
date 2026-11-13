@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, Query},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, post},
+    routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
@@ -38,16 +38,13 @@ pub fn register_agent_routes(
         // Agent Skills (Auto-detected from project .skills / .skill folders)
         .route("/api/agent/skills", get(list_skills))
         .route("/api/agent/projects/:id/skills", get(get_project_skills))
-        .route("/api/agent/projects/:id/mcp", get(get_project_mcp_servers_handler).post(set_project_mcp_servers_handler))
-        .route("/api/agent/projects/:id/mcp-servers", get(get_project_mcp_servers_endpoint).post(set_project_mcp_servers_endpoint))
+        .route("/api/agent/projects/:id/mcp", get(get_project_mcp_servers_handler))
+        .route("/api/agent/projects/:id/mcp-servers", get(get_project_mcp_servers_endpoint))
         // Session MCP Servers (Active per session, 1:1 with TUI)
-        .route("/api/agent/sessions/:id/mcp", get(get_session_mcp_servers_handler).post(set_session_mcp_server_handler))
-        // MCP Servers
-        .route("/api/agent/mcp", get(list_mcp_servers_endpoint).post(save_mcp_server))
-        .route("/api/agent/mcp/:id", delete(delete_mcp_server_endpoint))
-        .route("/api/agent/mcp/:id/delete", post(delete_mcp_server_endpoint))
+        .route("/api/agent/sessions/:id/mcp", get(get_session_mcp_servers_handler))
+        // MCP Servers (Read-only list and tools inspection)
+        .route("/api/agent/mcp", get(list_mcp_servers_endpoint))
         .route("/api/agent/mcp/:id/tools", get(list_mcp_server_tools_endpoint))
-        .route("/api/agent/mcp/:id/sync", post(sync_mcp_server))
         // Goals & Evidence
         .route("/api/agent/projects/:id/goals", get(list_project_goals).post(create_project_goal))
         .route("/api/agent/goals/:id", get(get_goal_details))
@@ -819,11 +816,6 @@ async fn get_project_skills(Path(project_id): Path<String>) -> impl IntoResponse
     }
 }
 
-#[derive(Deserialize)]
-pub struct SetProjectMcpPayload {
-    pub server_ids: Vec<String>,
-}
-
 async fn get_project_mcp_servers_handler(Path(project_id): Path<String>) -> impl IntoResponse {
     match repository::get_project_mcp_server_ids(&project_id).await {
         Ok(ids) => (StatusCode::OK, Json(json!(ids))),
@@ -834,30 +826,9 @@ async fn get_project_mcp_servers_handler(Path(project_id): Path<String>) -> impl
     }
 }
 
-async fn set_project_mcp_servers_handler(
-    Path(project_id): Path<String>,
-    Json(payload): Json<SetProjectMcpPayload>,
-) -> impl IntoResponse {
-    match repository::set_project_mcp_servers(&project_id, &payload.server_ids).await {
-        Ok(_) => (StatusCode::OK, Json(json!({"status": "ok"}))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": e.to_string()})),
-        ),
-    }
-}
-
 // -----------------------------------------------------------------------------
 // Session MCP Servers Endpoints (1:1 with TUI)
 // -----------------------------------------------------------------------------
-
-#[derive(Deserialize)]
-pub struct SetSessionMcpPayload {
-    pub server_id: String,
-    #[serde(default)]
-    pub env: Option<String>,
-    pub is_active: bool,
-}
 
 async fn get_session_mcp_servers_handler(Path(session_id): Path<String>) -> impl IntoResponse {
     match repository::projects_and_sessions::get_session_active_mcp_servers(&session_id).await {
@@ -875,131 +846,13 @@ async fn get_session_mcp_servers_handler(Path(session_id): Path<String>) -> impl
     }
 }
 
-async fn set_session_mcp_server_handler(
-    Path(session_id): Path<String>,
-    Json(payload): Json<SetSessionMcpPayload>,
-) -> impl IntoResponse {
-    let env_str = payload.env.unwrap_or_else(|| "{}".to_string());
-    match repository::projects_and_sessions::upsert_session_mcp_server(
-        &session_id,
-        &payload.server_id,
-        &env_str,
-        payload.is_active,
-    )
-    .await
-    {
-        Ok(_) => (StatusCode::OK, Json(json!({"status": "ok"}))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": e.to_string()})),
-        ),
-    }
-}
-
 // -----------------------------------------------------------------------------
 // MCP Servers Endpoints
 // -----------------------------------------------------------------------------
-// MCP Servers Endpoints
-// -----------------------------------------------------------------------------
-
-#[derive(Deserialize)]
-pub struct SaveMcpServerPayload {
-    pub id: Option<String>,
-    pub name: String,
-    pub config: Option<String>,
-    pub transport: Option<String>,
-    pub command: Option<String>,
-    pub args: Option<Vec<String>>,
-    pub env: Option<std::collections::HashMap<String, String>>,
-    pub url: Option<String>,
-    pub raw_json: Option<serde_json::Value>,
-    pub is_enabled: Option<bool>,
-}
-
-pub fn slugify_mcp_name(name: &str) -> String {
-    let mut out = String::new();
-    let mut prev_dash = false;
-    for c in name.trim().to_ascii_lowercase().chars() {
-        if c.is_ascii_alphanumeric() {
-            out.push(c);
-            prev_dash = false;
-        } else if !prev_dash && !out.is_empty() {
-            out.push('-');
-            prev_dash = true;
-        }
-    }
-    while out.ends_with('-') {
-        out.pop();
-    }
-    if out.is_empty() {
-        "mcp-server".to_string()
-    } else {
-        out
-    }
-}
 
 async fn list_mcp_servers_endpoint() -> impl IntoResponse {
     match crate::agent::repository::projects_and_sessions::list_mcp_servers().await {
         Ok(servers) => (StatusCode::OK, Json(json!({"servers": servers}))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": e.to_string()})),
-        ),
-    }
-}
-
-async fn save_mcp_server(Json(payload): Json<SaveMcpServerPayload>) -> impl IntoResponse {
-    let id = match payload.id {
-        Some(s) if !s.trim().is_empty() => s.trim().to_string(),
-        _ => slugify_mcp_name(&payload.name),
-    };
-
-    let config_str = if let Some(cfg) = payload.config {
-        cfg
-    } else if let Some(raw) = payload.raw_json {
-        serde_json::to_string(&raw).unwrap_or_else(|_| "{}".to_string())
-    } else {
-        let mut obj = serde_json::Map::new();
-        obj.insert("name".to_string(), json!(payload.name));
-        if let Some(ref t) = payload.transport {
-            obj.insert("transport".to_string(), json!(t));
-        }
-        if let Some(ref c) = payload.command {
-            obj.insert("command".to_string(), json!(c));
-        }
-        if let Some(ref a) = payload.args {
-            obj.insert("args".to_string(), json!(a));
-        }
-        if let Some(ref e) = payload.env {
-            obj.insert("env".to_string(), json!(e));
-        }
-        if let Some(ref u) = payload.url {
-            obj.insert("url".to_string(), json!(u));
-        }
-        serde_json::to_string(&serde_json::Value::Object(obj)).unwrap_or_else(|_| "{}".to_string())
-    };
-
-    let is_enabled = payload.is_enabled.unwrap_or(true);
-
-    match crate::agent::repository::projects_and_sessions::create_or_update_mcp_server(
-        &id,
-        &payload.name,
-        &config_str,
-        is_enabled,
-    )
-    .await
-    {
-        Ok(id) => (StatusCode::OK, Json(json!({"ok": true, "id": id}))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": e.to_string()})),
-        ),
-    }
-}
-
-async fn delete_mcp_server_endpoint(Path(id): Path<String>) -> impl IntoResponse {
-    match crate::agent::repository::projects_and_sessions::delete_mcp_server(&id).await {
-        Ok(_) => (StatusCode::OK, Json(json!({"ok": true}))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"error": e.to_string()})),
@@ -1017,80 +870,9 @@ async fn list_mcp_server_tools_endpoint(Path(server_id): Path<String>) -> impl I
     }
 }
 
-#[derive(Deserialize, Default)]
-pub struct SyncMcpServerPayload {
-    pub model: Option<String>,
-}
-
-async fn sync_mcp_server(
-    Path(id): Path<String>,
-    payload: Option<Json<SyncMcpServerPayload>>,
-) -> impl IntoResponse {
-    let servers = match crate::agent::repository::projects_and_sessions::list_mcp_servers().await {
-        Ok(s) => s,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"ok": false, "error": e.to_string()})),
-            );
-        }
-    };
-
-    let Some(server) = servers.into_iter().find(|s| s.id == id) else {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(json!({"ok": false, "error": format!("MCP server '{}' not found", id)})),
-        );
-    };
-
-    let model_name = payload.and_then(|p| p.model.clone());
-    match ragasukma_core::agent::mcp::discovery::sync_server_tools(&server, model_name.as_deref()).await {
-        Ok(tools) => (
-            StatusCode::OK,
-            Json(json!({
-                "ok": true,
-                "server_id": server.id,
-                "server_name": server.name,
-                "tools_count": tools.len(),
-                "tools": tools
-            })),
-        ),
-        Err(e) => (
-            StatusCode::OK,
-            Json(json!({
-                "ok": false,
-                "error": e
-            })),
-        ),
-    }
-}
-
 async fn get_project_mcp_servers_endpoint(Path(project_id): Path<String>) -> impl IntoResponse {
     match crate::agent::repository::projects_and_sessions::get_project_mcp_server_ids(&project_id).await {
         Ok(ids) => (StatusCode::OK, Json(json!({"ok": true, "server_ids": ids}))),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"ok": false, "error": e.to_string()})),
-        ),
-    }
-}
-
-#[derive(Deserialize)]
-pub struct SetProjectMcpServersPayload {
-    pub server_ids: Vec<String>,
-}
-
-async fn set_project_mcp_servers_endpoint(
-    Path(project_id): Path<String>,
-    Json(payload): Json<SetProjectMcpServersPayload>,
-) -> impl IntoResponse {
-    match crate::agent::repository::projects_and_sessions::set_project_mcp_servers(
-        &project_id,
-        &payload.server_ids,
-    )
-    .await
-    {
-        Ok(_) => (StatusCode::OK, Json(json!({"ok": true}))),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"ok": false, "error": e.to_string()})),
