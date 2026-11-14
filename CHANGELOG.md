@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [v0.3.2] - 2026-11-14
+
+### 🚀 Ecosystem Version Bump
+- Unified version bump to `0.3.2` across `ragasukma-core`, `ragasukma`, and `ragasukma-tui`.
+- Local OpenAI-compatible endpoint (`openai_v1.rs`) now reports its version from `CARGO_PKG_VERSION` instead of a hardcoded string, preventing version drift.
+
+### ✨ New Features & Enhancements
+- **Richer message rendering** (`message_renderer`): unified diff rendering in tool cards, smart tool-call summaries, and inline Markdown support.
+- **Reactive per-session MCP updates**: the MCP server list refreshes live during tool execution without requiring a restart.
+- **MCP process hygiene**: registered MCP server processes are cleaned up on TUI startup and shutdown.
+
+### 🐛 Bug Fixes
+- **Streaming no longer hijacks manual scroll**: added a `follow_stream` flag so incoming deltas stop forcing the viewport back to the bottom once the user scrolls up mid-stream; auto-follow resumes when returning to the bottom or on a new turn.
+- **No more phase-leak into tool-call bubbles**: stream deltas now target only the open assistant phase (one without tool calls), creating a fresh bubble after a tool-call phase instead of appending into a closed one.
+- **Incomplete `<think>` blocks** no longer blank the assistant bubble while thinking is still streaming.
+- **Duplicate final summaries** are reconciled against already-streamed content, avoiding repeated text.
+- Added regression tests covering phase leaking and manual scroll-away during streaming.
+
 ## [v0.3.0] - 2026-03-30
 
 ### 🚀 Major Features & Enhancements
