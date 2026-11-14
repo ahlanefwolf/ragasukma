@@ -191,6 +191,15 @@ fn main() -> Result<()> {
         ragasukma_core::agent::maintenance::run_retention_loop().await;
     });
 
+    // Graceful shutdown of all MCP servers on OS signal (Ctrl+C / SIGTERM)
+    crate::app_state::get_global_tokio_runtime().spawn(async {
+        ragasukma_core::agent::mcp::wait_for_shutdown_signal().await;
+        ragasukma_core::agent::mcp::shutdown_all_mcp_servers().await;
+        crate::app_state::trigger_app_shutdown();
+        tray::TrayState::push_command("quit".to_string());
+        std::process::exit(0);
+    });
+
     crate::term_log!("====================================================");
     crate::term_log!(
         "  Ragasukma - Personal Assistant: {} (Anime ID)",
@@ -232,8 +241,8 @@ fn main() -> Result<()> {
     // Following Cocoa/macOS, Windows, and Linux X11/Wayland industry standards
     ui::run_native_overlay();
 
-    // Send quit command to session thread for graceful shutdown
-    let _ = engine::cloudflared::stop_cloudflared_tunnel();
+    // Send quit command to session thread and shut down all MCP processes gracefully
+    crate::app_state::trigger_app_shutdown();
     tray::TrayState::push_command("quit".to_string());
     let _ = session_thread.join();
     std::process::exit(0);

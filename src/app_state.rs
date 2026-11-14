@@ -311,6 +311,18 @@ pub fn is_paused() -> bool {
 
 pub fn trigger_app_shutdown() {
     let _ = crate::engine::cloudflared::stop_cloudflared_tunnel();
+    if tokio::runtime::Handle::try_current().is_ok() {
+        let _ = std::thread::spawn(|| {
+            get_global_tokio_runtime().block_on(async {
+                ragasukma_core::agent::mcp::shutdown_all_mcp_servers().await;
+            });
+        })
+        .join();
+    } else {
+        get_global_tokio_runtime().block_on(async {
+            ragasukma_core::agent::mcp::shutdown_all_mcp_servers().await;
+        });
+    }
     if let Ok(lock) = GLOBAL_SHARED_STATE.lock() {
         if let Some(shared) = lock.as_ref() {
             if let Ok(mut s) = shared.lock() {
