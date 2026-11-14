@@ -234,25 +234,43 @@ export const AgentChatPane: Component<{
     for (const m of msgs) {
       const calls = parseToolCalls(m.tool_calls);
       for (const call of calls) {
-        const fp = call.argsObj?.filepath || call.argsObj?.path;
+        const fp = call.argsObj?.file_path || call.argsObj?.filepath || call.argsObj?.path;
         if (fp) {
-          const fileName = fp.split('/').pop() || fp;
-          if (!map.has(fp)) {
-            map.set(fp, {
-              filePath: fp,
-              fileName,
-              status: 'modified',
-            });
-          }
+          const fileName = fp.split(/[/\\]/).pop() || fp;
+          const existing = map.get(fp);
+          const hasEditDiff =
+            typeof call.argsObj?.old_text === 'string' && typeof call.argsObj?.new_text === 'string';
+          const hasWriteContent =
+            call.name === 'workspace_write_file' && typeof call.argsObj?.content === 'string';
+          const diffData = hasEditDiff
+            ? {
+                oldContent: call.argsObj.old_text,
+                newContent: call.argsObj.new_text,
+                isNewFile: false,
+              }
+            : hasWriteContent
+            ? {
+                oldContent: existing?.diffData?.oldContent || '',
+                newContent: call.argsObj.content,
+                isNewFile: !existing,
+              }
+            : existing?.diffData;
+
+          map.set(fp, {
+            filePath: fp,
+            fileName,
+            status: existing?.status || (hasWriteContent ? 'created' : 'modified'),
+            diffData,
+          });
         }
       }
     }
 
     for (const m of msgs) {
-      if (m.role !== 'assistant') continue;
+      if (m.role !== 'assistant' && m.role !== 'tool') continue;
       const out = formatToolOutput(m.content);
       if (out.diffData && out.filename) {
-        for (const [key, val] of map.entries()) {
+        for (const [, val] of map.entries()) {
           if (val.fileName === out.filename || val.filePath.endsWith(out.filename)) {
             val.diffData = out.diffData;
             val.status = out.diffData.isNewFile ? 'created' : 'modified';

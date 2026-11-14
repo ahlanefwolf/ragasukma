@@ -66,6 +66,14 @@ function formatToolCallHeader(tc: ParsedToolCallItem): { title: string; subtitle
         title: `Writing file: ${fileName || filePath}`,
         subtitle: tc.argsObj.content ? `${tc.argsObj.content.length} chars` : undefined,
       };
+    case 'workspace_edit_file':
+      return {
+        title: `Editing file: ${fileName || filePath}`,
+        subtitle:
+          typeof tc.argsObj.old_text === 'string' && typeof tc.argsObj.new_text === 'string'
+            ? `${tc.argsObj.old_text.split('\n').length} → ${tc.argsObj.new_text.split('\n').length} lines`
+            : undefined,
+      };
     case 'workspace_read_file':
       return {
         title: `Reading file: ${fileName || filePath}`,
@@ -119,9 +127,10 @@ export function formatToolOutput(content?: string | null): FormattedToolOutput {
   try {
     const parsed = JSON.parse(trimmed);
 
-    // 2.1 File Write with Git Diff
-    if (parsed.status === 'ok' && parsed.file_path && parsed.new_content !== undefined) {
-      const fileName = parsed.file_path.split(/[/\\]/).pop() || parsed.file_path;
+    // 2.1 File Write / Edit with Git Diff
+    if (parsed.status === 'ok' && (parsed.file_path || parsed.path) && parsed.new_content !== undefined) {
+      const targetPath = parsed.file_path || parsed.path;
+      const fileName = targetPath.split(/[/\\]/).pop() || targetPath;
       const isNew = !!parsed.is_new_file;
       const label = isNew ? 'Created file' : 'Updated file';
 
@@ -135,6 +144,23 @@ export function formatToolOutput(content?: string | null): FormattedToolOutput {
           filename: fileName,
           isNewFile: isNew,
         },
+      };
+    }
+
+    if (
+      parsed.status === 'ok' &&
+      (parsed.file_path || parsed.path) &&
+      (parsed.new_text_len !== undefined || parsed.old_text_len !== undefined || parsed.bytes_written !== undefined) &&
+      !Array.isArray(parsed.entries)
+    ) {
+      const targetPath = parsed.file_path || parsed.path;
+      const fileName = targetPath.split(/[/\\]/).pop() || targetPath;
+      const isEdit = parsed.old_text_len !== undefined || parsed.new_text_len !== undefined;
+      const label = isEdit ? 'Edited file' : 'Updated file';
+      return {
+        summary: `${label}: ${fileName} (${parsed.bytes_written || 0} bytes)`,
+        isError: false,
+        filename: fileName,
       };
     }
 
@@ -335,8 +361,17 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
                 </div>
 
                 {/* Structured arguments preview */}
-                <div class="space-y-1 pt-1 font-mono text-xs">
-                  <For each={Object.entries(tc.argsObj)}>
+                <div class="space-y-1.5 pt-1 font-mono text-xs">
+                  <For
+                    each={Object.entries(tc.argsObj).filter(([key]) => {
+                      const hasUnifiedDiff =
+                        typeof tc.argsObj?.old_text === 'string' && typeof tc.argsObj?.new_text === 'string';
+                      if (hasUnifiedDiff && (key === 'old_text' || key === 'new_text')) {
+                        return false;
+                      }
+                      return true;
+                    })}
+                  >
                     {([key, val]) => {
                       const strVal = typeof val === 'string' ? val : JSON.stringify(val, null, 2);
                       const isLong = strVal.length > 100 || strVal.includes('\n');
@@ -370,6 +405,21 @@ export const ToolCallCard: Component<{ toolCalls: string }> = (props) => {
                       );
                     }}
                   </For>
+
+                  <Show when={typeof tc.argsObj?.old_text === 'string' && typeof tc.argsObj?.new_text === 'string'}>
+                    <GitDiffViewer
+                      oldContent={tc.argsObj.old_text}
+                      newContent={tc.argsObj.new_text}
+                      filename={
+                        (tc.argsObj.file_path || tc.argsObj.filepath || tc.argsObj.path || '')
+                          .split(/[/\\]/)
+                          .pop() ||
+                        tc.argsObj.file_path ||
+                        tc.argsObj.filepath ||
+                        tc.argsObj.path
+                      }
+                    />
+                  </Show>
                 </div>
               </div>
             )}
