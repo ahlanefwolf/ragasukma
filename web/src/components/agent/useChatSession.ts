@@ -1,19 +1,25 @@
 import { createSignal, createMemo, onCleanup } from 'solid-js';
-import { 
-  agentService, 
-  AgentSession, 
-  AgentMessage, 
-  configService,
+import {
+  agentService,
   modelCatalogService,
-  API_BASE
+  configService,
+  API_BASE,
+  AgentSession,
+  AgentMessage,
+  McpServerConfig,
 } from '../../services';
-import { highlightCode } from './highlightUtils';
 import { showConfirm } from '../ConfirmModal';
+
+export interface SessionMcpSsePayload {
+  active_server_ids?: string[];
+  servers?: McpServerConfig[];
+}
 
 export function useChatSession(
   showToast: (msg: string) => void,
   selectedProjectId: () => string | null,
-  loadProjectFiles: (projectId: string) => Promise<void>
+  loadProjectFiles: (projectId: string) => Promise<void>,
+  onSessionMcpUpdated?: (sessionId: string, payload?: SessionMcpSsePayload) => Promise<void> | void
 ) {
   const [sessions, setSessions] = createSignal<AgentSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = createSignal<string | null>(null);
@@ -167,6 +173,12 @@ export function useChatSession(
                 if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
               }
             }
+            if (onSessionMcpUpdated && (eventData?.active_server_ids || eventData?.servers)) {
+              onSessionMcpUpdated(sessionId, {
+                active_server_ids: eventData.active_server_ids,
+                servers: eventData.servers,
+              });
+            }
           } else if (eventType === 'delta') {
             const delta = eventData?.delta || '';
             if (delta) {
@@ -181,6 +193,13 @@ export function useChatSession(
             }
           } else if (eventType === 'stream_reset') {
             clearStreamingState();
+          } else if (eventType === 'mcp_updated') {
+            if (onSessionMcpUpdated) {
+              onSessionMcpUpdated(sessionId, {
+                active_server_ids: eventData?.active_server_ids,
+                servers: eventData?.servers,
+              });
+            }
           } else if (eventType === 'message') {
             const newMsg: AgentMessage = eventData;
             // Only clear live streaming text once assistant message is created
@@ -223,9 +242,37 @@ export function useChatSession(
                 const pId = selectedProjectId();
                 if (pId) loadProjectFiles(pId);
               }
+              const isMcpMutation =
+                content.includes('MCP server ') ||
+                content.includes('Extension ') ||
+                content.includes('mcp_configure_session') ||
+                content.includes('activate_extension') ||
+                content.includes('mcp_remove_server') ||
+                content.includes('mcp_register_server');
+              if (isMcpMutation && onSessionMcpUpdated) {
+                onSessionMcpUpdated(sessionId);
+              }
             }
           } else if (eventType === 'step') {
-            setCurrentStepInfo(eventData?.details || eventData?.action || null);
+            const actionText = eventData?.action || '';
+            const detailsText = eventData?.details || '';
+            if (actionText === 'mcp_updated') {
+              if (onSessionMcpUpdated) {
+                onSessionMcpUpdated(sessionId);
+              }
+            } else {
+              const stepText = detailsText || actionText || 'Executing step...';
+              setCurrentStepInfo(stepText);
+              if (
+                onSessionMcpUpdated &&
+                (stepText.includes('mcp_configure_session') ||
+                  stepText.includes('activate_extension') ||
+                  stepText.includes('mcp_remove_server') ||
+                  stepText.includes('mcp_register_server'))
+              ) {
+                onSessionMcpUpdated(sessionId);
+              }
+            }
           } else if (eventType === 'status') {
             const st = eventData?.status;
             if (st) {
@@ -236,6 +283,9 @@ export function useChatSession(
                 clearStreamingState();
                 markSessionRunning(sessionId, false);
                 if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
+                if (onSessionMcpUpdated) {
+                  onSessionMcpUpdated(sessionId);
+                }
                 const projectIdAtRequest = selectedProjectId();
                 if (projectIdAtRequest) {
                   loadProjectFiles(projectIdAtRequest);
@@ -254,6 +304,9 @@ export function useChatSession(
               prev.map((s) => (s.id === sessionId ? { ...s, status: 'idle' } : s))
             );
             if (selectedSessionId() === sessionId) setCurrentStepInfo(null);
+            if (onSessionMcpUpdated) {
+              onSessionMcpUpdated(sessionId);
+            }
             const projectIdAtRequest = selectedProjectId();
             if (projectIdAtRequest) {
               loadProjectFiles(projectIdAtRequest);

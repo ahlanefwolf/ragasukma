@@ -580,18 +580,31 @@ async fn session_events_sse(
         .unwrap_or_else(|| "idle".to_string());
 
     let stream = async_stream::stream! {
-        // Initial connection confirmation event with status snapshot
+        let mut last_active_mcp: Vec<String> = crate::agent::repository::projects_and_sessions::get_session_active_mcp_servers(&session_id)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(srv, _)| srv.id)
+            .collect();
+        let mut last_servers = crate::agent::repository::projects_and_sessions::list_mcp_servers()
+            .await
+            .unwrap_or_default();
+        let mut last_servers_json = serde_json::to_string(&last_servers).unwrap_or_default();
+
+        // Initial connection confirmation event with status and MCP snapshot
         let init_json = serde_json::json!({
             "type": "connected",
             "data": {
                 "session_id": session_id,
                 "status": current_status,
+                "active_server_ids": last_active_mcp,
+                "servers": last_servers,
             }
         });
         yield Ok::<_, std::convert::Infallible>(format!("data: {}\n\n", init_json));
 
-        // Persistent keep-alive ping interval (prevents reallocating timer futures on every token)
-        let mut ping_interval = tokio::time::interval(std::time::Duration::from_secs(3));
+        // Persistent keep-alive & cross-process MCP state sync interval
+        let mut ping_interval = tokio::time::interval(std::time::Duration::from_millis(1500));
         ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
         loop {
@@ -601,6 +614,30 @@ async fn session_events_sse(
                         Ok(evt) => {
                             if let Ok(json_str) = serde_json::to_string(&evt) {
                                 yield Ok(format!("data: {}\n\n", json_str));
+                            }
+                            let cur_active: Vec<String> = crate::agent::repository::projects_and_sessions::get_session_active_mcp_servers(&session_id)
+                                .await
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|(srv, _)| srv.id)
+                                .collect();
+                            let cur_servers = crate::agent::repository::projects_and_sessions::list_mcp_servers()
+                                .await
+                                .unwrap_or_default();
+                            let cur_servers_json = serde_json::to_string(&cur_servers).unwrap_or_default();
+                            if cur_active != last_active_mcp || cur_servers_json != last_servers_json {
+                                last_active_mcp = cur_active;
+                                last_servers = cur_servers;
+                                last_servers_json = cur_servers_json;
+                                let mcp_evt = serde_json::json!({
+                                    "type": "mcp_updated",
+                                    "data": {
+                                        "session_id": session_id,
+                                        "active_server_ids": last_active_mcp,
+                                        "servers": last_servers,
+                                    }
+                                });
+                                yield Ok(format!("data: {}\n\n", mcp_evt));
                             }
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(missed)) => {
@@ -613,8 +650,32 @@ async fn session_events_sse(
                     }
                 }
                 _ = ping_interval.tick() => {
-                    // Send periodic keep-alive event every 3s to flush Cloudflare & proxy buffers
-                    yield Ok("event: ping\ndata: {}\n\n".to_string());
+                    let cur_active: Vec<String> = crate::agent::repository::projects_and_sessions::get_session_active_mcp_servers(&session_id)
+                        .await
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|(srv, _)| srv.id)
+                        .collect();
+                    let cur_servers = crate::agent::repository::projects_and_sessions::list_mcp_servers()
+                        .await
+                        .unwrap_or_default();
+                    let cur_servers_json = serde_json::to_string(&cur_servers).unwrap_or_default();
+                    if cur_active != last_active_mcp || cur_servers_json != last_servers_json {
+                        last_active_mcp = cur_active;
+                        last_servers = cur_servers;
+                        last_servers_json = cur_servers_json;
+                        let mcp_evt = serde_json::json!({
+                            "type": "mcp_updated",
+                            "data": {
+                                "session_id": session_id,
+                                "active_server_ids": last_active_mcp,
+                                "servers": last_servers,
+                            }
+                        });
+                        yield Ok(format!("data: {}\n\n", mcp_evt));
+                    } else {
+                        yield Ok(": ping\n\n".to_string());
+                    }
                 }
             }
         }

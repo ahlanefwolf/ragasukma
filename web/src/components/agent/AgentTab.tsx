@@ -42,7 +42,21 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
   const chat = useChatSession(
     props.showToast,
     ws.selectedProjectId,
-    async (pId) => files.loadProjectFiles(pId)
+    async (pId) => files.loadProjectFiles(pId),
+    async (sessionId, payload) => {
+      if (payload?.servers) {
+        ws.setMcpServers([...payload.servers]);
+      } else {
+        await ws.refreshMcpServers();
+      }
+      if (chat.selectedSessionId() === sessionId) {
+        if (payload?.active_server_ids) {
+          ws.setSessionActiveMcpServerIds([...payload.active_server_ids]);
+        } else {
+          await ws.loadSessionMcpServers(sessionId);
+        }
+      }
+    }
   );
 
   // 3. Project Workspace Files State (Tree, Tagging, Range Picker)
@@ -323,7 +337,16 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
               })}
               currentProject={ws.currentProject()}
               sidebarTab={sidebarTab()}
-              setSidebarTab={setSidebarTab}
+              setSidebarTab={(tab) => {
+                setSidebarTab(tab);
+                if (tab === 'mcp') {
+                  void ws.refreshMcpServers();
+                  const sid = chat.selectedSessionId();
+                  if (sid) {
+                    void ws.loadSessionMcpServers(sid);
+                  }
+                }
+              }}
               sessions={chat.sessions()}
               selectedSessionId={chat.selectedSessionId()}
               onSelectSession={chat.selectSession}
@@ -360,7 +383,14 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
               getLineCount={files.getLineCount}
               mcpServers={ws.mcpServers()}
               activeSessionMcpIds={ws.sessionActiveMcpServerIds()}
-              onRefreshMcpServers={ws.refreshMcpServers}
+              onRefreshMcpServers={async () => {
+                const sid = chat.selectedSessionId();
+                await Promise.all([
+                  ws.refreshMcpServers(),
+                  sid ? ws.loadSessionMcpServers(sid) : Promise.resolve(),
+                ]);
+                props.showToast('MCP servers refreshed');
+              }}
             />
           </div>
 

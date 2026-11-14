@@ -296,6 +296,7 @@ export function useWorkspaceState(showToast: (msg: string) => void) {
     currentProject,
     activeProjectMcpServerIds,
     sessionActiveMcpServerIds,
+    setSessionActiveMcpServerIds,
     loadProjectMcpServers,
     loadSessionMcpServers,
     showNewProjectModal,

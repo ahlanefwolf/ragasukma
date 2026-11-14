@@ -1,4 +1,4 @@
-import { Component, For, Show } from 'solid-js';
+import { Component, For, Show, createSignal } from 'solid-js';
 import { 
   FolderGit2, 
   MessageSquare, 
@@ -65,8 +65,10 @@ export const AgentSidebar: Component<{
   // MCP support (read-only status, managed via prompt)
   mcpServers: McpServerConfig[];
   activeSessionMcpIds?: string[];
-  onRefreshMcpServers?: () => void;
+  onRefreshMcpServers?: () => Promise<void> | void;
 }> = (props) => {
+  const [refreshingMcp, setRefreshingMcp] = createSignal(false);
+
   return (
     <div class="lg:col-span-4 flex flex-col space-y-2.5 min-h-0 h-full overflow-hidden">
       {/* Projects Header & Selector */}
@@ -352,11 +354,20 @@ export const AgentSidebar: Component<{
                 <div class="flex items-center gap-1">
                   <Show when={props.onRefreshMcpServers}>
                     <button
-                      onClick={props.onRefreshMcpServers}
-                      class="p-1 hover:bg-theme-bg text-theme-text/60 hover:text-theme-text rounded transition-colors"
-                      title="Refresh MCP servers"
+                      onClick={async () => {
+                        if (!props.onRefreshMcpServers || refreshingMcp()) return;
+                        setRefreshingMcp(true);
+                        try {
+                          await props.onRefreshMcpServers();
+                        } finally {
+                          setRefreshingMcp(false);
+                        }
+                      }}
+                      disabled={refreshingMcp()}
+                      class="p-1 rounded text-theme-text/50 hover:text-theme-cyan hover:bg-theme-cyan/10 transition-colors disabled:opacity-50"
+                      title="Refresh MCP Servers & Session Status"
                     >
-                      <RefreshCw class="w-3 h-3" />
+                      <RefreshCw class={`w-3 h-3 ${refreshingMcp() ? 'animate-spin text-theme-cyan' : ''}`} />
                     </button>
                   </Show>
                 </div>
