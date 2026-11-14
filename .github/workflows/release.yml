@@ -116,8 +116,11 @@ jobs:
       # ======================================================================
       # RUST TOOLCHAIN & CACHE
       # ======================================================================
-      - name: Setup Rust Stable
-        uses: dtolnay/rust-toolchain@stable
+      # Pinned: newer `stable` compilers break `xcap 0.0.14` at compile time
+      # (E0277 `!: ReadAll`, rust-lang/rust#148922). Keep this pinned until
+      # `xcap` is upgraded and the perception module is migrated to its new API.
+      - name: Setup Rust (pinned)
+        uses: dtolnay/rust-toolchain@1.98.1
         with:
           targets: ${{ matrix.target }}
 
@@ -149,6 +152,11 @@ jobs:
             export CC=gcc-14
             export CXX=g++-14
           fi
+          # `ort-sys` (copy-dylibs) copies DirectML/onnxruntime DLLs into
+          # target/<triple>/release/ from its build script. On a clean checkout
+          # that directory does not exist yet, causing fs::copy to fail with
+          # `os error 3` on Windows. Pre-create it so the copy succeeds.
+          mkdir -p "target/${{ matrix.target }}/release"
           cargo build \
             --release \
             --target ${{ matrix.target }}
