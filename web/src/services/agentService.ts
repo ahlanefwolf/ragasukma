@@ -150,6 +150,12 @@ export function parseProjectFolders(rootPath?: string): string[] {
   return [rootPath];
 }
 
+export interface ImageAttachment {
+  mime_type: string;
+  data_base64: string;
+  name?: string;
+}
+
 export const agentService = {
   // Projects
   async getProjects(): Promise<Project[]> {
@@ -352,7 +358,11 @@ export const agentService = {
     }
   },
 
-  async runSession(sessionId: string, model?: string): Promise<{ ok: boolean; reply?: string; error?: string }> {
+  async runSession(
+    sessionId: string,
+    model?: string,
+    images?: ImageAttachment[]
+  ): Promise<{ ok: boolean; reply?: string; error?: string }> {
     try {
       // Agent workspace multi-turn execution takes time (up to 5 minutes for coding & tool calls)
       const res = await fetchWithTimeout(
@@ -360,7 +370,10 @@ export const agentService = {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: model || undefined }),
+          body: JSON.stringify({
+            model: model || undefined,
+            images: images && images.length > 0 ? images : undefined,
+          }),
         },
         300000
       );

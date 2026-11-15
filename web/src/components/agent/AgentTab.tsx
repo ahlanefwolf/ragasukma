@@ -458,6 +458,13 @@ export const AgentTab: Component<AgentTabProps> = (props) => {
                 getLineCount={files.getLineCount}
                 setChatInputRef={(el) => (chatInputRef = el)}
                 userInput={chat.userInput()}
+        attachedImages={chat.attachedImages()}
+        onAttachImage={(img) => {
+          const idx = chat.attachedImages().length + 1;
+          chat.setAttachedImages((prev) => [...prev, img]);
+          chat.setUserInput((prev) => (prev ? `${prev} [image:${idx}]` : `[image:${idx}]`));
+        }}
+        onRemoveImage={(idx) => chat.setAttachedImages((prev) => prev.filter((_, i) => i !== idx))}
                 onChatInput={handleChatInput}
                 onChatKeyDown={handleChatKeyDown}
                 onSendMessage={() => chat.handleSendMessage(() => {

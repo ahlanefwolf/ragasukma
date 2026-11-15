@@ -60,6 +60,9 @@ export const AgentChatPane: Component<{
   getLineCount: (path: string) => number | undefined;
   setChatInputRef: (el: HTMLTextAreaElement) => void;
   userInput: string;
+  attachedImages?: import('../../services/agentService').ImageAttachment[];
+  onAttachImage?: (img: import('../../services/agentService').ImageAttachment) => void;
+  onRemoveImage?: (idx: number) => void;
   onChatInput: (e: InputEvent & { currentTarget: HTMLTextAreaElement }) => void;
   onChatKeyDown: (e: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) => void;
   onSendMessage: () => void;
@@ -591,23 +594,50 @@ export const AgentChatPane: Component<{
             {/* Auto-Expanding Textarea */}
             <div class="relative w-full">
               <textarea
-                ref={(el) => {
-                  props.setChatInputRef(el);
-                  if (el) {
-                    el.style.height = 'auto';
-                    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+                value={props.userInput}
+                onInput={props.onChatInput}
+                onKeyDown={props.onChatKeyDown}
+                onPaste={(e) => {
+                  if (!props.onAttachImage) return;
+                  const attachFile = (file: File) => {
+                    e.preventDefault();
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      const dataUrl = reader.result as string;
+                      const commaIdx = dataUrl.indexOf(',');
+                      if (commaIdx !== -1) {
+                        props.onAttachImage?.({
+                          mime_type: file.type || 'image/png',
+                          data_base64: dataUrl.slice(commaIdx + 1),
+                          name: file.name || 'pasted-image.png',
+                        });
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  };
+                  let handled = false;
+                  const items = e.clipboardData?.items;
+                  if (items) {
+                    for (let i = 0; i < items.length; i++) {
+                      const item = items[i];
+                      if (item.type.startsWith('image/')) {
+                        const file = item.getAsFile();
+                        if (file) {
+                          attachFile(file);
+                          handled = true;
+                        }
+                      }
+                    }
+                  }
+                  if (!handled && e.clipboardData?.files) {
+                    for (let i = 0; i < e.clipboardData.files.length; i++) {
+                      const file = e.clipboardData.files[i];
+                      if (file.type.startsWith('image/')) {
+                        attachFile(file);
+                      }
+                    }
                   }
                 }}
-                rows={1}
-                placeholder={`Send instructions to agent for workspace "${props.currentProject?.name}" (type @ to tag files)...`}
-                value={props.userInput}
-                onInput={(e) => {
-                  const target = e.currentTarget;
-                  target.style.height = 'auto';
-                  target.style.height = `${Math.min(target.scrollHeight, 200)}px`;
-                  props.onChatInput(e);
-                }}
-                onKeyDown={props.onChatKeyDown}
                 class="relative z-10 w-full bg-transparent border-0 px-1 py-0.5 text-xs focus:outline-none focus:ring-0 resize-none min-h-[38px] max-h-52 custom-scrollbar leading-relaxed font-sans text-white caret-white placeholder-white/35 selection:bg-gi-primary/30 selection:text-white"
                 style={{
                   "word-break": "break-word",

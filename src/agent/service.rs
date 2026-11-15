@@ -506,23 +506,29 @@ async fn delete_session(Path(id): Path<String>) -> impl IntoResponse {
 #[derive(Deserialize, Default)]
 pub struct RunSessionPayload {
     pub model: Option<String>,
+    #[serde(default)]
+    pub images: Vec<crate::llm::types::ImageAttachment>,
 }
 
 async fn run_session(
     Path(id): Path<String>,
     body: axum::body::Bytes,
 ) -> impl IntoResponse {
-    let model_override = if !body.is_empty() {
-        serde_json::from_slice::<RunSessionPayload>(&body)
-            .ok()
-            .and_then(|p| p.model)
+    let payload = if !body.is_empty() {
+        serde_json::from_slice::<RunSessionPayload>(&body).unwrap_or_default()
     } else {
-        None
+        RunSessionPayload::default()
     };
+    let model_override = payload.model;
+    let images = payload.images;
 
     let session_id = id.clone();
     // Cancel any previous task still running for this session to avoid multiple workers
     crate::agent::executor::cancel_session_task(&session_id);
+
+    if !images.is_empty() {
+        crate::agent::executor::set_session_pending_images(&session_id, images);
+    }
 
     let sid_for_task = session_id.clone();
     let handle = tokio::spawn(async move {

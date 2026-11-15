@@ -32,6 +32,7 @@ export function useChatSession(
   const visibleMessages = createMemo(() => messages().filter((m) => m.role !== 'system' && !m.hidden));
 
   const [userInput, setUserInput] = createSignal('');
+  const [attachedImages, setAttachedImages] = createSignal<import('../../services/agentService').ImageAttachment[]>([]);
   const [collapsedMessages, setCollapsedMessages] = createSignal<Set<string>>(new Set());
 
   const toggleCollapseMessage = (id: string) => {
@@ -688,6 +689,7 @@ export function useChatSession(
     setStreamingText('');
     setStreamingThought('');
     try {
+      const pendingImgs = attachedImages();
       const res = await agentService.createMessage(sessId, {
         role: 'user',
         content: text,
@@ -695,6 +697,7 @@ export function useChatSession(
 
       if (res.ok && res.message) {
         setUserInput('');
+        setAttachedImages([]);
         setMessages([...messages(), res.message]);
         onMessageSent?.();
 
@@ -702,7 +705,7 @@ export function useChatSession(
         connectSessionSse(sessId, onMessageSent);
 
         const currentModel = activeSessionModel() || undefined;
-        const runRes = await agentService.runSession(sessId, currentModel);
+        const runRes = await agentService.runSession(sessId, currentModel, pendingImgs);
         if (!runRes.ok) {
           showToast(runRes.error || 'Agent execution error');
           markSessionRunning(sessId, false);
@@ -732,6 +735,8 @@ export function useChatSession(
     loadingMessages,
     userInput,
     setUserInput,
+    attachedImages,
+    setAttachedImages,
     toggleCollapseMessage,
     isMessageCollapsed,
     currentStepInfo,
