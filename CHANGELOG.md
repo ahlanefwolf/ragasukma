@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [v0.4.0] - 2026-04-06
+
+### 🚀 Ecosystem Version Bump
+- Unified version bump to `0.4.0` across `ragasukma-core`, `ragasukma`, and `ragasukma-tui`.
+
+### ✨ New Features & Enhancements
+- **Inline Image Paste (`[image:N]`)** (`750de60`): Simplified web chat image paste into inline `[image:N]` tokens for cleaner prompt composition and multimodal agent submission.
+- **Auto-Detected Skill Directory Hints** (`c86dfcc`): Updated skill directory hints in the web dashboard to reflect auto-detected workspace skill paths.
+
 ## [v0.3.2] - 2026-11-14
 
 ### 🚀 Ecosystem Version Bump
