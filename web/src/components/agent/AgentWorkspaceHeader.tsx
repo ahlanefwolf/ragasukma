@@ -81,7 +81,7 @@ export const AgentWorkspaceHeader: Component<{
               when={props.skills.length > 0}
               fallback={
                 <div class="text-xs text-theme-text/70 py-2 italic font-mono bg-theme-bg/30 p-2 border border-dashed border-theme-border/60">
-                  No skill files detected in attached folders. Add SKILL.md or .skill/ directories to customize prompt behaviors.
+                  No skill files detected in attached folders. Add .skills/, .agents/skills/, or .claude/skills/ directories (with SKILL.md) to customize prompt behaviors.
                 </div>
               }
             >
