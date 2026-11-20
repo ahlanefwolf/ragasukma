@@ -104,7 +104,7 @@ export const CustomLlmTab: Component<{ showToast: (message: string) => void }> =
   };
 
   return <section class="space-y-6 animate-fade-in text-theme-text select-text">
-    <header class="border border-theme-border bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg p-5 shadow-sm sm:p-6">
+    <header class="border border-theme-border bg-theme-surface p-5 shadow-sm sm:p-6">
       <h1 class="font-heading text-xl font-bold tracking-tight sm:text-2xl">Custom OpenAI-Compatible</h1>
       <p class="mt-2 max-w-3xl text-xs leading-relaxed text-theme-text/60 sm:text-sm">
         Register any OpenAI-compatible endpoint with your own prefix. Reference models as <code class="border border-theme-border/60 bg-theme-bg px-1.5 py-0.5 font-mono text-theme-text/80">prefix/model-id</code>. The prefixes <code>ag</code>, <code>cx</code>, and <code>cc</code> are reserved.

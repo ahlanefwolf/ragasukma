@@ -75,9 +75,9 @@ export const MobileTopBar: Component<MobileTopBarProps> = (props) => {
           const st = getStatusBadge();
           const Icon = st.icon;
           return (
-            <div class={`flex items-center gap-1.5 font-mono text-xs font-bold drop-shadow-md ${st.textColor}`}>
-              <Icon size={15} class={props.visualState === 'speaking' || props.visualState === 'listening' ? 'animate-pulse' : ''} />
-              <span class="tracking-wide">{st.label}</span>
+            <div class={`flex items-center gap-1.5 font-mono text-xs font-bold ${st.textColor}`}>
+              <Icon size={15} />
+              <span>{st.label}</span>
             </div>
           );
         })()}
@@ -87,10 +87,10 @@ export const MobileTopBar: Component<MobileTopBarProps> = (props) => {
           const ping = getPingBadge();
           return (
             <div
-              class={`flex items-center gap-1 font-mono text-2xs font-semibold drop-shadow-sm opacity-80 ${ping.color}`}
-              title={`Network Latency: ${ping.label}`}
+              class={`flex items-center gap-1 font-mono text-2xs font-semibold opacity-80 ${ping.color}`}
+              title={`Network latency: ${ping.label}`}
             >
-              <span class={`w-1.5 h-1.5 ${ping.dotColor} ${props.pingMs !== null ? 'animate-pulse' : ''}`} />
+              <span class={`w-1.5 h-1.5 ${ping.dotColor}`} />
               <span>{ping.label}</span>
             </div>
           );

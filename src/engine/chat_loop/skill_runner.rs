@@ -165,7 +165,7 @@ fn handle_skill_execution_inner(
 
                 crate::term_err!("[ACTION FAILED]: {err_msg}");
 
-                skill_results.push((id.clone(), err_msg, false));
+                skill_results.push((id, err_msg, false));
             }
         }
     }

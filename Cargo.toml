@@ -1,6 +1,6 @@
 [package]
 name = "ragasukma"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 license = "MIT"
 description = "AI Voice Assistant with 3D/2D Native WGPU Overlay"
@@ -53,7 +53,7 @@ pollster = "0.3"
 glam = { version = "0.25", features = ["bytemuck"] }
 rust-embed = { version = "8.5", features = ["include-exclude"] }
 
-xcap = "0.0.14"
+xcap = "0.1.1"
 mimalloc = { version = "0.1", default-features = false }
 
 # OS Accessibility Tree Scanner (Cross-Platform Native)

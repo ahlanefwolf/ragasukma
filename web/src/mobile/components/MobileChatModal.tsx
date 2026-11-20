@@ -414,7 +414,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
               <div class="w-9 h-9 bg-gi-primary/15 border border-gi-primary/40 flex items-center justify-center text-gi-primary shadow-sm">
                 <Bot size={18} />
               </div>
-              <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-gi-status-success border-2 border-theme-surface animate-pulse" />
+              <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-gi-status-success border-2 border-theme-surface" />
             </div>
             <div class="flex flex-col min-w-0">
               <span class="text-sm font-bold text-theme-text truncate leading-tight">
@@ -442,7 +442,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
         <div 
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          class="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5 overscroll-contain bg-gradient-to-b from-theme-bg/50 via-theme-card/30 to-theme-bg/60"
+          class="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5 overscroll-contain bg-theme-bg"
         >
           {/* Lazy Loading Indicator at Top */}
           <Show when={isLoadingMore() || isInitialLoading()}>
@@ -574,7 +574,7 @@ export const MobileChatModal: Component<MobileChatModalProps> = (props) => {
                     onClick={props.onToggleMic}
                     class={`w-8 h-8 flex items-center justify-center transition-all active:scale-90 shadow-sm cursor-pointer ${
                       props.isListening
-                        ? 'bg-gi-status-danger text-white animate-pulse shadow-md shadow-gi-status-danger/40 ring-2 ring-gi-status-danger/30'
+                        ? 'bg-gi-status-danger text-white ring-2 ring-gi-status-danger/30'
                         : 'bg-theme-surface/80 border border-theme-border text-theme-muted hover:text-gi-primary-hover hover:border-gi-primary/50'
                     }`}
                     title={props.isListening ? 'Stop Listening' : 'Voice Input (PTT)'}

@@ -883,7 +883,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                   <Bot size={18} />
                 </div>
                 <Show when={isAgentActive()}>
-                  <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-gi-status-success border-2 border-theme-surface animate-pulse" />
+                  <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-gi-status-success border-2 border-theme-surface" />
                 </Show>
               </div>
               <div class="flex flex-col min-w-0">
@@ -926,7 +926,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
             <div class="px-3.5 py-2 bg-theme-surface/60 border-b border-theme-border/60 flex items-center justify-between text-xs shrink-0 w-full max-w-full overflow-hidden">
               <div class="flex items-center gap-2 min-w-0 flex-1">
                 <FolderGit2 size={14} class="text-gi-primary shrink-0" />
-                <span class="text-2xs font-mono uppercase text-theme-muted tracking-wider shrink-0">Project</span>
+                <span class="text-2xs text-theme-muted shrink-0">Project</span>
                 <select
                   value={selectedProjectId() || ''}
                   onChange={(e) => setSelectedProjectId(e.currentTarget.value)}
@@ -948,7 +948,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
           </Show>
 
           {/* Scrollable Tasks List */}
-          <div class="flex-1 overflow-y-auto overflow-x-hidden p-3.5 space-y-2.5 overscroll-contain bg-gradient-to-b from-theme-bg/50 via-theme-card/30 to-theme-bg/60 w-full max-w-full min-w-0">
+          <div class="flex-1 overflow-y-auto overflow-x-hidden p-3.5 space-y-2.5 overscroll-contain bg-theme-bg w-full max-w-full min-w-0">
             {/* Empty State */}
             <Show when={sessions().length === 0}>
               <div class="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
@@ -1000,7 +1000,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                             <Loader2 size={16} class="animate-spin text-gi-status-success" />
                           </Show>
                           <Show when={isWaiting}>
-                            <Wrench size={15} class="text-gi-status-warning animate-pulse" />
+                            <Wrench size={15} class="text-gi-status-warning" />
                           </Show>
                           <Show when={sess.status === 'completed'}>
                             <CheckCircle2 size={16} class="text-gi-status-info" />
@@ -1045,7 +1045,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                             <span class="w-1.5 h-1.5 bg-gi-status-success animate-ping inline-block" />
                           </Show>
                           <Show when={isWaiting}>
-                            <span class="w-1.5 h-1.5 bg-gi-status-warning animate-pulse inline-block" />
+                            <span class="w-1.5 h-1.5 bg-gi-status-warning inline-block" />
                           </Show>
                           <span>{formatStatusLabel(sess.status)}</span>
                         </span>
@@ -1082,7 +1082,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                   <Bot size={18} />
                 </div>
                 <Show when={isAgentActive()}>
-                  <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-gi-status-success border-2 border-theme-surface animate-pulse" />
+                  <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-gi-status-success border-2 border-theme-surface" />
                 </Show>
               </div>
               <div class="flex flex-col min-w-0 flex-1 overflow-hidden">
@@ -1095,7 +1095,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                     <span>running</span>
                   </Show>
                   <Show when={!isExecuting() && currentSession()?.status === 'waiting_tool'}>
-                    <span class="w-1.5 h-1.5 bg-gi-status-warning animate-pulse inline-block" />
+                    <span class="w-1.5 h-1.5 bg-gi-status-warning inline-block" />
                     <span>waiting tool</span>
                   </Show>
                   <Show when={!isExecuting() && currentSession()?.status !== 'running' && currentSession()?.status !== 'waiting_tool'}>
@@ -1131,7 +1131,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
 
           {/* Current Execution Step Subheader */}
           <Show when={currentStep()}>
-            <div class="flex items-center gap-2 px-3.5 py-1.5 bg-gi-primary/10 border-b border-gi-primary/30 text-xs text-gi-primary shrink-0 animate-pulse font-mono w-full max-w-full overflow-hidden">
+            <div class="flex items-center gap-2 px-3.5 py-1.5 bg-gi-primary/10 border-b border-gi-primary/30 text-xs text-gi-primary shrink-0 font-mono w-full max-w-full overflow-hidden">
               <Loader2 size={13} class="animate-spin shrink-0" />
               <span class="truncate min-w-0">{currentStep()}</span>
             </div>
@@ -1141,7 +1141,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
           <div
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            class="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3.5 overscroll-contain bg-gradient-to-b from-theme-bg/50 via-theme-card/30 to-theme-bg/60 w-full max-w-full min-w-0"
+            class="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3.5 overscroll-contain bg-theme-bg w-full max-w-full min-w-0"
           >
             {/* Lazy Loading Indicator at Top */}
             <Show when={isLoadingMore() || isInitialLoading()}>
@@ -1288,7 +1288,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
               <div class="flex w-full max-w-full min-w-0 justify-start animate-in fade-in duration-150 overflow-hidden">
                 <div class="relative max-w-[88%] sm:max-w-[78%] min-w-0 px-3.5 py-2.5 text-xs shadow-md bg-theme-card border border-gi-primary/40 text-theme-text overflow-hidden">
                   <div class="flex items-center gap-1.5 text-gi-primary font-mono text-2xs mb-1 min-w-0">
-                    <Brain size={12} class="animate-pulse shrink-0" />
+                    <Brain size={12} class="shrink-0" />
                     <span class="truncate">Thinking in progress...</span>
                   </div>
                   <div class="text-2xs font-mono text-theme-muted whitespace-pre-wrap break-words max-h-36 overflow-y-auto overflow-x-hidden max-w-full min-w-0">
@@ -1307,7 +1307,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                   </span>
                   <div class="whitespace-pre-wrap break-words leading-relaxed max-w-full min-w-0">
                     {streamingText()}
-                    <span class="inline-block w-1.5 h-3.5 ml-0.5 bg-gi-primary animate-pulse align-middle" />
+                    <span class="inline-block w-1.5 h-3.5 ml-0.5 bg-gi-primary align-middle" />
                   </div>
                 </div>
               </div>
@@ -1372,7 +1372,7 @@ export const MobileAgentModal: Component<MobileAgentModalProps> = (props) => {
                 <div class="flex items-center justify-between px-3 pb-2 pt-1 select-none border-t border-theme-border/20">
                   <div class="flex items-center gap-1.5 min-w-0">
                     <Show when={isExecuting()}>
-                      <span class="inline-flex items-center gap-1.5 text-[11px] font-mono text-gi-primary bg-gi-primary/10 border border-gi-primary/20 px-2 py-0.5 animate-pulse">
+                      <span class="inline-flex items-center gap-1.5 text-[11px] font-mono text-gi-primary bg-gi-primary/10 border border-gi-primary/20 px-2 py-0.5">
                         <Loader2 size={11} class="animate-spin shrink-0" />
                         <span class="truncate">Running...</span>
                       </span>

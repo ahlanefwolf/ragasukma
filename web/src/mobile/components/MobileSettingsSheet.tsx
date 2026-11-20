@@ -50,8 +50,8 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
 
           {/* Section: Mode Audio & Input */}
           <div class="space-y-2">
-            <label class="text-xs font-mono font-bold text-theme-muted uppercase tracking-wider block">
-              Audio & Conversation Mode
+            <label class="text-xs font-bold text-theme-muted block">
+              Audio & conversation mode
             </label>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {/* Remote Desktop Button */}
@@ -67,7 +67,7 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
                 <div class="flex items-center justify-between">
                   <Mic size={17} class={props.audioMode === 'remote_desktop' ? 'text-gi-primary-foreground' : 'text-gi-primary'} />
                   <Show when={props.audioMode === 'remote_desktop'}>
-                    <span class="text-2xs font-mono font-bold uppercase tracking-wider">ACTIVE</span>
+                    <span class="text-2xs font-bold">Active</span>
                   </Show>
                 </div>
                 <span class="text-xs font-bold mt-1">Remote PC</span>
@@ -89,7 +89,7 @@ export const MobileSettingsSheet: Component<MobileSettingsSheetProps> = (props) 
                 <div class="flex items-center justify-between">
                   <Smartphone size={17} class={props.audioMode === 'full_mobile' ? 'text-gi-primary-foreground' : 'text-gi-primary'} />
                   <Show when={props.audioMode === 'full_mobile'}>
-                    <span class="text-2xs font-mono font-bold uppercase tracking-wider">ACTIVE</span>
+                    <span class="text-2xs font-bold">Active</span>
                   </Show>
                 </div>
                 <span class="text-xs font-bold mt-1">Phone Only</span>

@@ -165,7 +165,7 @@ export const NowPlayingHeroCard: Component = () => {
               >
                 <div class="w-full h-1.5 bg-theme-border/60 relative">
                   <div
-                    class="h-full bg-gradient-to-r from-theme-cyan via-theme-rose to-theme-cyan transition-all duration-150 relative shadow-[0_0_8px_rgba(229,184,92,0.5)]"
+                    class="h-full bg-theme-cyan transition-all duration-150 relative"
                     style={{ width: `${progressPercent()}%` }}
                   >
                     <span class="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-2.5 h-2.5 bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)] group-hover:scale-125 transition-transform" />

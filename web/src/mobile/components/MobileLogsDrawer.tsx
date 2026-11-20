@@ -29,7 +29,7 @@ export const MobileLogsDrawer: Component<MobileLogsDrawerProps> = (props) => {
         <div class="px-4 py-2.5 bg-theme-card border-b border-theme-border flex items-center justify-between shrink-0 select-none">
           <div class="flex items-center gap-2 font-mono">
             <Terminal size={15} class="text-gi-primary" />
-            <h3 class="text-theme-text uppercase tracking-wider">
+            <h3 class="text-theme-text font-semibold">
               Live Console Logs
             </h3>
             <span class="text-2xs px-1.5 py-0.2 bg-theme-surface text-gi-primary border border-theme-border font-bold">

@@ -17,61 +17,66 @@ interface MobileInteractionDockProps {
 }
 
 export const MobileInteractionDock: Component<MobileInteractionDockProps> = (props) => {
+  const baseBtn =
+    'relative flex items-center justify-center w-11 h-11 border transition-colors active:bg-theme-card';
+
   return (
     <div class="relative z-30 w-full flex flex-col items-center gap-3 px-4 pb-4 pointer-events-auto select-none">
-      {/* Primary Floating Action Bar: Symmetrical, pure borderless floating dock */}
-      <div class="flex items-center justify-center gap-6">
-        {/* 1. Autonomous Agent Monitor Button */}
+      {/* Dock: one shared frame, three equal-weight actions, mic carries the accent */}
+      <div class="flex items-stretch gap-px bg-theme-border border border-theme-border">
+        {/* 1. Autonomous Agent Monitor */}
         <Show when={props.onOpenAgent}>
           <button
             type="button"
             onClick={props.onOpenAgent}
-            class={`relative p-3 transition-all active:scale-75 cursor-pointer select-none ${
+            class={`${baseBtn} ${
               props.isAgentRunning
-                ? 'text-gi-primary drop-shadow-[0_0_16px_rgba(var(--gi-primary-rgb),0.85)] animate-pulse'
-                : 'text-gi-text-primary/80 hover:text-gi-primary-hover drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]'
+                ? 'bg-gi-primary/12 border-gi-primary/40 text-gi-primary'
+                : 'bg-theme-surface border-transparent text-theme-muted'
             }`}
-            title="Agent Tasks"
-            aria-label="Agent Tasks"
+            title="Agent tasks"
+            aria-label="Agent tasks"
           >
-            <Bot size={24} class={`stroke-[2.2] ${props.isAgentRunning ? 'animate-bounce' : ''}`} />
+            <Bot size={19} class="stroke-[1.9]" />
             <Show when={props.isAgentRunning}>
-              <span class="absolute top-1.5 right-1.5 flex h-2 w-2">
-                <span class="animate-ping absolute inline-flex h-full w-full bg-gi-primary opacity-75"></span>
-                <span class="relative inline-flex h-2 w-2 bg-gi-primary"></span>
-              </span>
+              <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-gi-status-warning" />
             </Show>
           </button>
         </Show>
 
-        {/* 2. Message / Chat Button */}
+        {/* 2. Chat */}
         <button
           type="button"
           onClick={props.onToggleShowInput}
-          class="p-3 text-gi-text-primary/80 hover:text-gi-primary-hover active:scale-75 transition-all drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] cursor-pointer select-none"
-          title="Open Chat"
-          aria-label="Open Chat"
+          class={`${baseBtn} bg-theme-surface border-transparent text-theme-muted active:text-theme-text`}
+          title="Open chat"
+          aria-label="Open chat"
         >
-          <MessageSquare size={24} class="stroke-[2.2]" />
+          <MessageSquare size={19} class="stroke-[1.9]" />
         </button>
 
-        {/* 3. Primary PTT Mic Button */}
+        {/* 3. Primary push-to-talk */}
         <button
           type="button"
           onClick={props.onToggleMic}
-          class={`p-3 transition-all active:scale-75 cursor-pointer select-none ${
+          class={`${baseBtn} w-14 ${
             props.isListening
-              ? 'text-gi-status-danger animate-pulse drop-shadow-[0_0_24px_rgba(var(--gi-status-danger-rgb),0.9)]'
-              : 'text-gi-primary hover:text-gi-primary-hover drop-shadow-[0_0_18px_rgba(var(--gi-primary-rgb),0.8)]'
+              ? 'bg-gi-status-danger border-gi-status-danger text-gi-primary-foreground'
+              : 'bg-theme-surface border-transparent text-gi-primary'
           }`}
-          title={props.isListening ? 'Stop Listening' : 'Push to Talk (PTT)'}
-          aria-label={props.isListening ? 'Stop Listening' : 'Push to Talk (PTT)'}
+          title={props.isListening ? 'Stop listening' : 'Push to talk'}
+          aria-label={props.isListening ? 'Stop listening' : 'Push to talk'}
         >
-          <Show when={props.isListening} fallback={<Mic size={28} class="stroke-[2.2]" />}>
-            <MicOff size={28} class="stroke-[2.2]" />
+          <Show when={props.isListening} fallback={<Mic size={21} class="stroke-[1.9]" />}>
+            <MicOff size={21} class="stroke-[1.9]" />
           </Show>
         </button>
       </div>
+
+      {/* Mic state is stated once, in words, instead of pulsing the icon forever */}
+      <Show when={props.isListening}>
+        <span class="text-2xs font-mono text-gi-status-danger">listening — tap to stop</span>
+      </Show>
     </div>
   );
 };

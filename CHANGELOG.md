@@ -6,7 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
-## [v0.4.0] - 2026-04-06
+## [v0.5.0] - 2026-11-20
+
+### 🚀 Ecosystem Version Bump
+- Unified version bump to `0.5.0` across `ragasukma-core`, `ragasukma`, `ragasukma-tui`, the web dashboard, and the landing page.
+
+### ✨ New Features & Enhancements
+- **Single-Source Changelog Service** (`web/src/services/changelog.ts`): the dashboard now parses the root `CHANGELOG.md` at build time, so the version list and release notes can never drift from the file maintainers edit.
+- **Changelog-Driven Update Notes** (`MenuTab.tsx`): the update modal renders release notes as Markdown straight from the changelog, with the GitHub API kept only as a fallback.
+- **Dynamic App Version** (`MenuTab.tsx`): the displayed version is now derived from `web/package.json` instead of a hardcoded string.
+- **Mobile Dashboard Refinement** (`MobileTopBar`, `MobileInteractionDock`, `MobileFloatingMusic`): mobile chrome reworked for a cleaner, less cluttered layout.
+
+### 🐛 Bug Fixes
+- **TTS / OpenVoice stability** (`src/audio/openvoice.rs`, `src/audio/tts.rs`): hardened audio synthesis error handling and recovery.
+- **Perception utilities** (`src/engine/perception/utils.rs`): fixed edge cases in perception input handling.
+- **Skill runner** (`src/engine/chat_loop/skill_runner.rs`): corrected skill directory hint resolution.
+
+### 🔧 Chores
+- `web/tsconfig.json`: enabled `resolveJsonModule` for `package.json` imports.
+
+## [v0.4.0] - 2026-11-16
 
 ### 🚀 Ecosystem Version Bump
 - Unified version bump to `0.4.0` across `ragasukma-core`, `ragasukma`, and `ragasukma-tui`.
@@ -15,7 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **Inline Image Paste (`[image:N]`)** (`750de60`): Simplified web chat image paste into inline `[image:N]` tokens for cleaner prompt composition and multimodal agent submission.
 - **Auto-Detected Skill Directory Hints** (`c86dfcc`): Updated skill directory hints in the web dashboard to reflect auto-detected workspace skill paths.
 
-## [v0.3.2] - 2026-11-14
+## [v0.3.2] - 2026-11-15
 
 ### 🚀 Ecosystem Version Bump
 - Unified version bump to `0.3.2` across `ragasukma-core`, `ragasukma`, and `ragasukma-tui`.
@@ -33,14 +52,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **Duplicate final summaries** are reconciled against already-streamed content, avoiding repeated text.
 - Added regression tests covering phase leaking and manual scroll-away during streaming.
 
-## [v0.3.0] - 2026-03-30
+## [v0.3.1] - 2026-11-12
+
+### 🚀 Ecosystem Version Bump
+- Unified version bump to `0.3.1` across `ragasukma-core`, `ragasukma`, and `ragasukma-tui`.
+
+### 🔧 CI / Release Infrastructure
+- **Resilient core update path** (`baeb14e7`): improved `ragasukma-core` git update resilience in the release workflow so a stale or diverged core checkout no longer breaks the build.
+- **Release pipeline bump** (`f0137036`): version bump wired through the CI release workflow.
+
+## [v0.3.0] - 2026-11-11
 
 ### 🚀 Major Features & Enhancements
 - Unified ecosystem version bump across `ragasukma-core`, `ragasukma`, and `ragasukma-tui`.
 - Full parity between TUI and GUI interfaces with shared configuration, session history, and local router capabilities.
 - Native multiplatform packaging and release CI/CD automation.
 
-## [v0.2.0] - 2026-10-10
+## [v0.2.0] - 2026-11-03
 
 ### 🚀 Major Features & Enhancements
 - **Supertonic 3 & OpenVoice V2 Native Pipeline (Zero-Shot Voice Cloning)**:

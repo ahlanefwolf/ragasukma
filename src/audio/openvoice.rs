@@ -201,8 +201,7 @@ impl FastFft1024 {
 
     #[inline(always)]
     fn forward(&self, real: &mut [f32; 1024], imag: &mut [f32; 1024]) {
-        for i in 0..1024 {
-            let j = self.bit_rev[i];
+        for (i, &j) in self.bit_rev.iter().enumerate() {
             if i < j {
                 real.swap(i, j);
                 imag.swap(i, j);

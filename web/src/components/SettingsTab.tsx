@@ -200,7 +200,7 @@ export const SettingsTab: Component<SettingsTabProps> = (props) => {
   return (
     <form onSubmit={handleSave} class="space-y-6">
       {/* Header Banner */}
-      <div class="bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg p-4 sm:p-6 border border-theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="bg-theme-surface p-4 sm:p-6 border border-theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <span class="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
             System & Engine Preferences

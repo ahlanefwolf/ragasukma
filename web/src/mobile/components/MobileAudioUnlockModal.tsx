@@ -27,7 +27,7 @@ export const MobileAudioUnlockModal: Component<MobileAudioUnlockModalProps> = (p
           <button
             type="button"
             onClick={props.onUnlock}
-            class="w-full py-3 px-4 bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-bold text-xs uppercase tracking-wider shadow-[0_0_15px_rgba(var(--gi-primary-rgb),0.4)] active:scale-95 transition-transform"
+            class="w-full py-3 px-4 bg-gi-primary hover:bg-gi-primary-hover text-gi-primary-foreground font-semibold text-xs active:scale-95 transition-transform"
           >
             Enable Phone Audio
           </button>

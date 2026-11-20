@@ -139,7 +139,7 @@ impl TextToSpeech {
                             crate::engine::os_efficiency::notify_active();
                             let pc_stream_ref = native_pc_stream.as_ref();
                             let clean_for_closure = clean_text.clone();
-                            let emo_for_closure = emotion.clone();
+                            let emo_for_closure = emotion;
                             let voice_for_closure = voice.clone();
                             let lang_for_closure = lang.clone();
                             let cur_sent_idx = sentence_count;

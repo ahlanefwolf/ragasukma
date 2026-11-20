@@ -245,18 +245,13 @@ pub fn is_button_like_text(text: &str) -> bool {
     let char_count = trimmed.chars().count();
     let word_count = trimmed.split_whitespace().count();
 
-    if char_count <= 25
+    char_count <= 25
         && word_count <= 4
         && !trimmed.contains('\n')
         && !trimmed.ends_with('.')
         && !trimmed.ends_with('?')
         && !trimmed.ends_with('!')
         && !trimmed.ends_with(';')
-    {
-        return true;
-    }
-
-    false
 }
 
 /// Calculates similarity score between two texts (0.0 to 1.0)

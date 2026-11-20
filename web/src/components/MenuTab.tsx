@@ -21,7 +21,14 @@ import {
   Circle
 } from 'lucide-solid';
 import { api } from '../api';
+import pkg from '../../package.json';
+import {
+  CHANGELOG_ENTRIES,
+  getChangelogEntry,
+  type ChangelogEntry,
+} from '../services/changelog';
 import { AiCapabilitiesCard } from './AiCapabilitiesCard';
+import { MarkdownView } from './agent/MarkdownView';
 import { BrowserExtensionModal } from './BrowserExtensionModal';
 import { SystemAppsModal } from './SystemAppsModal';
 
@@ -65,7 +72,11 @@ async function getOrCreateWebAudioAnalyser(): Promise<AnalyserNode | null> {
   }
 }
 
-const CURRENT_APP_VERSION = 'v0.3.1';
+/**
+ * Current app version, derived from `web/package.json` — the single source of
+ * truth — so this can never drift from the actual build again.
+ */
+const CURRENT_APP_VERSION = `v${(pkg as { version?: string }).version ?? '0.0.0'}`;
 
 /**
  * Compares two SemVer versions (e.g. "v0.2.0" vs "0.10.0").
@@ -115,6 +126,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
     latestVersion: CURRENT_APP_VERSION,
     releaseName: '',
     releaseNotes: '',
+    releaseDate: '',
     releaseUrl: '',
   });
   let disposed = false;
@@ -287,12 +299,19 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
 
       const isNewer = compareSemVer(latestTag, CURRENT_APP_VERSION) > 0;
 
+      // Release description comes from the local CHANGELOG.md — the same file
+      // maintainers edit — so notes always match the shipped version. The
+      // GitHub API is only used as a fallback when the tag isn't recorded yet.
+      const entry: ChangelogEntry | undefined = getChangelogEntry(latestTag);
+
       setUpdateInfo({
         hasUpdate: isNewer,
         currentVersion: CURRENT_APP_VERSION,
-        latestVersion: latestTag,
-        releaseName: data.name || latestTag,
-        releaseNotes: data.body?.trim() || 'No release notes provided for this release.',
+        latestVersion: entry?.tag || latestTag,
+        releaseName: data.name || entry?.tag || latestTag,
+        releaseNotes:
+          entry?.notes?.trim() || data.body?.trim() || 'No release notes provided for this release.',
+        releaseDate: entry?.date || '',
         releaseUrl: data.html_url || 'https://github.com/ahlanefwolf/ragasukma/releases',
       });
       setUpdateModalOpen(true);
@@ -318,7 +337,7 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
   return (
     <div class="space-y-5">
       {/* 1. Hero Status & Master Control Card */}
-      <div class="bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg p-5 sm:p-6 border border-theme-border flex flex-col gap-4 shadow-sm">
+      <div class="bg-theme-surface p-5 sm:p-6 border border-theme-border flex flex-col gap-4 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div class="flex items-center gap-2">
@@ -548,14 +567,17 @@ export const MenuTab: Component<MenuTabProps> = (props) => {
             {/* Release Notes / Changelog */}
             <div class="p-5 overflow-y-auto space-y-4 flex-1 text-sm text-theme-text/90">
               <div class="p-3.5 bg-theme-bg border border-theme-border">
-                <h4 class="font-mono uppercase tracking-wider text-theme-cyan mb-1">Release Title</h4>
+                <h4 class="text-xs font-semibold text-theme-cyan mb-1">Release</h4>
                 <p class="font-bold text-base text-theme-text">{updateInfo()!.releaseName}</p>
+                {updateInfo()!.releaseDate && (
+                  <p class="text-xs text-theme-text/60 mt-0.5">{updateInfo()!.releaseDate}</p>
+                )}
               </div>
 
               <div>
-                <h4 class="font-mono uppercase tracking-wider text-theme-text/70 mb-2">Release Notes & Features</h4>
-                <div class="p-3.5 bg-theme-bg border border-theme-border text-xs font-mono text-theme-text/90 whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto custom-scrollbar">
-                  {updateInfo()!.releaseNotes}
+                <h4 class="text-xs font-semibold text-theme-text/70 mb-2">Release notes</h4>
+                <div class="p-3.5 bg-theme-bg border border-theme-border max-h-56 overflow-y-auto custom-scrollbar">
+                  <MarkdownView content={updateInfo()!.releaseNotes} />
                 </div>
               </div>
             </div>

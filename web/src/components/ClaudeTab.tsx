@@ -196,7 +196,7 @@ export const ClaudeTab: Component<ClaudeTabProps> = (props) => {
   return (
     <div class="space-y-6 animate-fade-in text-theme-text select-text">
       {/* Header Banner */}
-      <div class="bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg p-5 sm:p-6 border border-theme-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+      <div class="bg-theme-surface p-5 sm:p-6 border border-theme-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
         <div class="flex items-start gap-4">
           <div class="w-14 h-14 bg-[#D97757]/15 border border-[#D97757]/40 flex items-center justify-center text-[#D97757] shrink-0 shadow-sm mt-0.5">
             <Terminal size={28} />

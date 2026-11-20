@@ -164,7 +164,7 @@ export const SkillsTab: Component<SkillsTabProps> = (props) => {
   return (
     <div class="space-y-6">
       {/* Header Banner */}
-      <div class="bg-gradient-to-r from-theme-card via-theme-surface to-theme-bg p-5 sm:p-6 border border-theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="bg-theme-surface p-5 sm:p-6 border border-theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div class="flex items-center gap-2">
             <span class="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-theme-cyan/20 text-theme-cyan border border-theme-cyan/30">
