@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [v0.5.1] - 2026-11-21
+
+### 🚀 MCP Runtime & Agent Harness Reliability
+- **MCP stdio session lifecycle** (`ragasukma-core`): MCP subprocesses are now pooled per session/server, reused safely, and terminated cleanly during shutdown or replacement.
+- **Concurrent MCP request safety**: stdio requests use serialized session access with per-session request IDs, preventing response mix-ups and stale process replacement races.
+- **MCP notifications**: server notifications are retained in a bounded queue and can be drained by the host application.
+- **Structured MCP errors**: transport, timeout, malformed JSON, JSON-RPC, process-exit, and database PID update failures are classified with stable error codes.
+- **MCP HTTP transport reuse**: HTTP clients are shared and request timeouts are applied consistently.
+- **Session MCP state refresh**: discovered tools and live process PIDs are synchronized with session state more reliably.
+
+### 🔒 Agent Safety & Reliability
+- Hardened allowed-workspace path validation, including canonical path checks and symlink-aware containment handling.
+- Improved MCP server lifecycle cleanup and PID bookkeeping for dead or replaced processes.
+- Added an autonomous agent harness improvement roadmap covering recovery, failure classification, command policy, auditability, observability, and concurrency testing.
+
+### 🧪 Tests & Maintenance
+- Expanded MCP and tool-related regression coverage.
+- Applied repository-wide Rust formatting and normalized missing trailing newlines.
+
 ## [v0.5.0] - 2026-11-20
 
 ### 🚀 Ecosystem Version Bump
