@@ -195,8 +195,20 @@ pub fn ensure_default_user_assets() {
         let _ = fs::create_dir_all(&apps_dir);
         let desktop_file = apps_dir.join("ragasukma.desktop");
 
-        let exe_path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("ragasukma"));
-        let exec_str = exe_path.to_string_lossy();
+        // AppImage mounts the embedded binary under /tmp/.mount_... at runtime.
+        // Use $APPIMAGE for the desktop entry so the shortcut points to the
+        // persistent AppImage file instead of that temporary mount.
+        let launch_path = std::env::var_os("APPIMAGE")
+            .filter(|path| !path.is_empty())
+            .map(PathBuf::from)
+            .or_else(|| std::env::current_exe().ok())
+            .unwrap_or_else(|| PathBuf::from("ragasukma"));
+        let launch_path = fs::canonicalize(&launch_path).unwrap_or(launch_path);
+        let exe_dir = launch_path
+            .parent()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/"));
+        let exec_str = launch_path.to_string_lossy();
         let icon_cand = find_file_in_candidates("icon.png");
         let icon_path = if icon_cand.exists() {
             icon_cand
@@ -210,12 +222,14 @@ Version=1.0\n\
 Name=Ragasukma\n\
 Comment=AI Voice Assistant & 3D/2D Avatar Assistant\n\
 Exec=\"{}\"\n\
+Path={}\n\
 Icon={}\n\
 Terminal=false\n\
 Type=Application\n\
 Categories=Utility;AudioVideo;\n\
 StartupWMClass=ragasukma\n",
             exec_str,
+            exe_dir.to_string_lossy(),
             icon_path.to_string_lossy()
         );
 

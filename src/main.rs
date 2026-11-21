@@ -37,7 +37,22 @@ fn init_dpi_awareness() {
     }
 }
 
+/// Desktop launchers commonly start applications with `/` as their working
+/// directory. Release builds must not depend on that directory for bundled
+/// resources or runtime files.
+#[cfg(not(debug_assertions))]
+fn normalize_working_directory() {
+    if let Ok(executable) = std::env::current_exe()
+        && let Some(executable_dir) = executable.parent()
+    {
+        let _ = std::env::set_current_dir(executable_dir);
+    }
+}
+
 fn main() -> Result<()> {
+    #[cfg(not(debug_assertions))]
+    normalize_working_directory();
+
     #[cfg(target_os = "windows")]
     unsafe {
         use windows::Win32::System::Console::FreeConsole;
