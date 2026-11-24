@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [v0.5.2] - 2026-11-25
+
+### 🚀 Ecosystem Version Bump
+- Unified version bump to `0.5.2` across `ragasukma-core`, `ragasukma`, `ragasukma-tui`, the web dashboard, and the landing page.
+
+### 🐛 Bug Fixes & Provider Reliability (`ragasukma-core`)
+- **OAuth refresh parity (`43aedc6`)**: Aligned Codex, Claude, and Antigravity token refresh requests and stream terminal events with `9router-0.5.123` (JSON body for Codex/Claude, form encoding for Antigravity, and refined permanent `refresh_status` error classification).
+- **Antigravity 503 capacity resilience (`0b0f782`)**:
+  - Honoured Google's `RetryInfo.retryDelay` on `MODEL_CAPACITY_EXHAUSTED` (HTTP 503) instead of falling back to sub-second backoff.
+  - Raised `MAX_STREAM_ATTEMPTS` (3 → 4) and `BASE_RETRY_DELAY_MS` (800 → 1500), and treated `"capacity"` / `"temporarily unavailable"` errors as retryable.
+  - Preserved 503 errors across account rotation and removed the IDE-only `requestType: "agent"` field from the chat path.
+  - Cleaned up `sanitize_ag_function_name` delegation and payload forwarding tests.
+
+### 🔧 Chores (`ragasukma-core`)
+- **Dependency & version cleanup (`431d7b1`)**: Dropped unused dependencies, read version dynamically from `Cargo.toml`, and fixed cross-platform test behavior.
+
 ## [v0.5.1] - 2026-11-21
 
 ### 🚀 MCP Runtime & Agent Harness Reliability
