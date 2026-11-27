@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [v0.5.3] - 2026-11-27
+
+### ✨ New Features
+- **Auto-naming tasks from LLM response** (`ragasukma-core`, `ragasukma-tui`, `ragasukma`): Automatically generates a concise 3–6 word task title from the LLM's first response when the session still has a default placeholder title (`Task #...` / `New Task`), and persists it via `update_session_title`.
+
+### 🎨 UI Improvements (`ragasukma-tui`)
+- **Provider View account table**: Separated account email and status into distinct `Email` and `Status` table columns matching `custom_llm_view`.
+- **Agent View sidebar**: Removed redundant `[Running]` / `[Idle]` text labels, simplified token counts to `[<count>]`, and truncated overflowing task titles with `...`.
+
 ## [v0.5.2] - 2026-11-25
 
 ### 🚀 Ecosystem Version Bump

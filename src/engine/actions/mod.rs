@@ -14,7 +14,48 @@ pub use os_apps::{execute_app_action, execute_os_action, execute_os_or_app_actio
 pub use recipe::{execute_recipe, record_recipe_action};
 pub use todo_actions::execute_todo_action;
 
-use crate::engine::skills::{execute_command_by_os, parse_skills_markdown};
+pub fn execute_command_by_os(cmd: &str) -> std::io::Result<()> {
+    #[cfg(target_os = "windows")]
+    {
+        let trimmed = cmd.trim();
+        if !trimmed.contains('|')
+            && !trimmed.contains('&')
+            && !trimmed.contains('>')
+            && !trimmed.contains('<')
+        {
+            if let Some((prog, args)) = trimmed.split_once(' ') {
+                let clean_prog = prog.trim_matches('"');
+                let clean_args = args.trim_matches('"');
+                let mut direct_cmd = std::process::Command::new(clean_prog);
+                direct_cmd.arg(clean_args);
+                crate::agent::engine::subprocess::configure_subprocess(&mut direct_cmd);
+                if direct_cmd.spawn().is_ok() {
+                    return Ok(());
+                }
+            } else {
+                let clean_prog = trimmed.trim_matches('"');
+                let mut direct_cmd = std::process::Command::new(clean_prog);
+                crate::agent::engine::subprocess::configure_subprocess(&mut direct_cmd);
+                if direct_cmd.spawn().is_ok() {
+                    return Ok(());
+                }
+            }
+        }
+
+        let mut command = std::process::Command::new("cmd");
+        command.args(["/S", "/C", &format!("\"{trimmed}\"")]);
+        crate::agent::engine::subprocess::configure_subprocess(&mut command);
+        command.spawn()?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut command = std::process::Command::new("sh");
+        command.args(["-c", cmd]);
+        crate::agent::engine::subprocess::configure_subprocess(&mut command);
+        command.spawn()?;
+    }
+    Ok(())
+}
 
 /// Executes skill based on canonical format `namespace:action|payload` or `namespace:action`
 pub fn execute_skill_by_identifier(identifier: &str) -> Option<(String, String)> {
@@ -47,18 +88,6 @@ pub fn execute_skill_by_identifier(identifier: &str) -> Option<(String, String)>
         ("internal", "open_extension_installer") => {
             browser::execute_browser_action("open_ext_folder", "")
         }
-        _ => {
-            // Check Custom Skills in skill-command.md
-            let skills = parse_skills_markdown();
-            for skill in skills {
-                if skill.name.eq_ignore_ascii_case(raw) {
-                    match execute_command_by_os(&skill.command) {
-                        Ok(_) => return Some((skill.name, "Executed successfully".to_string())),
-                        Err(e) => return Some((skill.name, format!("Error: {e}"))),
-                    }
-                }
-            }
-            None
-        }
+        _ => None,
     }
 }

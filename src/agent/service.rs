@@ -532,8 +532,20 @@ async fn run_session(
 
     let sid_for_task = session_id.clone();
     let handle = tokio::spawn(async move {
-        if let Err(e) = crate::agent::executor::execute_session_turn(&sid_for_task, model_override.as_deref()).await {
-            eprintln!("[Agent] Execution error for session {}: {}", sid_for_task, e);
+        match crate::agent::executor::execute_session_turn(&sid_for_task, model_override.as_deref()).await {
+            Ok(outcome) => {
+                if outcome.is_completed() {
+                    let reply = outcome.reply().to_string();
+                    tokio::spawn(maybe_auto_name_session(
+                        sid_for_task.clone(),
+                        model_override,
+                        reply,
+                    ));
+                }
+            }
+            Err(e) => {
+                eprintln!("[Agent] Execution error for session {}: {}", sid_for_task, e);
+            }
         }
         crate::agent::executor::unregister_session_task(&sid_for_task);
     });
@@ -541,6 +553,65 @@ async fn run_session(
     crate::agent::executor::register_session_task(&session_id, handle.abort_handle());
 
     (StatusCode::OK, Json(json!({"status": "started", "session_id": id})))
+}
+
+async fn maybe_auto_name_session(
+    session_id: String,
+    model_override: Option<String>,
+    reply: String,
+) {
+    let Ok(Some(session)) = crate::agent::repository::get_session(&session_id).await else {
+        return;
+    };
+
+    if !session.title.starts_with("Task #") && session.title != "New Task" {
+        return;
+    }
+
+    let model = model_override.or(session.model);
+    let snippet: String = reply.chars().take(600).collect();
+
+    let generated = tokio::task::spawn_blocking(move || {
+        let mut client = crate::llm::LlmClient::new();
+        if let Some(m) = model.filter(|m| !m.trim().is_empty()) {
+            client.model = m;
+        }
+        let messages = vec![
+            crate::llm::types::ChatMessage {
+                role: "system".to_string(),
+                content: "Generate a concise 3 to 6 word title for this task based on the assistant's response. \
+                          Reply with ONLY the title, no quotes, no markdown, no trailing punctuation."
+                    .to_string(),
+            },
+            crate::llm::types::ChatMessage {
+                role: "user".to_string(),
+                content: snippet,
+            },
+        ];
+        client.complete_messages_silent(&messages)
+    })
+    .await;
+
+    let Ok(Ok(raw_title)) = generated else {
+        return;
+    };
+
+    let clean_title: String = raw_title
+        .lines()
+        .next()
+        .unwrap_or("")
+        .trim()
+        .trim_matches(|c| c == '"' || c == '\'' || c == '`')
+        .trim()
+        .chars()
+        .take(50)
+        .collect();
+
+    if clean_title.is_empty() {
+        return;
+    }
+
+    let _ = crate::agent::repository::update_session_title(&session_id, &clean_title).await;
 }
 
 async fn stop_session(

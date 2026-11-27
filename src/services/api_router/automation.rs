@@ -15,10 +15,6 @@ pub fn register_automation_routes(
     router: Router<Arc<Mutex<ServerSharedState>>>,
 ) -> Router<Arc<Mutex<ServerSharedState>>> {
     router
-        // Skills
-        .route("/api/skills", get(axum_get_skills).post(axum_post_skills))
-        .route("/api/skills/delete", post(axum_delete_skill))
-        .route("/api/skills/run", post(axum_run_skill))
         // Todos
         .route("/api/todos", get(axum_get_todos).post(axum_post_todo))
         .route("/api/todos/complete", post(axum_complete_todo))
@@ -41,54 +37,6 @@ pub fn register_automation_routes(
         .route("/api/remote/tunnel/stop", post(axum_tunnel_stop))
         .route("/api/remote/active", post(axum_remote_active))
         .route("/api/remote/text", post(axum_remote_text))
-}
-
-// -----------------------------------------------------------------------------
-// 1. Skills Service
-// -----------------------------------------------------------------------------
-pub(crate) async fn axum_get_skills() -> impl IntoResponse {
-    let skills = crate::engine::skills::sync_skills_from_db().await;
-    Json(skills)
-}
-
-#[derive(Deserialize)]
-pub(crate) struct AddSkillPayload {
-    pub(crate) name: String,
-    #[serde(default)]
-    pub(crate) description: String,
-    pub(crate) command: String,
-}
-
-pub(crate) async fn axum_post_skills(Json(item): Json<AddSkillPayload>) -> impl IntoResponse {
-    let skill = crate::engine::SkillItem::new(
-        item.name,
-        item.description,
-        item.command,
-    );
-    match crate::engine::skills::save_skill_to_db(&skill).await {
-        Ok(_) => Json(json!({ "success": true })).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": e })),
-        )
-            .into_response(),
-    }
-}
-
-#[derive(Deserialize)]
-pub(crate) struct DeleteSkillPayload {
-    pub(crate) name: String,
-}
-
-pub(crate) async fn axum_delete_skill(Json(item): Json<DeleteSkillPayload>) -> impl IntoResponse {
-    match crate::engine::skills::delete_skill_from_db(&item.name).await {
-        Ok(_) => Json(json!({ "success": true })).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": e })),
-        )
-            .into_response(),
-    }
 }
 
 // -----------------------------------------------------------------------------
@@ -150,29 +98,6 @@ pub(crate) struct DeleteTodoPayload {
 pub(crate) async fn axum_delete_todo(Json(payload): Json<DeleteTodoPayload>) -> impl IntoResponse {
     let removed = crate::engine::todo::delete_task(payload.id);
     Json(json!({ "success": removed })).into_response()
-}
-
-#[derive(Deserialize)]
-pub(crate) struct RunSkillPayload {
-    #[serde(alias = "cmd")]
-    pub(crate) command: String,
-}
-
-pub(crate) async fn axum_run_skill(Json(payload): Json<RunSkillPayload>) -> impl IntoResponse {
-    let cmd = payload.command.trim();
-    if let Some((name, res)) = crate::engine::execute_skill_by_identifier(cmd) {
-        println!("[Skill Run UI] Executing internal skill '{}' -> {}", name, res);
-        return Json(json!({ "success": true, "message": res })).into_response();
-    }
-    if let Err(e) = crate::engine::execute_command_by_os(cmd) {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": e.to_string() })),
-        )
-            .into_response()
-    } else {
-        Json(json!({ "success": true })).into_response()
-    }
 }
 
 // -----------------------------------------------------------------------------

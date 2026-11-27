@@ -1,6 +1,6 @@
 use super::catalog::get_builtin_system_skills;
 use crate::engine::app_scanner::get_installed_applications;
-use crate::engine::skills::execute_command_by_os;
+use super::execute_command_by_os;
 
 /// Combined handler for OS system control and application launching
 pub fn execute_os_or_app_action(
@@ -167,7 +167,7 @@ pub fn execute_app_action(payload: &str) -> Option<(String, String)> {
         let mac_cmd = format!("open -a \"{q_clean}\" 2>/dev/null || ({q_clean} &)");
         let mut command = std::process::Command::new("sh");
         command.args(["-c", &mac_cmd]);
-        crate::engine::skills::configure_subprocess(&mut command);
+        crate::agent::engine::subprocess::configure_subprocess(&mut command);
         if command.spawn().is_ok() {
             return Some((
                 format!("Open {q_clean}"),
@@ -547,7 +547,7 @@ pub fn launch_app(app: &crate::engine::app_scanner::InstalledApp) -> std::io::Re
         let mac_cmd = format!("open -a \"{}\" 2>/dev/null || ({})", app.name, app.exec);
         let mut command = std::process::Command::new("sh");
         command.args(["-c", &mac_cmd]);
-        crate::engine::skills::configure_subprocess(&mut command);
+        crate::agent::engine::subprocess::configure_subprocess(&mut command);
         command.spawn()?;
         Ok(())
     }
@@ -761,7 +761,7 @@ pub fn launch_linux_command(cmd_str: &str) -> std::io::Result<()> {
     let detached = format!("nohup {cmd_str} >/dev/null 2>&1 &");
     let mut command = std::process::Command::new("sh");
     command.args(["-c", &detached]);
-    crate::engine::skills::configure_subprocess(&mut command);
+    crate::agent::engine::subprocess::configure_subprocess(&mut command);
     command.spawn()?;
     Ok(())
 }

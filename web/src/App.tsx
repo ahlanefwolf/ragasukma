@@ -5,7 +5,6 @@ import { RecipesTab } from './components/RecipesTab';
 import { HistoryTab } from './components/HistoryTab';
 import { UsageTab } from './components/UsageTab';
 
-import { SkillsTab } from './components/SkillsTab';
 import { MusicTab } from './components/MusicTab';
 import { TunerTab } from './components/tuner/TunerTab';
 import { LogsTab } from './components/LogsTab';
@@ -42,7 +41,6 @@ const TAB_HASH_ALIASES: Record<string, string> = {
   '#usage': 'usage',
   '#tokens': 'usage',
   '#token-usage': 'usage',
-  '#skills': 'skills',
   '#music': 'music',
   '#tuner': 'tuner',
   '#logs': 'logs',
@@ -441,9 +439,6 @@ const App: Component = () => {
                   <UsageTab showToast={showToast} />
                 </Show>
 
-                <Show when={activeTab() === 'skills'}>
-                  <SkillsTab showToast={showToast} />
-                </Show>
                 <Show when={activeTab() === 'music'}>
                   <MusicTab showToast={showToast} />
                 </Show>

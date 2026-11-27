@@ -84,39 +84,6 @@ pub fn load_skills_summary_indexed(query: Option<&str>) -> String {
         }
     }
 
-    let mut seen_names = HashSet::new();
-    let mut lines = Vec::new();
-
-    // User custom skills from SQLite database / cache
-    let custom_skills = crate::engine::parse_skills_markdown();
-    let is_skill_req = is_generic_or_init || is_skill_intent(&q_clean);
-
-    for s in &custom_skills {
-        let key = s.name.trim().to_lowercase();
-        let matches_query = is_skill_req || (!q_clean.is_empty() && (q_clean.contains(&key) || key.contains(&q_clean)));
-
-        if matches_query && !seen_names.contains(&key) {
-            seen_names.insert(key);
-            lines.push(format!(
-                "| `[SKILL:{}]` | As defined in script | {} |",
-                s.name, s.description
-            ));
-        }
-    }
-
-    let custom_skills_text = if lines.is_empty() {
-        if is_generic_or_init || custom_skills.is_empty() {
-            "*(No additional custom skills registered)*".to_string()
-        } else {
-            "*(No matching custom skills for this request)*".to_string()
-        }
-    } else {
-        format!(
-            "| Custom Skill Tag | Parameter | Description |\n| :--- | :--- | :--- |\n{}",
-            lines.join("\n")
-        )
-    };
-
     // Load registered automation recipes from assets/recipes/*.json
     let should_include_recipes = is_generic_or_init
         || is_browser_intent(&q_clean)
@@ -212,11 +179,8 @@ GLOBAL UTILITY ACTION CATALOG:
 | To-Do | [CMD:todo:add|task] | '[happy] Added! [CMD:todo:add|Buy coffee]' |
 | To-Do | [CMD:todo:done|keyword] | '[happy] Done! [CMD:todo:done|Buy coffee]' |
 
-REGISTERED CUSTOM SKILLS:
-{}
-
 RULE: Action tags [CMD:...] or [SKILL:...] run silently in background — NOT spoken aloud by TTS. For plain conversation, NEVER include command tags.",
-        recipes_text, custom_skills_text
+        recipes_text
     );
 
     if is_generic_or_init {

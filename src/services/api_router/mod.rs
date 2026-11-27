@@ -94,15 +94,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_axum_get_skills() {
-        let res = axum_get_skills().await.into_response();
-        assert_eq!(res.status(), StatusCode::OK);
-        let bytes = to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
-        let val: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert!(val.is_array());
-    }
-
-    #[tokio::test]
     async fn test_axum_get_recipes() {
         let res = axum_get_recipes().await.into_response();
         assert_eq!(res.status(), StatusCode::OK);

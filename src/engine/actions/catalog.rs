@@ -1,4 +1,9 @@
-use crate::engine::skills::SkillItem;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillItem {
+    pub name: String,
+    pub description: String,
+    pub command: String,
+}
 
 /// Built-in system actions, auto-activated per OS (Linux / Windows / macOS)
 pub fn get_builtin_system_skills() -> Vec<SkillItem> {

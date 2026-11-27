@@ -183,7 +183,7 @@ pub fn execute_media_action(action: &str, payload: &str) -> Option<(String, Stri
             {
                 let mut cmd = std::process::Command::new("open");
                 cmd.arg(&abs_str);
-                crate::engine::skills::configure_subprocess(&mut cmd);
+                crate::agent::engine::subprocess::configure_subprocess(&mut cmd);
                 let _ = cmd.spawn();
             }
 
@@ -191,7 +191,7 @@ pub fn execute_media_action(action: &str, payload: &str) -> Option<(String, Stri
             {
                 let mut cmd = std::process::Command::new("xdg-open");
                 cmd.arg(&abs_str);
-                crate::engine::skills::configure_subprocess(&mut cmd);
+                crate::agent::engine::subprocess::configure_subprocess(&mut cmd);
                 let _ = cmd.spawn();
             }
 

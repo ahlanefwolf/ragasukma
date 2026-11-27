@@ -30,10 +30,6 @@ export const api = {
   setTunerLive: posesService.setTunerLive,
 
   // Skills Service
-  getSkills: skillsService.getSkills,
-  saveSkill: skillsService.saveSkill,
-  deleteSkill: skillsService.deleteSkill,
-  runSkill: skillsService.runSkill,
   getSystemApps: skillsService.getSystemApps,
   getExtensionPath: skillsService.getExtensionPath,
 
