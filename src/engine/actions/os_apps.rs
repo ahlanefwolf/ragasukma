@@ -620,7 +620,6 @@ fn launch_windows_exec(exec: &str) -> std::io::Result<()> {
         let mut cmd = std::process::Command::new("explorer.exe");
         cmd.arg(trimmed);
         cmd.creation_flags(CREATE_NO_WINDOW);
-        crate::engine::skills::configure_subprocess(&mut cmd);
         if cmd.spawn().is_ok() {
             return Ok(());
         }

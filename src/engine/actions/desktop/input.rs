@@ -248,8 +248,9 @@ pub fn read_clipboard_text() -> Option<String> {
 
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         let mut cmd = std::process::Command::new("powershell");
-        crate::engine::skills::configure_subprocess(&mut cmd);
+        cmd.creation_flags(0x08000000);
         cmd.args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", "Get-Clipboard"]);
         if let Ok(output) = cmd.output() {
             if output.status.success() {
